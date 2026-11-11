@@ -1,0 +1,269 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/codex/agent-run-manifest.schema.json",
+  "title": "Codex Agent Run Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "agent_role",
+    "status",
+    "repo",
+    "task",
+    "inputs",
+    "outputs",
+    "provenance",
+    "accountability"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent_role": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "complete",
+        "blocked_runtime",
+        "blocked_missing_artifact",
+        "blocked_validation",
+        "blocked_local_memory_cli",
+        "failed_artifact_validation"
+      ]
+    },
+    "repo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "branch",
+        "headSha",
+        "cwd"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "headSha": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cwd": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "objective",
+        "coordinator"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objective": {
+          "type": "string",
+          "minLength": 1
+        },
+        "coordinator": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractHash",
+        "promptHash",
+        "startedAt",
+        "completedAt"
+      ],
+      "properties": {
+        "contractHash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "promptHash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "startedAt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "completedAt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unknownProvenanceReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "accountability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_paths",
+        "findings",
+        "failures_or_blockers",
+        "improvement_opportunities",
+        "strengths",
+        "validation_evidence",
+        "next_action",
+        "positive_performance"
+      ],
+      "properties": {
+        "artifact_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "failures_or_blockers": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "improvement_opportunities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "strengths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "validation_evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "local_memory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "method",
+            "status"
+          ],
+          "properties": {
+            "method": {
+              "const": "cli"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "used",
+                "not_needed",
+                "blocked_local_memory_cli"
+              ]
+            },
+            "evidence": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "positive_performance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "useful_findings",
+            "avoided_false_positive",
+            "evidence_quality",
+            "followed_scope",
+            "reusable_learning",
+            "coordinator_score"
+          ],
+          "properties": {
+            "useful_findings": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "avoided_false_positive": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_quality": {
+              "type": "string",
+              "minLength": 1
+            },
+            "followed_scope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reusable_learning": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "coordinator_score": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+# Synthetic migration preview only; not the complete managed Codex policy.
+approval_policy = "on-request"
+sandbox_mode = "read-only"
+
+[projects.{{project_root}}]
+trust_level = "untrusted"

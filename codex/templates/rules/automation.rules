@@ -1,0 +1,78 @@
+# Automation-specific allowlist for unattended Codex runs.
+# Keep this file narrow: reviewed cross-root reads and safe automation support
+# commands only. One-off approvals must not become permanent rules.
+
+# Former single-file cat exceptions accepted additional trailing secret paths.
+# Cross-root reads now use the same task-authority and sandbox policy as other
+# content reads; a known first filename does not validate the whole command.
+prefix_rule(
+    pattern = ["gh", "repo", "view"],
+    decision = "allow",
+    justification = "Allow read-only GitHub repository inspection for guardrail automations.",
+    match = ["gh repo view owner/repo"],
+    not_match = ["gh repo edit owner/repo"],
+)
+prefix_rule(
+    pattern = ["gh", "repo", "list"],
+    decision = "allow",
+    justification = "Allow read-only GitHub repository listing for guardrail automations.",
+    match = ["gh repo list owner"],
+    not_match = ["gh repo create owner/repo"],
+)
+prefix_rule(
+    pattern = ["git", "rev-parse"],
+    decision = "allow",
+    justification = "Allow git repository shape and path checks for unattended automation triage.",
+    match = ["git rev-parse --is-inside-work-tree", "git rev-parse --show-toplevel"],
+    not_match = ["git reset --hard HEAD"],
+)
+prefix_rule(
+    pattern = ["git", "ls-files"],
+    decision = "allow",
+    justification = "Allow tracked-file inspection without modifying repository state.",
+    match = ["git ls-files", "git ls-files --others --exclude-standard"],
+    not_match = ["git add ."],
+)
+prefix_rule(
+    pattern = ["git", "rev-list"],
+    decision = "allow",
+    justification = "Allow history inspection for release, secret, and regression triage automations.",
+    match = ["git rev-list --count HEAD", "git rev-list --max-count=20 HEAD"],
+    not_match = ["git revert HEAD"],
+)
+prefix_rule(
+    pattern = ["git", "for-each-ref"],
+    decision = "allow",
+    justification = "Allow branch and ref inspection for safe local branch pruning workflows.",
+    match = ["git for-each-ref refs/heads --format=%(refname:short)"],
+    not_match = ["git update-ref refs/heads/main HEAD~1"],
+)
+prefix_rule(
+    pattern = ["git", "branch", "--merged"],
+    decision = "allow",
+    justification = "Allow merged-branch inspection for the reviewed local prune automation.",
+    match = ["git branch --merged", "git branch --merged main"],
+    not_match = ["git branch -d topic"],
+)
+prefix_rule(
+    pattern = ["git", "branch", "-d", "main"],
+    decision = "forbidden",
+    justification = "Never allow unattended automation to delete the local primary main branch.",
+)
+prefix_rule(
+    pattern = ["git", "branch", "-d", "master"],
+    decision = "forbidden",
+    justification = "Never allow unattended automation to delete the local primary master branch.",
+)
+prefix_rule(
+    pattern = ["git", "branch", "-d", "develop"],
+    decision = "forbidden",
+    justification = "Never allow unattended automation to delete the local primary develop branch.",
+)
+prefix_rule(
+    pattern = ["git", "branch", "-d"],
+    decision = "prompt",
+    justification = "Branch deletion needs operator confirmation because prefix rules cannot prove the branch is currently merged.",
+    match = ["git branch -d feature/already-merged"],
+    not_match = ["git branch -D feature/not-merged", "git branch --merged main"],
+)

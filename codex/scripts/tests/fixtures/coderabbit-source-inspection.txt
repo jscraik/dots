@@ -1,0 +1,40 @@
+<!-- This is an auto-generated reply by CodeRabbit -->
+> [!TIP]
+> For best results, initiate chat on the files or code changes.
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🏁 Script executed:
+
+```shell
+git diff BASE HEAD --stat
+```
+
+Length of output: 42
+
+---
+
+</details>
+
+`@fixture-owner` Independent source inspection completed for the current PR diff.
+
+No findings for HEAD.
+
+**Inspection evidence**
+- Confirmed the PR head and local checkout match the requested commit.
+- Inspected both changed files against base `BASE`.
+- Parsed `codex/config.toml`. The memory values match JSC-511 and the checked-in schema.
+- Verified that the launcher change preserves `CODEX_VALIDATION_CODEX_BIN`, runtime isolation, hook trust checks, and required-mode failures.
+- Inspected the existing canonical policy comparison and Desktop-owned plugin preservation code.
+
+**Validation limits**
+I did not execute repository code or the Desktop launcher. Actual workstation runtime agreement and required-mode execution remain author-provided evidence. Memory model availability and execution quality were not independently tested.
+
+Current hosted results report success for `config-governance` and `ci/circleci: test`. These results supersede the earlier reported timeout and failure.
+
+I did not change source, enable services, approve, merge, or resolve threads.
+
+[full_review]
+
+_You are interacting with an AI system._

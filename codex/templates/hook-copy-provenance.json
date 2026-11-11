@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "source_status": "reviewed uncommitted snapshot; not an accepted commit",
+  "publisher_sha256": "86c37920137fe6019de8064f1c4295dd00a0c79f055ebef840baeb1c2ca59ff5",
+  "manifest_sha256": "5104c0bb1702f5a151cb45a6bed3c8951f6de0e789fed7482e0d735946823192",
+  "transformations": [
+    "explicit disposable scope",
+    "home-relative quoted Braid launcher",
+    "regular-copy validator including hard-link rejection",
+    "source confinement applies to publication and without-braid rendering",
+    "disposable scope uses the system temporary root and excludes account-home descendants"
+  ],
+  "installation_authorised": false,
+  "handler_closure_ported": true,
+  "handler_source": "accepted Configs revision recorded in handler-provenance.json",
+  "external_adapter_execution_proven": false
+}

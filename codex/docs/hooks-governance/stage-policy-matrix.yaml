@@ -1,0 +1,30 @@
+{
+  "required_gate_categories": [
+    "docstrings",
+    "lint",
+    "typecheck",
+    "spelling",
+    "unit",
+    "formatting"
+  ],
+  "events": {
+    "PreToolUse": {
+      "supported_blockers": [
+        "hookSpecificOutput.permissionDecision=deny",
+        "decision=block",
+        "exit_code=2"
+      ]
+    },
+    "Stop": {
+      "matcher_supported": false
+    },
+    "UserPromptSubmit": {
+      "matcher_supported": false
+    }
+  },
+  "required_stage_entrypoints": [
+    "hooks-pre-commit",
+    "hooks-pre-push"
+  ],
+  "require_commit_msg_policy": true
+}

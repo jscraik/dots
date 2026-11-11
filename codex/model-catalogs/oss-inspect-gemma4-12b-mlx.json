@@ -1,0 +1,59 @@
+{
+  "client_version": "0.142.5",
+  "models": [
+    {
+      "slug": "gemma4:12b-mlx",
+      "display_name": "Gemma 4 12B MLX",
+      "description": "Local Ollama Gemma 4 12B MLX model for sanitized, read-only KnowledgeOS inspection and A/B evidence judging.",
+      "default_reasoning_level": "low",
+      "supported_reasoning_levels": [
+        {
+          "effort": "low",
+          "description": "Bounded reasoning for read-only inspection"
+        },
+        {
+          "effort": "medium",
+          "description": "Deeper reasoning for an explicitly bounded inspection"
+        },
+        {
+          "effort": "high",
+          "description": "Maximum supported inspection reasoning"
+        }
+      ],
+      "shell_type": "shell_command",
+      "visibility": "list",
+      "supported_in_api": false,
+      "priority": 1,
+      "additional_speed_tiers": [],
+      "service_tiers": [],
+      "availability_nux": null,
+      "upgrade": null,
+      "base_instructions": "You are running a bounded, read-only inspection. Use sanitized generated artifacts only, preserve producer/consumer boundaries, and return final evidence without hidden reasoning.",
+      "model_messages": {
+        "instructions_template": "You are running a bounded, read-only inspection. Use sanitized generated artifacts only, preserve producer/consumer boundaries, and return final evidence without hidden reasoning.",
+        "instructions_variables": {}
+      },
+      "supports_reasoning_summaries": false,
+      "default_reasoning_summary": "none",
+      "support_verbosity": false,
+      "default_verbosity": "low",
+      "apply_patch_tool_type": "freeform",
+      "web_search_tool_type": "text_and_image",
+      "truncation_policy": {
+        "mode": "tokens",
+        "limit": 8192
+      },
+      "supports_parallel_tool_calls": false,
+      "supports_image_detail_original": true,
+      "context_window": 262144,
+      "max_context_window": 262144,
+      "experimental_supported_tools": [],
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "supports_search_tool": false,
+      "use_responses_lite": false
+    }
+  ]
+}

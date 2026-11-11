@@ -1,0 +1,7 @@
+codex/config.toml
+codex/hooks/session-start.sh
+codex/scripts/validate-codex-config.py
+codex/reports/workflow-improvements/2026-07-03-daily-workflow-improvement-sweep.md
+codex/schemas/workflow-closeout.v1.schema.json
+codex/rules/workflow-anti-patterns.semgrep.yml
+codex/notes/runtime-rules.yaml

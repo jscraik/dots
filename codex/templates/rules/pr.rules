@@ -1,0 +1,29 @@
+# Codex PR Governance Rules (execpolicy-compatible)
+# Note: prefix_rule cannot enforce missing flags; use prompt + justification.
+
+# Allow read-only PR inspection
+prefix_rule(
+    pattern = ["gh", "pr", ["view", "list", "status", "diff", "checks"]],
+    decision = "allow",
+    justification = "Read-only PR inspection is allowed.",
+    match = ["gh pr view 123", "gh pr list", "gh pr status", "gh pr diff 123", "gh pr checks 123"],
+    not_match = ["gh pr create"],
+)
+
+# Prompt for PR creation; the readiness hook enforces the create receipt.
+prefix_rule(
+    pattern = ["gh", "pr", "create"],
+    decision = "prompt",
+    justification = "PR creation requires matching task authority, a template-valid body and a fresh create receipt enforced by the readiness hook.",
+    match = ["gh pr create"],
+)
+
+# Command rules cannot prove authorization or readiness. Preserve the applicable
+# update/reconciliation receipt and the governed body-only repair exception.
+prefix_rule(
+    pattern = ["gh", "pr", ["edit", "comment", "ready", "merge", "close", "reopen", "review"]],
+    decision = "prompt",
+    justification = "PR writes require matching task authority and the applicable readiness or reconciliation receipt; body-only repairs use the governed repair helper.",
+    match = ["gh pr edit 123", "gh pr comment 123 --body-file /tmp/comment.md", "gh pr merge 123", "gh pr review 123 --approve"],
+    not_match = ["gh pr view 123"],
+)

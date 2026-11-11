@@ -1,0 +1,29 @@
+{
+  "event_name": "PreToolUse",
+  "candidates": [
+    {
+      "gate_id": "command-safety",
+      "owner_layer": "global_codex",
+      "source_path": "~/.codex/hooks/pre-tool-use-guard.sh",
+      "decision": "block",
+      "reason": "global safeguard denied destructive command",
+      "is_canonical_owner": false
+    },
+    {
+      "gate_id": "command-safety",
+      "owner_layer": "git_local",
+      "source_path": "/repo/.git/hooks/pre-commit",
+      "decision": "block",
+      "reason": "repo-local canonical gate denied push",
+      "is_canonical_owner": true
+    },
+    {
+      "gate_id": "command-safety",
+      "owner_layer": "project_codex",
+      "source_path": "/repo/.codex/hooks/pre-tool-use.sh",
+      "action": "allow-with-warning",
+      "reason": "project hook warning",
+      "is_canonical_owner": false
+    }
+  ]
+}

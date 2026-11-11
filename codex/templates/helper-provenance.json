@@ -1,0 +1,844 @@
+{
+  "schema_version": 1,
+  "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
+  "state": "inactive fixture-only port",
+  "files": [
+    {
+      "path": "codex/scripts/check-evidence-freshness.py",
+      "source_sha256": "00bb32dc9bfd4ee54eb48d2f69edbdbfe5294eca90d1fc337e45d1d740ddb21b",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "55ef7e6c1a49876995c4367f0ef1b95f233cec5c2588e9af1e8972d9721aba3e"
+    },
+    {
+      "path": "codex/scripts/workflow-closeout.py",
+      "source_sha256": "73ea40a215bfa4d266443a1b1f750e8a0a1157b784c6e8676fb3a934b991711c",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "3160e004c7b814144f72420e5a7602363fc79252f495fc5735441c0be540bc14"
+    },
+    {
+      "path": "codex/scripts/select-validation-for-changes.py",
+      "source_sha256": "cc25c694cb3bba413b91b9ab4cd01e1187ba05008baf95bf8f0549674baaae84",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "9f00e0d68c4fb10b416717c5ea1f6bfc5e996039cadbf0cb1512c7a86dd3c1d4"
+    },
+    {
+      "path": "codex/scripts/check-branch-pr-truth.py",
+      "source_sha256": "728577535784d042f7853269a25170625304480ad776a2df5f7da0a23a4063b1",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "71efa555a89db61ba7d59e330325326e83291c502b85b6d08ca3d70900f355f4"
+    },
+    {
+      "path": "codex/scripts/duplication_advisory.py",
+      "source_sha256": "ebe43146e1cfe58f3a421064c5b19becdaa7503dd7eec58a6d871994c295d296",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "ca0fd1aa7d65d6260d504cdc6cf46eb99e6ce7b9284d8c9c690d0aa3ad1581b8"
+    },
+    {
+      "path": "codex/scripts/validate-instruction-routing.py",
+      "source_sha256": "40b0f9650238ecc973f26e3e8be7d7de093c94d53893935c9f13ed008fd9f380",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "bf60d5ad0e207ecd346fa6b38f59861caeb23493d009ef92ba7044851b41f0bc"
+    },
+    {
+      "path": "codex/scripts/validate-agent-governance.py",
+      "source_sha256": "8e7fd3bc48df481bb5b25717c0ec1407b9bca838b8449006d2bdfd1fec10492a",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "3ae45c5e73d6a0e910914de61701a93e3b107d674994aac9d236a1af7ef40e8f"
+    },
+    {
+      "path": "codex/scripts/validate-agent-artifacts.py",
+      "source_sha256": "a10570ec15976168d212b311fc198f9a1f44bcd3f557574887e9ca07b163bb13",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "02bac128b39cd7af5f3873b437d734fdcba1959805a0217d560e865333149043"
+    },
+    {
+      "path": "codex/scripts/render-agent-artifact-summary.py",
+      "source_sha256": "64b850e7e711e5c884728b64b462e31718ffe4a01a9bd90efed55c7b04004c39",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "e52edd43dfa0e2f6207305742307782aad331a48fd25f316a602f6872017b65b"
+    },
+    {
+      "path": "codex/scripts/plan-graph-lint.py",
+      "source_sha256": "fadec95f2e9690cec89efc22f008226ce087941a4bfbf2010f6caa4416a5960b",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "9b22d9c0a38ea4ed71b417b0338adaf297ed09eb6f39ef94e09f1bc109741ac9"
+    },
+    {
+      "path": "codex/scripts/pr_finding_history.py",
+      "source_sha256": "ca3d6464262df2b32687633971391cfc990126a983618f17b63a3818989b8b92",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "c03b21a6ddfea47e5438b9568bbb6bc1722c7553d5bcf46fc86b308c59a198be"
+    },
+    {
+      "path": "codex/scripts/pr_maintainer_acceptance.py",
+      "source_sha256": "c108199f2d30ec581992c5d99383e25de80ae6c80497c215c5bbb8fb140068d5",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "d55e21ed6a8714d668d4a5d186ba096e77320ef2f856d4b0f00665eb2e5afdbf"
+    },
+    {
+      "path": "codex/scripts/verify-review-repairs.py",
+      "source_sha256": "d155a596b8eedfe32d0eacc4a5662fa286bc10a40e3f184ff88d46e7885272b5",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "d82bfa33ceed54d9e4cb0c84cb2c5a559d6b93ec323159e1e24b12cf520d2d4c"
+    },
+    {
+      "path": "codex/scripts/pr-body-refresh.py",
+      "source_sha256": "37a56c2c014a61def2b717451a3df45de4cc0e749fec35e220f3848eb054a2dd",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "a95399df0e6149b17f2bd09988655aab89946b18f5b6111147ff6d3a936cf9cd"
+    },
+    {
+      "path": "codex/scripts/pr-review-request.py",
+      "source_sha256": "9f150e5f99600ed5c927438c2d2137f9c72d44b192c0c6bbd3984561c0ec2fd0",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "4d9c25c84201431336607c284df38711db5852a5fc733c041b765223966df4d7"
+    },
+    {
+      "path": "codex/scripts/pr-post-merge-reconciliation.py",
+      "source_sha256": "06cea6f73b47dd50f6af42c0e68b9905e495f02542e3a1c6a6f31c33647d9c36",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "0e3b7394dcf364af38665c37ec52cce533b63a487156a01fb160620ee27da934"
+    },
+    {
+      "path": "codex/scripts/git-metadata-preflight.py",
+      "source_sha256": "b0acce7390febac0c62230152fa2d91faebb0afb9ae2755c2fdb349f25633b21",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "1357288163769ab6c33574f364ff6b017e48b6762ee7457145feb0c577637224"
+    },
+    {
+      "path": "codex/scripts/daily_sweep_evidence_preflight.py",
+      "source_sha256": "49778e33cebc1db1e37a908c6cf99fc6a5caeadc7fd5d0f5a8031ee46ebae4db",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "b739bf4652f5444c614aabd83a0a80d8d8004af4b5dff240f361891f2b922589"
+    },
+    {
+      "path": "codex/scripts/facts.py",
+      "source_sha256": "43cd653c104487d1787e58a47cbdd05e75dce30e4f3a238be7f4e36894bc8b24",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "15b00eba5e944d7ab41b353a44ed54516b19c2944e2129f24600b2348ce940cd"
+    },
+    {
+      "path": "codex/scripts/hook-governance/arbitrate_hook_results.py",
+      "source_sha256": "eb1477d314b9d97bfce843a8020e4f000f3625997ee3a2b8f1da47aaf7b16268",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "8f514dc7ba5d753a2253f45a7c94557f635119b5945034424b94e74de4e9d50c"
+    },
+    {
+      "path": "codex/scripts/hook-governance/classify_public_api.py",
+      "source_sha256": "64202b174b5b5a2e9b9dd1c482e93360a58943fd614bce8836d91279eaec4195",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "7ecc15be8c2f7c14ce3f63833efe5abfa8f8270eff8c5aa2557a1ba6ab2e654b"
+    },
+    {
+      "path": "codex/scripts/hook-governance/evaluate_docstring_ratchet.py",
+      "source_sha256": "b65570fb223cb79a84e484398634e50d0bf2f472c7a2b0b67c3c47822133a1aa",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "985a96ab96dbf359f497fded56f82e889dbb8095ed9e58597e0601569fbc55f3"
+    },
+    {
+      "path": "codex/scripts/hook-governance/generate_conformance.py",
+      "source_sha256": "871a569e4ea88833e03c8b4ec7281d3d892ed61ec84d7695b5348b773f621d29",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "c651f66fb6ef429677dc3c9aa5c9abfcef42633d6a59943f5005d31eae9d04fb"
+    },
+    {
+      "path": "codex/scripts/hook-governance/inventory_repos.py",
+      "source_sha256": "652a937e228a682ebe99905ceb4cf46c7d5ece9fcb647406bc2b414be7dc9874",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "def823de644314eef124d211fc2d8b29afac8c19e12adf434f73d4ed8cd52cbe"
+    },
+    {
+      "path": "codex/scripts/hook-governance/rollout_check.py",
+      "source_sha256": "13debf2fa8130909b793d72672027cf71a658985b8fea997af996ae4f128a5e2",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "8b1aa52e825db0f121877615910722e03b76f3cac2d5a236134a690b671d8c01"
+    },
+    {
+      "path": "codex/scripts/hook-governance/validate_conformance.py",
+      "source_sha256": "f79e1a0cd66dcd31866acace752205a78bf9f8d9a7aa88ad097dd12b560a7ca2",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "457b00ca6690a26d70d23ed4e8310e4324bf1a206c5639b524444a613e5c8b5f"
+    },
+    {
+      "path": "codex/scripts/hook-governance/validate_gate_registry.py",
+      "source_sha256": "ea3b4c841d53885d68ab14c8b6941c069d91e2d747d7acbe7f8085efa892bbca",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "2ac033fd2514e53e816c957a2cd6aae5c799032cdf7f4d3000e1b4d15f7b3d78"
+    },
+    {
+      "path": "codex/scripts/hook-governance/verify_gate_taxonomy.py",
+      "source_sha256": "96e6e8be23515c352ab6e5503a9237e7d362b6183ba9fbf9fbd46b3ea342005d",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "e3bfa21c9832d75974aa357194a8b3b79961a83a02fec6470d2e997c56e45122"
+    },
+    {
+      "path": "codex/scripts/hook-governance/verify-git-metadata-preflight.py",
+      "source_sha256": "2a2864d74c40f40137db32ea86863f709f6e7264bb5a29ad388211bb81e298c4",
+      "transformations": [
+        "public local path literals",
+        "fixture-only CLI and Path I/O admission"
+      ],
+      "candidate_sha256": "4e4f63ba3966e6f9e11a27fca4efd32b7d9378c7f6e87fdbb90f6dc61f69a3b3"
+    },
+    {
+      "path": "codex/scripts/verify-work.sh",
+      "source_sha256": "2592de7e548814facbd17e3376faf88cf9b089b19136f94879a17ad506e9f374",
+      "transformations": [
+        "Original check selection and assertions retained; disposable admission and required helper inventory before execution"
+      ],
+      "candidate_sha256": "1128a2d220553bcf4763f66e2cf78afecb41fcffd7436e86139703a021681831"
+    },
+    {
+      "path": "codex/scripts/codex-preflight.sh",
+      "source_sha256": "1fbe6e28f8b622b0cdb2035516f7ee11b5851e19dffd515834f8943e3deb4164",
+      "transformations": [
+        "fixture admission before shell helper execution",
+        "public local paths"
+      ],
+      "candidate_sha256": "806c750dd648c49b33ed140890104341c7f676a7e33579fd52e597de490b1ea4"
+    },
+    {
+      "path": "codex/scripts/with-writable-tmpdir.sh",
+      "source_sha256": "24498b710597611da59dc8dbc42dfa2189da0fe2875e07b4bbb18d2ab0a07198",
+      "transformations": [
+        "fixture admission before shell helper execution",
+        "public local paths"
+      ],
+      "candidate_sha256": "7d39a2af545edc210d19a3c1b80832e426b1b74dfc3d3dbce95a87a6e81c649d"
+    },
+    {
+      "path": "codex/scripts/validate-auto-review-scope.sh",
+      "source_sha256": "cbf97ed29c8ecd7b6c044d0d76d51a95a8095ba5f3d47548d9be2b4429e3add8",
+      "transformations": [
+        "fixture admission before shell helper execution",
+        "public local paths"
+      ],
+      "candidate_sha256": "3d30c462fd53a7aaf4d39025d18bd65434236b1d28c15241b74efaf881846c68"
+    },
+    {
+      "path": "codex/scripts/validate-codex-hooks.sh",
+      "source_sha256": "30477f08592fb82e111a33b8aafe2c6573a5b51b86fd711b905e10ddd07fa0e8",
+      "transformations": [
+        "Original core assertions retained; canonical publisher core view, disposable event/resource plumbing and isolated synthetic FIFO canary"
+      ],
+      "candidate_sha256": "a8c05849040a7fd136e6de8781032b843762fbb7b90aea9fdeaabfce34f503d5"
+    },
+    {
+      "path": "codex/README.md",
+      "source_sha256": "dfde30ca45cc79ffa05fb46e5f328bcc01872f170569366c248b355b9dfdf9a3",
+      "transformations": [
+        "public path placeholders; accepted schema/policy content retained"
+      ],
+      "candidate_sha256": "96d4dd98121274c2f820ef6a8e66b7ef7852d4c5f51be329679b9a537c34f5cb"
+    },
+    {
+      "path": "codex/hooks/README.md",
+      "source_sha256": "ac8b428c26865a5ba69164e65b499d94d6ed2c53c73bacd478016375c14e6be1",
+      "transformations": [
+        "public path placeholders; accepted schema/policy content retained"
+      ],
+      "candidate_sha256": "39163053f4ca56f5c37ba2367898ab550106d739537aa139784acd0269db7c26"
+    },
+    {
+      "path": "codex/duplication-policy.json",
+      "source_sha256": "2bebfd1f87e753d11311008e8f0aa85730dd4c9175c1a8703765ff1406bf0216",
+      "transformations": [
+        "public path placeholders; accepted schema/policy content retained"
+      ],
+      "candidate_sha256": "2bebfd1f87e753d11311008e8f0aa85730dd4c9175c1a8703765ff1406bf0216"
+    },
+    {
+      "path": "codex/scripts/tests/fixtures/changed-files.txt",
+      "source_sha256": "a77ec9aa948235e5098bf3d0cc0da66f2d0d23198a849b5f594c6906340f77cd",
+      "transformations": [
+        "public path placeholders; accepted schema/policy content retained"
+      ],
+      "candidate_sha256": "a77ec9aa948235e5098bf3d0cc0da66f2d0d23198a849b5f594c6906340f77cd"
+    },
+    {
+      "path": "codex/scripts/tests/fixtures/arbitration/competing-blocks.json",
+      "source_sha256": "d1bbf004cdb77aba31287dc012cff820dcddbac27fe2bfa3cdbb223804336302",
+      "transformations": [
+        "public path placeholders; accepted schema/policy content retained"
+      ],
+      "candidate_sha256": "d1bbf004cdb77aba31287dc012cff820dcddbac27fe2bfa3cdbb223804336302"
+    },
+    {
+      "path": "codex/agents/evals/subagent-artifact-quality.json",
+      "source_sha256": "260a8fa172b4722cc83918aaf9902337527a0290826fb9434934883b92dde13d",
+      "transformations": [
+        "public path placeholders; accepted schema/policy content retained"
+      ],
+      "candidate_sha256": "260a8fa172b4722cc83918aaf9902337527a0290826fb9434934883b92dde13d"
+    },
+    {
+      "path": "codex/agents/schemas/agent-run-manifest.schema.json",
+      "source_sha256": "bec821e9246dc7e371ff575b4b99ba987e9a4c4c2d527330567d18c22c4e318b",
+      "transformations": [
+        "public path placeholders; accepted schema/policy content retained"
+      ],
+      "candidate_sha256": "bec821e9246dc7e371ff575b4b99ba987e9a4c4c2d527330567d18c22c4e318b"
+    },
+    {
+      "path": "codex/agents/templates/blocker-artifact.md",
+      "source_sha256": "f0a6245646f7fd9954e045371db12f5dd9a0b3f9f8360be44cf9557c3935fea9",
+      "transformations": [
+        "public path placeholders; accepted schema/policy content retained"
+      ],
+      "candidate_sha256": "f0a6245646f7fd9954e045371db12f5dd9a0b3f9f8360be44cf9557c3935fea9"
+    },
+    {
+      "path": "codex/agents/templates/coordinator-ledger.md",
+      "source_sha256": "43a2aa14deb7bc62d20912f9b3e4242ed5944f1386e2f644282b76631371dc98",
+      "transformations": [
+        "public path placeholders; accepted schema/policy content retained"
+      ],
+      "candidate_sha256": "43a2aa14deb7bc62d20912f9b3e4242ed5944f1386e2f644282b76631371dc98"
+    },
+    {
+      "path": "codex/agents/templates/review-artifact.md",
+      "source_sha256": "28002745dd7f5a22dfd9a37b13c2de0fb214619a1be56c7b651143a17a74b693",
+      "transformations": [
+        "public path placeholders; accepted schema/policy content retained"
+      ],
+      "candidate_sha256": "28002745dd7f5a22dfd9a37b13c2de0fb214619a1be56c7b651143a17a74b693"
+    },
+    {
+      "path": "codex/docs/hooks-governance/gate-ownership-matrix.yaml",
+      "source_sha256": "9bcae86fbe871e9f4010074f3985ae7e8b9c65ccc7ada19a1a5352768121fa1f",
+      "transformations": [
+        "public path placeholders; accepted schema/policy content retained"
+      ],
+      "candidate_sha256": "9bcae86fbe871e9f4010074f3985ae7e8b9c65ccc7ada19a1a5352768121fa1f"
+    },
+    {
+      "path": "codex/docs/hooks-governance/stage-policy-matrix.yaml",
+      "source_sha256": "d7247b1e328a52182720ca5f6d64e6add9a05f63c0085a3eedc9c89486f14d09",
+      "transformations": [
+        "public path placeholders; accepted schema/policy content retained"
+      ],
+      "candidate_sha256": "d7247b1e328a52182720ca5f6d64e6add9a05f63c0085a3eedc9c89486f14d09"
+    },
+    {
+      "path": "codex/docs/hooks-governance/codex-hook-runtime-policy.md",
+      "source_sha256": "a010f466e55499cd8694362f96621088fd8c86fd3406a1a006a8a09da0d44e58",
+      "transformations": [
+        "public path placeholders; accepted schema/policy content retained"
+      ],
+      "candidate_sha256": "a010f466e55499cd8694362f96621088fd8c86fd3406a1a006a8a09da0d44e58"
+    },
+    {
+      "path": "codex/docs/hooks-governance/public-api-rules.yaml",
+      "source_sha256": "4f32b3b32c6297df8db6c79fb026d9e5a1209a91100dc94305a54356cb773e7e",
+      "transformations": [
+        "public path placeholders; accepted schema/policy content retained",
+        "Private repository-specific mappings replaced with one fictional example; default selectors retained"
+      ],
+      "candidate_sha256": "52130d618ffe2b8f400367fca8e4305ebefc80a6f035c93283ec2cabba3f9f15"
+    },
+    {
+      "path": "codex/schemas/workflow-closeout.v1.schema.json",
+      "source_sha256": "4fc2fdf79de78fc7bd2c5c0737e7903ad68d37c4ae045df1d2cac4509b5e28c0",
+      "transformations": [
+        "public path placeholders; accepted schema/policy content retained"
+      ],
+      "candidate_sha256": "4fc2fdf79de78fc7bd2c5c0737e7903ad68d37c4ae045df1d2cac4509b5e28c0"
+    },
+    {
+      "path": "codex/schemas/hook-conformance.v1.schema.json",
+      "source_sha256": "961561648080699cca959afd9f86c5e02d2548f35b59d1ddadd1024229fbea7b",
+      "transformations": [
+        "public path placeholders; accepted schema/policy content retained"
+      ],
+      "candidate_sha256": "961561648080699cca959afd9f86c5e02d2548f35b59d1ddadd1024229fbea7b"
+    },
+    {
+      "path": "codex/scripts/tests/test_arbitrate_hook_results.py",
+      "source_sha256": "6d5bb79564bb488bc9c3ccbef83f1cb162a9bae363ca16f80458c6aab61bdea2",
+      "transformations": [
+        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+      ],
+      "candidate_sha256": "8614010d4982a51af21e465d5eee20dddd633db99c1a33453924fab3e12146f3"
+    },
+    {
+      "path": "codex/scripts/tests/test_docstring_ratchet.py",
+      "source_sha256": "7bedeb372beb38d8e8aad0fa514a49f9608b2465763bf0325d90ba62680f3a81",
+      "transformations": [
+        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+      ],
+      "candidate_sha256": "fa9a29337c9e94603330e49a617c0790f200fa594359f121300bce4539b0f149"
+    },
+    {
+      "path": "codex/scripts/tests/test_inventory_repos.py",
+      "source_sha256": "3b5d563d619b3dadbc3fad2b3c02cdde62212108200d3137fa7a5937a51f0595",
+      "transformations": [
+        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+      ],
+      "candidate_sha256": "7b3803797f2b13e5c55d394f4a5cc2472d9cb7d34a8aa2d54421e1a1919b83be"
+    },
+    {
+      "path": "codex/scripts/tests/test_public_api_classification.py",
+      "source_sha256": "76a051a5f59d4c182e886c3cd05d861ef906510f675cf23aeb5270b023927069",
+      "transformations": [
+        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+      ],
+      "candidate_sha256": "efa61bbfae6a02fdd6e88f319ebf314a725b98e12172a349f8e933d6a1b8bae6"
+    },
+    {
+      "path": "codex/scripts/tests/test_rollout_check.py",
+      "source_sha256": "3631768569d7df6f6f9de8f27f314732db0d79c8e1a1144fccdc86d91d6dc295",
+      "transformations": [
+        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+      ],
+      "candidate_sha256": "9588b825ad0c9d3dc22b34789e938ea72686b93681cadfa25df1ff9ae02c4aa3"
+    },
+    {
+      "path": "codex/scripts/tests/test_validate_gate_registry.py",
+      "source_sha256": "41e7acda3acf9f8f52096c1335acbb18d08bbdd4fcd32e15a3b8bb1b4e7c0e71",
+      "transformations": [
+        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+      ],
+      "candidate_sha256": "5423862e819b8e720fb1a64661a7e58a3b40b1bf33d27269bb8a140185a6df13"
+    },
+    {
+      "path": "codex/scripts/tests/test_verify_gate_taxonomy.py",
+      "source_sha256": "ae6429637cf93ebd9c28a96193afbac75f485944b5d632ac79f044a9bd957026",
+      "transformations": [
+        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+      ],
+      "candidate_sha256": "15893ab20692b34802d2bf8943e0bf76992cc8942ca8500fe695749737bf3421"
+    },
+    {
+      "path": "codex/scripts/tests/test_conformance_schema.py",
+      "source_sha256": "b1c3b685207a4b3ddc87f2d038c96c3e1748964b831dc04b308b3621caa0bd65",
+      "transformations": [
+        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+      ],
+      "candidate_sha256": "ce7eb12dee8ad8124ea5b971cd7a169357b57a0387111f5c117158ade4c6590e"
+    },
+    {
+      "path": "codex/scripts/tests/test_conformance_freshness.py",
+      "source_sha256": "40b11390c440223252702965d42717530cbc1d3aee3f2fd65d7a523f70ca9840",
+      "transformations": [
+        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+      ],
+      "candidate_sha256": "cb76514f94cb3a4402b486ee42652c2621dadd92a103c9322f4e53fceb39d4b0"
+    },
+    {
+      "path": "codex/scripts/tests/test_validate_agent_governance.py",
+      "source_sha256": "70a2d689086d040f9b6bb31863439e425ecb82bc1520e98d72d68eacf04cd9e8",
+      "transformations": [
+        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+      ],
+      "candidate_sha256": "651fa0dcffd02b4a9fc142aa9c2ff4410bb783204c7751092e43f2cf83a7301f"
+    },
+    {
+      "path": "codex/scripts/tests/test_select_validation_for_changes.py",
+      "source_sha256": "5b54da23e565524769b7ee2f19d57fab76c38a79c29d2e961d8dc7b6c686b75f",
+      "transformations": [
+        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+      ],
+      "candidate_sha256": "4b39b0a1d7c1b5358e00414c52769e5ed711e9b24ed06b5aefabd2603b382ca0"
+    },
+    {
+      "path": "codex/scripts/tests/test_duplication_advisory.py",
+      "source_sha256": "27128970db5e2cb142e24c42cb2affe96d000c27bd8aef589d3f0d177ba8b602",
+      "transformations": [
+        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+      ],
+      "candidate_sha256": "430cf41d0f5a0325fc118fcf46e3e6ce061b768981664fdd46cf5c8f4a1fe51c"
+    },
+    {
+      "path": "codex/scripts/tests/test_pr_body_refresh.py",
+      "source_sha256": "9c80f3bc4ee2e8f8d2b0446d5b0ac2e6876759347f853ca349058bb2d9cd7122",
+      "transformations": [
+        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+      ],
+      "candidate_sha256": "279d6665349ef86010374a130ba7415d39cfb14df2707a3554bbbf0d73f8bff8"
+    },
+    {
+      "path": "codex/scripts/tests/test_pr_review_request.py",
+      "source_sha256": "d3b6abfb78691baeb9c128e106701240f9d8d58a9d39714ae4fbbc8617d9c374",
+      "transformations": [
+        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+      ],
+      "candidate_sha256": "e87b5f8b4e6be7e0c5c768353b4f84e98565595f670e19fb6ef84d190f0bc932"
+    },
+    {
+      "path": "codex/scripts/tests/test_pr_post_merge_reconciliation.py",
+      "source_sha256": "9e8a26d76dcc61274743397d4c0983d47da6db1a23ca397b769ee16f103f1648",
+      "transformations": [
+        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+      ],
+      "candidate_sha256": "0615001b922ae6e57cc5dff1ff3f1ef345800ab9f6c020c1f9ac313fef845942"
+    },
+    {
+      "path": "codex/scripts/tests/test_git_metadata_preflight_contract.py",
+      "source_sha256": "edfe3f0efe9a0e8ee768027adeb71ad89a99b3181ee6eeb3abee6a9258f54824",
+      "transformations": [
+        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+      ],
+      "candidate_sha256": "a1618472eaffcd78e7f36e0af510796875b367d0e1ffff5de7292b84425c7e8a"
+    },
+    {
+      "path": "tests/fixtures/configs-contract/scripts/git-hooks/pre-commit.sh",
+      "source_sha256": "6be4434f339539b932044ebf0a3a9aff57e529b07facb26fc77b37a81c62dc8f",
+      "transformations": [
+        "Inert accepted Configs consumer contract fixture; never installed or executed as a workstation setup"
+      ],
+      "source_path": "scripts/git-hooks/pre-commit.sh",
+      "candidate_sha256": "6be4434f339539b932044ebf0a3a9aff57e529b07facb26fc77b37a81c62dc8f"
+    },
+    {
+      "path": "tests/fixtures/configs-contract/scripts/git-hooks/pre-push.sh",
+      "source_sha256": "b38f54b11142d13691ac6f86074cb67ea96a9ef71b37ecb33dddf6c4a2977cb6",
+      "transformations": [
+        "Inert accepted Configs consumer contract fixture; never installed or executed as a workstation setup"
+      ],
+      "source_path": "scripts/git-hooks/pre-push.sh",
+      "candidate_sha256": "b38f54b11142d13691ac6f86074cb67ea96a9ef71b37ecb33dddf6c4a2977cb6"
+    },
+    {
+      "path": "tests/fixtures/configs-contract/scripts/git-hooks/hook-runtime-env.sh",
+      "source_sha256": "46a4706a02958073d8d5f21d66754e5995957338654c14d09159824c7ac5d570",
+      "transformations": [
+        "Inert accepted Configs consumer contract fixture; never installed or executed as a workstation setup"
+      ],
+      "source_path": "scripts/git-hooks/hook-runtime-env.sh",
+      "candidate_sha256": "46a4706a02958073d8d5f21d66754e5995957338654c14d09159824c7ac5d570"
+    },
+    {
+      "path": "tests/fixtures/configs-contract/scripts/setup-git-hooks.js",
+      "source_sha256": "7e18e018eee4bdb0373d55975b376f6d1f050f8fa8688cb1835fed7bcb12ae1d",
+      "transformations": [
+        "Inert accepted Configs consumer contract fixture; never installed or executed as a workstation setup"
+      ],
+      "source_path": "scripts/setup-git-hooks.js",
+      "candidate_sha256": "7e18e018eee4bdb0373d55975b376f6d1f050f8fa8688cb1835fed7bcb12ae1d"
+    },
+    {
+      "path": "tests/fixtures/configs-contract/scripts/prepare-worktree.sh",
+      "source_sha256": "a21cee4744087d5d60afb355ca0e3b1fd6f19c64ea74f7c6c53273ef816a5cc9",
+      "transformations": [
+        "Inert accepted Configs consumer contract fixture; never installed or executed as a workstation setup"
+      ],
+      "source_path": "scripts/prepare-worktree.sh",
+      "candidate_sha256": "a21cee4744087d5d60afb355ca0e3b1fd6f19c64ea74f7c6c53273ef816a5cc9"
+    },
+    {
+      "path": "tests/fixtures/configs-contract/scripts/check-environment.sh",
+      "source_sha256": "3b73050435c51db99703ef1788ebb083e7419bd5684378500744bd78e4c133e5",
+      "transformations": [
+        "Inert accepted Configs consumer contract fixture; never installed or executed as a workstation setup"
+      ],
+      "source_path": "scripts/check-environment.sh",
+      "candidate_sha256": "3b73050435c51db99703ef1788ebb083e7419bd5684378500744bd78e4c133e5"
+    },
+    {
+      "path": "tests/fixtures/configs-contract/prek.toml",
+      "source_sha256": "27f37081b3497cb4e1ac1bfc3b9deea3f3421cafd66f46ace4c37f66e521635a",
+      "transformations": [
+        "Inert accepted Configs consumer contract fixture; never installed or executed as a workstation setup"
+      ],
+      "source_path": "prek.toml",
+      "candidate_sha256": "27f37081b3497cb4e1ac1bfc3b9deea3f3421cafd66f46ace4c37f66e521635a"
+    },
+    {
+      "path": "tests/fixtures/configs-contract/.circleci/config.yml",
+      "source_sha256": "1265a8f3b0776790c90071257d39e74e88891840d439235a5a3d9d2f3e4f3caa",
+      "transformations": [
+        "Only the original verified-target preparation recipe; synthetic local Git tests, not dots CI"
+      ],
+      "source_path": ".circleci/config.yml",
+      "candidate_sha256": "00cee533dbaeefd2a2176de2565ab176c05be88f6ff61092ab704a17141d8f35"
+    },
+    {
+      "path": "tests/fixtures/configs-contract/codex/docs/hooks-governance/git-metadata-preflight.v1.json",
+      "source_sha256": "04d0139b89d4ea406aef98cc85c2a38785b46e1ea216203d599c2a55ef73568d",
+      "transformations": [
+        "Synthetic Configs contract fixture; excludes real multi-repository adoption records"
+      ],
+      "source_path": "codex/docs/hooks-governance/git-metadata-preflight.v1.json",
+      "candidate_sha256": "7080b39c6b285a3ead13df74e143f56c46fe84b504d10ba685748d78c0430eb9"
+    },
+    {
+      "path": "codex/scripts/git_metadata_core.py",
+      "source_sha256": "3c21e1cbf3ad2d94bde4d116b32e3b36144b84cf9f6ffedf2db2b3ffc54f23f2",
+      "transformations": [
+        "Canonical local copy of the shared leaf; fixture I/O and CLI confinement"
+      ],
+      "source_repository": "agent-skills",
+      "source_revision": "afddb36dc2bdddd3e6ed84ac7c3393cd8e171f4c",
+      "source_path": "Infrastructure/scripts/validation-and-linting/git_metadata_preflight.py",
+      "candidate_sha256": "489379f7eb02a16767f2e7e337fa131ad92d73222a9e70075c70b257676419f7"
+    },
+    {
+      "path": "tests/fixtures/configs-contract/scripts/cache_security.py",
+      "source_path": "scripts/cache_security.py",
+      "source_sha256": "6a3ce3b72d09f4881f0cab38c126a97dad8cc7034f80a2e2a7a3ba7aa7ed1c8d",
+      "transformations": [
+        "Inert original Configs cache guard; executed only by synthetic original-consumer regressions"
+      ],
+      "candidate_sha256": "6a3ce3b72d09f4881f0cab38c126a97dad8cc7034f80a2e2a7a3ba7aa7ed1c8d"
+    },
+    {
+      "path": "codex/scripts/tests/fixtures/codex-code-completion.txt",
+      "source_path": "codex/scripts/tests/fixtures/codex-code-completion.txt",
+      "source_sha256": "5414797c0c46072372a5c97447790ff38ff48b55a0ec3c90b6fb0bab530e58b2",
+      "transformations": [
+        "Accepted generic provider-format regression sample, no personal review content"
+      ],
+      "candidate_sha256": "5414797c0c46072372a5c97447790ff38ff48b55a0ec3c90b6fb0bab530e58b2"
+    },
+    {
+      "path": "codex/scripts/helper_fixture_scope.py",
+      "origin": "dots migration implementation",
+      "transformations": [
+        "Shared disposable resource admission and missing-helper failure"
+      ],
+      "candidate_sha256": "2a5a2313e5b07fa75286253e4dcbc6239799abaca8b56a9bb7432701bbd2ced2"
+    },
+    {
+      "path": "codex/scripts/adapt-hook-fixture-event.py",
+      "origin": "dots migration implementation",
+      "transformations": [
+        "Bind only generic harness resource placeholders, preserving tool commands as data"
+      ],
+      "candidate_sha256": "8744de1fe55ec1fbecc1792f352426bded91aadd9faa53079af04d40718f05b7"
+    },
+    {
+      "path": "codex/scripts/core-hook-fixture-manifest.py",
+      "origin": "dots migration implementation",
+      "transformations": [
+        "Consume the publisher-validated original-core view from one captured snapshot"
+      ],
+      "candidate_sha256": "833f8bdfdc09cb02930264278346a463602208736e4f01d4f30962a8e5b92e5e"
+    },
+    {
+      "path": "codex/scripts/tests/runtime_config_fixture.py",
+      "transformations": [
+        "Retain accepted nested snapshot scenario using explicit generated policy and the real fixture projector"
+      ],
+      "source_sha256": "218b9f4398ef58a8604855a5ff82456b80cd33204b27b950146dede8002acb7a",
+      "source_path": "codex/scripts/tests/runtime_config_fixture.py",
+      "candidate_sha256": "9d8900fb0285d27f80001ca3033e661dab40e6ed24e9b359ee73453e9d6a6562"
+    },
+    {
+      "path": "codex/scripts/pr-readiness.py",
+      "origin": "reconciled public source recorded in reconciliation-provenance.json",
+      "transformations": [
+        "synthetic fixture resources; original selected checks retained"
+      ],
+      "candidate_sha256": "95861605c59574b8b2a3062ebc6d740161a3b012473b247468ce9a866f0fec47"
+    },
+    {
+      "path": "codex/scripts/pr_coderabbit_summary.py",
+      "origin": "reconciled public source recorded in reconciliation-provenance.json",
+      "transformations": [
+        "synthetic fixture resources; original selected checks retained"
+      ],
+      "candidate_sha256": "5e2b5ec820d97f14834e018a804685b03e9dd275ba9a2c4f2e9c8634eb4db30c"
+    },
+    {
+      "path": "codex/scripts/tests/fixtures/coderabbit-completed-source-verdict.txt",
+      "origin": "reconciled public source recorded in reconciliation-provenance.json",
+      "transformations": [
+        "synthetic fixture resources; original selected checks retained"
+      ],
+      "candidate_sha256": "436008232ba7d9864136e361b363ab54cd22557f86c7e05bf1d7e120eaf2acb1"
+    },
+    {
+      "path": "codex/scripts/tests/fixtures/coderabbit-source-clarification.txt",
+      "origin": "reconciled public source recorded in reconciliation-provenance.json",
+      "transformations": [
+        "synthetic fixture resources; original selected checks retained"
+      ],
+      "candidate_sha256": "aa8371152c5624b7b0cbcfd67fa60f1c58f0d66a8590c7a35b162fd30a4cf99c"
+    },
+    {
+      "path": "codex/scripts/tests/fixtures/coderabbit-source-inspection.txt",
+      "origin": "reconciled public source recorded in reconciliation-provenance.json",
+      "transformations": [
+        "synthetic fixture resources; original selected checks retained"
+      ],
+      "candidate_sha256": "089c638b39280a69bbc0951e0f25a30b920e7fc958ef5f213eababd1c4b0faa0"
+    },
+    {
+      "path": "codex/scripts/tests/fixtures/codex-security.txt",
+      "origin": "reconciled public source recorded in reconciliation-provenance.json",
+      "transformations": [
+        "synthetic fixture resources; original selected checks retained"
+      ],
+      "candidate_sha256": "95da5a078d13c299cc6d5f5eac09921f2c6f4ee9ecf0bc0ca5ffc7ae3df05be0"
+    },
+    {
+      "path": "codex/scripts/tests/fixtures/codex-summary.txt",
+      "origin": "reconciled public source recorded in reconciliation-provenance.json",
+      "transformations": [
+        "synthetic fixture resources; original selected checks retained"
+      ],
+      "candidate_sha256": "494454af31e585d6055b5c72a858befdcb634c911bd13705973b2fce46dfce78"
+    },
+    {
+      "path": "codex/scripts/tests/fixtures/tessl-missing-description-clean.txt",
+      "origin": "reconciled public source recorded in reconciliation-provenance.json",
+      "transformations": [
+        "synthetic fixture resources; original selected checks retained"
+      ],
+      "candidate_sha256": "83407bcf6dda455896f42d57f0bb44add6ca75cc10238c81539d4a3284e02e8c"
+    },
+    {
+      "path": "codex/scripts/tests/fixtures/tessl-name-mismatch-clean.txt",
+      "origin": "reconciled public source recorded in reconciliation-provenance.json",
+      "transformations": [
+        "synthetic fixture resources; original selected checks retained"
+      ],
+      "candidate_sha256": "9afbcee3352228e90b73babf35854ca934a08001450acb938fae934386c35b3f"
+    },
+    {
+      "path": "codex/scripts/tests/test_pending_hook_findings.py",
+      "origin": "reconciled public source recorded in reconciliation-provenance.json",
+      "transformations": [
+        "synthetic fixture resources; original selected checks retained"
+      ],
+      "candidate_sha256": "6f3b84ca6c0a862baf1e67fdc113bef434864de9f6bb53e3a1e900052f130bff"
+    },
+    {
+      "path": "codex/scripts/tests/test_pr_coderabbit_structured.py",
+      "origin": "reconciled public source recorded in reconciliation-provenance.json",
+      "transformations": [
+        "synthetic fixture resources; original selected checks retained"
+      ],
+      "candidate_sha256": "fd7c06ce229160ba75b0656fceca663d2480e05422ca3355fc8621c9d73cfeec"
+    },
+    {
+      "path": "codex/scripts/tests/test_pr_codex_completion.py",
+      "origin": "reconciled public source recorded in reconciliation-provenance.json",
+      "transformations": [
+        "synthetic fixture resources; original selected checks retained"
+      ],
+      "candidate_sha256": "6bec02d39f0198260d565880d5e328faba7935e9b7111ebb15d0627d1c173daf"
+    },
+    {
+      "path": "codex/scripts/tests/test_pr_readiness.py",
+      "origin": "reconciled public source recorded in reconciliation-provenance.json",
+      "transformations": [
+        "synthetic fixture resources; original selected checks retained"
+      ],
+      "candidate_sha256": "607dc035afe9ab058ecb3621eeedc2b8a5592f659a556bccf9753e298217ec4b"
+    },
+    {
+      "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",
+      "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
+      "source_sha256": "d5e837292e1ccb670f21f95d5460663e14fd19433e24551d76413a2d07acd860",
+      "candidate_sha256": "d5e837292e1ccb670f21f95d5460663e14fd19433e24551d76413a2d07acd860",
+      "transformations": [
+        "unchanged pure dependency of the maintained review test loader"
+      ]
+    },
+    {
+      "path": "codex/schemas/pr-readiness.v1.schema.json",
+      "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
+      "source_sha256": "f8ca2c7202842e2175d1abb6c8160b6b2e4ac321798d8c6190e4f2c4813d70b1",
+      "candidate_sha256": "f8ca2c7202842e2175d1abb6c8160b6b2e4ac321798d8c6190e4f2c4813d70b1",
+      "transformations": [
+        "unchanged receipt schema; original phase/authority assertions retained"
+      ]
+    }
+  ],
+  "external_boundaries": [
+    "hosted reviews/CI/tracker evidence",
+    "1Password Desktop and credentials",
+    "installed tooling and platform-specific services",
+    "private machine/repository inventory and operational records"
+  ],
+  "source_only_gates": [
+    "Configs Node package lint/typecheck/test/deep",
+    "Configs workspace inventory and maintenance"
+  ],
+  "live_installation_authorised": false
+}

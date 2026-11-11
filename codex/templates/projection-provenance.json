@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "source_files": [
+    {
+      "path": "codex/scripts/reconcile-config-projection.sh",
+      "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
+      "source_sha256": "f1d04051212667d750fdae7f0d150abcd51b564d4a61910b287b87535123e169",
+      "transformation": "explicit disposable-home admission; original checks retained",
+      "candidate_sha256": "e3cf8504b49a2b9a6286060b0cabf120d9fe3d550ed545d964850ead49c8c352"
+    },
+    {
+      "path": "codex/scripts/audit-codex-symlinks.sh",
+      "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
+      "source_sha256": "728e2c2c5795707ca642c5d95b253ee85a361e5458f812399f5a6f1b7d1aa03f",
+      "transformation": "explicit disposable-home admission; original checks retained",
+      "candidate_sha256": "435538f7dff7bc5d5e83249d735e078f9efeecc954f1de505dee5273fd7acb95"
+    },
+    {
+      "path": "codex/scripts/check-runtime-config-path.sh",
+      "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
+      "source_sha256": "ab1e5356f1ca50a7f895fb55c8f0a95dba37834b82a63542c010316e9cea1697",
+      "transformation": "explicit disposable-home admission; original checks retained",
+      "candidate_sha256": "bd815ba2889fba4efef04dbd2a6cbd67efb89c08328dc59879c7e61e3d46e64f"
+    },
+    {
+      "path": "codex/model-catalogs/oss-local-qwen35.json",
+      "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
+      "source_sha256": "156b379ed475cdb3625b7fd3d9e6e5ebc5c580af11cde30722c615213feff22a",
+      "transformation": "unchanged",
+      "candidate_sha256": "156b379ed475cdb3625b7fd3d9e6e5ebc5c580af11cde30722c615213feff22a"
+    },
+    {
+      "path": "codex/model-catalogs/oss-inspect-gemma4-12b-mlx.json",
+      "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
+      "source_sha256": "8b016a8be7199bc5dd3bf3457df513e78012f05630065c7a70fdfd6f5779d416",
+      "transformation": "unchanged",
+      "candidate_sha256": "8b016a8be7199bc5dd3bf3457df513e78012f05630065c7a70fdfd6f5779d416"
+    },
+    {
+      "path": "codex/model-catalogs/oss-security-h4rithd-coder.json",
+      "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
+      "source_sha256": "19cc6571551e375afc612b6630fac7205d4fe9e0ddccde5263cc8ec358d00309",
+      "transformation": "unchanged",
+      "candidate_sha256": "19cc6571551e375afc612b6630fac7205d4fe9e0ddccde5263cc8ec358d00309"
+    }
+  ],
+  "fixture_kind": "full-policy-v1",
+  "global_projection_enabled": false,
+  "covered": [
+    "all eight generated policies",
+    "global AGENTS and complete public instruction library",
+    "six accepted command-rule layers",
+    "fixture-local exact managed requirements",
+    "migrated hooks/scripts/schema/model resources",
+    "local-only agents metadata, automations and usage directories"
+  ],
+  "deferred": [
+    "browser/pets assets",
+    "external adapter availability",
+    "Configs-only aggregate/helper dependency closure",
+    "managed-system installation",
+    "live cutover"
+  ],
+  "policy_format_adaptation": "Five disabled OSS cua_repl entries gain the same inert /usr/bin/false transport as oss-local; enabled=false and required=false retained",
+  "fixture_map_sha256": "9d19f4a41603e7529d8e2d8e606f3093f44dc59a2ca6a8686f90e5a57dca8493"
+}

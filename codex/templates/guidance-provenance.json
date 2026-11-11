@@ -1,0 +1,621 @@
+{
+  "schema_version": 1,
+  "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
+  "owner": "dots migration maintainer",
+  "state": "local inactive candidate",
+  "context_ledger": [
+    {
+      "surface": "AGENTS.md",
+      "scope": "root",
+      "decision": "dots-only validation and isolation front door"
+    },
+    {
+      "surface": "codex/AGENTS.md",
+      "scope": "nested AGENTS scope",
+      "decision": "portable baseline; no activation authority"
+    },
+    {
+      "surface": "codex/instructions/",
+      "scope": "linked reference",
+      "decision": "public reusable library; Configs recipes retain their source scope"
+    },
+    {
+      "surface": "codex/instructions/USER_PROFILE.md",
+      "scope": "supplemental",
+      "decision": "public pointer only; private profile remains local"
+    },
+    {
+      "surface": "codex/instructions/project-brain.md",
+      "scope": "supplemental",
+      "decision": "reference for explicit adopters only; dots uses Codex memory"
+    },
+    {
+      "surface": "codex/templates/rules/",
+      "scope": "linked reference",
+      "decision": "preserve six command-policy layers; render paths only inside fixtures"
+    },
+    {
+      "surface": "codex/templates/requirements.toml",
+      "scope": "linked reference",
+      "decision": "constraint-only template; private MCP identity from canonical local policy; no admin installation"
+    }
+  ],
+  "contradictions": [
+    "Source-specific Configs package, skill and aggregate contracts do not describe dots. They remain required in Configs and are recorded as deferred dependencies here.",
+    "Historical Project Brain adoption does not override the operator decision to use Codex memory and retain task-local handoffs.",
+    "A fixture-local requirements file proves serialization and validation, not installation of an administrative policy."
+  ],
+  "files": [
+    {
+      "path": "codex/instructions/1Password.md",
+      "source_sha256": "2f43441d758745c53476260d6ef48227c9e2e2696b9352322673a87fb66897f3",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [
+        "../../docs/adr/0001-native-git-1password-signing.md"
+      ],
+      "candidate_sha256": "9a1bc5e1e2517f3b2795f7e637537da762682c65cff74b83b979e396c0a29f15"
+    },
+    {
+      "path": "codex/instructions/CODESTYLE.md",
+      "source_sha256": "c113b126300ffab926aa48b65689c1bbe5214fabb3aef2c1dbb2b737743316a3",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [
+        "../../.mise.toml",
+        "../../biome.json",
+        "../../package.json",
+        "../../pnpm-lock.yaml"
+      ],
+      "candidate_sha256": "4e574cc49bce2487f3898744a9937ecd13a4e422adc4baf1c80858d46b1f8321"
+    },
+    {
+      "path": "codex/instructions/FORJAMIE-template.md",
+      "source_sha256": "332f5ccaee774f970b1e01c8e9c08e3fcab3f79002df58670faf2224800e1538",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "fbebac6d0af16e97ff4fd8f0dc1a768cc80f047f674a9350e7f26b6e034449a7"
+    },
+    {
+      "path": "codex/instructions/README.checklist.md",
+      "source_sha256": "189bf13ff06073b4c0557586e2c83cd0c3e0555505b75b6eb0fa2eba5a8a1167",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "a585e460ed0ebcc2f5730faf05b4f140d3d4b0ace270c2723899716e7d4126f6"
+    },
+    {
+      "path": "codex/instructions/README.md",
+      "source_sha256": "18be875d667e852204ddae427df97c8c14bbead291573be8b78ba71065be82e5",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "7c966a32d6b4f4926f563dedef408bce651b14f6e98d61a2b3c45a6088fbfcab"
+    },
+    {
+      "path": "codex/instructions/USER_PROFILE.detail.md",
+      "source_sha256": "5d80235c133fb32a8aa5605c5b3a70fefb2949ba917e7da12bb14ad2c693040e",
+      "decision": "Private body excluded; local context pointer only",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "a82cd5557aade8c3c9a5a4bd03f7bc4c885339a9cf042dac7f1f16f4bc653538"
+    },
+    {
+      "path": "codex/instructions/USER_PROFILE.md",
+      "source_sha256": "669f49161ecf7727d447b814d4ef1492fb5f31fc3919d1382d269a659c8b49a7",
+      "decision": "Private body excluded; local context pointer only",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "a82cd5557aade8c3c9a5a4bd03f7bc4c885339a9cf042dac7f1f16f4bc653538"
+    },
+    {
+      "path": "codex/instructions/agent-discovery.md",
+      "source_sha256": "0774669d8b16ef1505d638ce92ff92ca94be8e6c3b36b564dd78b9f3ed16092e",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "c68770dbd82636166e9e7781d15469a5f3100ce69a4e47e86a16cc3d46171cbe"
+    },
+    {
+      "path": "codex/instructions/agent-first-scaffold-spec.md",
+      "source_sha256": "55333c9c0eb7bdeaf3187acdca78d23894dacc4551d73727abb02529e0939f4a",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "1d266654bd4ac4fa8547e390c8cb0cabfd30ceb78df04b4983a5a3882d6070a3"
+    },
+    {
+      "path": "codex/instructions/agents/01-instruction-map.md",
+      "source_sha256": "ade674931e9602a5e62ecd19533411fae21c94015e6d74d8652f35a62d093297",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [
+        "../../../.codex/skills/"
+      ],
+      "candidate_sha256": "eae0d002ddb1e3cbcaa4fba214cb955ab55ac240b71047c1a3377886afdbcb08"
+    },
+    {
+      "path": "codex/instructions/agents/02-tooling-policy.md",
+      "source_sha256": "2e86403a242aef1518aa68683aa90dcdaee12e9a1822b13ddb40b1ca12947356",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "28fddd032ffe6c010f4106abe627d112bcd036eb7fa6ca082ffb42106d081495"
+    },
+    {
+      "path": "codex/instructions/agents/03-local-memory.md",
+      "source_sha256": "acd305febe4ba839396f7176764b661413c279d3626779b0486dd5fe10139511",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "6e0529d2152bda32d636d3354ab419d2c7beb5890cf9406bd4b870a93ac4a2e4"
+    },
+    {
+      "path": "codex/instructions/agents/04-validation.md",
+      "source_sha256": "52c77daee8643e82b6b8d49fe75a3bfd7f5ffc96a82e4c93b5fe552395a24fd6",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "5f4ebdff7f36f4724641d5383ee97c2332c0afd780815ba08f2ae09e645eb493"
+    },
+    {
+      "path": "codex/instructions/agents/05-contradictions-and-cleanup.md",
+      "source_sha256": "42c3e2c8b5a350d20115c193bed40be37b14964db1b87564f274377f6d10bf13",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "ce8d5ec24984e96a64dae9d5c59b85598e0ac82e8b2f1b783017005317837321"
+    },
+    {
+      "path": "codex/instructions/agents/06-security-and-governance.md",
+      "source_sha256": "704f38b9103181b2351e0ad0de281e5ac96394f4c27ba721bfd283052c7b395a",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "c8026fffba6cfcebe13e171881c2ad358845dd75b4deb82fec9a5ebf9d6ca264"
+    },
+    {
+      "path": "codex/instructions/agents/07a-role-governance.md",
+      "source_sha256": "3cc676f5ef59d59fef711749dfc92ece1b881549ca4183bda9ac56a3d7b0b745",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "02a2349b6246346e67917737623f8801ed6a3dfe59ae494fe94d4e506ed043cd"
+    },
+    {
+      "path": "codex/instructions/agents/07b-agent-governance.md",
+      "source_sha256": "12ddfdc788032c6e84b5270896dd170da12d2722f2c8e3ae5634135749e2499c",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "5cf5b1ef450fb8edf937b8586ee5a8a247cdbbee381ee6a359bbefbc35a2595f"
+    },
+    {
+      "path": "codex/instructions/agents/08-release-and-change-control.md",
+      "source_sha256": "b12de5d9b4cfbcbdf5d6c083dbe6c8ab5a9b2cf714a3efd83010e6038fc19d2c",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "715456f3873a52290281abe734b68fb6d1ff1e3918887dd581d5a7455355063a"
+    },
+    {
+      "path": "codex/instructions/agents/09-audit-trail-policy.md",
+      "source_sha256": "add9261f43d60ada069bcbc32018fa8de513b639ed86872089260a601db8d05f",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "a773bf4acb5ba4e7b719a8c4c8aee17710a512468f3262640262f2512187a2e9"
+    },
+    {
+      "path": "codex/instructions/agents/10-agent-testing-gates.md",
+      "source_sha256": "31189d0b77220092c6d3cd2a0216377d906dc085c4bb1db2acccd616eb8dcf4c",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "ecec60e406250a74d299a42e2f08fab3cfe232cb8e87a0de4bbbfd51a7db6cb4"
+    },
+    {
+      "path": "codex/instructions/agents/15-parallel-sessions.md",
+      "source_sha256": "7ca358457bff6188e986fa29ad808a57a2f58bdb071503fe2d6b1c0ab85eede7",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "dd0fe6d10d238ed44d4f9000ab89be904b37c5e4eecc44f1cf94879b64f0d601"
+    },
+    {
+      "path": "codex/instructions/agents/16-git-and-release.md",
+      "source_sha256": "dfd4f91164e826bd903b05a2e90d2d83767a8df26a532525089e3498c2e23d94",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "2422617f3a4f848d59a1de110eab8d39518aea064615df212a44298d2e641a99"
+    },
+    {
+      "path": "codex/instructions/agents/16a-review-reply-parsing.md",
+      "source_sha256": "6a70ee53b038854a08a07dec9284f60f7c71d9f63373b1f2ff0cb304a69e8f70",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "6be30d2a20b3763592b94fe7ffa73a6e88f1f4b1fd5d6afaffa1c1e64f440f14"
+    },
+    {
+      "path": "codex/instructions/agents/17-external-integrations.md",
+      "source_sha256": "8b9f8c230afc5c973b88a031727fa88273dd97e413549f0467adadf0a3d5c1d6",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "d201673c03ee23cf5b01ffa7692481f8234ab7a2c613532a2c351f34fc063c68"
+    },
+    {
+      "path": "codex/instructions/agents/18-codex-platform-readiness.md",
+      "source_sha256": "2cd6c218ec77fe3f05654d872fe488966aef798084646c71c1f13c6f7b808cb1",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "072be1c61f6d0cd7dfc5d4e4f8caa2fecef0504d14516084900e2cf3c76a06a7"
+    },
+    {
+      "path": "codex/instructions/agents/README.md",
+      "source_sha256": "a5b6fbe42f836db4a5be2e5558c0105eace35201f145e1603b69e946ffeb767f",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "ec3ba3fac789056d1ac698e1c972dc969bfb2424c759c6eeedd6b410d6850135"
+    },
+    {
+      "path": "codex/instructions/astra-behavior-scenarios.md",
+      "source_sha256": "3c1cd8c507148248dccf4a233a9a010c4f4706e60b0685dfe8252c890c5d5c81",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [
+        "../astra-audit-followup.md#astra-observations"
+      ],
+      "candidate_sha256": "1d6270e7c85ede448dabbeb4ab7c0c0d8876d8f0f20f2520e0c6ccda6e4ded72"
+    },
+    {
+      "path": "codex/instructions/chronicle-workflow.md",
+      "source_sha256": "64555c8cc54ee006a7d69db00976952dae5020c8a703e17d2b5dfc9ec5d41f44",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "00d28e92553b3d6332f35d70c7945c5a0f1de4ae11c14885af1194fbb96bef21"
+    },
+    {
+      "path": "codex/instructions/codestyle/01-foundations.md",
+      "source_sha256": "a27fcf48da3081597c3b924d1b4e96d19fd2f0e455fe2ac7518835808ab9245c",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "efc31817b9439c40d784f4922a2869d4e779d65d9432bb638793e1454529183f"
+    },
+    {
+      "path": "codex/instructions/codestyle/02-javascript-ui.md",
+      "source_sha256": "2029e241fd92895395a12045e7cac9dbc033f0930aea91ef53e66456f18afb29",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "572c1c67728d63194bacb776033960db883bce78eebdbc0bc69c4a3b503078ca"
+    },
+    {
+      "path": "codex/instructions/codestyle/03-rust-tauri.md",
+      "source_sha256": "e49c8fc9d38a673960f9cb71b0c1e14e79e8658b81813c0c6d53eece15bac96a",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "c00ac90a4380e26c9eefc0e21e85478206761272aeffe58a53542b107c74d098"
+    },
+    {
+      "path": "codex/instructions/codestyle/04-docs-config-and-release.md",
+      "source_sha256": "0be9fb65d396f6ac275f3b65672e0944996805cfdac032b3483c414ed29dbf97",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "0a23a5ad9fcd2a70f45f1ce528c64573e4a0662db0877478c03f6f18ad690a8c"
+    },
+    {
+      "path": "codex/instructions/codestyle/05-quality-security-ops.md",
+      "source_sha256": "c87ec9c5849863c464bffc41453066b295d1e12f2d859a8cf636ee84fc4e45e1",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "4c1b8df60d4b583ed5b38e607b8fa51a15375e080fc7fb933a782df1e6e08e6a"
+    },
+    {
+      "path": "codex/instructions/codestyle/06-appendices-and-project-overrides.md",
+      "source_sha256": "1b3be8b0e88fc9bb29201f77f98301dc27f2dec7cd7daabe41f4dc78ec77e8a0",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "53c7214b6915a3c6f943adb1ec1976a39ae9ea1e0bc8efc667fec7f9feaff060"
+    },
+    {
+      "path": "codex/instructions/codestyle/07-python.md",
+      "source_sha256": "eb80c6ac81175c922f167ced1cf7f7c397f68d5056b8cdb43090ba2e962d27f6",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "01c698481b717cf2f82341e29bdbe4a940886315d2152b8a711e87244eb24c79"
+    },
+    {
+      "path": "codex/instructions/codestyle/08-typescript.md",
+      "source_sha256": "106320d06502a333b002767bd2777510345a8d1c977eb8865de60292db924900",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "32c1cc707458ab1b145a0ac76c108dde4da3b30ca6ab16cc634ccf9b53417f8f"
+    },
+    {
+      "path": "codex/instructions/codestyle/09-web.md",
+      "source_sha256": "e30da232c053eddb64c7852cb222401acca8141237c31685ad5415463df31805",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "101161e405930c1df4d81d95707299b0ed7812e336befd234b32917ec181c6f4"
+    },
+    {
+      "path": "codex/instructions/codestyle/10-shell-bash-zsh.md",
+      "source_sha256": "1eb2b99e8573e2f4442c1e4b383b2c541cf56d450e6defb55d34a8aba8f122d6",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "437839ee63915a3c8ed2e71725ab84913cb316ebf416bdc5a26adf2f64d88b5f"
+    },
+    {
+      "path": "codex/instructions/codestyle/11-package-managers-pnpm-npm.md",
+      "source_sha256": "bd5390d3b708d8625dc6cbd30187fbb1178dc0a7214be9be3d332a00f66ff7f5",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "ae69f49b387286dad283977669c230d0476ce59210a3e531172bc0e98a22a1fe"
+    },
+    {
+      "path": "codex/instructions/codestyle/12-swift.md",
+      "source_sha256": "417000c4cefc7029b9f3d1e88f35861e5c7d0a1c6027d51aed4fe9534cd28278",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "babc526f3f3d3b701f8cb645fa01aa06c52fa4ee92d726f99aa1628a23f6cafd"
+    },
+    {
+      "path": "codex/instructions/codestyle/13-git-workflow.md",
+      "source_sha256": "f14e9344e58347f8ebfcd2bbbe80deefc22843a90a1ae8a0eda657d5d2534923",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "60d947b2a49d27de4b28e03c7c64cd061cf0a1789c05c625a817453c7ba0a204"
+    },
+    {
+      "path": "codex/instructions/codestyle/14-patterns.md",
+      "source_sha256": "b9c4f303a1a09af986186ca549394ce356ac88ab7d7774c725b0de37ac1d19a2",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "9b212b32727e6eb9facb9740cd54501cdc689a36aa801f434ee51730cd73bdca"
+    },
+    {
+      "path": "codex/instructions/codestyle/15-performance.md",
+      "source_sha256": "c79185ea8abedb112e306f520deff7ae79c3e32c47c625dd819f4a2e0068c27b",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "d1c26ab9abd2ecd712b160c4f48f69fb099240e3eb2aff9d05bb92afc9fa6450"
+    },
+    {
+      "path": "codex/instructions/codestyle/16-security.md",
+      "source_sha256": "1ff69e54e135a34ca4f632da1efad1a3a4b1ac8a5dca68b37d1c63f8d491e183",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "bfb45c2019b1d4cc3c1bf3e62a52dd29aa2a1279efb725ba66160e498ba923c2"
+    },
+    {
+      "path": "codex/instructions/codestyle/17-testing.md",
+      "source_sha256": "b595de290aca200068c9f22c1dc23d46d22610430a3ffba6b8cbaefece69b731",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "3171fbce03fcc210f57eb29d26628e71cff2d52bd6575fcb5ffb161edc91e9a9"
+    },
+    {
+      "path": "codex/instructions/codestyle/18-code-review.md",
+      "source_sha256": "fee58f081ba35af3ea2f844238e64048e4a66b1829297ef04527bcb7935fdf96",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "527b18bc57f2eb875afcc325f7b7b6a9fad857bde41e4955a9c2116c43158e09"
+    },
+    {
+      "path": "codex/instructions/codestyle/19-development-workflow.md",
+      "source_sha256": "ac7d1d6a8d463378b4c8a3e6aa19e1ad163370d0a381ac2d7a57e4a689ecc658",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "2c6db6fbb2b7312ff251a398d48bb4f997989f239cf19c07a8931a858e5c4a83"
+    },
+    {
+      "path": "codex/instructions/codestyle/20-go.md",
+      "source_sha256": "30a7f6f3d574823cf8f5b8ab9308ac88c1fa0043a81890a028f0a6085518ed86",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "fe6e264f551c287e2645ef8b93ef0b696afc92ccb4d9febc223d007a4eeeade8"
+    },
+    {
+      "path": "codex/instructions/codestyle/21-artifact-formats.md",
+      "source_sha256": "964a32ecffd97318ec66a62a4ab856e0de53c114980639743c7d2f63e24df097",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "5435cc265442651f91f322493c6a9c03ee608d965a0cef12687b3b5a68c1c7b3"
+    },
+    {
+      "path": "codex/instructions/codestyle/README.md",
+      "source_sha256": "2aecfb641a3266ccf5d1a6c9b6e9727f2e1e5a969ecda6bf1b2a2635cf1cd711",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "f0370db8c24aa81947f9c8cf225548b9c5fa200b04bfa4cd0384540a32d4e1d9"
+    },
+    {
+      "path": "codex/instructions/codex-links.md",
+      "source_sha256": "864b791fae4a3637defa1e691e0724c3430a27e55d6634596bb86470fca861fe",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "a7638f1ab46fc3db3513ddefa749e11fcbb443c303454635785968017fc79c1f"
+    },
+    {
+      "path": "codex/instructions/compact-prompt.md",
+      "source_sha256": "1de5a96e4e93a94cab7cf1f9f912590eb56410819449991f1f285c1fc7740f9f",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "1de5a96e4e93a94cab7cf1f9f912590eb56410819449991f1f285c1fc7740f9f"
+    },
+    {
+      "path": "codex/instructions/engineering-guidance.md",
+      "source_sha256": "d971a9690a5a7d81103d184c0c0ff3832d271fc672b2e01197b8d797b082433f",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "133704c5094f0c5a06d1e9465201198eb34f1dee77c78ad21804e69b01aebf2d"
+    },
+    {
+      "path": "codex/instructions/local-memory.md",
+      "source_sha256": "7fe1d7382988a5724ed0aa598021b639f62e2f8495c96cd11d00b9cad7a2f243",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "75c91c0b34ee01728e8898dfbf1ed2eebf93eda39d031dd97fa67fd9795a8d4c"
+    },
+    {
+      "path": "codex/instructions/managed-configuration.md",
+      "source_sha256": "1bfd0fdffd8bcb17fd6fb3aae74119aa221ac8f46698651b5aed87edab61bd42",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "20930afe128bf55171c7619568a40f2fd728f3ee14a5a675696e55fd60e34a3f"
+    },
+    {
+      "path": "codex/instructions/openai-agent-workflow-playbook.md",
+      "source_sha256": "b742473ed45050fa88566de24768f65beb8c58e7b85756f97ea9cd81757b9484",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "1b291a411335348f6d16123677452c4d225e807800195729f9deaa8c939ab3d4"
+    },
+    {
+      "path": "codex/instructions/plans.md",
+      "source_sha256": "26981e72e8dc00d1f595d2cfae96e68d56d3be24443a105c9c8ef45e558574f3",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "7a3d5b1b0d82499aeae119c46494d0d17104a15dc28274073ffb35114657fd06"
+    },
+    {
+      "path": "codex/instructions/project-brain.md",
+      "source_sha256": "983ef48260ff177329b95e8e64b54487aac8b66e76f49cfd7943653da4b93a75",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "39ebec63f6e7805633dc4109577ba0a698be975e406d2391af8173d47a2b3919"
+    },
+    {
+      "path": "codex/instructions/review-repair-evidence.md",
+      "source_sha256": "4a173b29d8d435b72098173e1dd909f483760b3e884dd122f66d8c782df09378",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [
+        "../docs/readiness-repair-consumer.md",
+        "../docs/review-endorsement-contract.md"
+      ],
+      "candidate_sha256": "0a5516992710ee526a0bbe3cd73bd1a044d830845b611fb4fa029453b8551bc2"
+    },
+    {
+      "path": "codex/instructions/rvcp-common.md",
+      "source_sha256": "e45b526acb08c14dc3f120ccb3d70306a34a83b7a07769a447755976548ce4f0",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "a501e915f44a46b4a783e9081f5ebd9f3809ea2ae98fdda3ad65fe1c4f79df87"
+    },
+    {
+      "path": "codex/instructions/standards.md",
+      "source_sha256": "966537bfe06b25f867a0674f10f44dbe2cf8677a417424c23b5e1d42b025a07e",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "bf57bff0a7b1109e1c7c426aa2994b0026f51150bb3a80af38174ec1684a1bbf"
+    },
+    {
+      "path": "codex/instructions/strict-toggle-governance.md",
+      "source_sha256": "32e923c6482d6c4c790d1cc6d9a120c785a6375b2600095ef82ed65aa03e4b43",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "1bcd8e2b59c49ed8e54202c2351ecdddd81627b52ea43f591cd95135c048983e"
+    },
+    {
+      "path": "codex/instructions/tooling.md",
+      "source_sha256": "f6f0d2ed5cb959f601eca9686b3cdea91ca4fc18012eae3646efacd3a577eb18",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "bd4e2ffa0f7c896239cc774c212391705812831a3dfb33cda7486675c3d0089f"
+    },
+    {
+      "path": "codex/instructions/validator-contracts.md",
+      "source_sha256": "d71677815765125f4514293d83b772b0fcb3c3dc2f311c1b449a6e548773a5a0",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "d4c86fd78bed5e3f4276436afaa3717ecabfbfeab12b5a093d3cee6cce641d09"
+    },
+    {
+      "path": "codex/instructions/work-rules.md",
+      "source_sha256": "39ca20607bbb86d18065cc5348eba916c0cad9156b4ea6875ad6a0f41b9a61c8",
+      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "6b30273d7602a6c9c223b5d040cbf208c18e47a65f4979a4be73dd229b01a85d"
+    },
+    {
+      "path": "codex/AGENTS.md",
+      "source_sha256": "abe28ead3c405939530f70226875f32c77858c48433da7cd54a639d9262569bd",
+      "decision": "Portable baseline; dots scope, public paths and inactive migration boundary",
+      "deferred_context_pointers": [
+        "../scripts/build-log-summary.md"
+      ],
+      "candidate_sha256": "ca88f0999cf2dd5d6037c3ac934326a5d9af2163311e3cef5d94a67ff46c7cc4"
+    },
+    {
+      "path": "codex/templates/rules/automation.rules",
+      "source_path": "codex/rules/automation.rules",
+      "source_sha256": "afa8ddafd1e8c67a8f9598fbfca6ea639377ac7d1e4a5ccec5dc36d8f0a9e93b",
+      "decision": "Unchanged policy; whole-string fixture paths for the two authentication canaries",
+      "candidate_sha256": "afa8ddafd1e8c67a8f9598fbfca6ea639377ac7d1e4a5ccec5dc36d8f0a9e93b"
+    },
+    {
+      "path": "codex/templates/rules/default.rules",
+      "source_path": "codex/rules/default.rules",
+      "source_sha256": "c2baf38163c3605624c391eed19f46bed81c34e0a441503f0447e944935f0779",
+      "decision": "Unchanged policy; whole-string fixture paths for the two authentication canaries",
+      "candidate_sha256": "b700358b8f38acbec23bb9cbaddd7f1748558045126132af5ae4be9d0f3f32ce"
+    },
+    {
+      "path": "codex/templates/rules/foundation.rules",
+      "source_path": "codex/rules/foundation.rules",
+      "source_sha256": "2e6f454ad1ddfff4fd16d0bb0668bdb03ba89f5c38906a043ea84a28b8daf89c",
+      "decision": "Unchanged policy; whole-string fixture paths for the two authentication canaries",
+      "candidate_sha256": "2e6f454ad1ddfff4fd16d0bb0668bdb03ba89f5c38906a043ea84a28b8daf89c"
+    },
+    {
+      "path": "codex/templates/rules/guard.rules",
+      "source_path": "codex/rules/guard.rules",
+      "source_sha256": "b52f0415f07bb78a1e79fc26903c71cd84e34f4d017d7a078e5b9b08839f6c20",
+      "decision": "Unchanged policy; whole-string fixture paths for the two authentication canaries",
+      "candidate_sha256": "b52f0415f07bb78a1e79fc26903c71cd84e34f4d017d7a078e5b9b08839f6c20"
+    },
+    {
+      "path": "codex/templates/rules/pr.rules",
+      "source_path": "codex/rules/pr.rules",
+      "source_sha256": "a43fda3708132aa74b2c8d3125fcf8ca56a191b871a03b63043e6971032933d8",
+      "decision": "Unchanged policy; whole-string fixture paths for the two authentication canaries",
+      "candidate_sha256": "a43fda3708132aa74b2c8d3125fcf8ca56a191b871a03b63043e6971032933d8"
+    },
+    {
+      "path": "codex/templates/rules/project.rules",
+      "source_path": "codex/rules/project.rules",
+      "source_sha256": "b0098f64eedf83176fea8961dc3742a6b6b0350337243184fcff879019430d15",
+      "decision": "Unchanged policy; whole-string fixture paths for the two authentication canaries",
+      "candidate_sha256": "b0098f64eedf83176fea8961dc3742a6b6b0350337243184fcff879019430d15"
+    },
+    {
+      "path": "codex/rules/workflow-guardrails.md",
+      "source_path": "codex/rules/workflow-guardrails.md",
+      "source_sha256": "11ab1cdcf7f8f24803621a1de7a43dc2d74c93a019e935c9b5102cf1ce47b70f",
+      "decision": "Unchanged policy; whole-string fixture paths for the two authentication canaries",
+      "deferred_context_pointers": [],
+      "candidate_sha256": "11ab1cdcf7f8f24803621a1de7a43dc2d74c93a019e935c9b5102cf1ce47b70f"
+    },
+    {
+      "path": "codex/templates/requirements.toml",
+      "source_path": "codex/requirements.toml",
+      "source_sha256": "02e4ca90c2931bbbb4944d5c8a01a6a06267a3268655bf7e7e73ccf7a5ec4a1a",
+      "decision": "Preserve constraints and two exact MCP identities; private endpoint is a local slot",
+      "candidate_sha256": "eb9ddaae29d36de2de1c27e1670beefb5e26d7a960f0593ebca0ae60a6e35718"
+    },
+    {
+      "path": "codex/scripts/validate-execpolicy-rules.py",
+      "source_sha256": "dba70e04d94ab617ca5b59e8bf02a757d87d45a62b04d504077e374c79e60aea",
+      "decision": "Preserve all 93 native rule cases, hygiene, alias, timeout and retry checks; fixture-only paths, exact managed constraints and required CLI",
+      "candidate_sha256": "71bc7149b149c8862617d340e26cac8f0a1d9c34c5ac9b95b9a9bcf4c91e6418"
+    },
+    {
+      "path": "AGENTS.md",
+      "origin": "local migration adaptation",
+      "decision": "Explicit public scope, serialization and proving checks; no new live authority",
+      "candidate_sha256": "43c47975e8bd494c263b113872fe9ea85a88dc56bf7958a0b12f6698dfd032d3"
+    },
+    {
+      "path": "codex/instructions/migration-scope.md",
+      "origin": "local migration adaptation",
+      "decision": "Explicit public scope, serialization and proving checks; no new live authority",
+      "candidate_sha256": "249044a2baa713809c27ce7678327c1f3f33c689d37bcc50fc0eaeb8c56aa900"
+    },
+    {
+      "path": "scripts/generate-codex-controls.py",
+      "origin": "local migration adaptation",
+      "decision": "Explicit public scope, serialization and proving checks; no new live authority",
+      "candidate_sha256": "a61d3d14c8f7be7fda7f24be393c9d3ec0623937fd105ea67400c9b8c898263d"
+    },
+    {
+      "path": "scripts/check-public-guidance.py",
+      "origin": "local migration adaptation",
+      "decision": "Explicit public scope, serialization and proving checks; no new live authority",
+      "candidate_sha256": "c292ce49f3cf002566c81ebc2fb6641c88c8f66b8bb54b99661d8db513ffddfe"
+    },
+    {
+      "path": "tests/test_public_controls.py",
+      "origin": "local migration adaptation",
+      "decision": "Explicit public scope, serialization and proving checks; no new live authority",
+      "candidate_sha256": "2691707d1bbb0755d14f0aea6e54e3ffe13b2c7f8aa678ed58a883299b6868f0"
+    }
+  ]
+}

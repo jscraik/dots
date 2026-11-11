@@ -1,0 +1,5 @@
+# Existing Configs validation dependencies; mirrored by the ported uv wrapper.
+# This migration does not install packages or run an online bootstrap.
+pyyaml==6.0.3
+pydantic==2.13.4
+markdown-it-py==4.2.0

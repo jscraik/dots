@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "contract": "git-metadata-preflight/v1",
+  "policy": {
+    "preflight_before_expensive_gates": true,
+    "write_probe": "required",
+    "cache_location": "outside_git_metadata",
+    "lock_cleanup": "manual_only",
+    "stale_lock_classification": "candidate_not_proof"
+  },
+  "historical_findings": [
+    {
+      "id": "F1",
+      "historical_failure": "duplicate metadata-preflight ownership",
+      "current_control": "exactly one adapter invocation per hook entrypoint",
+      "enforcement": "codex/scripts/hook-governance/verify-git-metadata-preflight.py"
+    },
+    {
+      "id": "F2",
+      "historical_failure": "runtime or metadata parent selected without a write probe",
+      "current_control": "the adapter invocation must keep the required write probe enabled",
+      "enforcement": "codex/scripts/hook-governance/verify-git-metadata-preflight.py"
+    },
+    {
+      "id": "F3",
+      "historical_failure": "failed cleanup leaked or deleted shared state",
+      "current_control": "hook entrypoints may report locks but never prune, unlock, or remove Git metadata",
+      "enforcement": "codex/docs/hooks-governance/git-metadata-preflight.md"
+    },
+    {
+      "id": "F4",
+      "historical_failure": "worktree paths containing spaces were split",
+      "current_control": "shared adapter records and Configs JSON transport preserve paths as opaque strings",
+      "enforcement": "codex/scripts/tests/test_git_metadata_preflight_contract.py"
+    },
+    {
+      "id": "F5",
+      "historical_failure": "diagnostics contaminated machine-readable output",
+      "current_control": "adapter JSON stays on stdout while diagnostics remain non-contract output",
+      "enforcement": "codex/scripts/tests/test_git_metadata_preflight_contract.py"
+    },
+    {
+      "id": "F6",
+      "historical_failure": "broad PR edits were not confirmation-gated",
+      "current_control": "the current PR policy keeps mutating gh pr actions prompt-required",
+      "enforcement": "codex/rules/pr.rules"
+    },
+    {
+      "id": "F7",
+      "historical_failure": "retired projections survived a migration",
+      "current_control": "the projection map remains the source of truth; profile retirement requires an explicit map-owned cleanup change before entries are removed",
+      "enforcement": "codex/projection-map.json and scripts/link-configs.sh"
+    }
+  ],
+  "repositories": [
+    {
+      "repo_name": "configs",
+      "repo_path": "configs",
+      "adapter": "codex/scripts/git-metadata-preflight.py",
+      "hook_entrypoints": [
+        "scripts/git-hooks/pre-commit.sh",
+        "scripts/git-hooks/pre-push.sh"
+      ]
+    }
+  ]
+}

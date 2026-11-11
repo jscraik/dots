@@ -1,0 +1,26 @@
+[
+  {
+    "source": "codex/scripts/validate-codex-config.py",
+    "revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
+    "source_sha256": "ec26e7acc1463967cc8d2895b252d76f9835ea9b0c733071bb433165c164834f",
+    "transformation": "AST-preserving private path substitution; disposable-scope import; Configs default renamed dots. Hook layout requires a byte-matched regular copy with distinct source/runtime inodes. The existing disabled cua_repl inert-transport exception applies to all isolated OSS profiles; enabled/required variants and other commands remain rejected. Other checks retained."
+  },
+  {
+    "source": "codex/scripts/repair-runtime-config-drift.py",
+    "revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
+    "source_sha256": "44807152f8919dd9899ee93559c3d098c4954c79bf8c0136ef5c795fea77b033",
+    "transformation": "AST-preserving private path substitution; disposable-scope import; Configs default renamed dots. Repair config and backup destinations must remain inside the disposable home; original repair checks retained."
+  },
+  {
+    "source": "codex/schemas/config.schema.json",
+    "revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
+    "source_sha256": "dd268e583cc16e83ae9cda5c19fc442d1ad037dcaea956ab00e7d7ab070806b5",
+    "transformation": "unchanged"
+  },
+  {
+    "source": "codex/instructions/compact-prompt.md",
+    "revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
+    "source_sha256": "1de5a96e4e93a94cab7cf1f9f912590eb56410819449991f1f285c1fc7740f9f",
+    "transformation": "unchanged"
+  }
+]

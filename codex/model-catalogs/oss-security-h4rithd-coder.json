@@ -1,0 +1,58 @@
+{
+  "client_version": "0.142.5",
+  "models": [
+    {
+      "slug": "h4rithd/coder:14b",
+      "display_name": "h4rithd/coder 14B",
+      "description": "Local Ollama h4rithd/coder:14b model for bounded oss-security receipt review.",
+      "default_reasoning_level": "none",
+      "supported_reasoning_levels": [
+        {
+          "effort": "none",
+          "description": "No additional Codex reasoning budget"
+        },
+        {
+          "effort": "minimal",
+          "description": "Minimal reasoning budget"
+        },
+        {
+          "effort": "low",
+          "description": "Low reasoning budget"
+        }
+      ],
+      "shell_type": "shell_command",
+      "visibility": "list",
+      "supported_in_api": false,
+      "priority": 1,
+      "additional_speed_tiers": [],
+      "service_tiers": [],
+      "availability_nux": null,
+      "upgrade": null,
+      "base_instructions": "You are running a bounded local oss-security receipt review. Review only the supplied deterministic receipt summary. Do not call tools. Do not claim you ran commands. Return the exact JSON shape requested by the prompt.",
+      "model_messages": {
+        "instructions_template": "You are running a bounded local oss-security receipt review. Review only the supplied deterministic receipt summary. Do not call tools. Do not claim you ran commands. Return the exact JSON shape requested by the prompt.",
+        "instructions_variables": {}
+      },
+      "supports_reasoning_summaries": false,
+      "default_reasoning_summary": "none",
+      "support_verbosity": false,
+      "default_verbosity": "low",
+      "apply_patch_tool_type": "freeform",
+      "web_search_tool_type": "text_and_image",
+      "truncation_policy": {
+        "mode": "tokens",
+        "limit": 8192
+      },
+      "supports_parallel_tool_calls": false,
+      "supports_image_detail_original": false,
+      "context_window": 262144,
+      "max_context_window": 262144,
+      "experimental_supported_tools": [],
+      "input_modalities": [
+        "text"
+      ],
+      "supports_search_tool": false,
+      "use_responses_lite": false
+    }
+  ]
+}

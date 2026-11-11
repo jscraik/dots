@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "codex_projection": [
+    {"name": "preview.toml", "source": "codex/generated/preview.toml", "target": "{CODEX_HOME}/preview.toml", "strategy": "copy"}
+  ],
+  "global_projection": []
+}

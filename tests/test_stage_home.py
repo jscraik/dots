@@ -2,13 +2,24 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
+from types import SimpleNamespace
 
 SPEC = importlib.util.spec_from_file_location('stage_home', Path(__file__).resolve().parents[1] / 'scripts/stage-home.py')
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
-TEMP_ROOT = Path(tempfile.gettempdir()).resolve()
+TEMP_ROOT = Path('/tmp').resolve()
 
 class StagingTests(unittest.TestCase):
+    def test_account_home_descendant_is_preserved(self):
+        with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as directory:
+            target = Path(directory) / 'child'
+            target.mkdir()
+            with mock.patch.object(MODULE.pwd, 'getpwuid', return_value=SimpleNamespace(pw_dir=directory)):
+                with self.assertRaises(ValueError):
+                    MODULE.stage(target)
+            self.assertEqual(list(target.iterdir()), [])
+
     def test_stages_defaults_without_auth_and_is_idempotent(self):
         with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as directory:
             target = Path(directory)

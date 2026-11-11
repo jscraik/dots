@@ -1,0 +1,15 @@
+# Codex admin-enforced requirements baseline.
+# Use this file as the source template for /etc/codex/requirements.toml or an
+# equivalent managed-configuration payload.
+#
+# Current Codex requirements constrain config choices. Command approval policy
+# lives in codex/rules/*.rules, not in requirements.toml.
+
+allowed_approval_policies = ["on-request", "never"]
+allowed_sandbox_modes = ["read-only", "workspace-write"]
+
+[mcp_servers.openaiDeveloperDocs.identity]
+url = "https://developers.openai.com/mcp"
+
+[mcp_servers.codex-repo.identity]
+url = "@CODEX_REPO_URL@"

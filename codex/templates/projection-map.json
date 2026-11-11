@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "codex_projection": [
+    {
+      "name": "config.toml",
+      "source": "codex/config.toml",
+      "target": "{CODEX_HOME}/config.toml",
+      "strategy": "copy-runtime"
+    },
+    {
+      "name": "docs.config.toml",
+      "source": "codex/docs.config.toml",
+      "target": "{CODEX_HOME}/docs.config.toml"
+    },
+    {
+      "name": "oss-local.config.toml",
+      "source": "codex/oss-local.config.toml",
+      "target": "{CODEX_HOME}/oss-local.config.toml"
+    },
+    {
+      "name": "oss-local-code.config.toml",
+      "source": "codex/oss-local-code.config.toml",
+      "target": "{CODEX_HOME}/oss-local-code.config.toml"
+    },
+    {
+      "name": "oss-local-fallback.config.toml",
+      "source": "codex/oss-local-fallback.config.toml",
+      "target": "{CODEX_HOME}/oss-local-fallback.config.toml"
+    },
+    {
+      "name": "oss-security.config.toml",
+      "source": "codex/oss-security.config.toml",
+      "target": "{CODEX_HOME}/oss-security.config.toml"
+    },
+    {
+      "name": "oss-cloud.config.toml",
+      "source": "codex/oss-cloud.config.toml",
+      "target": "{CODEX_HOME}/oss-cloud.config.toml"
+    },
+    {
+      "name": "oss-inspect.config.toml",
+      "source": "codex/oss-inspect.config.toml",
+      "target": "{CODEX_HOME}/oss-inspect.config.toml"
+    },
+    {
+      "name": "AGENTS.md",
+      "source": "codex/AGENTS.md",
+      "target": "{CODEX_HOME}/AGENTS.md"
+    },
+    {
+      "name": "hooks",
+      "source": "codex/hooks",
+      "target": "{CODEX_HOME}/hooks"
+    },
+    {
+      "name": "scripts",
+      "source": "codex/scripts",
+      "target": "{CODEX_HOME}/scripts"
+    },
+    {
+      "name": "instructions",
+      "source": "codex/instructions",
+      "target": "{CODEX_HOME}/instructions"
+    },
+    {
+      "name": "schemas",
+      "source": "codex/schemas",
+      "target": "{CODEX_HOME}/schemas"
+    },
+    {
+      "name": "model-catalogs",
+      "source": "codex/model-catalogs",
+      "target": "{CODEX_HOME}/model-catalogs"
+    },
+    {
+      "name": "rules",
+      "source": "codex/rules",
+      "target": "{CODEX_HOME}/rules"
+    },
+    {
+      "name": "hooks.json",
+      "source": "codex/hooks/hooks.json",
+      "target": "{CODEX_HOME}/hooks.json",
+      "strategy": "hook-copy"
+    },
+    {
+      "name": "agents",
+      "target": "{CODEX_HOME}/agents",
+      "strategy": "runtime-directory"
+    },
+    {
+      "name": "automations",
+      "target": "{CODEX_HOME}/automations",
+      "strategy": "runtime-directory"
+    },
+    {
+      "name": "usage-data",
+      "target": "{CODEX_HOME}/usage-data",
+      "strategy": "runtime-directory"
+    }
+  ],
+  "global_projection": []
+}

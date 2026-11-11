@@ -1,0 +1,58 @@
+{
+  "client_version": "0.142.5",
+  "models": [
+    {
+      "slug": "qwen3.5:9b-mlx",
+      "display_name": "Qwen3.5 9B MLX",
+      "description": "Local Ollama qwen3.5:9b-mlx model for bounded Skills SDK OSS-local eval smoke.",
+      "default_reasoning_level": "none",
+      "supported_reasoning_levels": [
+        {
+          "effort": "none",
+          "description": "No additional Codex reasoning budget"
+        },
+        {
+          "effort": "minimal",
+          "description": "Minimal reasoning budget"
+        },
+        {
+          "effort": "low",
+          "description": "Low reasoning budget"
+        }
+      ],
+      "shell_type": "shell_command",
+      "visibility": "list",
+      "supported_in_api": false,
+      "priority": 1,
+      "additional_speed_tiers": [],
+      "service_tiers": [],
+      "availability_nux": null,
+      "upgrade": null,
+      "base_instructions": "You are running a bounded local smoke or evaluation check. Follow the user prompt exactly. Keep output concise. Do not expose hidden reasoning.",
+      "model_messages": {
+        "instructions_template": "You are running a bounded local smoke or evaluation check. Follow the user prompt exactly. Keep output concise. Do not expose hidden reasoning.",
+        "instructions_variables": {}
+      },
+      "supports_reasoning_summaries": false,
+      "default_reasoning_summary": "none",
+      "support_verbosity": false,
+      "default_verbosity": "low",
+      "apply_patch_tool_type": "freeform",
+      "web_search_tool_type": "text_and_image",
+      "truncation_policy": {
+        "mode": "tokens",
+        "limit": 8192
+      },
+      "supports_parallel_tool_calls": false,
+      "supports_image_detail_original": false,
+      "context_window": 262144,
+      "max_context_window": 262144,
+      "experimental_supported_tools": [],
+      "input_modalities": [
+        "text"
+      ],
+      "supports_search_tool": false,
+      "use_responses_lite": false
+    }
+  ]
+}

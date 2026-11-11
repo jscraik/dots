@@ -22,16 +22,17 @@ generated reports stay on each machine. They are not copied to this repository.
 
 Codex owns its runtime state under `~/.codex`. The current installation still
 uses Configs for its managed configuration, instructions, hooks, rules and
-associated scripts. The short `codex/policy.md` here is a portable candidate,
-not a complete replacement for that control plane. Do not install it over the
-current `~/.codex/AGENTS.md` until policy, projection and required checks have
-been migrated and verified together. Desktop-owned preferences and local
-sessions must be preserved during any later cutover.
+associated scripts. The full reusable policy and helper groups are now present
+in the isolated candidate, with disposable projection and validation routes.
+The short `codex/policy.md` remains an example, not the full control plane.
+Local proof does not authorise changing the active source. Desktop-owned
+preferences, consent, local sessions and credentials must be preserved during
+any separately approved cutover.
 
 | Surface | Destination and treatment |
 | --- | --- |
 | Reusable policy and non-sensitive templates | Review for the public repository; install only after checking parity with the current policy. |
-| Managed `config.toml`, hooks, rules and validators | Keep using Configs for now; separate portable code from machine-specific settings before any replacement. |
+| Managed `config.toml`, hooks, rules and validators | Portable templates and code are staged here; machine bindings and consent remain local. Configs still owns the live installation. |
 | Codex sessions, archived sessions and indexes | Keep on the machine where they were created; do not sync them through this repository. |
 | Authentication, secret values and sign-in state | Keep credentials in 1Password and runtime sign-in state local. |
 | Memories, runtime databases, logs and caches | Keep local; they are not workstation configuration to publish or project. |
@@ -52,8 +53,9 @@ organisation.
 
 ## Plan to remove the Configs dependency
 
-Status: planned, not an approved live cutover. The current migration changes
-neither the running Codex setup nor its checks. Keep Configs available until
+Status: isolated implementation; live cutover and retirement remain planned
+and unauthorised. This candidate does not change the running Codex setup or
+its checks. Keep Configs available until
 all phases below have evidence. Maintain one authoritative policy source at
 each phase; do not allow two independently edited live copies.
 
@@ -109,3 +111,21 @@ each phase; do not allow two independently edited live copies.
 Jamie owns live-cutover and retirement decisions. The migration task owns the
 implementation and evidence. Record progress in the existing task worklog;
 this plan does not authorise publication, CI runs, runtime changes or archiving.
+
+## Outstanding-source reconciliation
+
+The local migration reconciles individual fixes rather than importing old
+branches wholesale. Earlier branches can contain behaviour superseded by the
+accepted baseline. The file decisions and digests are recorded in
+`codex/templates/reconciliation-provenance.json`.
+
+| Source material | Treatment |
+| --- | --- |
+| Reviewed regular hook-manifest copy | Retain the public publisher, validators and synthetic proof; align the library docs with regular-file publication. |
+| Supported hook denial and accurate execution diagnostics | Port with the original selected regressions; direct syntax grants no extra authority. |
+| Native review formats and authenticated history/receipt binding | Port compatible fixes while retaining identity, exact head, findings, CI, thread and quorum requirements. |
+| Unknown security flags without independent corroboration | Defer that conflicting extension; keep the stricter native receipt requirement and its regressions. |
+| Source/base/edit-bound review-request safeguards | Port code and synthetic regressions; do not send a request during migration. |
+| Configs package/CI recipes and another project's workflow | Keep with their owners; they do not define dots' validation or deployment. |
+| Experimental execution, host, image and runtime qualification | Keep deferred with the source coordinator; do not introduce an execution route through this port. |
+| Machine plugin paths, trust hashes and operational records | Keep local or privately versioned; never copy consent, sessions, credentials or reports into the public tree. |

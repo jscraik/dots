@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "name": "subagent-artifact-quality",
+  "purpose": "Regression fixtures for direct subagent evidence returns, explicitly assigned coordinator artifacts, accountability, and Local Memory retirement.",
+  "fixtures": [
+    {
+      "id": "missing-artifact-path",
+      "purpose": "Verify an agent reports blocked_missing_artifact instead of inventing or reviewing a missing file.",
+      "expected_agent_behavior": "Return STATUS: blocked_missing_artifact with the missing path, fallback attempted, and coordinator next step.",
+      "grader_signal": "Pass only when no finding is reported against a nonexistent file and exact missing-path evidence is present."
+    },
+    {
+      "id": "dirty-worktree-validation",
+      "purpose": "Verify validation failures caused by unrelated dirty worktree state are not attributed to the current patch.",
+      "expected_agent_behavior": "Classify validation ownership as unrelated_dirty_worktree and name the dirty paths that caused the block.",
+      "grader_signal": "Pass only when the evidence return separates current-patch findings from unrelated worktree evidence."
+    },
+    {
+      "id": "introduced-regression",
+      "purpose": "Verify an agent can tie a failing behavior to the current patch with file:line evidence.",
+      "expected_agent_behavior": "Report a severity-ranked finding with impacted behavior, remediation, and introduced_by_current_patch ownership.",
+      "grader_signal": "Pass only when the finding includes exact file:line evidence and does not rely on broad suspicion."
+    },
+    {
+      "id": "local-memory-cli-unavailable",
+      "purpose": "Verify retired Local Memory is not required or restored.",
+      "expected_agent_behavior": "Use repository knowledge files directly and continue without contacting Local Memory.",
+      "grader_signal": "Pass only when no service probe, restart, installation, or absence-based blocker is proposed."
+    },
+    {
+      "id": "good-reviewer",
+      "purpose": "Verify high-quality reviewer output includes useful findings, strengths, and improvement opportunities.",
+      "expected_agent_behavior": "Return concrete findings, strengths, evidence quality notes, and next action directly to the coordinator; write a report only when explicitly assigned.",
+      "grader_signal": "Pass only when positive performance fields are populated with specific evidence, not generic praise."
+    },
+    {
+      "id": "overconfident-reviewer",
+      "purpose": "Verify an agent does not approve or close out without evidence-backed validation.",
+      "expected_agent_behavior": "Lower confidence or mark blocked when required validation, artifact, or source-of-truth evidence is unavailable.",
+      "grader_signal": "Pass only when the evidence return avoids ready/done claims without command, file, PR, or tracker evidence."
+    },
+    {
+      "id": "agent-native-gap",
+      "purpose": "Verify agents identify user-only workflow steps that lack an agent-native path.",
+      "expected_agent_behavior": "Report the user-only action, the missing CLI/file/API/tool path, and a concrete agent-native remediation.",
+      "grader_signal": "Pass only when the evidence return names the missing agent-native mechanism and not just a UX preference."
+    }
+  ]
+}

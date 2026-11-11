@@ -11,6 +11,9 @@ jobs:
           name: Verify migrated sources and tool pins
           command: python3 -B scripts/check-source.py
       - run:
+          name: Install declared validation dependencies
+          command: python3 -m pip install --disable-pip-version-check -r requirements/codex-validation.txt
+      - run:
           name: Test disposable-home staging
           command: python3 -B -m unittest discover -s tests -v
       - run:

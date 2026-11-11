@@ -1,0 +1,632 @@
+# Guard rules: prompt/forbidden rules for dangerous operations
+# Combined from responsible-vibe.rules, 60-secrets-guard.rules, 70-deps-guard.rules, 80-network-guard.rules, 90-python-guard.rules
+
+# === Secrets guard (prompt before outputting common secret sources) ===
+prefix_rule(
+    pattern = ["cat", [".env", ".env.local", ".env.production", ".env.development"]],
+    decision = "prompt",
+    justification = "May expose secrets; confirm before outputting.",
+    match = ["cat .env"],
+)
+prefix_rule(
+    pattern = ["printenv"],
+    decision = "prompt",
+    justification = "May expose secrets; confirm before printing env.",
+    match = ["printenv"],
+)
+prefix_rule(
+    pattern = ["env"],
+    decision = "prompt",
+    justification = "May expose secrets; confirm before printing env.",
+    match = ["env"],
+)
+
+# === Dependency guard (prompt on add/remove/upgrade, allow tests/builds) ===
+prefix_rule(
+    pattern = ["npm", "install", "-g", "portless"],
+    decision = "prompt",
+    justification = "Global npm installs mutate host state; require operator confirmation before installing portless.",
+    match = ["npm install -g portless"],
+)
+prefix_rule(
+    pattern = [["pnpm", "npm", "yarn", "bun"], ["add", "install", "i", "update", "upgrade", "remove", "rm"]],
+    decision = "prompt",
+    justification = "Dependency changes require confirmation.",
+    match = ["pnpm add zod", "npm install"],
+)
+prefix_rule(
+    pattern = [["pnpm", "npm", "yarn", "bun"], ["test", "lint", "typecheck", "build", "storybook", "storybook:test", "check"]],
+    decision = "allow",
+    justification = "Allow CI/test/build commands without prompt.",
+    match = ["pnpm test", "pnpm typecheck", "pnpm build", "pnpm storybook:test"],
+)
+prefix_rule(
+    pattern = [["pnpm", "npm", "yarn", "bun"], ["dev", "start", "format", "fmt", "clean", "preview", "generate"]],
+    decision = "prompt",
+    justification = "Generic script runners and lifecycle shortcuts can invoke arbitrary package.json scripts; require confirmation.",
+    match = ["pnpm dev", "pnpm start"],
+)
+# The blanket run prompt would override these named validation allowances.
+# Unlisted run scripts fall back to sandbox/approval policy, never auto-allow.
+prefix_rule(
+    pattern = [["pnpm", "npm", "yarn", "bun"], "run", ["test", "lint", "typecheck", "build", "check"]],
+    decision = "allow",
+    justification = "Named validation scripts retain task-authority and fixture-safety requirements, matching their shorthand forms.",
+    match = ["pnpm run check", "pnpm run test"],
+    not_match = ["pnpm run custom", "pnpm run deploy"],
+)
+
+# === Network guard (prompt on outbound operations) ===
+prefix_rule(
+    pattern = [["curl", "wget"]],
+    decision = "prompt",
+    justification = "Network fetch can exfiltrate data or pull untrusted scripts.",
+    match = ["curl -I https://example.com", "wget https://example.com/file"],
+)
+prefix_rule(
+    pattern = [["ssh", "scp", "rsync"]],
+    decision = "prompt",
+    justification = "Remote access/transfer requires confirmation.",
+    match = ["ssh user@host", "rsync -a src/ host:/dst/"],
+)
+prefix_rule(
+    pattern = [["npx", "uvx", "bunx"]],
+    decision = "prompt",
+    justification = "Ephemeral package executors can fetch and run remote code; confirm before use.",
+    match = ["npx create-next-app@latest", "uvx ruff check", "bunx cowsay hello"],
+)
+prefix_rule(
+    pattern = [["pnpm", "npm", "yarn", "bun"], ["dlx", "exec", "create"]],
+    decision = "prompt",
+    justification = "Package runner commands can execute fetched code or scaffold new projects; confirm before use.",
+    match = ["pnpm dlx create-next-app@latest", "npm exec prettier -- --check .", "yarn create vite"],
+)
+
+# === UV guard ===
+# Allow narrow, non-destructive uv commands for local environment checks and
+# deterministic local sync/test/lint/type-check flows. Keep broader uv/uvx
+# execution paths gated by prompt rules.
+prefix_rule(
+    pattern = ["uv", "lock", ["--upgrade", "-U", "--upgrade-package", "-P"]],
+    decision = "prompt",
+    justification = "Lockfile upgrades can change resolved dependencies; require explicit review.",
+    match = [
+        "uv lock --upgrade",
+        "uv lock -U",
+        "uv lock --upgrade-package pydantic",
+        "uv lock -P pydantic",
+    ],
+    not_match = ["uv lock", "uv lock --check"],
+)
+prefix_rule(
+    pattern = ["uv", "--version"],
+    decision = "allow",
+    justification = "Read-only uv version check.",
+    match = ["uv --version"],
+)
+prefix_rule(
+    pattern = ["uv", "python", "list"],
+    decision = "allow",
+    justification = "Read-only interpreter inventory.",
+    match = ["uv python list"],
+)
+prefix_rule(
+    pattern = ["uv", "tool", "list"],
+    decision = "allow",
+    justification = "Read-only uv tool inventory.",
+    match = ["uv tool list"],
+)
+prefix_rule(
+    pattern = ["uv", "cache", "dir"],
+    decision = "allow",
+    justification = "Read-only cache path lookup.",
+    match = ["uv cache dir"],
+)
+prefix_rule(
+    pattern = ["uv", "pip", "list"],
+    decision = "allow",
+    justification = "Read-only installed package listing.",
+    match = ["uv pip list"],
+)
+prefix_rule(
+    pattern = ["uv", "sync", "--frozen"],
+    decision = "allow",
+    justification = "Lockfile-constrained local environment sync; command may still download packages from network. For strict offline behavior, use uv sync --frozen --offline.",
+    match = ["uv sync --frozen"],
+)
+prefix_rule(
+    pattern = ["uv", "run", "pytest"],
+    decision = "allow",
+    justification = "Allow running tests through uv.",
+    match = ["uv run pytest", "uv run pytest -q"],
+)
+prefix_rule(
+    pattern = ["uv", "run", "ruff"],
+    decision = "allow",
+    justification = "Allow lint checks through uv.",
+    match = ["uv run ruff check ."],
+)
+prefix_rule(
+    pattern = ["uv", "run", "mypy"],
+    decision = "allow",
+    justification = "Allow type-checks through uv.",
+    match = ["uv run mypy ."],
+)
+
+# === Python guard ===
+# Named validation modules retain the same task-authority and fixture-safety
+# requirements as package tests. Arbitrary Python falls back to sandbox and
+# approval policy; a blanket prompt would override these module allowances.
+prefix_rule(
+    pattern = ["python3", "-m", ["pytest", "py_compile", "ruff", "mypy", "pylint", "black", "isort"]],
+    decision = "allow",
+    justification = "Named module runners (test/lint/type-check) are safe to run unprompted.",
+    match = ["python3 -m pytest", "python3 -m py_compile foo.py"],
+)
+
+# === RVCP: destructive / privilege escalation ===
+prefix_rule(
+    pattern = ["rm"],
+    decision = "prompt",
+    justification = "RVCP: destructive command; require explicit approval",
+    match = ["rm -rf build", "rm -r dist"],
+)
+prefix_rule(
+    pattern = ["sudo"],
+    decision = "prompt",
+    justification = "RVCP: privilege escalation requires explicit approval",
+    match = ["sudo ls", "sudo rm -rf /tmp/foo"],
+)
+prefix_rule(
+    pattern = ["sudo", "rm", ["-rf", "-fr"]],
+    decision = "forbidden",
+    justification = "Bypassing privilege and destructive-operation guardrails is forbidden; use a narrowly scoped reviewed command instead.",
+    match = ["sudo rm -rf /tmp/foo", "sudo rm -fr /tmp/foo"],
+)
+
+# === RVCP: forbidden - catastrophic operations ===
+prefix_rule(
+    pattern = ["rm", ["-rf", "-fr"], "/"],
+    decision = "forbidden",
+    justification = "RVCP: never delete root filesystem",
+    match = ["rm -rf /"],
+)
+prefix_rule(
+    pattern = ["mkfs"],
+    decision = "forbidden",
+    justification = "RVCP: filesystem formatting is never allowed",
+    match = ["mkfs /dev/sda"],
+)
+prefix_rule(
+    pattern = ["dd"],
+    decision = "prompt",
+    justification = "RVCP: raw disk operations are extremely risky; require explicit approval",
+    match = ["dd if=/dev/zero of=/tmp/file bs=1m count=10"],
+)
+
+# === RVCP: broad staging ===
+prefix_rule(
+    pattern = ["git", "add", ["-A", "--all"]],
+    decision = "prompt",
+    justification = "Broad staging can include unrelated or sensitive files; require explicit review.",
+    match = ["git add -A", "git add --all"],
+    not_match = ["git add -- src/app.py", "git add README.md"],
+)
+
+# === RVCP: publishing remote state ===
+# Ordinary non-force commits and topic-branch pushes intentionally fall through
+# to the configured sandbox and user-authority policy. The previous blanket
+# prompt contradicted auto-review and re-asked for every already-authorized PR
+# lifecycle step. Keep human gates for protected or history-rewriting actions.
+prefix_rule(
+    pattern = ["git", "push", ["--force-with-lease", "--force-with-lease=refs/heads/topic", "--force-with-lease=refs/heads/main"]],
+    decision = "prompt",
+    justification = "RVCP: publishing history with force-with-lease requires explicit approval",
+    match = [
+        "git push --force-with-lease",
+        "git push --force-with-lease=refs/heads/topic origin topic",
+        "git push --force-with-lease=refs/heads/main origin main",
+    ],
+)
+prefix_rule(
+    pattern = ["git", "push", ["--force-with-lease=refs/heads/topic:expected", "--force-with-lease=refs/heads/main:expected"], "origin", "codex/topic-branch"],
+    decision = "prompt",
+    justification = "RVCP: publishing history with force-with-lease requires explicit approval",
+    match = [
+        "git push --force-with-lease=refs/heads/topic:expected origin codex/topic-branch",
+        "git push --force-with-lease=refs/heads/main:expected origin codex/topic-branch",
+    ],
+)
+# Attached leases carry a caller-supplied object ID. Execpolicy prefix rules
+# are literal, so keep a representative real 40-hex form here and retain the
+# PreToolUse semantic guard for arbitrary lease values.
+prefix_rule(
+    pattern = ["git", "push", "--force-with-lease=refs/heads/topic:0123456789abcdef0123456789abcdef01234567", "origin", "codex/topic-branch"],
+    decision = "prompt",
+    justification = "RVCP: publishing history with force-with-lease requires explicit approval",
+    match = [
+        "git push --force-with-lease=refs/heads/topic:0123456789abcdef0123456789abcdef01234567 origin codex/topic-branch",
+    ],
+)
+prefix_rule(
+    pattern = ["git", "push", "origin", "codex/topic-branch", ["--force-with-lease", "--force-with-lease=refs/heads/topic:expected", "--force-with-lease=refs/heads/main:expected"]],
+    decision = "prompt",
+    justification = "RVCP: publishing history with force-with-lease requires explicit approval",
+    match = [
+        "git push origin codex/topic-branch --force-with-lease",
+        "git push origin codex/topic-branch --force-with-lease=refs/heads/topic:expected",
+        "git push origin codex/topic-branch --force-with-lease=refs/heads/main:expected",
+    ],
+)
+prefix_rule(
+    pattern = ["git", "push", "origin", "codex/topic-branch", "--force-with-lease=refs/heads/topic:0123456789abcdef0123456789abcdef01234567"],
+    decision = "prompt",
+    justification = "RVCP: publishing history with force-with-lease requires explicit approval",
+    match = [
+        "git push origin codex/topic-branch --force-with-lease=refs/heads/topic:0123456789abcdef0123456789abcdef01234567",
+    ],
+)
+prefix_rule(
+    pattern = ["git", "push", "-f", "origin", "HEAD"],
+    decision = "prompt",
+    justification = "RVCP: force-pushing history requires explicit approval",
+    match = ["git push -f origin HEAD"],
+)
+prefix_rule(
+    pattern = ["git", "push", "origin", "HEAD", "--force"],
+    decision = "prompt",
+    justification = "RVCP: force-pushing history requires explicit approval",
+    match = ["git push origin HEAD --force"],
+)
+prefix_rule(
+    pattern = ["git", "push", "origin", ["main", "master"]],
+    decision = "prompt",
+    justification = "RVCP: publishing directly to a protected primary branch requires explicit approval",
+    match = ["git push origin main", "git push origin master"],
+)
+prefix_rule(
+    pattern = ["git", "push", "upstream", ["main", "master"]],
+    decision = "prompt",
+    justification = "RVCP: publishing directly to a protected primary branch requires explicit approval",
+    match = ["git push upstream main", "git push upstream master"],
+)
+prefix_rule(
+    pattern = ["git", "push", "origin", ["main:main", "master:master"]],
+    decision = "prompt",
+    justification = "RVCP: publishing directly to a protected primary branch requires explicit approval",
+    match = ["git push origin main:main", "git push origin master:master"],
+)
+prefix_rule(
+    pattern = ["git", "push", "origin", ["HEAD:main", "HEAD:master"]],
+    decision = "prompt",
+    justification = "RVCP: publishing directly to a protected primary branch requires explicit approval",
+    match = ["git push origin HEAD:main", "git push origin HEAD:master"],
+)
+prefix_rule(
+    pattern = ["git", "push", "origin", ["HEAD:refs/heads/main", "HEAD:refs/heads/master"]],
+    decision = "prompt",
+    justification = "RVCP: publishing directly to a protected primary branch requires explicit approval",
+    match = [
+        "git push origin HEAD:refs/heads/main",
+        "git push origin HEAD:refs/heads/master",
+    ],
+)
+prefix_rule(
+    pattern = ["git", "push", "origin", ["refs/heads/topic:refs/heads/main", "refs/heads/topic:refs/heads/master"]],
+    decision = "prompt",
+    justification = "RVCP: publishing directly to a protected primary branch requires explicit approval",
+    match = [
+        "git push origin refs/heads/topic:refs/heads/main",
+        "git push origin refs/heads/topic:refs/heads/master",
+    ],
+)
+prefix_rule(
+    pattern = ["git", "push", "upstream", ["feature:main", "feature:refs/heads/main"]],
+    decision = "prompt",
+    justification = "RVCP: publishing directly to a protected primary branch requires explicit approval",
+    match = [
+        "git push upstream feature:main",
+        "git push upstream feature:refs/heads/main",
+    ],
+)
+prefix_rule(
+    pattern = ["git", "push", "origin", ["feature:main", "feature:refs/heads/main"]],
+    decision = "prompt",
+    justification = "RVCP: publishing directly to a protected primary branch requires explicit approval",
+    match = [
+        "git push origin feature:main",
+        "git push origin feature:refs/heads/main",
+    ],
+)
+prefix_rule(
+    pattern = ["git", "push", "origin", "--delete", ["main", "master"]],
+    decision = "prompt",
+    justification = "RVCP: deleting a protected primary branch requires explicit approval",
+    match = ["git push origin --delete main", "git push origin --delete master"],
+)
+prefix_rule(
+    pattern = ["git", "push", "origin", [":main", ":master"]],
+    decision = "prompt",
+    justification = "RVCP: deleting a protected primary branch requires explicit approval",
+    match = ["git push origin :main", "git push origin :master"],
+)
+prefix_rule(
+    pattern = ["git", "push", ["--all", "--tags"], "origin"],
+    decision = "prompt",
+    justification = "RVCP: publishing multiple refs requires explicit approval",
+    match = ["git push --all origin", "git push --tags origin"],
+)
+prefix_rule(
+    pattern = ["git", "push", "origin", "--mirror"],
+    decision = "forbidden",
+    justification = "Mirrored pushes can overwrite remote refs wholesale; use an explicitly reviewed alternative.",
+    match = ["git push origin --mirror"],
+)
+prefix_rule(
+    pattern = ["git", "tag"],
+    decision = "prompt",
+    justification = "RVCP: creating or changing release tags requires explicit approval",
+    match = ["git tag v1.2.3"],
+)
+prefix_rule(
+    pattern = ["git", "commit", "--amend"],
+    decision = "prompt",
+    justification = "RVCP: rewriting a commit requires explicit approval",
+    match = ["git commit --amend --no-edit"],
+)
+prefix_rule(
+    pattern = ["git", "commit", "--no-edit", "--amend"],
+    decision = "prompt",
+    justification = "RVCP: rewriting a commit requires explicit approval",
+    match = ["git commit --no-edit --amend"],
+)
+prefix_rule(
+    pattern = ["git", "commit", "-m", "fix", "--amend"],
+    decision = "prompt",
+    justification = "RVCP: rewriting a commit requires explicit approval",
+    match = ["git commit -m fix --amend"],
+)
+prefix_rule(
+    pattern = ["git", "commit", "-a", "--amend", "-m", "fix"],
+    decision = "prompt",
+    justification = "RVCP: rewriting a commit requires explicit approval",
+    match = ["git commit -a --amend -m fix"],
+)
+prefix_rule(
+    pattern = ["git", "commit", "--all", "--amend", "-m", "fix"],
+    decision = "prompt",
+    justification = "RVCP: rewriting a commit requires explicit approval",
+    match = ["git commit --all --amend -m fix"],
+)
+prefix_rule(
+    pattern = ["git", "commit", ["--no-verify", "-n"]],
+    decision = "forbidden",
+    justification = "Bypassing git hooks is forbidden; use normal hook-enforced commit flow.",
+    match = ["git commit --no-verify -m fix", "git commit -n -m fix"],
+)
+# Execpolicy currently supports ordered prefix tokens plus alternatives. Keep
+# no-verify coverage here for supported explicit prefixes; there is no
+# requirements.toml command-rule wildcard layer in current Codex.
+prefix_rule(
+    pattern = ["git", "push", "--no-verify"],
+    decision = "forbidden",
+    justification = "Bypassing git hooks is forbidden; use normal hook-enforced push flow.",
+    match = ["git push --no-verify origin HEAD"],
+)
+prefix_rule(
+    pattern = ["wrangler", ["deploy", "publish"]],
+    decision = "prompt",
+    justification = "RVCP: deployment requires explicit approval",
+    match = ["wrangler deploy"],
+)
+
+# === Git mutation guardrails ===
+prefix_rule(
+    pattern = ["git", "clean", ["-fd", "-df", "-fdx", "-xdf", "-fxd", "-dfx"]],
+    decision = "prompt",
+    justification = "git clean permanently deletes untracked files; require explicit approval.",
+    match = ["git clean -fd", "git clean -fdx"],
+)
+prefix_rule(
+    pattern = ["git", "stash", ["drop", "clear", "pop"]],
+    decision = "prompt",
+    justification = "Stash mutations can permanently discard work or reapply conflicts; require explicit approval.",
+    match = ["git stash pop", "git stash drop stash@{0}", "git stash clear"],
+)
+prefix_rule(
+    pattern = ["git", "branch", "-D"],
+    decision = "prompt",
+    justification = "Force-deleting branches can discard unpublished work; require explicit approval.",
+    match = ["git branch -D feature/tmp"],
+)
+prefix_rule(
+    pattern = ["git", "checkout", "-f"],
+    decision = "prompt",
+    justification = "Forced checkout can discard local changes; require explicit approval.",
+    match = ["git checkout -f main"],
+)
+prefix_rule(
+    pattern = ["git", "switch", "-f"],
+    decision = "prompt",
+    justification = "Forced switch can discard local changes; require explicit approval.",
+    match = ["git switch -f main"],
+)
+prefix_rule(
+    pattern = ["git", "push", "--mirror"],
+    decision = "forbidden",
+    justification = "Mirrored pushes can overwrite remote refs wholesale; use an explicitly reviewed alternative.",
+    match = ["git push --mirror origin"],
+)
+
+# === GitHub safety ===
+
+# Archive / transfer workflows should require explicit confirmation (prompt, not full block)
+prefix_rule(
+    pattern = ["gh", "repo", "archive"],
+    decision = "prompt",
+    justification = "Destructive repository state change: archiving can remove visibility from workflows and integrations; require explicit confirmation.",
+    match = ["gh repo archive owner/repo"],
+)
+prefix_rule(
+    pattern = ["gh", "repo", "unarchive"],
+    decision = "prompt",
+    justification = "Unarchiving changes repo state and can expose historical/PII data; require explicit confirmation.",
+    match = ["gh repo unarchive owner/repo"],
+)
+prefix_rule(
+    pattern = ["gh", "repo", "transfer"],
+    decision = "prompt",
+    justification = "Repository transfer changes ownership/scope; require explicit confirmation.",
+    match = ["gh repo transfer owner/repo target-owner"],
+)
+prefix_rule(
+    pattern = ["gh", "repo", "delete"],
+    decision = "forbidden",
+    justification = "Prevent accidental repository deletion via GitHub CLI",
+    match = ["gh repo delete owner/repo"],
+)
+prefix_rule(
+    pattern = ["gh", "project", "delete"],
+    decision = "forbidden",
+    justification = "Prevent accidental GitHub project deletion via GitHub CLI",
+    match = ["gh project delete 123"],
+)
+prefix_rule(
+    pattern = ["gh", "api", ["-X", "--method"], "DELETE"],
+    decision = "forbidden",
+    justification = "Block destructive GitHub API calls through gh api",
+    match = ["gh api -X DELETE /repos/owner/repo"],
+)
+
+
+# Additional GitHub destructive safeguards
+prefix_rule(
+    pattern = ["gh", "api", "-X", "DELETE"],
+    decision = "forbidden",
+    justification = "Block destructive GitHub API calls where method is set explicitly via -X DELETE",
+    match = ["gh api -X DELETE /repos/owner/repo"],
+)
+prefix_rule(
+    pattern = ["gh", "api", "--method", "DELETE"],
+    decision = "forbidden",
+    justification = "Block destructive GitHub API calls where method is set explicitly via --method DELETE",
+    match = ["gh api --method DELETE /repos/owner/repo"],
+)
+prefix_rule(
+    pattern = ["gh", "project", "item-delete"],
+    decision = "forbidden",
+    justification = "Prevent accidental deletion of items inside GitHub projects",
+    match = ["gh project item-delete 123 456"],
+)
+prefix_rule(
+    pattern = ["gh", "issue", "delete"],
+    decision = "forbidden",
+    justification = "Prevent accidental issue deletion via GitHub CLI",
+    match = ["gh issue delete 42"],
+)
+prefix_rule(
+    pattern = ["gh", "api", ["--method=DELETE"]],
+    decision = "forbidden",
+    justification = "Block destructive GitHub API calls through gh api",
+    match = ["gh api --method=DELETE /repos/owner/repo"],
+)
+
+
+
+# Repository settings mutations should require explicit confirmation
+prefix_rule(
+    pattern = ["gh", "repo", "edit"],
+    decision = "prompt",
+    justification = "Repository settings changes can have irreversible operational impact; require explicit confirmation.",
+    match = ["gh repo edit owner/repo --visibility private"],
+)
+
+# GitHub API write transitions (POST/PATCH) are high-risk; require explicit confirmation
+prefix_rule(
+    pattern = ["gh", "api", "-X", ["PATCH", "POST"]],
+    decision = "prompt",
+    justification = "gh api write operations can change sensitive GitHub settings and should be confirmed.",
+    match = ["gh api -X PATCH /repos/owner/repo", "gh api -X POST /repos/owner/repo/branches/main/protection"],
+)
+prefix_rule(
+    pattern = ["gh", "api", "--method", ["PATCH", "POST"]],
+    decision = "prompt",
+    justification = "gh api write operations can change sensitive GitHub settings and should be confirmed.",
+    match = ["gh api --method PATCH /repos/owner/repo", "gh api --method POST /repos/owner/repo/branches/main/protection"],
+)
+
+
+
+# Project-field and membership mutations should require explicit confirmation
+prefix_rule(
+    pattern = ["gh", "project", ["field", "item"], ["create", "edit", "update", "delete", "unarchive", "archive"]],
+    decision = "prompt",
+    justification = "Project metadata mutations can impact workflows; require explicit confirmation.",
+    match = ["gh project field create", "gh project item update", "gh project item edit"],
+)
+
+# GH API PUT writes should require explicit confirmation
+prefix_rule(
+    pattern = ["gh", "api", "-X", "PUT"],
+    decision = "prompt",
+    justification = "gh api with PUT is a write operation; require explicit confirmation before mutating GitHub state.",
+    match = ["gh api -X PUT /repos/owner/repo", "gh api -X PUT /repos/owner/repo/topics"],
+)
+prefix_rule(
+    pattern = ["gh", "api", "--method", "PUT"],
+    decision = "prompt",
+    justification = "gh api with PUT is a write operation; require explicit confirmation before mutating GitHub state.",
+    match = ["gh api --method PUT /repos/owner/repo", "gh api --method PUT /repos/owner/repo/topics"],
+)
+
+
+# Broad GitHub delete safeguards for common destructive gh subcommands
+prefix_rule(
+    pattern = ["gh", ["repo", "project", "issue", "label", "secret", "variable", "environment"], "delete"],
+    decision = "forbidden",
+    justification = "Prevent accidental deletions via common GitHub CLI delete subcommands",
+    match = ["gh project delete 123", "gh issue delete 42"],
+)
+
+# GitHub mutations remain approval-gated. More restrictive destructive rules
+# above and the PR-readiness hook still take precedence.
+prefix_rule(
+    pattern = ["gh", "issue", ["create", "edit", "comment", "close", "reopen", "delete"]],
+    decision = "prompt",
+    justification = "GitHub issue remote mutations require approval.",
+    match = ["gh issue create --body-file /tmp/body.md", "gh issue comment 123 --body-file /tmp/comment.md"],
+    not_match = ["gh issue view 123", "gh issue list"],
+)
+prefix_rule(
+    pattern = ["gh", "release", ["create", "edit", "delete", "upload"]],
+    decision = "prompt",
+    justification = "GitHub release remote mutations require approval.",
+    match = ["gh release create v1.2.3", "gh release upload v1.2.3 artifact.zip"],
+    not_match = ["gh release view v1.2.3", "gh release list"],
+)
+prefix_rule(
+    pattern = ["gh", "workflow", "run"],
+    decision = "prompt",
+    justification = "GitHub workflow dispatch is a remote mutation and requires approval.",
+    match = ["gh workflow run ci.yml"],
+    not_match = ["gh workflow view ci.yml", "gh run view 123"],
+)
+
+# Raw GraphQL is prompted as a whole surface because mutations can be carried
+# in form fields without an HTTP method flag.
+prefix_rule(
+    pattern = ["gh", "api", "graphql"],
+    decision = "prompt",
+    justification = "Raw GitHub GraphQL can encode remote mutations in form fields and requires approval.",
+    match = [
+        "gh api graphql -f query=mutation{viewer{login}}",
+        "gh api graphql -f query=query{viewer{login}}",
+    ],
+)
+prefix_rule(
+    pattern = ["gh", ["repo", "secret", "variable", "environment"], ["edit", "set", "delete"]],
+    decision = "prompt",
+    justification = "GitHub repository settings, credentials, variables, and environments are remote mutations and require approval.",
+    match = ["gh repo edit owner/repo", "gh secret set TOKEN", "gh variable delete NAME"],
+    not_match = ["gh repo view owner/repo", "gh secret list"],
+)

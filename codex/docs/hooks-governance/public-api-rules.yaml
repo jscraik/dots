@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "default_classifiable_extensions": [
+    ".cjs",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".py",
+    ".ts",
+    ".tsx"
+  ],
+  "default_rules": [
+    {
+      "rule_id": "100-framework-entrypoints",
+      "kind": "public",
+      "priority": 100,
+      "patterns": [
+        "index.*",
+        "lib/index.*",
+        "src/index.*",
+        "src/main.*",
+        "src/public/**"
+      ]
+    },
+    {
+      "rule_id": "150-explicit-exports",
+      "kind": "public",
+      "priority": 150,
+      "patterns": [
+        "**/exports/**",
+        "**/public_api.*"
+      ]
+    },
+    {
+      "rule_id": "200-internal-surfaces",
+      "kind": "internal",
+      "priority": 200,
+      "patterns": [
+        "**/__tests__/**",
+        "**/fixtures/**",
+        "**/internal/**",
+        "**/assets/**",
+        "**/hooks/**",
+        "**/examples/**",
+        "**/resources/**",
+        "defusedxml/**",
+        "**/scripts/**",
+        "test/**",
+        "tests/**"
+      ]
+    }
+  ],
+  "repositories": {
+    "example-project": {
+      "public_api_rule_id": "synthetic-example-default",
+      "public_api_rule_version": "2026-11-11",
+      "framework_mapping_source": "synthetic-public-example",
+      "rules": []
+    }
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jscraik.local/schemas/workflow-closeout.v1.schema.json",
+  "title": "Workflow Closeout Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "objective",
+    "repo",
+    "ticket_id",
+    "files_changed",
+    "durable_surface",
+    "repeated_failure_prevented",
+    "validation",
+    "proof_lanes",
+    "blocker_class",
+    "evidence_refs",
+    "tomorrow_effect",
+    "remaining_risk",
+    "next_owner"
+  ],
+  "properties": {
+    "schema_version": {"const": "workflow-closeout/v1"},
+    "objective": {"type": "string", "minLength": 1},
+    "repo": {"type": "string", "minLength": 1},
+    "ticket_id": {"type": "string", "minLength": 1},
+    "files_changed": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "durable_surface": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["script", "schema", "hook", "project_rule", "test", "skill", "memory", "linear", "documentation"]
+      },
+      "minItems": 1
+    },
+    "repeated_failure_prevented": {"type": "string", "minLength": 1},
+    "validation": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command", "outcome"],
+        "properties": {
+          "command": {"type": "string", "minLength": 1},
+          "outcome": {"type": "string", "enum": ["pass", "fail", "blocked", "skipped"]},
+          "evidence": {"type": "string"},
+          "blocker_class": {"type": "string"},
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    "proof_lanes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "local_validation",
+        "generated_artifacts",
+        "runtime_reachability",
+        "remote_branch",
+        "open_pr",
+        "ci",
+        "review_threads",
+        "tracker",
+        "merge_readiness"
+      ],
+      "properties": {
+        "local_validation": {"$ref": "#/$defs/lane"},
+        "generated_artifacts": {"$ref": "#/$defs/lane"},
+        "runtime_reachability": {"$ref": "#/$defs/lane"},
+        "remote_branch": {"$ref": "#/$defs/lane"},
+        "open_pr": {"$ref": "#/$defs/lane"},
+        "ci": {"$ref": "#/$defs/lane"},
+        "review_threads": {"$ref": "#/$defs/lane"},
+        "tracker": {"$ref": "#/$defs/lane"},
+        "merge_readiness": {"$ref": "#/$defs/lane"}
+      }
+    },
+    "blocker_class": {"type": ["string", "null"]},
+    "evidence_refs": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "tomorrow_effect": {"type": "string", "minLength": 1},
+    "remaining_risk": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "next_owner": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "lane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "evidence"],
+      "properties": {
+        "status": {"type": "string", "enum": ["pass", "fail", "blocked", "unknown", "not_applicable"]},
+        "evidence": {"type": "string"},
+        "checked_at": {"type": "string"}
+      }
+    }
+  }
+}

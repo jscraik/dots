@@ -1,0 +1,122 @@
+# Foundation rules: read-only / introspection allows
+# Combined from gold-standard.rules and work.rules (deduped)
+
+# === Core introspection ===
+prefix_rule(
+    pattern = ["pwd"],
+    decision = "allow",
+    justification = "Allow reading current directory (non-mutating).",
+    match = ["pwd"],
+    not_match = ["cd /tmp"],
+)
+prefix_rule(
+    pattern = ["ls"],
+    decision = "allow",
+    justification = "Allow directory listing without modification.",
+    match = ["ls", "ls -la"],
+    not_match = ["find ."],
+)
+# Content readers remain sandbox/approval governed: a prefix cannot validate
+# every input path; less additionally supports shell escapes and output files.
+prefix_rule(
+    pattern = ["head"],
+    decision = "allow",
+    justification = "Allow reading file heads (read-only).",
+    match = ["head file.txt"],
+    not_match = ["tail file.txt"],
+)
+prefix_rule(
+    pattern = ["tail"],
+    decision = "allow",
+    justification = "Allow reading file tails (read-only).",
+    match = ["tail file.txt"],
+    not_match = ["head file.txt"],
+)
+prefix_rule(
+    pattern = ["wc"],
+    decision = "allow",
+    justification = "Allow counting lines/words (read-only).",
+    match = ["wc file.txt"],
+    not_match = ["cat file.txt"],
+)
+prefix_rule(
+    pattern = ["stat"],
+    decision = "allow",
+    justification = "Allow file metadata inspection (read-only).",
+    match = ["stat file.txt"],
+    not_match = ["ls -l file.txt"],
+)
+
+# === Search / discovery ===
+# rg supports --pre command execution even after --files. Do not treat a
+# discovery prefix as proof that arbitrary trailing options are read-only.
+# fd and find can execute commands; find can also delete files. Prefix rules
+# cannot prove arbitrary trailing arguments are read-only. Leave both to the
+# configured sandbox and approval policy. Use rg --files for routine discovery.
+prefix_rule(
+    pattern = ["jq"],
+    decision = "allow",
+    justification = "Allow JSON parsing (read-only).",
+    match = ["jq . file.json"],
+    not_match = ["python -m json.tool file.json"],
+)
+
+# === Environment / identity ===
+# Intentionally do not auto-allow `env` / `printenv` here. Even read-only
+# environment dumps can expose secrets, so those flows belong in guard.rules.
+prefix_rule(
+    pattern = ["whoami"],
+    decision = "allow",
+    justification = "Allow identity check (read-only).",
+    match = ["whoami"],
+    not_match = ["id"],
+)
+prefix_rule(
+    pattern = ["id"],
+    decision = "allow",
+    justification = "Allow user/group inspection (read-only).",
+    match = ["id"],
+    not_match = ["whoami"],
+)
+# date can also set the system clock; leave it to sandbox/approval policy.
+
+# === Git read-only ===
+prefix_rule(
+    pattern = ["git", "status"],
+    decision = "allow",
+    justification = "Allow inspecting git status.",
+    match = ["git status"],
+    not_match = ["git stash list"],
+)
+# diff/log/show accept output paths and external diff/textconv drivers.
+# Ordinary inspection remains available under the configured sandbox policy.
+
+# === GitHub read-only ===
+prefix_rule(
+    pattern = ["gh", "issue", ["view", "list", "status"]],
+    decision = "allow",
+    justification = "Allow high-level read-only GitHub issue inspection.",
+    match = ["gh issue view 123", "gh issue list", "gh issue status"],
+    not_match = ["gh issue create", "gh issue comment 123 --body test", "gh api graphql"],
+)
+prefix_rule(
+    pattern = ["gh", "run", ["view", "list", "watch"]],
+    decision = "allow",
+    justification = "Allow high-level read-only GitHub Actions run inspection.",
+    match = ["gh run view 123", "gh run list", "gh run watch 123"],
+    not_match = ["gh workflow run ci.yml", "gh run delete 123", "gh api graphql"],
+)
+prefix_rule(
+    pattern = ["gh", "workflow", ["view", "list"]],
+    decision = "allow",
+    justification = "Allow high-level read-only GitHub workflow inspection.",
+    match = ["gh workflow view ci.yml", "gh workflow list"],
+    not_match = ["gh workflow run ci.yml", "gh workflow enable ci.yml"],
+)
+prefix_rule(
+    pattern = ["gh", "release", ["view", "list"]],
+    decision = "allow",
+    justification = "Allow high-level read-only GitHub release inspection.",
+    match = ["gh release view v1.2.3", "gh release list"],
+    not_match = ["gh release create v1.2.3", "gh release delete v1.2.3"],
+)

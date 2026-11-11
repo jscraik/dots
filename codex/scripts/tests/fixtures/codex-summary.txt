@@ -1,0 +1,24 @@
+<!-- codex-pull-request-review-summary -->
+<!-- codex-security-review:v1 {"blockingSeverityThreshold":"P0","headSha":"983e9e55b0b29fc19186e3a7a86cd9a0514e7324","mergeGateEnabled":false,"pullRequestNumber":43,"repository":"jscraik/skills-foundry","status":"completed"} -->
+## Codex Review Summary
+
+This comment shows the latest Codex review activity on this pull request.
+
+| Review | Status | Commit | Review trigger |
+| --- | --- | --- | --- |
+| 📝 **Code Review** | ✅ **Completed** <relative-time datetime="2026-10-07T15:58:11.414102Z">2026-10-07T15:58:11.414102Z</relative-time> | `983e9e5` | Manual request |
+| 🔒 **Security Review** | ✅ **Completed** <relative-time datetime="2026-10-07T16:00:48.696815Z">2026-10-07T16:00:48.696815Z</relative-time> | `983e9e5` | Manual request |
+
+
+
+<details> <summary>ℹ️ About Codex in GitHub</summary>
+<br/>
+
+[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you
+- Open a pull request for review
+- Mark a draft as ready
+- Comment "@codex review" or "@codex security review".
+
+Codex reacts with 👀 while any review is running, comments if it has suggestions, and reacts with 👍 once all reviews finish with no findings.
+
+</details>

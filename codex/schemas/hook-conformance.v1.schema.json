@@ -1,0 +1,208 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jscraik.dev/schemas/hook-conformance.v1.schema.json",
+  "title": "Hook Conformance Artifact v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_generated_at",
+    "evaluated_at",
+    "repo_path",
+    "profile",
+    "frameworks_active",
+    "hook_config_digest",
+    "evaluated_hook_config_digest",
+    "stages",
+    "drift_flags",
+    "arbitration_decisions",
+    "freshness_status"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "hook-conformance.v1"
+    },
+    "artifact_generated_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "evaluated_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "repo_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profile": {
+      "type": "string",
+      "minLength": 1
+    },
+    "frameworks_active": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "hook_config_digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "evaluated_hook_config_digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "stages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/stage"
+      }
+    },
+    "drift_flags": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/drift_flag"
+      }
+    },
+    "arbitration_decisions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/arbitration_decision"
+      }
+    },
+    "freshness_status": {
+      "type": "string",
+      "enum": [
+        "fresh",
+        "stale"
+      ]
+    }
+  },
+  "$defs": {
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stage",
+        "gate_id",
+        "owner_layer",
+        "command",
+        "severity_mode",
+        "scope",
+        "timeout_seconds"
+      ],
+      "properties": {
+        "stage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "gate_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_layer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity_mode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "drift_flag": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "severity",
+        "summary",
+        "detected_at"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "detected_at": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+        }
+      }
+    },
+    "arbitration_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision_id",
+        "event_type",
+        "trigger_command",
+        "candidate_result_count",
+        "suppressed_reason_count",
+        "winner_source_path",
+        "winning_gate_id",
+        "winning_owner_layer"
+      ],
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trigger_command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "candidate_result_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "suppressed_reason_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "winner_source_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "winning_gate_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "winning_owner_layer": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

@@ -1,9 +1,9 @@
 """Stage reviewed defaults in a disposable home; never modify the live home."""
 import argparse
 import os
+import pwd
 from pathlib import Path
 import stat
-import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 FILES = {
@@ -41,21 +41,27 @@ def read_regular(path):
             raise ValueError('Only regular files are supported')
         return stream.read()
 
-def stage(target):
+def stage(target, *, preview=None):
     target = Path(os.path.abspath(target))
-    temporary_roots = tuple(p.resolve() for p in (Path('/private/tmp'), Path('/tmp'), Path(tempfile.gettempdir())))
+    temporary_roots = (Path('/tmp').resolve(),)
     if not any(target.is_relative_to(p) and target != p for p in temporary_roots):
         raise ValueError('Target must be a disposable directory under the system temporary directory')
     # Resolve only for the exclusion check; actual access never follows symlinks.
     resolved = target.resolve()
-    if resolved == Path.home().resolve() or resolved == ROOT or ROOT.is_relative_to(resolved):
+    account_home = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve()
+    if resolved.is_relative_to(account_home) or resolved == Path.home().resolve() or resolved == ROOT or ROOT.is_relative_to(resolved):
         raise ValueError('Live home and source directories are not staging targets')
     root_fd = open_directory(target)
     plans = []
     try:
         # Preflight all conflicts before creating any files or directories.
-        for source, relative in FILES.items():
-            payload = read_regular(ROOT / source)
+        payloads = [(relative, read_regular(ROOT / source)) for source, relative in FILES.items()]
+        if preview is not None:
+            if not isinstance(preview, bytes):
+                raise ValueError('Preview must be validated bytes')
+            # Never project an experimental template over real Codex configuration.
+            payloads.append(('.dots-preview/codex-config.toml', preview))
+        for relative, payload in payloads:
             candidate = target / relative
             for parent in [candidate, *candidate.parents]:
                 if parent == target:

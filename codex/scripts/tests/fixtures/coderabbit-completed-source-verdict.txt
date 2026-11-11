@@ -1,0 +1,15 @@
+<!-- This is an auto-generated reply by CodeRabbit -->
+> [!TIP]
+> For best results, initiate chat on the files or code changes.
+
+`@fixture-owner` Independent source inspection completed for `HEAD`. The prior inspection covered all five changed files against base `BASE`. It reported no remaining findings.
+
+No findings for HEAD.
+
+The rate-limit notice applied to the separate automated review action. It did not invalidate the completed source inspection.
+
+The inspection did not execute repository code or tests. It does not establish hosted-check success, runtime correctness, or merge readiness.
+
+I did not repeat inspection, enable paid services, change source, approve, merge, or resolve threads.
+
+_You are interacting with an AI system._

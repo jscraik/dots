@@ -1,0 +1,27 @@
+jobs:
+  run-governance-check:
+    steps:
+    - run:
+        name: Prepare duplication target history for tests
+        command: "# All lanes need the actual target history for retained manifests.\n\
+          \  unset CODEX_DUPLICATION_BASE\n  printf 'unset CODEX_DUPLICATION_BASE\\\
+          n' >>\"${BASH_ENV}\"\n  target=main\n  if [[ \"${PR_METADATA_STATUS:-blocked}\"\
+          \ == \"loaded\" ]]; then\n    if [[ \"${PR_DUPLICATION_TARGET_STATUS:-blocked}\"\
+          \ != \"loaded\" ]] ||\n       ! git check-ref-format \"refs/heads/${PR_BASE_REF:-}\"\
+          \ ||\n       [[ ! \"${PR_BASE_SHA:-}\" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$\
+          \ ]] ||\n       [[ \"${PR_HEAD_SHA:-}\" != \"$(git rev-parse HEAD)\" ]];\
+          \ then\n      echo \"Duplication PR target metadata is missing, invalid\
+          \ or stale.\" >&2\n      exit 1\n    fi\n    target=\"$PR_BASE_REF\"\n \
+          \ elif [[ \"${PR_METADATA_STATUS:-blocked}\" != \"unavailable\" || \"${CIRCLE_BRANCH:-}\"\
+          \ != \"main\" ]]; then\n    echo \"Duplication target metadata is blocked\
+          \ or the PR target is unknown.\" >&2\n    exit 1\n  fi\n  if [[ \"$(git\
+          \ rev-parse --is-shallow-repository)\" == \"true\" ]]; then\n    git fetch\
+          \ --no-tags --unshallow origin\n  fi\n  git fetch --no-tags origin \"refs/heads/$target:refs/remotes/origin/$target\"\
+          \n  if [[ \"${PR_METADATA_STATUS:-blocked}\" == \"loaded\" ]]; then\n  \
+          \  fetched_target=\"$(git rev-parse \"refs/remotes/origin/$target\")\"\n\
+          \    if [[ \"$fetched_target\" != \"$PR_BASE_SHA\" ]] &&\n       ! git merge-base\
+          \ --is-ancestor \"$PR_BASE_SHA\" \"$fetched_target\"; then\n      echo \"\
+          Duplication target is not a descendant of the captured PR base.\" >&2\n\
+          \      exit 1\n    fi\n  fi\n  duplication_base=\"$(git merge-base HEAD\
+          \ \"refs/remotes/origin/$target\")\"\n  printf 'export CODEX_DUPLICATION_BASE=%q\\\
+          n' \"$duplication_base\" >>\"${BASH_ENV}\"\n"

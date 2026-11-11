@@ -1,0 +1,63 @@
+# Project-specific execpolicy rules (Starlark, not YAML).
+# Codex auto-loads all ~/.codex/rules/*.rules at startup.
+# Manual spot checks must include all relevant canonical layers, for example:
+#   codex execpolicy check --pretty \
+#     --rules ~/.codex/rules/foundation.rules \
+#     --rules ~/.codex/rules/project.rules -- <command>
+# No matching prefix_rule does NOT mean "deny"; the command still falls back to
+# Codex sandbox + approval policy. Keep project rules focused on extra prompts
+# and forbids for this repo's sharp edges.
+
+# Guardrail forbids for common footguns
+prefix_rule(
+    pattern = ["rm", "-rf"],
+    decision = "forbidden",
+    justification = "Forced recursive deletes are blocked to prevent accidental or malicious destructive deletion.",
+    match = ["rm -rf /", "rm -rf /*", "rm -rf /home/user", "rm -rf ./dist"],
+    not_match = ["rm ./file.txt", "rm -r ./build"],  # no -rf flag
+)
+prefix_rule(
+    pattern = ["sudo", "rm", "-rf"],
+    decision = "forbidden",
+    justification = "sudo rm -rf is unconditionally blocked regardless of target path.",
+    match = ["sudo rm -rf /", "sudo rm -rf /home/user", "sudo rm -rf /*"],
+    not_match = ["rm -rf /tmp/test", "sudo rm ./file.txt"],  # no sudo+rf combo
+)
+prefix_rule(
+    pattern = ["git", "push", "--force"],
+    decision = "forbidden",
+    justification = "Force-push is blocked; use --force-with-lease and review.",
+    match = ["git push --force"],
+    not_match = ["git push --force-with-lease"],
+)
+prefix_rule(
+    pattern = ["git", "reset", "--hard"],
+    decision = "forbidden",
+    justification = "Hard reset is destructive; prefer soft/mixed or new branch.",
+    match = ["git reset --hard"],
+    not_match = ["git reset --soft HEAD~1"],
+)
+prefix_rule(
+    pattern = ["chmod", "-R", "777"],
+    decision = "forbidden",
+    justification = "World-writable perms are unsafe; set minimal required perms instead.",
+    match = ["chmod -R 777 ."],
+    not_match = ["chmod -R 755 ."],
+)
+prefix_rule(
+    pattern = ["chown", "-R"],
+    decision = "prompt",  # downgraded from forbidden: legitimate devops use cases exist
+    justification = "Recursive chown changes ownership of entire trees; confirm target and owner.",
+    match = ["chown -R root:wheel /usr/local", "chown -R user:staff ./project"],
+    not_match = ["chown user:staff file.txt"],
+)
+
+# Add narrow project-scoped allows below; unmatched commands use sandbox and approval policy.
+# Example:
+# prefix_rule(
+#     pattern = ["pnpm", "dev"],
+#     decision = "allow",
+#     justification = "Allow project dev server",
+#     match = ["pnpm dev"],
+#     not_match = ["pnpm run build"],
+# )

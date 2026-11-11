@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pr-readiness/v1",
+  "title": "PR readiness receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "phase",
+    "checked_at",
+    "repo",
+    "lanes",
+    "blockers",
+    "evidence_refs"
+  ],
+  "properties": {
+    "schema_version": { "const": "pr-readiness/v1" },
+    "status": { "enum": ["pass", "fail", "blocked"] },
+    "phase": { "enum": ["create", "review_inspection", "review_reconciliation", "update"] },
+    "checked_at": { "type": "string", "minLength": 1 },
+    "repo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root", "branch", "head_sha", "base_branch", "base_sha", "remote"],
+      "properties": {
+        "root": { "type": "string", "minLength": 1 },
+        "branch": { "type": "string", "minLength": 1 },
+        "head_sha": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "base_branch": { "type": "string", "minLength": 1 },
+        "base_sha": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "remote": { "type": "string", "minLength": 1 },
+        "remote_base_sha": { "type": ["string", "null"] },
+        "remote_head_sha": { "type": ["string", "null"] }
+      }
+    },
+    "lanes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["remote_ancestry", "dirty_worktree", "worktree_boundary", "scope", "pull_request", "required_checks", "reviews"],
+      "properties": {
+        "remote_ancestry": { "$ref": "#/$defs/lane" },
+        "dirty_worktree": { "$ref": "#/$defs/lane" },
+        "worktree_boundary": { "$ref": "#/$defs/lane" },
+        "scope": { "$ref": "#/$defs/lane" },
+        "pull_request": { "$ref": "#/$defs/lane" },
+        "required_checks": { "$ref": "#/$defs/lane" },
+        "reviews": { "$ref": "#/$defs/lane" }
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "reason"],
+        "properties": {
+          "code": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed_mutations", "prohibited_mutations", "acceptance_claims_proven"],
+      "properties": {
+        "allowed_mutations": {
+          "enum": [["review_thread_reply", "review_thread_resolve"], ["review_request_comment"]]
+        },
+        "prohibited_mutations": {
+          "enum": [["source_update", "pr_body_update", "review_submission", "approval", "merge"], ["source_update", "pr_body_update", "review_submission", "review_thread_reply", "review_thread_resolve", "approval", "merge"]]
+        },
+        "acceptance_claims_proven": { "const": false }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "scope_digest"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "scope_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "phase": { "enum": ["review_reconciliation", "review_inspection"] } },
+        "required": ["phase"]
+      },
+      "then": { "required": ["authority"] },
+      "else": { "not": { "required": ["authority"] } }
+    },
+    {
+      "if": {"properties": {"phase": {"const": "review_inspection"}}},
+      "then": {"properties": {"authority": {"properties": {
+        "allowed_mutations": {"const": ["review_request_comment"]},
+        "prohibited_mutations": {"const": ["source_update", "pr_body_update", "review_submission", "review_thread_reply", "review_thread_resolve", "approval", "merge"]}
+      }}}},
+      "else": {"properties": {"authority": {"properties": {
+        "allowed_mutations": {"const": ["review_thread_reply", "review_thread_resolve"]},
+        "prohibited_mutations": {"const": ["source_update", "pr_body_update", "review_submission", "approval", "merge"]}
+      }}}}
+    }
+  ],
+  "$defs": {
+    "lane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "evidence"],
+      "properties": {
+        "status": { "enum": ["pass", "fail", "blocked", "not_applicable"] },
+        "evidence": { "type": "string", "minLength": 1 },
+        "details": {}
+      }
+    }
+  }
+}

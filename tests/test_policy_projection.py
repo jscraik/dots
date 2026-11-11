@@ -1,0 +1,231 @@
+"""Complete generated-policy projection: actual entrypoints and rejection paths."""
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import tomllib
+import unittest
+from pathlib import Path
+
+from policy_fixture import PolicyFixture
+
+
+class PolicyProjectionTests(unittest.TestCase):
+    def setUp(self):
+        self.fixture = PolicyFixture(self)
+        self.addCleanup(self.fixture.assert_preserved, self)
+
+    def success(self, result):
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return result
+
+    def test_project_audit_validate_repeat(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        self.assertEqual(tomllib.loads((fixture.runtime / 'config.toml').read_text()), fixture.base.root)
+        self.assertFalse((fixture.runtime / 'config.toml').samefile(fixture.codex / 'config.toml'))
+        self.assertFalse(fixture.target.samefile(fixture.source))
+        self.success(fixture.script('validate-codex-config.py'))
+        self.success(fixture.script('audit-codex-symlinks.sh', '--codex-home', str(fixture.runtime)))
+        self.success(fixture.script('check-runtime-config-path.sh', str(fixture.runtime / 'config.toml')))
+        before = fixture.managed_snapshot()
+        self.success(fixture.script('reconcile-config-projection.sh', '--repair', '--scope', 'codex',
+                                    '--codex-home', str(fixture.runtime)))
+        self.success(fixture.project('--check'))
+        self.assertEqual(fixture.managed_snapshot(), before)
+
+    def test_invalid_policy_missing_schema_and_changed_map_reject_before_writes(self):
+        fixture = self.fixture
+        original = (fixture.codex / 'config.toml').read_text()
+        schema = fixture.codex / 'schemas/config.schema.json'
+        schema_bytes = schema.read_bytes()
+        baseline = fixture.managed_snapshot()
+        for kind in ('weakened', 'malformed', 'missing-schema', 'changed-map', 'boolean-version'):
+            with self.subTest(kind=kind):
+                if kind == 'weakened':
+                    self.assertIn('hooks = true', original)
+                    (fixture.codex / 'config.toml').write_text(original.replace('hooks = true', 'hooks = false', 1))
+                elif kind == 'malformed':
+                    (fixture.codex / 'config.toml').write_text('broken = [')
+                elif kind == 'missing-schema':
+                    schema.unlink()
+                elif kind == 'changed-map':
+                    altered = dict(fixture.map) | {'global_projection': [{'target': '{HOME}/unexpected'}]}
+                    (fixture.codex / 'projection-map.json').write_text(json.dumps(altered))
+                else:
+                    (fixture.codex / 'projection-map.json').write_text(json.dumps(fixture.map | {'schema_version': True}))
+                result = fixture.project()
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(fixture.managed_snapshot(), baseline)
+                self.assertFalse((fixture.home / '.config-symlink-backups').exists())
+                (fixture.codex / 'config.toml').write_text(original)
+                schema.write_bytes(schema_bytes)
+                (fixture.codex / 'projection-map.json').write_text(json.dumps(fixture.map))
+
+    def test_dry_run_preserves_all_targets(self):
+        fixture = self.fixture
+        before = fixture.managed_snapshot()
+        self.success(fixture.project('--repair', '--dry-run'))
+        self.assertEqual(fixture.managed_snapshot(), before)
+        self.assertFalse((fixture.home / '.config-symlink-backups').exists())
+
+    def test_copy_hardlinks_are_rejected_before_any_projection(self):
+        fixture = self.fixture
+        for relative in ('config.toml', 'hooks.json'):
+            with self.subTest(relative=relative):
+                source = fixture.codex / ('config.toml' if relative == 'config.toml' else 'hooks/hooks.json')
+                target = fixture.runtime / relative
+                original = source.read_bytes()
+                os.link(source, target)
+                try:
+                    before = fixture.managed_snapshot()
+                    self.assertNotEqual(fixture.project().returncode, 0)
+                    self.assertEqual(fixture.managed_snapshot(), before)
+                    self.assertEqual(source.read_bytes(), original)
+                finally:
+                    target.unlink()
+
+    def test_dangling_local_directory_links_reject_before_writes(self):
+        fixture = self.fixture
+        for relative in ('agents', 'automations', 'usage-data'):
+            with self.subTest(relative=relative):
+                target = fixture.runtime / relative
+                target.symlink_to(fixture.home / 'missing-directory')
+                try:
+                    before = fixture.managed_snapshot()
+                    self.assertNotEqual(fixture.project().returncode, 0)
+                    self.assertEqual(fixture.managed_snapshot(), before)
+                    self.assertFalse((fixture.home / '.config-symlink-backups').exists())
+                finally:
+                    target.unlink()
+
+    def test_copy_directory_conflicts_reject_before_writes(self):
+        fixture = self.fixture
+        for relative in ('config.toml', 'hooks.json'):
+            with self.subTest(relative=relative):
+                target = fixture.runtime / relative
+                target.mkdir()
+                try:
+                    before = fixture.managed_snapshot()
+                    self.assertNotEqual(fixture.project().returncode, 0)
+                    self.assertEqual(fixture.managed_snapshot(), before)
+                finally:
+                    target.rmdir()
+
+    def test_drift_repair_preserves_desktop_exception_and_recoverable_backup(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        runtime = fixture.runtime / 'config.toml'
+        previous = runtime.read_text().replace('approval_policy = "on-request"', 'approval_policy = "never"', 1)
+        # Valid Desktop presentation is an existing exception to parsed equality.
+        self.assertIn('model_verbosity = "medium"', previous)
+        previous = previous.replace('model_verbosity = "medium"', 'model_verbosity = "high"', 1)
+        self.assertIn('\n[desktop]\n', previous)
+        plugin = '''[plugins."computer-use@openai-bundled"]
+enabled = false
+[plugins."computer-use@openai-bundled".mcp_servers.computer-use.tools.click]
+approval_mode = "prompt"
+'''
+        previous = previous.replace('\n[desktop]\n', '\n' + plugin + '\n[desktop]\n', 1)
+        runtime.write_text(previous)
+        self.assertNotEqual(fixture.project('--check').returncode, 0)
+        repaired = self.success(fixture.project())
+        data = tomllib.loads(runtime.read_text())
+        self.assertEqual(data['approval_policy'], 'on-request')
+        self.assertEqual(data['model_verbosity'], 'high')
+        self.assertEqual(data['plugins']['computer-use@openai-bundled'],
+                         tomllib.loads(previous)['plugins']['computer-use@openai-bundled'])
+        self.success(fixture.script('validate-codex-config.py'))
+        payloads = [json.loads(line) for line in repaired.stdout.splitlines() if line.startswith('{')]
+        receipts = [item for item in payloads if item.get('backup_path')]
+        self.assertTrue(receipts, 'pre-repair runtime must remain recoverable')
+        backup = Path(receipts[0]['backup_path'])
+        self.assertTrue(backup.is_relative_to(fixture.home))
+        self.assertEqual(backup.read_bytes(), previous.encode())
+
+    def test_symlink_escape_and_bad_runtime_directory_preserve_targets(self):
+        fixture = self.fixture
+        with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as outside:
+            sentinel = Path(outside) / 'sentinel'
+            sentinel.write_bytes(b'owned sibling sentinel')
+            runtime = fixture.runtime / 'config.toml'
+            runtime.symlink_to(sentinel)
+            self.assertNotEqual(fixture.project().returncode, 0)
+            self.assertEqual(sentinel.read_bytes(), b'owned sibling sentinel')
+            runtime.unlink()
+        (fixture.runtime / 'usage-data').write_text('caller-owned conflict')
+        self.assertNotEqual(fixture.project().returncode, 0)
+        self.assertFalse((fixture.runtime / 'config.toml').exists())
+        self.assertEqual((fixture.runtime / 'usage-data').read_text(), 'caller-owned conflict')
+
+    def test_policy_update_and_canonical_rollback_preserve_local_state(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        source = fixture.codex / 'config.toml'
+        original = source.read_bytes()
+        runtime = fixture.runtime / 'config.toml'
+        original_runtime = runtime.read_bytes()
+        import test_governance_port as governance
+        updated = tomllib.loads(original.decode())
+        updated['developer_instructions'] += '\nFixture-only integration update.'
+        source.write_text(governance.GEN.toml_document(updated))
+        result = self.success(fixture.project())
+        self.assertIn('Fixture-only integration update.', tomllib.loads(runtime.read_text())['developer_instructions'])
+        payloads = [json.loads(line) for line in result.stdout.splitlines() if line.startswith('{')]
+        backup = Path(next(item['backup_path'] for item in payloads if item.get('backup_path')))
+        self.assertEqual(backup.read_bytes(), original_runtime)
+        # Restore only the owned canonical input, then use the same supported
+        # reconciliation route to roll back managed runtime policy.
+        source.write_bytes(original)
+        self.success(fixture.project())
+        self.assertEqual(tomllib.loads(runtime.read_text()), tomllib.loads(original_runtime.decode()))
+        self.success(fixture.script('validate-codex-config.py'))
+
+    def test_exchange_failure_keeps_last_runtime_and_backup(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        runtime = fixture.runtime / 'config.toml'
+        previous = runtime.read_text().replace('approval_policy = "on-request"', 'approval_policy = "never"', 1)
+        runtime.write_text(previous)
+        child = '''import importlib.util,sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]).parent))
+spec = importlib.util.spec_from_file_location("fault_repair", sys.argv[1])
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+def fail(*args):
+    raise OSError("injected exchange failure")
+module._exchange_paths = fail
+raise SystemExit(module.main(["--config-path",sys.argv[2],"--repair","--json"]))
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/repair-runtime-config-drift.py'), str(runtime)],
+            env=fixture.env, cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(result.stdout, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload['reason'], 'config_write_failed')
+        self.assertEqual(runtime.read_bytes(), previous.encode())
+        backup = Path(payload['backup_path'])
+        self.assertTrue(backup.is_relative_to(fixture.home))
+        self.assertEqual(backup.read_bytes(), previous.encode())
+
+    def test_canonical_change_after_snapshot_blocks_initial_publication(self):
+        fixture = self.fixture
+        child = '''import importlib.util,sys
+from pathlib import Path
+script = Path(sys.argv[1]); sys.path.insert(0, str(script.parent))
+spec = importlib.util.spec_from_file_location("admission", script)
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+snapshot = module.preflight(Path(sys.argv[2]))
+source = script.parent.parent / "config.toml"
+original = source.read_text()
+assert "hooks = true" in original
+source.write_text(original.replace("hooks = true", "hooks = false", 1))
+module.publish_initial(snapshot)
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/admit-policy-fixture.py'), str(fixture.codex / 'projection-map.json')],
+            env=fixture.env, cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((fixture.runtime / 'config.toml').exists())

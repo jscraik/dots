@@ -1,0 +1,31 @@
+# Prek configuration (Rust-based pre-commit replacement)
+# Install prek: mise install cargo-prek || cargo install prek
+# Run: node scripts/setup-git-hooks.js && prek run --all-files
+
+default_install_hook_types = ["pre-commit", "pre-push", "commit-msg"]
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "pre-commit"
+name = "Pre-commit"
+entry = "bash scripts/git-hooks/pre-commit.sh"
+language = "system"
+pass_filenames = false
+
+[[repos.hooks]]
+id = "pre-push"
+name = "Pre-push"
+entry = "bash scripts/git-hooks/pre-push.sh"
+language = "system"
+pass_filenames = false
+stages = ["pre-push"]
+
+[[repos.hooks]]
+id = "commit-msg"
+name = "Commit message"
+entry = "node scripts/validate-commit-msg.js"
+language = "system"
+pass_filenames = true
+stages = ["commit-msg"]

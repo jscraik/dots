@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "state": "inactive local reconciliation",
+  "accepted_base": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
+  "source_revisions": [
+    "4832687101e591813dbb367fd52cf8c9262f525c",
+    "a7ea8c568b85569412d0fbf4e80ba30b34814166"
+  ],
+  "source_patches": [
+    "cb2abaaa9024676b7de74036ed7e80484f42e620a4fc33c8956b3c0ff2d18f67",
+    "57a740c835d499f157541892d142f6cb158255db3212f89e9b7ce036164118ed",
+    "54ff3a29e08460da67335a8803d2fb798a6d6e4cef7bfe15f3040c22ff625d74",
+    "ad162c888e93bea8a8103feb474de7b95ec249413929bcf109c30b55c2fae3e3",
+    "41b0f03d9e6d8713477bde1baeecde64ddaad53cec6e6e2d2b35fd54baf73150",
+    "575451a921f6f4cadde94bb062c7966ddd573e3728401fdc6b1d01192c24fce2"
+  ],
+  "transformations": [
+    "Preserve existing disposable admission and fixture I/O controls",
+    "Keep stricter correlated security receipts; defer uncorroborated unknown-security extension and its new positive case",
+    "Retain only the original focused hook regression class; unrelated Configs aggregate fixtures remain source-owned",
+    "Synthetic provider fixtures replace private task links and source-comment attribution",
+    "Strip empty docstring-line spaces before the first local commit; executable AST and other string values unchanged"
+  ],
+  "deferred": [
+    "Experimental execution engine, guest, capture, host and image qualification",
+    "Configs package/CI-specific tests and per-project workflow changes",
+    "Machine plugin paths, consent hashes and private state",
+    "Live adoption and hosted acceptance"
+  ],
+  "files": [
+    {
+      "path": "MIGRATION.md",
+      "prior_candidate_sha256": "df64a7222cb2a17cba4561734eb0efb27474ea72d092d1885a22f382b0b36bcd",
+      "candidate_sha256": "5f0623b16ba3d2a1ec81638f0b3a0c24a593961716edc255f6ee1e921202ede4"
+    },
+    {
+      "path": "README.md",
+      "prior_candidate_sha256": "ced157af36e675f8d6c890a5b04a70805e0835432efc957efc85c92f1e98ab01",
+      "candidate_sha256": "841bf967a99d09132bbba0c49e00ed0b9a1c0afd2bad234031fdfc6a1a6f3e8a"
+    },
+    {
+      "path": "codex/hooks/README.md",
+      "prior_candidate_sha256": "70d11c516963bd86c8e082f0fda7101cabdcf55e424d26f2b7954fb958abd3aa",
+      "candidate_sha256": "39163053f4ca56f5c37ba2367898ab550106d739537aa139784acd0269db7c26"
+    },
+    {
+      "path": "codex/hooks/pre-commit-tests.sh",
+      "prior_candidate_sha256": "da8c32b3ee00003e38fabaea57151d518935326235741e2cbc4ac92a2bb5eb7b",
+      "candidate_sha256": "096a3423a70c0edd6544bdb4c731f806026e9639660ca8d733d32f91b226ba41"
+    },
+    {
+      "path": "codex/hooks/pre-tool-use-dispatch.sh",
+      "prior_candidate_sha256": "410160a1e4cf544151c390af3e2f56548926d42cd13cfa942dd7efd87c75c515",
+      "candidate_sha256": "5cb8b25a3bbbd832751d73fd75048d3432bb13dac907ae1806b6675437879139"
+    },
+    {
+      "path": "codex/instructions/agents/16-git-and-release.md",
+      "prior_candidate_sha256": "6831a23a8697fba882b6561d7e528f0842f4aeded557ddac580ff3b0283f5068",
+      "candidate_sha256": "2422617f3a4f848d59a1de110eab8d39518aea064615df212a44298d2e641a99"
+    },
+    {
+      "path": "codex/instructions/agents/16a-review-reply-parsing.md",
+      "prior_candidate_sha256": "3161d0862dfd778f43b309e4f862371fe24988b2fb05f3a8963c98a3148e4d07",
+      "candidate_sha256": "6be30d2a20b3763592b94fe7ffa73a6e88f1f4b1fd5d6afaffa1c1e64f440f14"
+    },
+    {
+      "path": "codex/instructions/managed-configuration.md",
+      "prior_candidate_sha256": "b39b3ac55c2d63e0d3da516255a102f5150a654f07b3ea3d6aa0dbb060081259",
+      "candidate_sha256": "20930afe128bf55171c7619568a40f2fd728f3ee14a5a675696e55fd60e34a3f"
+    },
+    {
+      "path": "codex/instructions/migration-scope.md",
+      "prior_candidate_sha256": "085a3aece03f77510bf5f4f8d85a459f9735069dbb028428539066cdc7c2c741",
+      "candidate_sha256": "249044a2baa713809c27ce7678327c1f3f33c689d37bcc50fc0eaeb8c56aa900"
+    },
+    {
+      "path": "codex/schemas/pr-readiness.v1.schema.json",
+      "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_sha256": "f8ca2c7202842e2175d1abb6c8160b6b2e4ac321798d8c6190e4f2c4813d70b1"
+    },
+    {
+      "path": "codex/scripts/hook-governance/hook_runtime_policy.py",
+      "prior_candidate_sha256": "8a9694a9be874ef673ff9c81f73482bf82a0e5c235cb71c0057c2795c106cc77",
+      "candidate_sha256": "34db64ce5649696612aae24650baf91a0ff702398588a0fe04e22cdba377b30f"
+    },
+    {
+      "path": "codex/scripts/pr-readiness.py",
+      "prior_candidate_sha256": "6c47ce8d869fb46b338f6ed354ec95eb554471c215bc90b9c1d76c69e9cb60ee",
+      "candidate_sha256": "95861605c59574b8b2a3062ebc6d740161a3b012473b247468ce9a866f0fec47"
+    },
+    {
+      "path": "codex/scripts/pr-review-request.py",
+      "prior_candidate_sha256": "fa6e0acb662715f177204c584a96ce13e2ae71bd571dafeef4a3cb3878a35e19",
+      "candidate_sha256": "4d9c25c84201431336607c284df38711db5852a5fc733c041b765223966df4d7"
+    },
+    {
+      "path": "codex/scripts/pr_coderabbit_summary.py",
+      "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_sha256": "5e2b5ec820d97f14834e018a804685b03e9dd275ba9a2c4f2e9c8634eb4db30c"
+    },
+    {
+      "path": "codex/scripts/tests/fixtures/coderabbit-completed-source-verdict.txt",
+      "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_sha256": "436008232ba7d9864136e361b363ab54cd22557f86c7e05bf1d7e120eaf2acb1"
+    },
+    {
+      "path": "codex/scripts/tests/fixtures/coderabbit-source-clarification.txt",
+      "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_sha256": "aa8371152c5624b7b0cbcfd67fa60f1c58f0d66a8590c7a35b162fd30a4cf99c"
+    },
+    {
+      "path": "codex/scripts/tests/fixtures/coderabbit-source-inspection.txt",
+      "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_sha256": "089c638b39280a69bbc0951e0f25a30b920e7fc958ef5f213eababd1c4b0faa0"
+    },
+    {
+      "path": "codex/scripts/tests/fixtures/codex-security.txt",
+      "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_sha256": "95da5a078d13c299cc6d5f5eac09921f2c6f4ee9ecf0bc0ca5ffc7ae3df05be0"
+    },
+    {
+      "path": "codex/scripts/tests/fixtures/codex-summary.txt",
+      "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_sha256": "494454af31e585d6055b5c72a858befdcb634c911bd13705973b2fce46dfce78"
+    },
+    {
+      "path": "codex/scripts/tests/fixtures/tessl-missing-description-clean.txt",
+      "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_sha256": "83407bcf6dda455896f42d57f0bb44add6ca75cc10238c81539d4a3284e02e8c"
+    },
+    {
+      "path": "codex/scripts/tests/fixtures/tessl-name-mismatch-clean.txt",
+      "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_sha256": "9afbcee3352228e90b73babf35854ca934a08001450acb938fae934386c35b3f"
+    },
+    {
+      "path": "codex/scripts/tests/test_pending_hook_findings.py",
+      "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_sha256": "6f3b84ca6c0a862baf1e67fdc113bef434864de9f6bb53e3a1e900052f130bff"
+    },
+    {
+      "path": "codex/scripts/tests/test_pr_coderabbit_structured.py",
+      "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_sha256": "fd7c06ce229160ba75b0656fceca663d2480e05422ca3355fc8621c9d73cfeec"
+    },
+    {
+      "path": "codex/scripts/tests/test_pr_codex_completion.py",
+      "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_sha256": "6bec02d39f0198260d565880d5e328faba7935e9b7111ebb15d0627d1c173daf"
+    },
+    {
+      "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",
+      "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_sha256": "d5e837292e1ccb670f21f95d5460663e14fd19433e24551d76413a2d07acd860"
+    },
+    {
+      "path": "codex/scripts/tests/test_pr_readiness.py",
+      "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_sha256": "607dc035afe9ab058ecb3621eeedc2b8a5592f659a556bccf9753e298217ec4b"
+    },
+    {
+      "path": "codex/scripts/tests/test_pr_review_request.py",
+      "prior_candidate_sha256": "b2ee06b9e74579d2b0211e73fb9063d0ed491ca39e648fc01962ed2420a99e18",
+      "candidate_sha256": "e87b5f8b4e6be7e0c5c768353b4f84e98565595f670e19fb6ef84d190f0bc932"
+    },
+    {
+      "path": "codex/scripts/validate-codex-config.py",
+      "prior_candidate_sha256": "e9cdebab1d97447c1ac3ff1dce5894c7c13ccf095c2a1cc8e44716c103768e61",
+      "candidate_sha256": "9c606e273666fd85ea9cda16799f9cfb261bb25a8fb1e99fb49da8c8357754f4"
+    },
+    {
+      "path": "scripts/check-source.py",
+      "prior_candidate_sha256": "d2d73789fc5d3efdc30ce71ca0160e7bdbe10c3bcce3089413456f4de41b31a2",
+      "candidate_sha256": "4d4831d108280213ac856e0e8e83ffc3c03aa8b9555fab0fbcf7ce7cbf3600ed"
+    },
+    {
+      "path": "tests/test_helper_dependencies.py",
+      "prior_candidate_sha256": "f8c74a3d7d96e5791162b6abdf902c1705a78226deb56347f56a2a09096384b9",
+      "candidate_sha256": "58e7c30a22b7ff9c6e69e59f16965572916951fcebba79a13f0eefca221ff762"
+    },
+    {
+      "path": "tests/test_hook_handlers.py",
+      "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
+      "candidate_sha256": "4b88e3f31b620b7ea751d5c223398cb67892841aa9b88e2fdc713a07965425a8"
+    },
+    {
+      "path": "tests/test_pending_fixes.py",
+      "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_sha256": "7a146558677110228bd6e54d32ea690e1160e45d7c3f9e95b20f0790c178bdff"
+    }
+  ],
+  "installation_authorised": false,
+  "owner": "dots migration maintainer",
+  "consumer": "scripts/check-source.py and the public migration review",
+  "validation": "README.md verify-locally contract and tests/test_pending_fixes.py",
+  "purpose": "Bind selected pending overlays without rewriting accepted-source provenance"
+}

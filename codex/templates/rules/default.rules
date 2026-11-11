@@ -1,0 +1,18 @@
+# Durable user-approved exact exceptions only.
+# Keep entries current, auditable, and narrowly scoped to a documented runtime consumer.
+
+prefix_rule(
+    pattern = ["bash", "@CODEX_SOURCE@/scripts/run-auth-backed.sh", "--env-file", "@HOME@/.codex/.env", "--canary", "OLLAMA_API_KEY"],
+    decision = "allow",
+    justification = "Allow the fixed-output Ollama auth canary through the owner-only 1Password FIFO; no secret value or arbitrary child command is exposed.",
+    match = ["bash @CODEX_SOURCE@/scripts/run-auth-backed.sh --env-file @HOME@/.codex/.env --canary OLLAMA_API_KEY"],
+    not_match = ["bash @CODEX_SOURCE@/scripts/run-auth-backed.sh --env-file @HOME@/.codex/.env --require-env OLLAMA_API_KEY -- bash -c env"],
+)
+
+prefix_rule(
+    pattern = ["bash", "@CODEX_SOURCE@/scripts/run-auth-backed.sh", "--env-file", "@HOME@/.codex/.env", "--canary", "CIRCLECI_CLI_TOKEN"],
+    decision = "allow",
+    justification = "Allow the fixed-output CircleCI auth canary through the owner-only 1Password FIFO; no secret value or arbitrary child command is exposed.",
+    match = ["bash @CODEX_SOURCE@/scripts/run-auth-backed.sh --env-file @HOME@/.codex/.env --canary CIRCLECI_CLI_TOKEN"],
+    not_match = ["bash @CODEX_SOURCE@/scripts/run-auth-backed.sh --env-file @HOME@/.codex/.env --require-env CIRCLECI_CLI_TOKEN -- bash -c env"],
+)

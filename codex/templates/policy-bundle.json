@@ -1,0 +1,1529 @@
+{
+  "config": {
+    "model": "gpt-6-astra",
+    "model_provider": "openai",
+    "review_model": "gpt-5.6-sol",
+    "plan_mode_reasoning_effort": "low",
+    "sqlite_home": "@local:value_0001",
+    "model_verbosity": "medium",
+    "model_reasoning_summary": "auto",
+    "personality": "friendly",
+    "web_search": "cached",
+    "approval_policy": "on-request",
+    "approvals_reviewer": "auto_review",
+    "default_permissions": "workspace-net",
+    "allow_login_shell": false,
+    "suppress_unstable_features_warning": true,
+    "tool_output_token_limit": 10000,
+    "model_reasoning_effort": "low",
+    "experimental_compact_prompt_file": "@local:value_0002",
+    "developer_instructions": "Follow discovered AGENTS.md files and the target repository's commands and delivery contracts. Load deeper references only when relevant to the active task.\n\nIdentify the requested outcome, bounded scope, and evidence needed for completion. For reviews and diagnoses, investigate and report findings; implement when authorized. Continue authorized work through verification without stopping at a plan or partial fix. Resolve reversible choices independently. Ask one concise question only when a missing decision changes scope, risk, or authority.\n\nCarry forward authorization already granted for the same scope. Do not infer authority for external mutations or adjacent work. Ask before destructive actions, dependency changes, or secret handling unless explicitly authorized. Never bypass permissions, hooks, signing, or delivery gates. When blocked by a rule or approval rejection, name the affected action and exact reason.\n\nPrefer the smallest effective change. Preserve user changes, dirty checkouts, and active writers. Investigate encountered failures enough to determine whether they block the requested outcome; do not adopt unrelated failures as new work.\n\nUse current evidence for facts that may have changed. Run the narrowest meaningful behavioral check, then required broader checks. Repeat verification only after relevant changes, failures, or evidence becoming stale. Keep local validation, live runtime, hosted checks, reviews, and delivery status distinct.\n\nWhen blocked, try materially different, safe alternatives within the authorized scope. Do not repeat unchanged probes or expand scope to bypass a blocker. Continue independent work, then state what remains blocked and the smallest action needed to proceed.\n\nAfter compaction, resume from the handoff's objective, authorization, completed work, and blockers. Verify only drift-prone facts needed next. Incorporate new steering without dropping unfinished obligations unless Jamie cancels or replaces them.\n\nLead with the outcome or material blocker. Use concise, warm, plain prose. Report what changed, what verification proves, and any remaining limitation. Stop when the requested acceptance criteria are met; defer optional improvements.\n",
+    "project_root_markers": [
+      ".git",
+      "pnpm-workspace.yaml",
+      "package.json",
+      "AGENTS.md",
+      ".agentic-governance",
+      ".codex"
+    ],
+    "project_doc_fallback_filenames": [
+      "AGENT.md",
+      "CONTRIBUTING.md"
+    ],
+    "project_doc_max_bytes": 65536,
+    "service_tier": "default",
+    "shell_environment_policy": {
+      "inherit": "all",
+      "experimental_use_profile": false,
+      "include_only": [
+        "PATH",
+        "HOME",
+        "USER",
+        "SHELL",
+        "TERM",
+        "TMPDIR",
+        "OLLAMA_HOST",
+        "OLLAMA_MODEL",
+        "LANG",
+        "LC_*",
+        "PNPM_HOME",
+        "NVM_DIR",
+        "COREPACK_HOME",
+        "NODE_EXTRA_CA_CERTS",
+        "UV_CACHE_DIR",
+        "NX_*",
+        "OP_ACCOUNT",
+        "CODEX_HOME",
+        "CODEX_AUTH_ENVIRONMENT_ID",
+        "CUA_REPL_ENABLED_SURFACES",
+        "NODE_REPL_UNTRUSTED_ENV_ALLOWLIST",
+        "NODE_REPL_TRUSTED_SERVICES",
+        "NODE_REPL_JS_BANNER",
+        "NODE_REPL_TRUSTED_RPC_ENABLED",
+        "NODE_REPL_NODE_MODULE_DIRS",
+        "NODE_REPL_TRUSTED_CODE_PATHS",
+        "BROWSER_USE_TINYSKY_ENABLED",
+        "DOTENV_CONFIG_FILES",
+        "CIRCLECI_CLI_TELEMETRY_OPTOUT"
+      ],
+      "exclude": [
+        "AWS_*",
+        "AZURE_*",
+        "GCP_*",
+        "OPENAI_ORG_ID",
+        "OPENAI_ORGANIZATION"
+      ],
+      "ignore_default_excludes": false,
+      "set": {
+        "DOTENV_CONFIG_FILES": "@local:value_0003",
+        "OP_ACCOUNT": "my.1password.eu",
+        "UV_CACHE_DIR": "@local:value_0004",
+        "COREPACK_HOME": "@local:value_0005",
+        "CIRCLECI_CLI_TELEMETRY_OPTOUT": "1"
+      }
+    },
+    "features": {
+      "apps": true,
+      "hooks": true,
+      "enable_request_compression": true,
+      "fast_mode": true,
+      "memories": true,
+      "multi_agent": true,
+      "personality": true,
+      "plugins": true,
+      "prevent_idle_sleep": true,
+      "shell_snapshot": true,
+      "shell_tool": true,
+      "skill_mcp_dependency_install": true,
+      "unified_exec": true,
+      "goals": true,
+      "runtime_metrics": true,
+      "code_mode": true,
+      "code_mode_only": true,
+      "request_permissions_tool": true,
+      "exec_permission_approvals": true,
+      "default_mode_request_user_input": true,
+      "artifact": true,
+      "image_generation": true,
+      "chronicle": true,
+      "realtime_conversation": true,
+      "network_proxy": true,
+      "multi_agent_v2": {
+        "enabled": true,
+        "hide_spawn_agent_metadata": true
+      }
+    },
+    "history": {
+      "persistence": "save-all",
+      "max_bytes": 104857600
+    },
+    "permissions": {
+      "workspace-net": {
+        "extends": ":workspace",
+        "description": "Workspace editing with shared runtime/tooling capabilities; task authority still limits every write and network action.",
+        "workspace_roots": {
+          "@local:value_0006": true,
+          "@local:value_0007": true,
+          "@local:value_0008": true,
+          "@local:value_0009": true,
+          "@local:value_0010": true,
+          "@local:value_0011": true,
+          "@local:value_0012": true,
+          "@local:value_0013": true,
+          "@local:value_0014": true,
+          "@local:value_0005": true,
+          "@local:value_0004": true,
+          "@local:value_0015": true,
+          "@local:value_0016": true,
+          "@local:value_0017": true,
+          "@local:value_0018": true,
+          "@local:value_0019": true,
+          "@local:value_0020": true,
+          "@local:value_0021": true,
+          "@local:value_0022": true,
+          "@local:value_0023": true,
+          "@local:value_0024": true,
+          "@local:value_0025": true,
+          "@local:value_0026": true,
+          "@local:value_0027": true,
+          "@local:value_0028": true,
+          "@local:value_0029": true,
+          "@local:value_0030": true,
+          "@local:value_0031": true,
+          "@local:value_0032": true,
+          "@local:value_0033": true,
+          "@local:value_0034": true,
+          "@local:value_0035": true,
+          "@local:value_0036": true,
+          "@local:value_0037": true,
+          "@local:value_0038": true,
+          "@local:value_0039": true,
+          "@local:value_0040": true
+        },
+        "filesystem": {
+          "@local:value_0041": "read"
+        },
+        "network": {
+          "enabled": true,
+          "allow_local_binding": true,
+          "domains": {
+            "api.github.com": "allow",
+            "api.openai.com": "allow",
+            "api.writewithspiral.com": "allow",
+            "api.mobbin.com": "allow",
+            "circleci.mcp.kapa.ai": "allow",
+            "@local:value_0042": "allow",
+            "cdn.playwright.dev": "allow",
+            "developers.openai.com": "allow",
+            "docs.tessl.io": "allow",
+            "get.tessl.io": "allow",
+            "install.tessl.io": "allow",
+            "mcp.cloudflare.com": "allow",
+            "mcp.context7.com": "allow",
+            "mcp.linear.app": "allow",
+            "mcp.stripe.com": "allow",
+            "mcp.supabase.com": "allow",
+            "mcp.vercel.com": "allow",
+            "ollama.com": "allow",
+            "npmjs.com": "allow",
+            "playwright.azureedge.net": "allow",
+            "playwright.download.prss.microsoft.com": "allow",
+            "registry.npmjs.com": "allow",
+            "registry.npmjs.org": "allow",
+            "nodejs.org": "allow",
+            "github.com": "allow",
+            "raw.githubusercontent.com": "allow",
+            "objects.githubusercontent.com": "allow",
+            "release-assets.githubusercontent.com": "allow",
+            "pypi.org": "allow",
+            "files.pythonhosted.org": "allow",
+            "crates.io": "allow",
+            "index.crates.io": "allow",
+            "static.crates.io": "allow",
+            "static.rust-lang.org": "allow",
+            "proxy.golang.org": "allow",
+            "sum.golang.org": "allow",
+            "go.dev": "allow",
+            "rubygems.org": "allow",
+            "formulae.brew.sh": "allow",
+            "ghcr.io": "allow",
+            "pkg-containers.githubusercontent.com": "allow",
+            "localhost": "allow",
+            "127.0.0.1": "allow"
+          }
+        }
+      },
+      "readonly-net": {
+        "extends": ":read-only",
+        "description": "Read-only source access with explicit runtime/cache write exceptions and network capability; not authorization for external mutations.",
+        "workspace_roots": {
+          "@local:value_0006": true,
+          "@local:value_0007": true,
+          "@local:value_0008": true,
+          "@local:value_0035": true,
+          "@local:value_0038": true
+        },
+        "filesystem": {
+          "@local:value_0041": "read"
+        },
+        "network": {
+          "enabled": true,
+          "allow_local_binding": true,
+          "domains": {
+            "api.github.com": "allow",
+            "api.openai.com": "allow",
+            "api.writewithspiral.com": "allow",
+            "circleci.mcp.kapa.ai": "allow",
+            "@local:value_0042": "allow",
+            "developers.openai.com": "allow",
+            "mcp.cloudflare.com": "allow",
+            "mcp.context7.com": "allow",
+            "mcp.linear.app": "allow",
+            "mcp.stripe.com": "allow",
+            "mcp.supabase.com": "allow",
+            "mcp.vercel.com": "allow",
+            "localhost": "allow",
+            "127.0.0.1": "allow",
+            "ollama.com": "allow"
+          }
+        }
+      },
+      "workspace-no-net": {
+        "extends": ":workspace",
+        "description": "Workspace-write profile for local-only maintenance that must not use network access.",
+        "workspace_roots": {
+          "@local:value_0006": true,
+          "@local:value_0007": true,
+          "@local:value_0008": true,
+          "@local:value_0009": true,
+          "@local:value_0010": true,
+          "@local:value_0011": true,
+          "@local:value_0012": true,
+          "@local:value_0013": true,
+          "@local:value_0014": true,
+          "@local:value_0005": true,
+          "@local:value_0004": true,
+          "@local:value_0015": true,
+          "@local:value_0016": true,
+          "@local:value_0017": true,
+          "@local:value_0018": true,
+          "@local:value_0019": true,
+          "@local:value_0020": true,
+          "@local:value_0021": true,
+          "@local:value_0022": true,
+          "@local:value_0023": true,
+          "@local:value_0024": true,
+          "@local:value_0025": true,
+          "@local:value_0026": true,
+          "@local:value_0027": true,
+          "@local:value_0028": true,
+          "@local:value_0029": true,
+          "@local:value_0030": true,
+          "@local:value_0031": true,
+          "@local:value_0032": true,
+          "@local:value_0033": true,
+          "@local:value_0034": true,
+          "@local:value_0035": true,
+          "@local:value_0036": true,
+          "@local:value_0037": true,
+          "@local:value_0038": true,
+          "@local:value_0039": true,
+          "@local:value_0040": true
+        },
+        "network": {
+          "enabled": false
+        }
+      }
+    },
+    "apps": {
+      "_default": {
+        "enabled": true,
+        "destructive_enabled": false,
+        "open_world_enabled": false,
+        "approvals_reviewer": "auto_review",
+        "default_tools_approval_mode": "prompt"
+      },
+      "@local:value_0043": {
+        "enabled": true
+      },
+      "@local:value_0044": {
+        "tools": {
+          "linear.save_issue": {
+            "enabled": true,
+            "approval_mode": "prompt"
+          }
+        }
+      }
+    },
+    "projects": {
+      "@local:value_0045": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0046": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0047": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0048": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0049": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0050": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0051": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0052": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0053": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0054": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0055": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0056": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0057": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0058": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0059": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0060": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0061": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0062": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0063": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0064": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0065": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0066": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0067": {
+        "trust_level": "trusted"
+      }
+    },
+    "mcp_servers": {
+      "borumi": {
+        "command": "/Applications/Borumi.app/Contents/MacOS/borumi",
+        "args": [
+          "mcp"
+        ],
+        "cwd": "@local:value_0068",
+        "enabled": true,
+        "required": false,
+        "startup_timeout_sec": 30.0
+      },
+      "codex-repo": {
+        "url": "@local:value_0069",
+        "bearer_token_env_var": "MCP_AUTH_TOKEN",
+        "enabled": true,
+        "required": false,
+        "startup_timeout_sec": 20.0,
+        "tool_timeout_sec": 60.0,
+        "tools": {
+          "search": {
+            "approval_mode": "approve"
+          },
+          "fetch": {
+            "approval_mode": "approve"
+          }
+        }
+      },
+      "1password": {
+        "command": "/Applications/1Password.app/Contents/MacOS/onepassword-mcp",
+        "args": [],
+        "enabled": true,
+        "required": false,
+        "startup_timeout_sec": 30.0,
+        "tool_timeout_sec": 60.0
+      },
+      "context7": {
+        "url": "https://mcp.context7.com/mcp",
+        "bearer_token_env_var": "CONTEXT7_API_KEY",
+        "enabled": true,
+        "required": false,
+        "startup_timeout_sec": 20.0,
+        "tool_timeout_sec": 60.0
+      },
+      "linear": {
+        "url": "https://mcp.linear.app/mcp",
+        "bearer_token_env_var": "LINEAR_API_KEY",
+        "enabled": true,
+        "required": false,
+        "startup_timeout_sec": 60.0,
+        "tool_timeout_sec": 30.0,
+        "tools": {
+          "save_comment": {
+            "approval_mode": "approve"
+          }
+        }
+      },
+      "openaiDeveloperDocs": {
+        "url": "https://developers.openai.com/mcp",
+        "enabled": true,
+        "required": false,
+        "startup_timeout_sec": 20.0,
+        "tool_timeout_sec": 60.0,
+        "tools": {
+          "fetch_openai_doc": {
+            "approval_mode": "approve"
+          },
+          "search_openai_docs": {
+            "approval_mode": "approve"
+          }
+        }
+      },
+      "tessl-docs": {
+        "url": "https://docs.tessl.io/~gitbook/mcp",
+        "enabled": true,
+        "required": false,
+        "startup_timeout_sec": 30.0,
+        "tool_timeout_sec": 60.0
+      },
+      "ditto-local": {
+        "url": "http://localhost:8787/mcp",
+        "enabled": true,
+        "required": false,
+        "startup_timeout_sec": 20.0,
+        "tool_timeout_sec": 120.0
+      },
+      "spiral": {
+        "url": "https://api.writewithspiral.com/mcp/",
+        "enabled": true,
+        "required": false,
+        "startup_timeout_sec": 30.0,
+        "tool_timeout_sec": 60.0
+      },
+      "aikido": {
+        "command": "@local:value_0070",
+        "args": [],
+        "enabled": true,
+        "required": false,
+        "startup_timeout_sec": 60.0
+      },
+      "mobbin": {
+        "url": "https://api.mobbin.com/mcp",
+        "enabled": true,
+        "required": false,
+        "startup_timeout_sec": 30.0,
+        "tool_timeout_sec": 60.0
+      }
+    },
+    "plugins": {
+      "video-reference-analysis@created-by-me-remote": {
+        "enabled": true
+      },
+      "github@openai-curated": {
+        "enabled": true
+      },
+      "build-web-apps@openai-curated": {
+        "enabled": true
+      },
+      "linear@openai-curated": {
+        "enabled": true
+      },
+      "circleci@openai-curated": {
+        "enabled": true
+      },
+      "coderabbit@openai-curated": {
+        "enabled": true
+      },
+      "plugin-eval@openai-curated": {
+        "enabled": true
+      },
+      "plugin-factory@agent-skills-local": {
+        "enabled": false
+      },
+      "skill-factory@agent-skills-local": {
+        "enabled": true
+      },
+      "harness-engineering@agent-skills-local": {
+        "enabled": true
+      },
+      "aidevcon@agent-skills-local": {
+        "enabled": true
+      },
+      "codex-security@openai-curated": {
+        "enabled": true
+      },
+      "remotion@openai-curated": {
+        "enabled": true
+      },
+      "openai-developers@openai-curated": {
+        "enabled": true
+      },
+      "cloudflare@openai-curated": {
+        "enabled": true
+      },
+      "slack@openai-curated": {
+        "enabled": true
+      },
+      "gmail@openai-curated": {
+        "enabled": true
+      },
+      "figma@openai-curated": {
+        "enabled": true
+      },
+      "build-web-data-visualization@openai-curated": {
+        "enabled": true
+      },
+      "synaipse-harness@agent-skills-local": {
+        "enabled": false
+      },
+      "documents@openai-primary-runtime": {
+        "enabled": true
+      },
+      "pdf@openai-primary-runtime": {
+        "enabled": true
+      },
+      "spreadsheets@openai-primary-runtime": {
+        "enabled": true
+      },
+      "presentations@openai-primary-runtime": {
+        "enabled": true
+      },
+      "chrome@openai-bundled": {
+        "enabled": true
+      },
+      "template-creator@openai-primary-runtime": {
+        "enabled": true
+      },
+      "visualize@openai-bundled": {
+        "enabled": true
+      },
+      "browser@openai-bundled": {
+        "enabled": true
+      }
+    },
+    "skills": {
+      "config": [
+        {
+          "path": "@local:value_0071",
+          "enabled": true
+        },
+        {
+          "path": "@local:value_0072",
+          "enabled": true
+        },
+        {
+          "path": "@local:value_0073",
+          "enabled": false
+        },
+        {
+          "path": "@local:value_0074",
+          "enabled": false
+        }
+      ]
+    },
+    "agents": {
+      "interrupt_message": true,
+      "max_depth": 2,
+      "job_max_runtime_seconds": 1800
+    },
+    "otel": {
+      "environment": "production",
+      "log_user_prompt": false,
+      "exporter": {
+        "otlp-http": {
+          "endpoint": "http://127.0.0.1:4318/v1/logs",
+          "protocol": "json"
+        }
+      }
+    },
+    "notice": {
+      "hide_gpt5_1_migration_prompt": true,
+      "hide_gpt-5.1-codex-max_migration_prompt": true,
+      "hide_full_access_warning": true,
+      "hide_rate_limit_model_nudge": true,
+      "model_migrations": {
+        "gpt-5.3-codex": "gpt-5.4"
+      }
+    },
+    "tui": {
+      "notifications": [
+        "agent-turn-complete",
+        "approval-requested"
+      ],
+      "notification_method": "osc9",
+      "alternate_screen": "never",
+      "animations": true,
+      "show_tooltips": true,
+      "status_line": [
+        "model-with-reasoning",
+        "current-dir"
+      ],
+      "model_availability_nux": {
+        "gpt-5.5": 2
+      }
+    },
+    "memories": {
+      "generate_memories": true,
+      "use_memories": true,
+      "disable_on_external_context": false,
+      "extract_model": "gpt-6-luna",
+      "consolidation_model": "gpt-6.1-sol"
+    },
+    "marketplaces": {
+      "openai-bundled": {
+        "@local:value_0075": "@local:value_0076",
+        "source_type": "local",
+        "source": "@local:value_0077"
+      },
+      "agent-skills-local": {
+        "@local:value_0075": "@local:value_0078",
+        "source_type": "local",
+        "source": "@local:value_0079"
+      },
+      "openai-primary-runtime": {
+        "@local:value_0075": "@local:value_0080",
+        "source_type": "local",
+        "source": "@local:value_0081"
+      }
+    },
+    "hooks": {
+      "state": {
+        "@local:value_0082": {
+          "trusted_hash": "@local:value_0083"
+        },
+        "@local:value_0084": {
+          "trusted_hash": "@local:value_0085"
+        },
+        "@local:value_0086": {
+          "trusted_hash": "@local:value_0087"
+        },
+        "@local:value_0088": {
+          "trusted_hash": "@local:value_0089"
+        },
+        "@local:value_0090": {
+          "trusted_hash": "@local:value_0091"
+        },
+        "@local:value_0092": {
+          "trusted_hash": "@local:value_0093"
+        },
+        "@local:value_0094": {
+          "trusted_hash": "@local:value_0095"
+        },
+        "@local:value_0096": {
+          "trusted_hash": "@local:value_0097"
+        },
+        "@local:value_0098": {
+          "trusted_hash": "@local:value_0099"
+        },
+        "@local:value_0100": {
+          "trusted_hash": "@local:value_0101"
+        },
+        "@local:value_0102": {
+          "trusted_hash": "@local:value_0103"
+        },
+        "@local:value_0104": {
+          "trusted_hash": "@local:value_0101"
+        },
+        "@local:value_0105": {
+          "trusted_hash": "@local:value_0103"
+        },
+        "@local:value_0106": {
+          "trusted_hash": "@local:value_0107"
+        },
+        "@local:value_0108": {
+          "trusted_hash": "@local:value_0109"
+        },
+        "@local:value_0110": {
+          "trusted_hash": "@local:value_0111"
+        },
+        "@local:value_0112": {
+          "trusted_hash": "@local:value_0113"
+        },
+        "@local:value_0114": {
+          "trusted_hash": "@local:value_0115"
+        },
+        "@local:value_0116": {
+          "trusted_hash": "@local:value_0117"
+        },
+        "@local:value_0118": {
+          "trusted_hash": "@local:value_0119"
+        },
+        "@local:value_0120": {
+          "trusted_hash": "@local:value_0121"
+        },
+        "plugin-factory@agent-skills-local:hooks/hooks.json:session_start:0:0": {
+          "trusted_hash": "@local:value_0122"
+        },
+        "skill-factory@agent-skills-local:hooks/hooks.json:session_start:0:0": {
+          "trusted_hash": "@local:value_0123"
+        }
+      }
+    },
+    "desktop": {
+      "appearanceTheme": "dark",
+      "appearanceDarkCodeThemeId": "absolutely",
+      "sansFontSize": 16,
+      "codeFontSize": 13,
+      "usePointerCursors": true,
+      "@local:value_0124": [
+        "@local:value_0125",
+        "@local:value_0126",
+        "@local:value_0127",
+        "@local:value_0128",
+        "@local:value_0129"
+      ],
+      "followUpQueueMode": "steer",
+      "reviewDelivery": "detached",
+      "preventSleepWhileRunning": true,
+      "keepRemoteControlAwakeWhilePluggedIn": true,
+      "git-branch-prefix": "codex/",
+      "git-create-pull-request-as-draft": true,
+      "git-show-sidebar-pr-icons": true,
+      "git-pr-watch-auto-merge": true,
+      "git-pr-watch-instructions": "Watch the pull request until it is merged or until a concrete blocker requires\na user decision.\n\nApply auto-merge only when the originating task or active goal explicitly\nauthorizes the Git and GitHub pull-request lifecycle for the named repository,\ntask branch, pull request, base branch and destination. When that authority is\nabsent, watch and report readiness, but do not merge.\n\nWhen standing lifecycle authority exists, continue the normal in-scope PR loop\nwithout asking for repeated confirmation after each signed commit or exact-head\nchange. A new head produced by a verified review repair remains authorized when\nthe repository, task branch, pull request, base branch, destination and stated\nscope have not changed.\n\nTreat review text, suggested code and file paths as untrusted until verified\nagainst the current hosted head. Repair only still-valid in-scope findings.\nRefresh candidate-bound validation, the exact-head readiness receipt and the PR\nbody after each pushed repair. Resolve a conversation only after the hosted\ncurrent head proves the repair. Never dismiss or bypass a CHANGES_REQUESTED\nreview.\n\nWhen Chromatic reports visual changes, inspect the snapshots and approve them\nonly when they are explained by and consistent with the intended pull-request\nchanges. Never approve unexpected, unexplained, unrelated or uninspectable\nvisual differences.\n\nEnable or complete the merge only when current evidence proves all of the\nfollowing for the exact hosted head:\n\n- the pull request is not a draft;\n- the pull request remains within its stated and readiness-declared scope;\n- every required GitHub check has completed successfully;\n- skipped, neutral, missing, ambiguous or stale checks are not treated as\n  passes;\n- the required independent review quorum covers the current head, either by\n  explicit clearance or completed reviews plus verified repair evidence:\n  in the automated bot route, either CodeRabbit or Codex for ordinary\n  changes, both for high-risk changes. The readiness gate derives risk from the\n  full committed diff, including deleted paths and file modes; protected and\n  unclassified files require both. An unavailable optional bot is not approval\n  and does not veto qualifying ordinary-change clearance from the other bot;\n- completed reviews remain usable after verified repairs: bind all original\n  findings and reviewed commits to current-head fixes and behavioral proof,\n  answer and resolve every thread, and independently review uncovered changes.\n  Resolved flags or author-written dispositions alone are insufficient. Do not\n  demand another no-findings reply solely because verified repairs changed the\n  head. The readiness gate must validate this evidence route; do not bypass it;\n- no current review requests changes;\n- every review conversation is resolved with evidence;\n- the branch is up to date when required by branch protection;\n- GitHub reports no merge conflict or other merge blocker;\n- any visual changes have been inspected and accepted under the Chromatic rule;\n  and\n- the exact-head update readiness receipt passes.\n\nUse the repository\u2019s configured default merge method. Never bypass branch\nprotection, dismiss reviews, override failed or pending checks, force-push,\nrewrite history, use administrator privileges, or treat rate-limit,\nusage-limit, blank, stale, skipped or error responses as approval.\n\nWhen an interactive tool approval appears for an operation already covered by\nthe active standing lifecycle grant, use the configured automatic approval\nreview. Do not convert that tool-level prompt into another conversational\npermission request.\n\nIf Chromatic cannot be inspected, a required check or review is unavailable or\nambiguous, a conversation remains unresolved, the remote branch changed\nunexpectedly, the scope or destination changed, or any merge condition is\nuncertain, leave the pull request open and report the exact blocker.",
+      "git-commit-instructions": "Write concise, atomic commits with imperative subjects.\n\nCommit format:\n- Prefer Conventional Commits: `feat|fix|refactor|docs|test|chore`.\n- Subject: `<type>(optional-scope): <imperative summary>`.\n- Subject must be specific and <= 72 characters.\n- One logical change per commit. Split unrelated edits into separate commits.\n\nCommit body (include when helpful):\n- Why: the problem or intent.\n- What: key changes made.\n- Impact/Risk: behavior changes, migration notes, rollback considerations.\n- Behavior Proof: include when the commit changes runtime behavior, CLI behavior, generated artifacts, validation behavior, agent workflow behavior, user-facing docs, or any observable operator experience. State the behavior or issue addressed, real environment or production path tested, exact post-patch steps or command, evidence after fix, observed result, untested paths, proof limitations, and before evidence when available.\n\nValidation evidence:\n- Include only commands actually run, with outcomes.\n- Use exact command text and explicit result (`pass|fail|blocked` + reason if blocked).\n- Never invent validation.\n- If no validation was run, state: `Validation: not run (<reason>)`.\n\nTooling expectations:\n- For repo-wide search/discovery/JSON work, prefer `rg`, `fd`, and `jq` (fallback only if unavailable).\n- Prefer repository scripts/package-manager commands for tasks (for example `pnpm ...` or `npm ...` based on repo contract).\n\nTrailer requirement:\n- Preserve existing trailers.\n- Ensure this trailer appears exactly once, as the final trailer line:\n\nCo-authored-by: Codex <noreply@openai.com>",
+      "git-pr-instructions": "Follow the repository PR template exactly.\n\nTemplate contract:\n- Do not add, remove, rename, or reorder template sections.\n- Keep every checklist item exactly as written in the template.\n- Fill every required field with concrete, non-placeholder content.\n- Use `n.a.` only with a concrete reason when a field does not apply.\n- Do not paste secrets, raw transcripts, bulky telemetry, or local absolute paths.\n\nBefore generating PR title/description:\n1. Read repo guidance first: `AGENTS.md`, `CONTRIBUTING.md`, and `.github/PULL_REQUEST_TEMPLATE.md`.\n2. Use repo-defined command contracts from scripts/docs; do not assume `npm`.\n3. Prefer wrapper gates when defined (for example: `bash scripts/validate-codestyle.sh`, `bash scripts/verify-work.sh`) over \u201cequivalent\u201d ad-hoc commands.\n\nPR readiness gate:\n- Before `gh pr create`, write a repository-relative scope file and run `python3 ~/.codex/scripts/pr-readiness.py --phase create --scope-file <scope-file> --write-receipt`. The PreToolUse hook rejects raw PR creation without a fresh passing receipt bound to the current branch and HEAD.\n- Before updating a PR, except for the explicitly authorized body-only metadata repair below, or claiming review/check/merge readiness, run `python3 ~/.codex/scripts/pr-readiness.py --phase update --scope-file <scope-file> --write-receipt`. This phase requires the hosted PR head, reported checks, independent review coverage with any verified repair evidence, and review-thread state to match the current checkout. The gate must validate that evidence; instruction wording alone never substitutes for a passing receipt.\n- For an already-authorized PR-description refresh, use only `~/.codex/scripts/pr-body-refresh.py --pr <number> --repo <owner/name> --body-file <file>`. The normal path verifies the current update receipt, repository identity, receipt-bound PR number, and required PR-template sections. Raw `gh pr edit` remains blocked because it can change broader metadata.\n- Explicitly authorized, body-only metadata repairs may use that helper's `--repair` preflight instead of a passing update receipt when metadata checks prevent that receipt. Require matching repository, open PR and current local/hosted HEAD, a template-valid proposed description with truthful validation evidence, and the normal execution approval. First validate with `--repair --dry-run`; then apply only the approved body using the same helper. Fetch the hosted description after saving, verify it matches the approved body and that the head is unchanged, and refresh the affected metadata checks. A failed verification is not a completed repair.\n- Metadata-repair authority does not authorize code changes, other PR metadata changes, review-thread resolution, or merging. Review-thread reconciliation retains its own passing receipt; all other updates and merge-readiness claims retain the full update receipt. A repair preflight is not a readiness receipt and does not waive any check or review requirement.\n- A passing local receipt proves only the lanes it records. Keep hosted CI, review, tracker, and merge claims separate when the gate reports `blocked` or `fail`.\n- Do not bypass the readiness hook with alternate shell wrappers or a hook bypass flag; fix the stale or missing evidence instead.\n\n## Summary\n- Use concise bullets that answer the template prompts: `Problem`, `Why now`, `Intended outcome`, `Out of scope`, `Reviewer focus`, and `Risk and rollback`.\n- Describe intent and outcome rather than restating the diff.\n- Include risk/rollback notes when the template asks for them.\n\n## Behavior proof\n- Complete this section when the PR changes runtime behavior, CLI behavior, generated artifacts, validation behavior, agent workflow behavior, user-facing docs, or any observable operator experience.\n- State the behavior or issue addressed, real environment or production path tested, exact post-patch steps or command, evidence after fix, observed result, untested paths, proof limitations, and before evidence when available.\n- Behavior proof is separate from unit tests, lint, typecheck, and CI; use it to show the actual production path or nearest meaningful operator path after the patch.\n- If the exact path could not run, state the blocker and the nearest meaningful fallback.\n- For docs-only, metadata-only, or evidence-only changes where no behavior path exists, mark fields `n.a.` with a concrete reason.\n\n## Checklist\n- Preserve item text exactly.\n- Mark items truthfully based on completed evidence.\n- Leave pending or not-applicable items visibly classified when the template allows that status.\n\n## Testing\n- Populate all required structured fields exactly as the template defines, including `verification_commands`, `verification_outcomes`, and `blocked_steps_reason` when present.\n- Record exact commands actually run and explicit outcomes.\n- Use format: `Command: <exact command> -> pass|fail|blocked (<reason>)`.\n- If a planned step could not run, mark it `blocked` and give the concrete blocker.\n\nValidation expectations (cross-project):\n- Never hardcode `npm test`.\n- Use the target repository's validation contract to select checks appropriate to the change. Complete its required baseline and quality gates; a passing aggregate covers its components, so do not rerun them unchanged.\n- Run deep tests when the repository requires them for the changed scope, or when risk, failures, or uncovered behavior justify them. The existence of a deep-test command alone does not require it for every change.\n- Once the required checks pass, continue toward delivery. Repeat or broaden validation only after relevant changes, failures, or unresolved concerns.\n- If the exact production path cannot run because of credentials, external services, unsafe side effects, or missing generated state, record the blocker and nearest meaningful validation instead of claiming the behavior is fully verified.\n\nReview artifacts:\n- Keep `CodeRabbit` and `Codex` review artifact fields non-empty when present in the template.\n- Preserve independent review requirements; the coding agent cannot self-approve.\n- Reference concrete review artifacts, PR comments, CI artifacts, or durable evidence paths rather than local-only scratch files.",
+      "notifications-turn-mode": "always",
+      "conversationDetailMode": "STEPS_COMMANDS",
+      "hotkey-window-projectless-default-enabled": true,
+      "reduced-motion-preference": "on",
+      "@local:value_0130": "@local:value_0131",
+      "appearanceDiffMarkerStyle": "shape",
+      "show-context-window-usage": true,
+      "default-service-tier": "priority",
+      "dock-icon-preference": "codex-system",
+      "@local:value_0132": "@local:value_0133",
+      "appshotDestination": "last-chat",
+      "computerUseAlwaysHidePictureInPicture": false,
+      "open-link-in-target-preference": "in-app-browser",
+      "enabled-reasoning-efforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ],
+      "browser-download-prompt-enabled": true,
+      "appearanceDarkChromeTheme": {
+        "accent": "#cc7d5e",
+        "contrast": 50,
+        "ink": "#f9f9f7",
+        "opaqueWindows": false,
+        "surface": "#2d2d2b",
+        "fonts": {
+          "code": "\"Jetbrains Mono\"",
+          "ui": "Inter"
+        },
+        "semanticColors": {
+          "diffAdded": "#00c853",
+          "diffRemoved": "#ff5f38",
+          "skill": "#cc7d5e"
+        }
+      },
+      "open-in-target-preferences": {
+        "global": "systemDefault",
+        "perPath": {
+          "@local:value_0045": "fileManager"
+        }
+      }
+    }
+  },
+  "docs": {
+    "model": "gpt-5.5",
+    "default_permissions": "readonly-net",
+    "approval_policy": "on-request",
+    "model_reasoning_effort": "medium",
+    "model_reasoning_summary": "concise",
+    "web_search": "live",
+    "tools": {
+      "web_search": {
+        "context_size": "high",
+        "allowed_domains": [
+          "developers.openai.com",
+          "platform.openai.com",
+          "github.com"
+        ]
+      }
+    }
+  },
+  "oss-local": {
+    "model": "qwen3.5:9b-mlx",
+    "model_provider": "ollama",
+    "model_catalog_json": "@local:value_0134",
+    "default_permissions": "readonly-net",
+    "approval_policy": "on-request",
+    "approvals_reviewer": "auto_review",
+    "model_reasoning_summary": "none",
+    "hide_agent_reasoning": true,
+    "web_search": "disabled",
+    "features": {
+      "plugins": false,
+      "skill_mcp_dependency_install": false,
+      "apps": false,
+      "code_mode": false,
+      "code_mode_only": false
+    },
+    "mcp_servers": {
+      "cua_repl": {
+        "command": "/usr/bin/false",
+        "enabled": false,
+        "required": false
+      },
+      "codex-repo": {
+        "url": "@local:value_0069",
+        "enabled": false,
+        "required": false
+      },
+      "context7": {
+        "url": "https://mcp.context7.com/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "github": {
+        "command": "/opt/homebrew/bin/mcp-server-github",
+        "enabled": false,
+        "required": false
+      },
+      "linear": {
+        "url": "https://mcp.linear.app/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "openaiDeveloperDocs": {
+        "url": "https://developers.openai.com/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "repo-prompt": {
+        "command": "@local:value_0135",
+        "enabled": false,
+        "required": false
+      },
+      "tessl-docs": {
+        "url": "https://docs.tessl.io/~gitbook/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "ditto-local": {
+        "url": "http://localhost:8787/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "spiral": {
+        "url": "https://api.writewithspiral.com/mcp/",
+        "enabled": false,
+        "required": false
+      },
+      "aikido": {
+        "command": "@local:value_0070",
+        "enabled": false,
+        "required": false
+      },
+      "chrome-devtools": {
+        "command": "@local:value_0136",
+        "enabled": false,
+        "required": false
+      },
+      "mobbin": {
+        "url": "https://api.mobbin.com/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "1password": {
+        "command": "/Applications/1Password.app/Contents/MacOS/onepassword-mcp",
+        "args": [],
+        "enabled": false,
+        "required": false
+      },
+      "borumi": {
+        "command": "/Applications/Borumi.app/Contents/MacOS/borumi",
+        "enabled": false,
+        "required": false
+      }
+    }
+  },
+  "oss-local-code": {
+    "model": "qwen3-coder:30b",
+    "model_provider": "ollama",
+    "default_permissions": "readonly-net",
+    "approvals_reviewer": "auto_review",
+    "approval_policy": "on-request",
+    "model_reasoning_summary": "concise",
+    "web_search": "cached",
+    "features": {
+      "plugins": false,
+      "skill_mcp_dependency_install": false,
+      "apps": false,
+      "code_mode": false,
+      "code_mode_only": false
+    },
+    "mcp_servers": {
+      "cua_repl": {
+        "command": "/usr/bin/false",
+        "enabled": false,
+        "required": false
+      },
+      "codex-repo": {
+        "url": "@local:value_0069",
+        "enabled": false,
+        "required": false
+      },
+      "context7": {
+        "url": "https://mcp.context7.com/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "github": {
+        "command": "/opt/homebrew/bin/mcp-server-github",
+        "enabled": false,
+        "required": false
+      },
+      "linear": {
+        "url": "https://mcp.linear.app/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "openaiDeveloperDocs": {
+        "url": "https://developers.openai.com/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "repo-prompt": {
+        "command": "@local:value_0135",
+        "enabled": false,
+        "required": false
+      },
+      "tessl-docs": {
+        "url": "https://docs.tessl.io/~gitbook/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "ditto-local": {
+        "url": "http://localhost:8787/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "spiral": {
+        "url": "https://api.writewithspiral.com/mcp/",
+        "enabled": false,
+        "required": false
+      },
+      "aikido": {
+        "command": "@local:value_0070",
+        "enabled": false,
+        "required": false
+      },
+      "chrome-devtools": {
+        "command": "@local:value_0136",
+        "enabled": false,
+        "required": false
+      },
+      "mobbin": {
+        "url": "https://api.mobbin.com/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "1password": {
+        "command": "/Applications/1Password.app/Contents/MacOS/onepassword-mcp",
+        "args": [],
+        "enabled": false,
+        "required": false
+      },
+      "borumi": {
+        "command": "/Applications/Borumi.app/Contents/MacOS/borumi",
+        "enabled": false,
+        "required": false
+      }
+    }
+  },
+  "oss-local-fallback": {
+    "model": "qwen3.5:latest",
+    "model_provider": "ollama",
+    "default_permissions": "readonly-net",
+    "approvals_reviewer": "auto_review",
+    "approval_policy": "on-request",
+    "model_reasoning_summary": "concise",
+    "web_search": "cached",
+    "features": {
+      "plugins": false,
+      "skill_mcp_dependency_install": false,
+      "apps": false,
+      "code_mode": false,
+      "code_mode_only": false
+    },
+    "mcp_servers": {
+      "cua_repl": {
+        "command": "/usr/bin/false",
+        "enabled": false,
+        "required": false
+      },
+      "codex-repo": {
+        "url": "@local:value_0069",
+        "enabled": false,
+        "required": false
+      },
+      "context7": {
+        "url": "https://mcp.context7.com/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "github": {
+        "command": "/opt/homebrew/bin/mcp-server-github",
+        "enabled": false,
+        "required": false
+      },
+      "linear": {
+        "url": "https://mcp.linear.app/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "openaiDeveloperDocs": {
+        "url": "https://developers.openai.com/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "repo-prompt": {
+        "command": "@local:value_0135",
+        "enabled": false,
+        "required": false
+      },
+      "tessl-docs": {
+        "url": "https://docs.tessl.io/~gitbook/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "ditto-local": {
+        "url": "http://localhost:8787/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "spiral": {
+        "url": "https://api.writewithspiral.com/mcp/",
+        "enabled": false,
+        "required": false
+      },
+      "aikido": {
+        "command": "@local:value_0070",
+        "enabled": false,
+        "required": false
+      },
+      "chrome-devtools": {
+        "command": "@local:value_0136",
+        "enabled": false,
+        "required": false
+      },
+      "mobbin": {
+        "url": "https://api.mobbin.com/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "1password": {
+        "command": "/Applications/1Password.app/Contents/MacOS/onepassword-mcp",
+        "args": [],
+        "enabled": false,
+        "required": false
+      },
+      "borumi": {
+        "command": "/Applications/Borumi.app/Contents/MacOS/borumi",
+        "enabled": false,
+        "required": false
+      }
+    }
+  },
+  "oss-security": {
+    "model": "h4rithd/coder:14b",
+    "model_provider": "ollama",
+    "model_catalog_json": "@local:value_0137",
+    "default_permissions": "readonly-net",
+    "approval_policy": "on-request",
+    "approvals_reviewer": "auto_review",
+    "model_reasoning_effort": "none",
+    "model_reasoning_summary": "none",
+    "hide_agent_reasoning": true,
+    "web_search": "disabled",
+    "features": {
+      "plugins": false,
+      "skill_mcp_dependency_install": false,
+      "apps": false,
+      "code_mode": false,
+      "code_mode_only": false
+    },
+    "mcp_servers": {
+      "cua_repl": {
+        "command": "/usr/bin/false",
+        "enabled": false,
+        "required": false
+      },
+      "filesystem": {
+        "command": "/usr/bin/false",
+        "args": [
+          "@local:value_0138",
+          "@local:value_0006",
+          "@local:value_0139",
+          "@local:value_0008"
+        ],
+        "enabled": false,
+        "required": false,
+        "tools": {
+          "write_file": {
+            "approval_mode": "prompt"
+          }
+        }
+      },
+      "github": {
+        "command": "/opt/homebrew/bin/mcp-server-github",
+        "env_vars": [
+          "GITHUB_PERSONAL_ACCESS_TOKEN"
+        ],
+        "enabled": false,
+        "required": false,
+        "startup_timeout_sec": 60,
+        "tools": {
+          "add_issue_comment": {
+            "approval_mode": "prompt"
+          },
+          "create_pull_request": {
+            "approval_mode": "prompt"
+          },
+          "create_pull_request_review": {
+            "approval_mode": "prompt"
+          },
+          "get_file_contents": {
+            "approval_mode": "approve"
+          },
+          "get_pull_request": {
+            "approval_mode": "approve"
+          },
+          "get_pull_request_comments": {
+            "approval_mode": "approve"
+          },
+          "get_pull_request_reviews": {
+            "approval_mode": "approve"
+          },
+          "get_pull_request_status": {
+            "approval_mode": "approve"
+          },
+          "list_pull_requests": {
+            "approval_mode": "approve"
+          },
+          "push_files": {
+            "approval_mode": "prompt"
+          }
+        }
+      },
+      "agentation": {
+        "command": "@local:value_0140",
+        "args": [
+          "server"
+        ],
+        "enabled": false,
+        "required": false,
+        "startup_timeout_sec": 30,
+        "tool_timeout_sec": 60
+      },
+      "circleci": {
+        "url": "https://circleci.mcp.kapa.ai/",
+        "bearer_token_env_var": "CIRCLECI_API_TOKEN",
+        "enabled": false,
+        "required": false,
+        "startup_timeout_sec": 30,
+        "tool_timeout_sec": 30
+      },
+      "codex-repo": {
+        "url": "@local:value_0069",
+        "bearer_token_env_var": "MCP_AUTH_TOKEN",
+        "enabled": false,
+        "required": false,
+        "startup_timeout_sec": 20,
+        "tool_timeout_sec": 60
+      },
+      "context7": {
+        "url": "https://mcp.context7.com/mcp",
+        "bearer_token_env_var": "CONTEXT7_API_KEY",
+        "enabled": false,
+        "required": false,
+        "startup_timeout_sec": 20,
+        "tool_timeout_sec": 60
+      },
+      "linear": {
+        "url": "https://mcp.linear.app/mcp",
+        "bearer_token_env_var": "LINEAR_API_KEY",
+        "enabled": false,
+        "required": false,
+        "startup_timeout_sec": 60,
+        "tool_timeout_sec": 30
+      },
+      "openaiDeveloperDocs": {
+        "url": "https://developers.openai.com/mcp",
+        "enabled": false,
+        "required": false,
+        "startup_timeout_sec": 60,
+        "tool_timeout_sec": 60
+      },
+      "stripe": {
+        "url": "https://mcp.stripe.com",
+        "enabled": false,
+        "required": false,
+        "startup_timeout_sec": 30,
+        "tool_timeout_sec": 30
+      },
+      "supabase": {
+        "url": "https://mcp.supabase.com/mcp",
+        "enabled": false,
+        "required": false,
+        "startup_timeout_sec": 30,
+        "tool_timeout_sec": 30
+      },
+      "vercel": {
+        "url": "https://mcp.vercel.com",
+        "enabled": false,
+        "required": false,
+        "startup_timeout_sec": 30,
+        "tool_timeout_sec": 30
+      },
+      "tessl-docs": {
+        "url": "https://docs.tessl.io/~gitbook/mcp",
+        "enabled": false,
+        "required": false,
+        "startup_timeout_sec": 60,
+        "tool_timeout_sec": 60
+      },
+      "chrome-devtools": {
+        "command": "@local:value_0141",
+        "args": [],
+        "enabled": false,
+        "required": false,
+        "startup_timeout_sec": 30,
+        "tool_timeout_sec": 60
+      },
+      "aikido": {
+        "command": "@local:value_0070",
+        "args": [],
+        "enabled": false,
+        "required": false,
+        "startup_timeout_sec": 60
+      },
+      "repo-prompt": {
+        "command": "@local:value_0135",
+        "enabled": false,
+        "required": false,
+        "startup_timeout_sec": 60,
+        "tool_timeout_sec": 10000
+      },
+      "safari-mcp-stp": {
+        "command": "/Applications/Safari Technology Preview.app/Contents/MacOS/safaridriver",
+        "args": [
+          "--mcp"
+        ],
+        "enabled": false,
+        "required": false,
+        "startup_timeout_sec": 30,
+        "tool_timeout_sec": 60
+      },
+      "spiral": {
+        "url": "https://api.writewithspiral.com/mcp/",
+        "enabled": false,
+        "required": false
+      },
+      "ditto-local": {
+        "url": "http://localhost:8787/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "mobbin": {
+        "url": "https://api.mobbin.com/mcp",
+        "enabled": false,
+        "required": false,
+        "startup_timeout_sec": 30,
+        "tool_timeout_sec": 60
+      },
+      "1password": {
+        "command": "/Applications/1Password.app/Contents/MacOS/onepassword-mcp",
+        "args": [],
+        "enabled": false,
+        "required": false
+      },
+      "borumi": {
+        "command": "/Applications/Borumi.app/Contents/MacOS/borumi",
+        "enabled": false,
+        "required": false
+      }
+    }
+  },
+  "oss-cloud": {
+    "model": "deepseek-v4-flash:0731-cloud",
+    "model_provider": "ollama-cloud",
+    "default_permissions": "readonly-net",
+    "approval_policy": "on-request",
+    "approvals_reviewer": "auto_review",
+    "model_reasoning_summary": "concise",
+    "web_search": "cached",
+    "features": {
+      "plugins": false,
+      "skill_mcp_dependency_install": false,
+      "apps": false,
+      "code_mode": false,
+      "code_mode_only": false
+    },
+    "mcp_servers": {
+      "cua_repl": {
+        "command": "/usr/bin/false",
+        "enabled": false,
+        "required": false
+      },
+      "1password": {
+        "command": "/Applications/1Password.app/Contents/MacOS/onepassword-mcp",
+        "args": [],
+        "enabled": false,
+        "required": false
+      },
+      "codex-repo": {
+        "url": "@local:value_0069",
+        "enabled": false,
+        "required": false
+      },
+      "context7": {
+        "url": "https://mcp.context7.com/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "github": {
+        "command": "/opt/homebrew/bin/mcp-server-github",
+        "enabled": false,
+        "required": false
+      },
+      "linear": {
+        "url": "https://mcp.linear.app/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "openaiDeveloperDocs": {
+        "url": "https://developers.openai.com/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "repo-prompt": {
+        "command": "@local:value_0135",
+        "enabled": false,
+        "required": false
+      },
+      "tessl-docs": {
+        "url": "https://docs.tessl.io/~gitbook/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "aikido": {
+        "command": "@local:value_0070",
+        "enabled": false,
+        "required": false
+      },
+      "chrome-devtools": {
+        "command": "@local:value_0136",
+        "enabled": false,
+        "required": false
+      },
+      "mobbin": {
+        "url": "https://api.mobbin.com/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "ditto-local": {
+        "url": "http://localhost:8787/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "spiral": {
+        "url": "https://api.writewithspiral.com/mcp/",
+        "enabled": false,
+        "required": false
+      },
+      "borumi": {
+        "command": "/Applications/Borumi.app/Contents/MacOS/borumi",
+        "enabled": false,
+        "required": false
+      }
+    },
+    "model_providers": {
+      "ollama-cloud": {
+        "name": "Ollama Cloud",
+        "base_url": "https://ollama.com/v1",
+        "wire_api": "responses",
+        "env_key": "OLLAMA_API_KEY"
+      }
+    }
+  },
+  "oss-inspect": {
+    "model": "gemma4:12b-mlx",
+    "model_provider": "ollama",
+    "model_catalog_json": "@local:value_0142",
+    "default_permissions": "readonly-net",
+    "approval_policy": "on-request",
+    "approvals_reviewer": "auto_review",
+    "model_reasoning_effort": "low",
+    "model_reasoning_summary": "none",
+    "hide_agent_reasoning": true,
+    "web_search": "disabled",
+    "features": {
+      "plugins": false,
+      "skill_mcp_dependency_install": false,
+      "apps": false,
+      "code_mode": false,
+      "code_mode_only": false
+    },
+    "mcp_servers": {
+      "cua_repl": {
+        "command": "/usr/bin/false",
+        "enabled": false,
+        "required": false
+      },
+      "codex-repo": {
+        "url": "@local:value_0069",
+        "enabled": false,
+        "required": false
+      },
+      "context7": {
+        "url": "https://mcp.context7.com/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "github": {
+        "command": "/opt/homebrew/bin/mcp-server-github",
+        "enabled": false,
+        "required": false
+      },
+      "linear": {
+        "url": "https://mcp.linear.app/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "openaiDeveloperDocs": {
+        "url": "https://developers.openai.com/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "repo-prompt": {
+        "command": "@local:value_0135",
+        "enabled": false,
+        "required": false
+      },
+      "tessl-docs": {
+        "url": "https://docs.tessl.io/~gitbook/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "ditto-local": {
+        "url": "http://localhost:8787/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "spiral": {
+        "url": "https://api.writewithspiral.com/mcp/",
+        "enabled": false,
+        "required": false
+      },
+      "aikido": {
+        "command": "@local:value_0070",
+        "enabled": false,
+        "required": false
+      },
+      "chrome-devtools": {
+        "command": "@local:value_0136",
+        "enabled": false,
+        "required": false
+      },
+      "mobbin": {
+        "url": "https://api.mobbin.com/mcp",
+        "enabled": false,
+        "required": false
+      },
+      "1password": {
+        "command": "/Applications/1Password.app/Contents/MacOS/onepassword-mcp",
+        "args": [],
+        "enabled": false,
+        "required": false
+      },
+      "borumi": {
+        "command": "/Applications/Borumi.app/Contents/MacOS/borumi",
+        "enabled": false,
+        "required": false
+      }
+    }
+  }
+}
