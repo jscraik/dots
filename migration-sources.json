@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "files": [
+    {
+      "source": "Brewfile",
+      "destination": "Brewfile",
+      "source_sha256": "1449ad5d7e0f9f568315840bf5ca2cf35cbaf08dbf8f35fc611a36c44be264d3",
+      "candidate_sha256": "1449ad5d7e0f9f568315840bf5ca2cf35cbaf08dbf8f35fc611a36c44be264d3"
+    },
+    {
+      "source": "mise/config.toml",
+      "destination": "mise/config.toml",
+      "source_sha256": "ed53d871da86c0160a95b17e274643165351809e3c2ecdfff05c4502ca4b4a3d",
+      "candidate_sha256": "350238bfec08dd70d4490d521bfa2d4cfead0fd80db33f76aeb74beb44cacb28",
+      "transformation": "Resolve latest versions from copied mise/mise.lock; no network or installation."
+    },
+    {
+      "source": "mise/mise.lock",
+      "destination": "mise/mise.lock",
+      "source_sha256": "510b9b6d522b3a50a19f9ed05b43738ceb5efa07f7107f59437e735f1795d279",
+      "candidate_sha256": "72d4b9fa0861c248329a7502bea00811b3a7deab99b99ff1bcf12432ead1f5f7",
+      "transformation": "Reconcile npm:@brainwav/diagram to explicit source pin 1.1.0; release confirmed by npm view using task-local cache; no package installed."
+    },
+    {
+      "source": "terminal/ghostty/config.ghostty",
+      "destination": "terminal/ghostty/config.ghostty",
+      "source_sha256": "30c97dbff2c1550a1b8043a1e226f38b9513fb3ef786eec5e202eb5e8f17c532",
+      "candidate_sha256": "30c97dbff2c1550a1b8043a1e226f38b9513fb3ef786eec5e202eb5e8f17c532"
+    },
+    {
+      "source": "terminal/zellij/config.kdl",
+      "destination": "terminal/zellij/config.kdl",
+      "source_sha256": "91c4453bf0bc4bd5cbe26b3b02404cc65bbb7cfca4066b23661fd18ba7f543b0",
+      "candidate_sha256": "91c4453bf0bc4bd5cbe26b3b02404cc65bbb7cfca4066b23661fd18ba7f543b0"
+    },
+    {
+      "source": "terminal/shell/env",
+      "destination": "terminal/shell/env",
+      "source_sha256": "88dfe2a132c202fc64248217e676743ee8c856fede385a17415d70c489e08dea",
+      "candidate_sha256": "88dfe2a132c202fc64248217e676743ee8c856fede385a17415d70c489e08dea"
+    },
+    {
+      "source": "terminal/shell/zshenv",
+      "destination": "terminal/shell/zshenv",
+      "source_sha256": "8fa124aaa236bea2722b14e4411ecdd5c3646ea4b278e9b4466f096326470eb4",
+      "candidate_sha256": "8fa124aaa236bea2722b14e4411ecdd5c3646ea4b278e9b4466f096326470eb4"
+    },
+    {
+      "source": "scripts/resolve-homebrew-bin.sh",
+      "destination": "scripts/resolve-homebrew-bin.sh",
+      "source_sha256": "036f0373002f91ce43286fff45fff90531a8f51c9cf6144158e54ad6bcfbd92d",
+      "candidate_sha256": "036f0373002f91ce43286fff45fff90531a8f51c9cf6144158e54ad6bcfbd92d"
+    }
+  ],
+  "excluded": [
+    {
+      "source": ".mise.toml",
+      "reason": "Configs project CI toolchain, not global workstation setup; original untouched."
+    },
+    {
+      "source": "mise.lock",
+      "reason": "Configs project CI toolchain, not global workstation setup; original untouched."
+    }
+  ]
+}

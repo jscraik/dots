@@ -1,0 +1,19 @@
+#!/bin/sh
+# Shared shell environment for login, interactive, and non-interactive shells.
+
+case ":${PATH:-}:" in
+  *:"/opt/homebrew/bin":*) ;;
+  *) export PATH="/opt/homebrew/bin${PATH:+:$PATH}" ;;
+esac
+
+case ":${PATH:-}:" in
+  *:"$HOME/.local/bin":*) ;;
+  *) export PATH="$HOME/.local/bin${PATH:+:$PATH}" ;;
+esac
+
+case ":${PATH:-}:" in
+  *:"$HOME/.local/share/mise/shims":*) ;;
+  *) export PATH="$HOME/.local/share/mise/shims${PATH:+:$PATH}" ;;
+esac
+
+export COREPACK_HOME="${COREPACK_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/corepack}"

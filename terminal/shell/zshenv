@@ -1,0 +1,3 @@
+# Minimal environment for every zsh invocation, including Codex non-interactive
+# shells such as `zsh -lc`. Keep this file fast and side-effect free.
+[ -r "$HOME/.local/bin/env" ] && . "$HOME/.local/bin/env"

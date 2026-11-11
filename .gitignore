@@ -1,0 +1,23 @@
+# Secrets remain in 1Password; auth/runtime state remains local.
+.env
+.env.*
+!.env.example
+auth.json
+credentials*
+*_token
+*.pem
+*.key
+*.db
+*.db-*
+*.sqlite*
+*.log
+__pycache__/
+.DS_Store
+.local/
+artifacts/
+reports/
+sessions/
+usage-data/
+node_modules/
+.venv/
+

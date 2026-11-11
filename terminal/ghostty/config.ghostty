@@ -1,0 +1,68 @@
+# Jamie: refined macOS dark glass + readability
+window-theme = dark
+theme = "Catppuccin Mocha"
+palette-generate = true
+window-colorspace = display-p3
+
+# Glass (native macOS-style when available)
+background-opacity = 0.82
+background-opacity-cells = true
+background-blur = macos-glass-regular
+minimum-contrast = 1.25
+
+# Typography
+font-family = "SF Mono"
+font-size = 14
+font-thicken = true
+adjust-cell-height = 1
+
+# Cursor + mouse ergonomics
+cursor-style = bar
+cursor-style-blink = true
+cursor-click-to-move = true
+cursor-opacity = 0.9
+mouse-hide-while-typing = true
+mouse-scroll-multiplier = precision:0.8,discrete:2
+copy-on-select = true
+clipboard-trim-trailing-spaces = true
+
+# Window layout
+window-padding-x = 10
+window-padding-y = 8
+window-padding-balance = true
+window-save-state = always
+window-inherit-working-directory = true
+window-new-tab-position = current
+window-step-resize = true
+unfocused-split-opacity = 0.85
+focus-follows-mouse = true
+scrollback-limit = 25000000
+
+# Quick terminal
+quick-terminal-position = top
+quick-terminal-screen = mouse
+quick-terminal-autohide = true
+quick-terminal-animation-duration = 0.15
+
+# Shell + safety
+command = /bin/zsh
+shell-integration = detect
+shell-integration-features = cursor,sudo,title,ssh-env,ssh-terminfo,path
+working-directory = home
+clipboard-paste-protection = true
+clipboard-paste-bracketed-safe = true
+confirm-close-surface = always
+macos-auto-secure-input = true
+
+# macOS polish
+macos-titlebar-style = transparent
+macos-titlebar-proxy-icon = hidden
+macos-option-as-alt = left
+
+# Keybinds
+keybind = global:ctrl+grave_accent=toggle_quick_terminal
+keybind = cmd+shift+comma=reload_config
+keybind = cmd+shift+e=equalize_splits
+keybind = cmd+shift+f=toggle_split_zoom
+keybind = cmd+shift+left=previous_tab
+keybind = cmd+shift+right=next_tab
