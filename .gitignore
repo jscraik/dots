@@ -1,23 +1,32 @@
-# Secrets remain in 1Password; auth/runtime state remains local.
-.env
-.env.*
-!.env.example
-auth.json
-credentials*
-*_token
-*.pem
-*.key
-*.db
-*.db-*
-*.sqlite*
-*.log
-__pycache__/
-.DS_Store
-.local/
-artifacts/
-reports/
-sessions/
-usage-data/
-node_modules/
-.venv/
+# Default-deny for a public configuration repository. Add reviewed paths
+# explicitly before tracking new files; credentials remain in 1Password.
+*
+!/.gitignore
+!/README.md
+!/MIGRATION.md
+!/Brewfile
+!/migration-sources.json
+!/.circleci/
+!/.circleci/config.yml
+!/codex/
+!/codex/policy.md
+!/mise/
+!/mise/config.toml
+!/mise/mise.lock
+!/requirements/
+!/requirements/python-document-reading.txt
+!/scripts/
+!/scripts/check-source.py
+!/scripts/resolve-homebrew-bin.sh
+!/scripts/stage-home.py
+!/terminal/
+!/terminal/ghostty/
+!/terminal/ghostty/config.ghostty
+!/terminal/shell/
+!/terminal/shell/env
+!/terminal/shell/zshenv
+!/terminal/zellij/
+!/terminal/zellij/config.kdl
+!/tests/
+!/tests/test_stage_home.py
 

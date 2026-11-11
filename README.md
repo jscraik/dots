@@ -1,8 +1,8 @@
 # dots
 
-Local migration candidate for reusable workstation configuration. Configs remains
-the active private source until a separately approved cutover. Nothing here has
-been published or installed into the live home.
+Reusable workstation configuration prepared from the private Configs repository.
+Configs remains the active source until a separately verified cutover. This
+repository does not install itself into the live home.
 
 ## Contents
 
@@ -16,6 +16,8 @@ been published or installed into the live home.
 - `scripts/resolve-homebrew-bin.sh`: reviewed existing standalone resolver.
 - `scripts/stage-home.py`: disposable-home staging, with no live-install mode.
 - `migration-sources.json`: source and candidate digests, with transformations recorded.
+- `requirements/python-document-reading.txt`: pinned optional document-reading libraries.
+- `MIGRATION.md`: public, private and local boundaries, including Codex state.
 
 ## Verify locally
 
@@ -25,6 +27,7 @@ Use Python 3.11 or newer, without installing dependencies:
 python3 -m unittest discover -s tests -v
 python3 scripts/check-source.py
 bash -n scripts/resolve-homebrew-bin.sh
+gitleaks dir --no-banner --redact --log-level error .
 ```
 
 For the real staging entrypoint, create an empty directory under the system's
@@ -42,7 +45,8 @@ updater, credential access or live projection occurs.
 
 ## Secrets and retained data
 
-1Password owns credentials and signing secrets. Authentication state stays local.
+1Password owns credentials and signing secrets. Authentication state and Codex
+sessions stay on each machine.
 Do not add tokens, `.env` values, sessions, caches, logs, generated reports or plugin
 caches. Private machine inventory and operational evidence remain in Configs for
 now. Ignore rules protect future additions; they do not prove absence of secrets.
@@ -50,13 +54,16 @@ now. Ignore rules protect future additions; they do not prove absence of secrets
 ## Deferred integration
 
 The full Codex config, hooks, rules, automations and validators remain coupled to
-Configs. They have not been replaced by the short policy candidate. Shell login
-and interactive profiles still depend on a workstation certificate integration;
-they remain in Configs. No existing required CI check has been retired. Native
-Ghostty/Zellij parsing and Linux-hosted staging remain separate verification lanes.
+Configs. They have not been replaced by the short policy candidate; do not
+install it over the current Codex instructions without a verified cutover.
+Shell login and interactive profiles still depend on a workstation certificate
+integration; they remain in Configs. No existing required CI check has been
+retired. Native Ghostty/Zellij parsing and Linux-hosted staging remain separate
+verification lanes.
 Configs-specific root `.mise.toml` and its lock remain in Configs; they select
 that repository's CI tooling rather than workstation defaults.
 
-Rollback for this local candidate is simply to keep using Configs. No live
-configuration has changed and no history was copied.
+The CircleCI configuration checks this repository only; it does not replace
+Configs' existing checks. Rollback for this local candidate is simply to keep
+using Configs. No live configuration has changed and no history was copied.
 

@@ -1,0 +1,13 @@
+# Import-only Python document/OCR/image reading libraries for the global
+# mise-managed Python user site. Install with:
+#   eval "$(mise activate zsh)"
+#   python3 -m pip install --user -r requirements/python-document-reading.txt
+defusedxml==0.7.1
+pillow==12.3.0
+pypdf==6.15.0
+pdfminer.six==20260107
+pymupdf==1.27.2.3
+pdf2image==1.17.0
+pytesseract==0.3.13
+opencv-python==4.13.0.92
+numpy==2.5.0

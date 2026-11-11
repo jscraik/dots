@@ -50,6 +50,12 @@
       "destination": "scripts/resolve-homebrew-bin.sh",
       "source_sha256": "036f0373002f91ce43286fff45fff90531a8f51c9cf6144158e54ad6bcfbd92d",
       "candidate_sha256": "036f0373002f91ce43286fff45fff90531a8f51c9cf6144158e54ad6bcfbd92d"
+    },
+    {
+      "source": "requirements/python-document-reading.txt",
+      "destination": "requirements/python-document-reading.txt",
+      "source_sha256": "d97363d835a8c043d0ff6593b4191587c3f720e219cad59a392c81a54c5d00b9",
+      "candidate_sha256": "d97363d835a8c043d0ff6593b4191587c3f720e219cad59a392c81a54c5d00b9"
     }
   ],
   "excluded": [
