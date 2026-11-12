@@ -1021,8 +1021,20 @@ class PrReadinessTests(unittest.TestCase):
                      f"time.sleep(2); Path({str(escaped)!r}).touch()")
             wrapper = root / "codex-validation-python-uv.sh"
             wrapper.write_text(f"#!/bin/bash\n{shlex.quote(sys.executable)} -c {shlex.quote(child)} &\nwait\n", encoding="utf-8")
+            popen = subprocess.Popen
+
+            def started_wrapper(*args, **kwargs):
+                process = popen(*args, **kwargs)
+                # Exercise descendant termination, independent of OS startup
+                # latency. Keep the real process group and timeout unchanged.
+                deadline = time.monotonic() + 5
+                while not started.exists() and process.poll() is None and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                return process
+
             with (patch.object(MODULE, "__file__", str(root / "pr-readiness.py")),
-                  patch.object(MODULE, "REPLY_TIMEOUT", 1)):
+                  patch.object(MODULE, "REPLY_TIMEOUT", 1),
+                  patch.object(MODULE.subprocess, "Popen", side_effect=started_wrapper)):
                 self.assertEqual(MODULE._reply_statement_in_pinned_runtime("timeout fixture"), "")
             self.assertTrue(started.exists(), "fixture child must actually start")
             time.sleep(2)

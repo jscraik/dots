@@ -77,6 +77,8 @@ def local_path_text(value):
     result = value.replace("@HOME@", str(home))
     module = deployment_module()
     if module is not None:
+        if value == '@HOME@/.local/share/codex-storage/sessions':
+            return module.context()['session_evidence_root']
         result = result.replace(str(home / 'dev/dots/codex/usage-data'),
                                 str(home / '.codex/usage-data'))
         result = result.replace(str(home / 'dev/dots'), str(module.ROOT))

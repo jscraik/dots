@@ -831,7 +831,7 @@
         "synthetic fixture resources; original selected checks retained",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
       ],
-      "candidate_sha256": "299cb064864c3b184a6ef5f2f887cf8ef49ef542619127f165675a5eea0a680b"
+      "candidate_sha256": "bb45c47e6c7d6a436736176d640df755d38f0dee2d8596ced9730962d433bd4f"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",

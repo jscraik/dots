@@ -129,6 +129,71 @@ class InstallationRouteTests(unittest.TestCase):
         self.assertNotEqual(refused.returncode, 0)
         self.assertEqual(self.snapshot(), current)
 
+    def test_bound_session_storage_keeps_existing_permissions_and_local_state(self):
+        values = json.loads(self.bindings.read_text())
+        session_root = self.home / 'private-storage/sessions'
+        values['value_0006'] = str(session_root)
+        self.bindings.write_text(json.dumps(values))
+        prepared = self.success(self.prepare())
+        self.assertEqual(self.snapshot(), self.before)
+        marker = json.loads((self.payload / 'codex/.deployment.json').read_text())
+        self.assertEqual(marker['session_evidence_root'], str(session_root))
+        canonical = tomllib.loads((self.payload / 'codex/config.toml').read_text())
+        roots = canonical['permissions'][canonical['default_permissions']]['workspace_roots']
+        self.assertIn(str(session_root), roots)
+        self.assertNotIn(str(self.home / '.local/share/codex-storage/sessions'), roots)
+        digest = prepared['plan_digest']
+        self.success(self.operation('apply', digest))
+        self.success(self.operation('check', digest))
+        self.assertFalse(session_root.exists(), 'Installation must not create or copy sessions')
+        self.success(self.operation('rollback', digest))
+        self.assertEqual(self.snapshot(), self.before)
+
+    def test_bound_session_storage_cannot_escape_rehearsal_home(self):
+        values = json.loads(self.bindings.read_text())
+        values['value_0006'] = str(self.home.parent / 'outside/sessions')
+        self.bindings.write_text(json.dumps(values))
+        result = self.prepare()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.snapshot(), self.before)
+        self.assertFalse((self.home.parent / 'outside/sessions').exists())
+
+    def test_packaged_helper_cannot_overwrite_bound_sessions_or_aliases(self):
+        values = json.loads(self.bindings.read_text())
+        session_root = self.home / 'dev/private-history/sessions'
+        values['value_0006'] = str(session_root)
+        self.bindings.write_text(json.dumps(values))
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        session_root.mkdir(parents=True)
+        sentinel = session_root / 'synthetic-session.json'
+        sentinel.write_bytes(b'local session must survive')
+        alias = self.home / 'dev/session-evidence-alias'
+        alias.symlink_to(session_root, target_is_directory=True)
+        for target in (sentinel, alias / sentinel.name):
+            result = subprocess.run([sys.executable, '-B',
+                str(self.payload / 'codex/scripts/render-agent-artifact-summary.py'),
+                '--root', str(self.payload / 'codex'), '--out', str(target)],
+                env=self.installed_env(), cwd=self.payload, capture_output=True,
+                text=True, timeout=15, check=False)
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(sentinel.read_bytes(), b'local session must survive')
+        self.success(self.operation('rollback', digest))
+        self.assertEqual(self.snapshot(), self.before)
+
+    def test_packaged_validator_discovers_its_source_without_environment_override(self):
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        environment = self.installed_env()
+        environment.pop('CODEX_CONFIG_SOURCE_ROOT', None)
+        result = subprocess.run([sys.executable, '-B',
+            str(self.payload / 'codex/scripts/validate-codex-config.py')],
+            env=environment, cwd=self.payload, capture_output=True, text=True,
+            timeout=20, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.success(self.operation('rollback', digest))
+        self.assertEqual(self.snapshot(), self.before)
+
     def test_rollback_cancels_an_unapplied_plan(self):
         digest = self.success(self.prepare())['plan_digest']
         result = self.success(self.operation('rollback', digest))

@@ -68,6 +68,16 @@ backing up the 19 managed targets. Config and hook manifests remain independent
 regular files; profiles and reusable code use links into that package. Existing
 agents, automations, usage data, browser/pet state and all session/auth stores
 remain local. Backups cover managed files and link metadata, not those stores.
+The sealed package records the existing session-evidence storage root from its
+private bindings. Governance still requires that exact root in the selected
+permission profile; preparation does not create it, move sessions or add a
+replacement permission. Rehearsal roots remain confined to their disposable home.
+On macOS, machine scope also recognises the owned user temp directory returned
+by the OS when the existing permission profile extends `:workspace`. An
+arbitrary `TMPDIR` cannot select a new root. Retained-store and alias denials
+still apply; rehearsal and read-only profiles gain no host temp access.
+Bulk admission inspects every output leaf while resolving shared roots once
+per event. It refuses changed root aliases before a handler can run.
 
 Rehearse only in an owned disposable home under resolved `/tmp`, with an existing
 synthetic Codex setup and private binding JSON. The test entrypoint builds that

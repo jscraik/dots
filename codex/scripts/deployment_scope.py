@@ -1,9 +1,11 @@
 """Validate a packaged deployment context; this is scope, never task authority."""
+import functools
 import hashlib
 import json
 import os
 import pwd
 import stat
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -13,6 +15,7 @@ MARKER = ROOT / 'codex/.deployment.json'
 PROVIDER_KEYS = ('GITHUB_TOKEN', 'GH_TOKEN', 'GH_ENTERPRISE_TOKEN',
                  'GITHUB_ENTERPRISE_TOKEN', 'OPENAI_API_KEY', 'OP_SERVICE_ACCOUNT_TOKEN')
 _CHECKED_MARKER = None
+_MACOS_TEMP_PARENT = Path('/private/var/folders')
 
 
 def unique(pairs):
@@ -95,8 +98,9 @@ def context():
     marker_bytes = read_regular(MARKER, 2 * 1024 * 1024)
     data = json.loads(marker_bytes, object_pairs_hook=unique)
     if (not isinstance(data, dict) or set(data) != {'schema_version', 'mode', 'home',
-            'state_dir', 'files', 'package_digest', 'retained', 'before'} or type(data['schema_version']) is not int
-            or data['schema_version'] != 1 or not isinstance(data['files'], list)):
+            'state_dir', 'files', 'package_digest', 'retained', 'before', 'session_evidence_root'}
+            or type(data['schema_version']) is not int
+            or data['schema_version'] != 2 or not isinstance(data['files'], list)):
         raise ValueError('Invalid deployment context')
     if any(os.environ.get(name) for name in ('DOTS_TEST_HOME', 'DOTS_FIXTURE_ROOT', 'DOTS_PROJECTION_FIXTURE')):
         raise ValueError('Deployment context cannot reuse fixture admission flags')
@@ -151,17 +155,58 @@ def context():
             'type': 'directory' if path.is_dir() else 'absent' if not path.exists() else 'conflict'}
         if actual != expected:
             raise ValueError('Retained-state ownership changed')
+    session_root = data['session_evidence_root']
+    if (not isinstance(session_root, str) or not Path(session_root).is_absolute()
+            or '..' in Path(session_root).parts or Path(session_root).name != 'sessions'):
+        raise ValueError('Invalid bound session-evidence root')
+    require_path(Path(session_root), data=data)
     return data
+
+
+@functools.lru_cache(maxsize=16)
+def _read_policy(package_digest):
+    # The digest has already passed context validation. Dynamic aliases remain
+    # checked per path; immutable policy need not be reparsed for every leaf.
+    return tomllib.loads(read_regular(ROOT / 'codex/config.toml').decode())
+
+
+@functools.lru_cache(maxsize=1)
+def _macos_temp_path():
+    try:
+        result = subprocess.run(['/usr/bin/getconf', 'DARWIN_USER_TEMP_DIR'],
+                                capture_output=True, text=True, check=True, timeout=5)
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ValueError('OS user temporary directory unavailable') from error
+    path = Path(result.stdout.strip())
+    if not path.is_absolute() or '..' in path.parts or path.name != 'T':
+        raise ValueError('Invalid OS user temporary directory')
+    return path
+
+
+def native_temp_roots(data, policy):
+    selected = policy.get('default_permissions')
+    settings = policy.get('permissions', {}).get(selected, {})
+    if data['mode'] != 'machine' or sys.platform != 'darwin' or settings.get('extends') != ':workspace':
+        return []
+    path = _macos_temp_path()
+    resolved = physical(path.resolve())
+    info = resolved.stat()
+    if (path.is_symlink() or not resolved.is_relative_to(_MACOS_TEMP_PARENT)
+            or not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid()
+            or info.st_mode & 0o022):
+        raise ValueError('Unsafe OS user temporary directory')
+    return list(dict.fromkeys((path, resolved)))
 
 
 def resource_roots(data):
     home = Path(data['home'])
-    policy = tomllib.loads(read_regular(ROOT / 'codex/config.toml').decode())
+    policy = _read_policy(data['package_digest'])
     selected = policy.get('default_permissions')
     settings = policy.get('permissions', {}).get(selected, {})
     roots = [ROOT, Path(data['state_dir']), home / 'tmp', home / '.codex/state', home / '.codex/reports',
              home / '.codex/.tmp', home / '.codex/usage-data', home / '.codex/agents',
              home / '.codex/sessions']
+    roots.extend(native_temp_roots(data, policy))
     for value in (*settings.get('workspace_roots', {}), *policy.get('projects', {})):
         candidate = Path(value)
         if candidate.is_absolute() and candidate != Path('/') and '..' not in candidate.parts:
@@ -173,46 +218,55 @@ def resource_roots(data):
     return roots
 
 
-def require_path(value, *, output=False, data=None):
+def _within(path, root):
+    # POSIX component containment, without Python 3.12 constructing each parent.
+    # Callers still resolve aliases separately and reject traversal explicitly.
+    return path.parts[:len(root.parts)] == root.parts
+
+
+def require_path(value, *, output=False, data=None, _root_resolver=None):
     data = context() if data is None else data
     home = Path(data['home'])
     path = Path(value).absolute()
-    if data['mode'] == 'rehearsal' and not path.resolve().is_relative_to(home):
+    if data['mode'] == 'rehearsal' and not _within(path.resolve(), home):
         raise ValueError('Rehearsal resource leaves its owned home')
-    roots = resource_roots(data)
+    # Bulk admission validates these immutable policy roots once up front.
+    roots = resource_roots(data) if _root_resolver is None else []
+    resolve_root = Path.resolve if _root_resolver is None else _root_resolver
+    resolved_path = path.resolve()
     exact = {home, home / '.codex', home / '.cache', home / '.config', home / '.local/share'}
     exact.update(home / '.codex' / name for name in ('config.toml', 'hooks.json', 'AGENTS.md', 'automations',
         'docs.config.toml', 'oss-local.config.toml', 'oss-local-code.config.toml',
         'oss-local-fallback.config.toml', 'oss-security.config.toml',
         'oss-cloud.config.toml', 'oss-inspect.config.toml'))
     if output:
-        retained = [home / '.codex' / name for name in (
+        retained = [Path(data['session_evidence_root']), *[home / '.codex' / name for name in (
             'sessions', 'archived_sessions', 'auth.json', '.env', 'session_index.json',
-            'state.db', 'sqlite', 'plugins', 'browser', 'pets', 'automations')]
-        if any(candidate == protected or candidate.is_relative_to(protected)
-               for candidate in (path, path.resolve())
-               for protected in (*retained, *[item.resolve() for item in retained])):
+            'state.db', 'sqlite', 'plugins', 'browser', 'pets', 'automations')]]
+        protected_roots = (*retained, *[resolve_root(item) for item in retained])
+        if any(_within(candidate, protected)
+               for candidate in (path, resolved_path) for protected in protected_roots):
             raise ValueError('Retained local stores are not helper outputs')
-        if any(candidate == root or candidate.is_relative_to(root)
-               for candidate in (path, path.resolve()) for root in (ROOT, Path(data['state_dir']))):
+        if any(_within(candidate, root)
+               for candidate in (path, resolved_path) for root in (ROOT, Path(data['state_dir']))):
             raise ValueError('Deployed source and installation state are not helper outputs')
-        runtime_outputs = [home / 'tmp', *[home / '.codex' / name
+        policy = _read_policy(data['package_digest'])
+        runtime_outputs = [home / 'tmp', *native_temp_roots(data, policy), *[home / '.codex' / name
             for name in ('state', 'reports', '.tmp', 'usage-data')]]
-        policy = tomllib.loads(read_regular(ROOT / 'codex/config.toml').decode())
         projects = [Path(value) for value in policy.get('projects', {})
                     if Path(value).is_absolute() and Path(value) not in {home, Path('/')}]
         roots = runtime_outputs + projects
         # A broad project entry must not turn local app/session/auth stores into
         # report destinations. Only these named runtime outputs are writable.
         local = (home / '.codex', home / '.local/share/codex-storage', home / '.config')
-        if any(candidate.is_relative_to(root.resolve()) for candidate in (path, path.resolve()) for root in local) and not any(
-                path.is_relative_to(root) for root in runtime_outputs):
+        if any(_within(candidate, resolve_root(root)) for candidate in (path, resolved_path) for root in local) and not any(
+                _within(path, root) for root in runtime_outputs):
             raise ValueError('Local session, auth and application stores are not helper outputs')
         if path.exists() and not path.is_dir() and path.stat().st_nlink != 1:
             raise ValueError('Helper output must not share an existing file inode')
     if not output and path in exact and '..' not in path.parts:
         return path
-    if ('..' in path.parts or not any(path.is_relative_to(root) and path.resolve().is_relative_to(root.resolve()) for root in roots)):
+    if ('..' in path.parts or not any(_within(path, root) and _within(resolved_path, resolve_root(root)) for root in roots)):
         raise ValueError('Resource leaves the deployment policy scope: ' + path.name)
     return path
 
@@ -286,6 +340,13 @@ def admit_event(event):
     """Check deployed event resources without walking session or auth stores."""
     data = context()
     require_environment(data)
+    resource_roots(data)
+    resolved_roots = {}
+
+    def resolve_root(path):
+        if path not in resolved_roots:
+            resolved_roots[path] = path.resolve()
+        return resolved_roots[path]
     if not isinstance(event, dict):
         raise TypeError('Hook event must be an object')
     for name in ('cwd', 'transcript_path'):
@@ -312,7 +373,10 @@ def admit_event(event):
         root = require_path(home / relative, data=data, output=True)
         if root.exists():
             for child in root.rglob('*'):
-                require_path(child, data=data, output=True)
+                require_path(child, data=data, output=True, _root_resolver=resolve_root)
+    if any(path.resolve() != resolved for path, resolved in resolved_roots.items()):
+        raise ValueError('Output resource alias changed during admission')
+    context()
     return home
 
 

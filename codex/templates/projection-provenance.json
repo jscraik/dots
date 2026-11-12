@@ -55,7 +55,7 @@
       "source_revision": null,
       "source_sha256": null,
       "transformation": "New local prepare/apply/check/rollback procedure reusing existing validators and publishers.; Add fixed packaged-context admission; retain default disposable admission and original checks.",
-      "candidate_sha256": "a182b58046a5701caa724ec9d87910ab7e002574546bf56ce22a915521820952"
+      "candidate_sha256": "ba4ca963a7987de818e7534096b4a704c28f38fd25f03c0e6f41cb9d7d58a304"
     }
   ],
   "fixture_kind": "full-policy-v1",

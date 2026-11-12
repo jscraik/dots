@@ -151,7 +151,11 @@ def assemble(args):
         target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         write(target, SCOPE.read_regular(ROOT / row['path']), 0o700 if row['mode'] & 0o111 else 0o600)
     generator = module('installation_generator', payload / 'scripts/generate-codex-policy.py')
+    binding_bytes = SCOPE.read_regular(args.bindings)
     generated = generator.render(args.bindings)
+    if SCOPE.read_regular(args.bindings) != binding_bytes:
+        raise ValueError('Private bindings changed during generation')
+    session_root = json.loads(binding_bytes, object_pairs_hook=SCOPE.unique)['value_0006']
     for name, text in generated.items():
         filename = 'config.toml' if name == 'config' else name + '.config.toml'
         write(payload / 'codex' / filename, text.encode())
@@ -185,8 +189,9 @@ def assemble(args):
         if path.is_file():
             path.chmod(0o500 if path.stat().st_mode & 0o111 else 0o400)
     frozen = SCOPE.fingerprint(payload)
-    marker = {'schema_version': 1, 'mode': args.mode, 'home': str(home), 'state_dir': str(state),
-              'files': frozen, 'package_digest': SCOPE.identity(frozen), 'retained': retained, 'before': before}
+    marker = {'schema_version': 2, 'mode': args.mode, 'home': str(home), 'state_dir': str(state),
+              'files': frozen, 'package_digest': SCOPE.identity(frozen), 'retained': retained,
+              'before': before, 'session_evidence_root': session_root}
     write(payload / 'codex/.deployment.json', json.dumps(marker, indent=2).encode(), 0o400)
     for path in sorted(payload.rglob('*'), reverse=True):
         if path.is_dir():

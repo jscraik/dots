@@ -323,7 +323,7 @@
       "source_revision": null,
       "source_sha256": null,
       "transformation": "New fixed private-package identity and resource adapter; fixture defaults retained.; Add fixed packaged-context admission; retain default disposable admission and original checks.",
-      "candidate_sha256": "7fd760ab2bf09d1f983eed3db332415c1bcde0dee1b25863af3960e3eb2455fa"
+      "candidate_sha256": "9b571890726adad7b806dc7088bccc906b644df979803961d3f533c812c94901"
     },
     {
       "path": "codex/scripts/aikido-mcp.sh",
