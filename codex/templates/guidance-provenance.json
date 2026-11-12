@@ -522,7 +522,8 @@
       "deferred_context_pointers": [
         "../scripts/build-log-summary.md"
       ],
-      "candidate_sha256": "ca88f0999cf2dd5d6037c3ac934326a5d9af2163311e3cef5d94a67ff46c7cc4"
+      "candidate_sha256": "88477a309e8ecbc5a1ba9cfccadeeb449d29e922bc894f71b280167d15035ab4",
+      "transformation": "State installation authority separately from each machine's verified active or rollback state."
     },
     {
       "path": "codex/templates/rules/automation.rules",
@@ -592,14 +593,15 @@
       "path": "AGENTS.md",
       "origin": "local migration adaptation",
       "decision": "Explicit public scope, serialization and proving checks; no new live authority",
-      "candidate_sha256": "43c47975e8bd494c263b113872fe9ea85a88dc56bf7958a0b12f6698dfd032d3"
+      "candidate_sha256": "e61a8178f59dd69af16fe5e1cfd299486e3e8a568de45bb4c617d90dcfeed9cf",
+      "transformation": "State installation authority separately from each machine's verified active or rollback state."
     },
     {
       "path": "codex/instructions/migration-scope.md",
       "origin": "local migration adaptation",
       "decision": "Explicit public scope, serialization and proving checks; no new live authority",
-      "candidate_sha256": "4e2f2f9712de0cd79b9f8525305bf2b3330107f67a654add271434d09c5d8b39",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
+      "candidate_sha256": "7f3c3c3edbce52a5550fee5ab72b421efe4909a1db3de03fd5eb3151078f7110",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. State installation authority separately from each machine's verified active or rollback state."
     },
     {
       "path": "scripts/generate-codex-controls.py",

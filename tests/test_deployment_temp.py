@@ -54,6 +54,52 @@ class DeploymentTempTests(unittest.TestCase):
             SCOPE.require_environment(self.data)
         self.assertEqual(SCOPE.native_temp_roots(self.data, self.policy), [self.temp])
 
+    def test_native_app_metadata_does_not_grant_resource_access_or_execute_inputs(self):
+        outside = self.root / 'native-app'
+        outside.mkdir()
+        transport = outside / 'codex'
+        transport.write_bytes(b'private app transport sentinel')
+        executable = outside / 'tectonic'
+        marker = outside / 'executed'
+        executable.write_text('#!/bin/sh\ntouch "' + str(marker) + '"\n')
+        executable.chmod(0o700)
+        environment = {'HOME': str(self.home), 'TMPDIR': str(self.temp),
+                       'CODEX_APP_TOOLS_PIPE_PATH': str(transport),
+                       'CODEX_TECTONIC_PATH': str(executable)}
+        with (mock.patch.object(SCOPE, 'context', return_value=self.data),
+              mock.patch.dict(os.environ, environment, clear=True)):
+            self.assertEqual(SCOPE.admit_event({}), self.home)
+            for path in (transport, executable):
+                for output in (False, True):
+                    with self.subTest(path=path.name, output=output), self.assertRaises(ValueError):
+                        SCOPE.require_path(path, data=self.data, output=output)
+        self.assertEqual(transport.read_bytes(), b'private app transport sentinel')
+        self.assertFalse(marker.exists())
+
+    def test_native_app_metadata_remains_scoped_in_rehearsals(self):
+        temporary = self.home / 'tmp'
+        temporary.mkdir()
+        outside = self.root / 'native-outside'
+        outside.mkdir()
+        for name in ('CODEX_APP_TOOLS_PIPE_PATH', 'CODEX_TECTONIC_PATH'):
+            environment = {'HOME': str(self.home), 'TMPDIR': str(temporary), name: str(outside)}
+            with (self.subTest(field=name),
+                  mock.patch.object(SCOPE, 'context', return_value=self.data | {'mode': 'rehearsal'}),
+                  mock.patch.dict(os.environ, environment, clear=True),
+                  self.assertRaisesRegex(ValueError, 'Rehearsal resource leaves')):
+                SCOPE.admit_event({})
+
+    def test_native_app_metadata_exception_does_not_cover_other_prefixed_resources(self):
+        outside = self.root / 'unadmitted'
+        outside.mkdir()
+        for name in ('CODEX_HOOK_USAGE_ROOT', 'DOTS_REPORT_PATH', 'CODEX_UNKNOWN_PATH'):
+            environment = {'HOME': str(self.home), 'TMPDIR': str(self.temp), name: str(outside)}
+            with (self.subTest(field=name),
+                  mock.patch.object(SCOPE, 'context', return_value=self.data),
+                  mock.patch.dict(os.environ, environment, clear=True),
+                  self.assertRaisesRegex(ValueError, 'Resource leaves')):
+                SCOPE.admit_event({})
+
     def test_temp_aliases_cannot_escape_or_target_retained_stores(self):
         outside = self.root / 'outside'
         outside.mkdir()

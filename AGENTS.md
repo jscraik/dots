@@ -1,7 +1,9 @@
 # Dots repository guidance
 
-This is a public-appropriate, inactive migration candidate. Configs remains the
-live control plane until a separately authorised and verified cutover.
+This repository owns reusable, public-appropriate configuration. Installation
+and activation require separate authority and verification on the target
+machine. Use its local installation receipt for current state; this file does
+not authorise a cutover.
 
 - Preserve other work. Keep changes inside the named candidate; use disposable
   homes under the system temporary directory for projection and hook tests.

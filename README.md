@@ -1,8 +1,9 @@
 # dots
 
 Reusable workstation configuration prepared from the private Configs repository.
-Configs remains the active source until a separately verified cutover. This
-repository does not install itself into the live home.
+Installation and activation require separate authority and verification on each
+machine. The local installation receipt records its active and rollback state;
+this repository does not install itself into the live home.
 
 ## Contents
 
@@ -55,6 +56,12 @@ inside disposable homes. No provider is installed or authenticated by the port.
 Packaged provider admission recognises its named local binary/reference inputs
 and the existing 1Password CLI locations. It adds no writable helper roots;
 rehearsals continue to reject host providers and escaping symlinks.
+
+Machine admission treats `CODEX_APP_TOOLS_PIPE_PATH` and `CODEX_TECTONIC_PATH`
+as unused native app metadata. Migrated handlers do not open or execute these
+values, and they add no resource roots or helper-output permissions. Event paths,
+all other scoped environment paths and retained-store protections remain
+checked. Rehearsals still reject native metadata paths outside their owned home.
 
 ## First-machine installation candidate
 
@@ -495,20 +502,21 @@ is excluded from publication and projection.
 
 ## Deferred integration
 
-The live Codex config, hooks, rules, automations and validators still use
-Configs. The full configuration policy and validator are now available for
-isolated testing here, but do not replace that live setup. Do not install them
-over current Codex instructions without a verified cutover.
-Shell login and interactive profiles still depend on a workstation certificate
-integration; they remain in Configs. No existing required CI check has been
-retired. Native Ghostty/Zellij parsing and Linux-hosted staging remain separate
-verification lanes.
+The full configuration policy and validator are available here. Their presence
+does not prove a successful live cutover. Preserve the previous source and its
+recovery copy until actual native hook execution, local data preservation and
+the reconciliation service have been verified on the target machine. Roll back
+managed Codex targets with the installation's reviewed state and plan digest;
+shell bindings and local helper relocation have separate recovery records.
+Workstation certificate integration remains a private local input. No existing
+required CI check is retired by this port. Native Ghostty/Zellij parsing and
+Linux-hosted staging remain separate verification lanes.
 Configs-specific root `.mise.toml` and its lock remain in Configs; they select
 that repository's CI tooling rather than workstation defaults.
 
 The CircleCI configuration checks this repository only; it does not replace
-Configs' existing checks. Rollback for this local candidate is simply to keep
-using Configs. No live configuration has changed and no history was copied.
+Configs' existing checks. Local installation records and recovery artifacts stay
+outside this public repository; they are not included in hosted validation.
 The dormant validation job installs the already-declared validation dependency
 pins before running the suite. Its two jobs and small resource classes are
 unchanged. No hosted job or Linux runtime acceptance is established locally.

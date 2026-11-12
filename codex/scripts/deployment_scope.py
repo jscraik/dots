@@ -16,6 +16,9 @@ PROVIDER_KEYS = ('GITHUB_TOKEN', 'GH_TOKEN', 'GH_ENTERPRISE_TOKEN',
                  'GITHUB_ENTERPRISE_TOKEN', 'OPENAI_API_KEY', 'OP_SERVICE_ACCOUNT_TOKEN')
 _CHECKED_MARKER = None
 _MACOS_TEMP_PARENT = Path('/private/var/folders')
+# Native app metadata is not consumed by migrated handlers. It adds no resource
+# root, provider input or execution authority; rehearsals retain path isolation.
+_NATIVE_APP_METADATA = frozenset({'CODEX_APP_TOOLS_PIPE_PATH', 'CODEX_TECTONIC_PATH'})
 
 
 def unique(pairs):
@@ -363,6 +366,8 @@ def admit_event(event):
     for name, value in os.environ.items():
         if name.startswith(('CODEX_', 'DOTS_')) and value.startswith('/') and name not in {
                 'CODEX_VALIDATION_PYTHON', 'CODEX_VALIDATION_UV_PYTHON'}:
+            if data['mode'] == 'machine' and name in _NATIVE_APP_METADATA:
+                continue
             for item in value.split(os.pathsep):
                 require_path(Path(item), data=data, output=name in {
                     'CODEX_HOOK_USAGE_ROOT', 'CODEX_COMPACT_HOOK_LOG', 'CODEX_SUBAGENT_HOOK_LOG',

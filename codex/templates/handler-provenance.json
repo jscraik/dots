@@ -322,8 +322,8 @@
       "path": "codex/scripts/deployment_scope.py",
       "source_revision": null,
       "source_sha256": null,
-      "transformation": "New fixed private-package identity and resource adapter; fixture defaults retained.; Add fixed packaged-context admission; retain default disposable admission and original checks.",
-      "candidate_sha256": "9b571890726adad7b806dc7088bccc906b644df979803961d3f533c812c94901"
+      "transformation": "New fixed private-package identity and resource adapter; fixture defaults retained.; Add fixed packaged-context admission; retain default disposable admission and original checks. Classify only the two unused native app metadata fields separately in machine mode; retain resource/output and rehearsal checks.",
+      "candidate_sha256": "12d7367722754fc12c241c7958123225ae3fa962b40d63efd618973d8248a144"
     },
     {
       "path": "codex/scripts/aikido-mcp.sh",

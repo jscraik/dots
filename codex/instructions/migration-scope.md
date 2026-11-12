@@ -5,11 +5,11 @@
 This library is a public-appropriate port of accepted Configs revision
 `cfd2e591c1e9439363955ffa93b6f396afc7a4ad`, plus the explicitly reviewed,
 content-bound hook-copy integration in `templates/hook-copy-provenance.json`.
-The dots migration maintainer owns this candidate. Configs remains the live
-control plane; other outstanding work there is preserved separately and is not
-adopted, rewritten or replaced. Dots is an inactive candidate with a locally
-rehearsed installation route. Publication, live cutover and managed-system installation
-require separate authority and proof.
+The dots migration maintainer owns this port. Existing Configs work is preserved
+separately and is not adopted, rewritten or replaced. The local installation
+receipt records each machine's active source and rollback state; do not infer
+that state from a repository document. Publication, live cutover and
+managed-system installation require separate authority and proof.
 
 `templates/reconciliation-provenance.json` records selected reusable pending
 fixes in addition to that baseline. Their local integration does not accept or

@@ -36,7 +36,7 @@
     {
       "path": "README.md",
       "prior_candidate_sha256": "ced157af36e675f8d6c890a5b04a70805e0835432efc957efc85c92f1e98ab01",
-      "candidate_sha256": "3012a0d3433d32083c25a25dbe816b86ba4e634ab1330ceba61a0d581e1ace80",
+      "candidate_sha256": "c93bf411c1ab137ee5919ac47df306d9e839f213559ce62f394a10e1e79bf95b",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
@@ -78,8 +78,8 @@
     {
       "path": "codex/instructions/migration-scope.md",
       "prior_candidate_sha256": "085a3aece03f77510bf5f4f8d85a459f9735069dbb028428539066cdc7c2c741",
-      "candidate_sha256": "4e2f2f9712de0cd79b9f8525305bf2b3330107f67a654add271434d09c5d8b39",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
+      "candidate_sha256": "7f3c3c3edbce52a5550fee5ab72b421efe4909a1db3de03fd5eb3151078f7110",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. State installation authority separately from each machine's verified active or rollback state."
     },
     {
       "path": "codex/schemas/pr-readiness.v1.schema.json",

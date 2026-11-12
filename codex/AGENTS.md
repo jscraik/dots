@@ -4,9 +4,9 @@ schema_version: 2
 
 # Global Codex Guidelines
 
-This is the portable global baseline candidate for `${CODEX_HOME}/AGENTS.md`.
-It is projected only into disposable fixtures during migration; Configs
-remains the live source. No installation is authorised by this file.
+This is the portable global baseline for `${CODEX_HOME}/AGENTS.md`.
+Projection into a real home requires a separately authorised installation and
+verified target state. This file grants no installation or activation authority.
 
 ## Table of Contents
 
