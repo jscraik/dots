@@ -9,7 +9,7 @@ class MaintainerAcceptanceFixture:
         from codex.scripts import pr_maintainer_acceptance as acceptance
         self.api = acceptance
         self.head, self.base = "a" * 40, "b" * 40
-        self.identity = dict(repository="jscraik/configs", pr_number=7, head_sha=self.head, base_sha=self.base)
+        self.identity = {"repository": "jscraik/configs", "pr_number": 7, "head_sha": self.head, "base_sha": self.base}
         self.report = dict(schema_version=acceptance.REPORT.rstrip(), **self.identity,
                            writer_task="/root", reviewer_task="/root/reviewer",
                            covered_paths=["codex/scripts/guard.py"], unresolved_findings=[],
@@ -30,9 +30,9 @@ class MaintainerAcceptanceFixture:
 
     @staticmethod
     def entry(number: int, body: str, login: str = "jscraik", kind: str = "User") -> dict:
-        return dict(id=number, html_url=f"https://github.com/jscraik/configs/pull/7#issuecomment-{number}",
-                    body=body, user=dict(login=login, type=kind),
-                    created_at=f"2026-10-11T18:00:0{number}Z", updated_at=f"2026-10-11T18:00:0{number}Z")
+        return {"id": number, "html_url": f"https://github.com/jscraik/configs/pull/7#issuecomment-{number}",
+                    "body": body, "user": {"login": login, "type": kind},
+                    "created_at": f"2026-10-11T18:00:0{number}Z", "updated_at": f"2026-10-11T18:00:0{number}Z"}
 
     def verify(self) -> dict | None:
         return self.api.verify_acceptance(entries=self.entries, outages=[self.entries[0]], number=7,
@@ -105,7 +105,7 @@ class MaintainerAcceptanceTests(MaintainerAcceptanceFixture, unittest.TestCase):
             self.setUp()
             self.entries.append(self.entry(4, body, login="other-owner"))
             self.assertIsNotNone(self.verify())
-        for user in (dict(login="other-owner", type="User"), dict(login="jscraik", type="Bot")):
+        for user in ({"login": "other-owner", "type": "User"}, {"login": "jscraik", "type": "Bot"}):
             self.setUp()
             self.entries[2]["user"] = user
             self.assertIsNone(self.verify())

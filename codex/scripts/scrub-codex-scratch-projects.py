@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
 """Remove transient Codex scratch workspaces from the global config.toml."""
 
 from __future__ import annotations
 
-from migration_scope import require_policy_scope, require_policy_path
+from migration_scope import require_policy_path, require_policy_scope
+
 require_policy_scope()
 
 import argparse
@@ -13,7 +13,6 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG_PATH = SCRIPT_DIR.parent / "config.toml"

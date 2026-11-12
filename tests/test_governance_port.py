@@ -2,16 +2,16 @@
 import importlib.util
 import json
 import os
-from pathlib import Path
-import shutil
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
 import tomllib
 import unittest
-from unittest import mock
+from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location('generator', ROOT / 'scripts/generate-codex-policy.py')
@@ -86,7 +86,7 @@ class GovernancePortTests(unittest.TestCase):
     def publish(self, source, target, *args):
         return subprocess.run([sys.executable, '-B', str(self.codex / 'scripts/project-codex-hooks.py'),
                                '--source', str(source), '--target', str(target), *args],
-                              env=self.env, capture_output=True, text=True, timeout=15)
+                              env=self.env, capture_output=True, text=True, timeout=15, check=False)
 
     def test_full_runtime_check_with_managed_hook_copy(self):
         source, target = self.runtime_fixture()
@@ -133,7 +133,7 @@ class GovernancePortTests(unittest.TestCase):
         if text is not None:
             command.append('--config-stdin')
         return subprocess.run(command, input=text, env=self.env, capture_output=True,
-                              text=True, timeout=30)
+                              text=True, timeout=30, check=False)
 
     def test_complete_snapshot_and_negative_policy(self):
         result = self.validate(self.generated['config'])
@@ -173,13 +173,13 @@ class GovernancePortTests(unittest.TestCase):
         profile_path.write_text(self.generated['oss-cloud'])
 
     def test_runtime_repair_preserves_policy_and_state(self):
-        source, target = self.runtime_fixture()
+        _source, target = self.runtime_fixture()
         runtime = target.parent / 'config.toml'
         runtime.write_text(runtime.read_text().replace('approval_policy = "on-request"',
                                                       'approval_policy = "never"', 1))
         result = subprocess.run([sys.executable, '-B', str(self.codex / 'scripts/repair-runtime-config-drift.py'),
             '--config-path', str(runtime), '--repair', '--json'], env=self.env,
-            capture_output=True, text=True, timeout=30)
+            capture_output=True, text=True, timeout=30, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(tomllib.loads(runtime.read_text())['approval_policy'], 'on-request')
         self.assertEqual((target.parent / 'auth.json').read_bytes(), b'caller-owned synthetic sentinel')
@@ -188,7 +188,7 @@ class GovernancePortTests(unittest.TestCase):
         env = dict(self.env)
         env.pop('DOTS_TEST_HOME')
         result = subprocess.run([sys.executable, '-B', str(self.codex / 'scripts/validate-codex-config.py')],
-                                env=env, capture_output=True, text=True, timeout=10)
+                                env=env, capture_output=True, text=True, timeout=10, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('disposable', result.stderr)
 
@@ -198,11 +198,11 @@ class GovernancePortTests(unittest.TestCase):
         spec.loader.exec_module(module)
         # Both directories are owned test fixtures; simulate the account-home
         # boundary without creating or reading anything in the caller's home.
-        with mock.patch.dict(os.environ, {'HOME': str(self.home), 'DOTS_TEST_HOME': str(self.home),
-                                         'TMPDIR': str(self.home.parent)}, clear=True):
-            with mock.patch.object(module.pwd, 'getpwuid', return_value=SimpleNamespace(pw_dir=str(self.home.parent))):
-                with self.assertRaises(RuntimeError):
-                    module.require_disposable_scope()
+        with (mock.patch.dict(os.environ, {'HOME': str(self.home), 'DOTS_TEST_HOME': str(self.home),
+                                          'TMPDIR': str(self.home.parent)}, clear=True),
+              mock.patch.object(module.pwd, 'getpwuid', return_value=SimpleNamespace(pw_dir=str(self.home.parent))),
+              self.assertRaises(RuntimeError)):
+            module.require_disposable_scope()
 
     def test_without_braid_rejects_outside_source(self):
         source, _ = self.runtime_fixture()
@@ -211,7 +211,7 @@ class GovernancePortTests(unittest.TestCase):
             external.write_bytes(source.read_bytes())
             result = subprocess.run([sys.executable, '-B', str(self.codex / 'scripts/project-codex-hooks.py'),
                                     '--source', str(external), '--without-braid'], env=self.env,
-                                   capture_output=True, text=True, timeout=10)
+                                   capture_output=True, text=True, timeout=10, check=False)
             self.assertNotEqual(result.returncode, 0)
             self.assertNotIn('PreToolUse', result.stdout)
 

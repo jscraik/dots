@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Shared runtime policy helpers for hook governance logic."""
 
 from __future__ import annotations

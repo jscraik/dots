@@ -15,7 +15,7 @@ class PendingFixTests(unittest.TestCase):
         result = self.fixture.accepted_tests('test_pending_hook_findings.py', timeout=90)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertNotIn('skipped=', result.stderr)
-        cases = re.findall(r'^test_\w+ \(([^)]+)\)', result.stderr, re.M)
+        cases = re.findall(r'^test_\w+ \(([^)]+)\)', result.stderr, re.MULTILINE)
         self.assertTrue(cases, 'The maintained loader executed no named regressions')
         self.assertEqual(len(cases), len(set(cases)), 'A source suite was collected twice')
 
@@ -56,6 +56,6 @@ class PendingFixTests(unittest.TestCase):
         result = self.fixture.accepted_tests('test_pr_readiness.py', timeout=180)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertNotIn('skipped=', result.stderr)
-        cases = re.findall(r'^test_\w+ \(([^)]+)\)', result.stderr, re.M)
+        cases = re.findall(r'^test_\w+ \(([^)]+)\)', result.stderr, re.MULTILINE)
         self.assertTrue(cases, 'The maintained loader executed no named regressions')
         self.assertEqual(len(cases), len(set(cases)), 'A source suite was collected twice')

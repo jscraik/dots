@@ -236,12 +236,12 @@ class CodexCompletionTests(unittest.TestCase):
                 self.assertIsNone(run({**entry, "body": body + wrapper.replace("\n", "Unsafe write remains.", 1)})[0])
         self.assertIsNotNone(run(repo=(None, "repository unavailable"))[0])
         self.assertIsNone(run(repo=(None, "repository unavailable"), fresh={**self.pr, "url": "https://github.com/other/repo/pull/526"})[0])
-        with patch.object(MODULE, "_coderabbit_statuses", side_effect=[[self.status_event], []]):
-            with (patch.object(MODULE, "repository_slug", return_value=("jscraik/Agent-Skills", None)),
-                  patch.object(MODULE, "gh_pr", return_value=(self.pr, None)),
-                  patch.object(MODULE, "issue_comments", return_value=([entry], None)),
-                  patch.object(MODULE, "review_comments", return_value=([], None))):
-                self.assertIsNone(MODULE.coderabbit_completion_review(Path.cwd(), self.pr, HEAD, [], [entry])[0])
+        with (patch.object(MODULE, "_coderabbit_statuses", side_effect=[[self.status_event], []]),
+              patch.object(MODULE, "repository_slug", return_value=("jscraik/Agent-Skills", None)),
+              patch.object(MODULE, "gh_pr", return_value=(self.pr, None)),
+              patch.object(MODULE, "issue_comments", return_value=([entry], None)),
+              patch.object(MODULE, "review_comments", return_value=([], None))):
+            self.assertIsNone(MODULE.coderabbit_completion_review(Path.cwd(), self.pr, HEAD, [], [entry])[0])
         self.assertIsNone(run(statuses=[self.status_event, self.status_event])[0])
         self.assertIsNone(run({**entry, "updated_at": "2026-10-10T17:50:00Z"})[0])
         for changed in (body.replace(HEAD, "b" * 40), body.replace('"reviewed"', '"pending"'),
@@ -385,7 +385,7 @@ class CodexCompletionTests(unittest.TestCase):
         self.assertIsNone(review)
 
     def test_collapsed_native_summary_preserves_completion_and_rejects_extra_content(self) -> None:
-        body, state = self.state_body()
+        body, _state = self.state_body()
         heading = "## Codex Review Summary"
         wrapper = "<details>\n<summary><strong>Codex Review Summary</strong>: ✅ Completed</summary>"
         collapsed = body.replace(heading, wrapper) + "\n</details>"
@@ -810,7 +810,7 @@ class CodexCompletionTests(unittest.TestCase):
                         {"created_at": "2026-10-10T17:30:00Z"},
                         {"created_at": "2026-10-10T18:00:00Z"}, {"created_at": "invalid"}):
             with self.subTest(changes=changes):
-                review, error = self.candidate(reactions=[{**self.reaction, **changes}])
+                review, _error = self.candidate(reactions=[{**self.reaction, **changes}])
                 self.assertIsNone(review)
 
     def test_running_stale_spoofed_and_extended_summaries_never_clear(self) -> None:
@@ -823,7 +823,7 @@ class CodexCompletionTests(unittest.TestCase):
                         {"html_url": "https://github.com/other/repo/pull/526#issuecomment-42"}):
             with self.subTest(changes=changes):
                 self.entry = {**original, **changes}
-                review, error = self.candidate()
+                review, _error = self.candidate()
                 self.assertIsNone(review)
 
     def test_head_summary_review_and_reaction_drift_block(self) -> None:
@@ -838,7 +838,7 @@ class CodexCompletionTests(unittest.TestCase):
         self.assertIsNotNone(error)
 
     def test_later_finding_remains_blocking(self) -> None:
-        review, error = self.candidate()
+        review, _error = self.candidate()
         finding = {"user": {"login": LOGIN}, "body": "Unsafe write for " + HEAD,
                    "created_at": "2026-10-10T17:38:00Z"}
         self.assertEqual(MODULE.outstanding_bot_concerns([], [], [self.entry, review, finding], HEAD), ["Codex"])
@@ -886,7 +886,7 @@ class CodexCompletionTests(unittest.TestCase):
                     self.assertIsNotNone(error)
 
     def test_repair_inventory_contains_only_authentic_sources(self) -> None:
-        candidate, error = self.candidate()
+        candidate, _error = self.candidate()
         endorsement = {"user": {"login": "coderabbitai"}, "body": "pr-repair-endorsement/v1\nproof"}
         entries = [self.entry, endorsement]
         with (patch.object(MODULE, "review_threads", return_value=({"unresolved_threads": 0}, None)),
@@ -926,7 +926,7 @@ class CodexCompletionTests(unittest.TestCase):
         self.assertIsNotNone(self.candidate(fresh_entries=[])[1])
 
     def test_review_lane_accepts_pair_but_not_later_finding_or_open_thread(self) -> None:
-        candidate, error = self.candidate()
+        candidate, _error = self.candidate()
         old = {"user": {"login": LOGIN}, "state": "COMMENTED", "commit_id": "b" * 40,
                "body": "Unsafe write", "submitted_at": "2026-10-10T17:25:00Z"}
         quota = {"user": {"login": LOGIN}, "created_at": "2026-10-10T17:41:00Z",

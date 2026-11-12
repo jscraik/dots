@@ -1,12 +1,12 @@
 """Real handler decisions and local-state isolation; no tool command execution."""
 import json
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
-from hook_fixture import HookFixture, ROOT
+from hook_fixture import HookFixture
 
 
 class HookHandlerTests(unittest.TestCase):
@@ -54,7 +54,7 @@ class HookHandlerTests(unittest.TestCase):
     def test_all_shell_syntax_and_manifest_targets(self):
         for directory in ('hooks', 'scripts'):
             for path in self.fixture.codex.joinpath(directory).rglob('*.sh'):
-                result = subprocess.run(['bash', '-n', str(path)], capture_output=True, timeout=10)
+                result = subprocess.run(['bash', '-n', str(path)], capture_output=True, timeout=10, check=False)
                 self.assertEqual(result.returncode, 0, (path, result.stderr))
         manifest = json.loads(self.fixture.target.read_text())
         names = set()
@@ -167,7 +167,7 @@ class HookHandlerTests(unittest.TestCase):
 
     def test_uv_wrapper_without_confined_temp_fails_before_uv(self):
         result = subprocess.run(['bash', str(self.fixture.codex / 'scripts/codex-validation-python-uv.sh'), '--version'],
-            env=self.fixture.env | {'TMPDIR': ''}, capture_output=True, text=True, timeout=10)
+            env=self.fixture.env | {'TMPDIR': ''}, capture_output=True, text=True, timeout=10, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('disposable TMPDIR', result.stderr)
 
@@ -188,7 +188,7 @@ class HookHandlerTests(unittest.TestCase):
         path = self.fixture.runtime / '.env'
         path.write_text('synthetic-secret-sentinel')
         result = subprocess.run([sys.executable, '-B', str(self.fixture.codex / 'scripts/validate-auth-env-mount.py'),
-            '--path', str(path)], env=self.fixture.env, text=True, capture_output=True, timeout=10)
+            '--path', str(path)], env=self.fixture.env, text=True, capture_output=True, timeout=10, check=False)
         self.assertEqual(result.returncode, 66, result.stdout + result.stderr)
         self.assertIn('must be a FIFO', result.stderr)
         self.assertNotIn('synthetic-secret-sentinel', result.stdout + result.stderr)

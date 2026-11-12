@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
 """Summarize open workflow-improvement priority gates for Codex session start."""
 
 from __future__ import annotations
 
-from migration_scope import require_policy_scope, require_policy_path
+from migration_scope import require_policy_path, require_policy_scope
+
 require_policy_scope()
 
 import argparse
@@ -12,7 +12,6 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
 
 BOOTSTRAP_P0: tuple[dict[str, str], ...] = ()
 SERVICE = "workflow-priority-gate"

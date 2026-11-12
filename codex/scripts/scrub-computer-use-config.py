@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
 """Remove Computer Use client launch drift from Codex config."""
 
 from __future__ import annotations
 
-from migration_scope import require_policy_scope, require_policy_path
+from migration_scope import require_policy_path, require_policy_scope
+
 require_policy_scope()
 
 import argparse
@@ -28,7 +28,7 @@ def scrub_forbidden_notify(text: str) -> tuple[str, int]:
 
     try:
         doc = tomlkit.parse(text)
-    except Exception:
+    except ValueError:
         return _scrub_forbidden_notify_fallback(text)
 
     removed = 0
@@ -123,7 +123,21 @@ def main() -> int:
             print(f"FAIL  config unreadable: {config_path} ({exc})")
         return 1
 
-    scrubbed, removed = scrub_forbidden_notify(original)
+    try:
+        scrubbed, removed = scrub_forbidden_notify(original)
+    except Exception:  # noqa: BLE001 -- MIG-HELPER-1: fail closed without exposing parser payloads.
+        payload = {
+            "schema_version": "computer-use-config-scrub/v1",
+            "service": "computer-use-config-scrub",
+            "status": "blocked",
+            "reason": "config_parser_failed",
+            "path": str(config_path),
+        }
+        if args.json:
+            print(json.dumps(payload, sort_keys=True))
+        else:
+            print(f"FAIL  configuration parser failed: {config_path}")
+        return 1
     if removed and args.repair:
         repair_path = config_path.resolve() if config_path.is_symlink() else config_path
         tmp_path = repair_path.with_suffix(f"{repair_path.suffix}.tmp")

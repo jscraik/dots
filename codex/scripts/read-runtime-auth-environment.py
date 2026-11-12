@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Read the managed Environment ID from a regular Codex runtime config."""
 
 from __future__ import annotations
@@ -45,7 +44,7 @@ def _strict_fallback(text: str) -> str | None:
         except (SyntaxError, ValueError) as exc:
             raise ValueError("managed Environment ID is not a quoted string") from exc
         if not isinstance(value, str):
-            raise ValueError("managed Environment ID is not a string")
+            raise TypeError("managed Environment ID is not a string")
         return value
     return None
 
@@ -81,7 +80,7 @@ def read_environment_id(path: Path) -> str | None:
     if value is None:
         return None
     if not isinstance(value, str):
-        raise ValueError("managed Environment ID is not a string")
+        raise TypeError("managed Environment ID is not a string")
     return value
 
 
@@ -93,7 +92,7 @@ def main() -> int:
 
     try:
         value = read_environment_id(args.config)
-    except (OSError, ValueError) as exc:
+    except (OSError, TypeError, ValueError) as exc:
         print(f"read-runtime-auth-environment: {exc}", file=sys.stderr)
         return 2
     if not value:

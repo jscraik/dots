@@ -1,11 +1,11 @@
 """Exercise the accepted projector with an explicit synthetic resource allowlist."""
 import importlib.util
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location('preview_core_fixture', ROOT / 'scripts/preview-codex.py')
@@ -39,7 +39,7 @@ class ProjectionCoreTests(unittest.TestCase):
     def run_projector(self, *args):
         return subprocess.run(['bash', str(self.repo / 'scripts/link-configs.sh'),
                                *args], env=self.env, cwd=self.repo,
-                              capture_output=True, text=True, timeout=30)
+                              capture_output=True, text=True, timeout=30, check=False)
 
     def test_repair_check_repeat_preserves_runtime(self):
         codex = self.home / '.codex'

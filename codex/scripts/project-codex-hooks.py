@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Publish the canonical hook manifest as a regular runtime file."""
 
 from __future__ import annotations
@@ -95,7 +94,7 @@ def validated_bytes(source: Path) -> bytes:
     data = source.read_bytes()
     payload = json.loads(data, object_pairs_hook=unique_keys)
     if not isinstance(payload, dict) or not isinstance(payload.get("hooks"), dict):
-        raise ValueError("canonical hooks must contain a hooks object")
+        raise TypeError("canonical hooks must contain a hooks object")
     if not payload["hooks"]:
         raise ValueError("canonical hooks must not be empty")
     for groups in payload["hooks"].values():
@@ -197,7 +196,7 @@ def main() -> None:
         if args.target is None:
             parser.error("--target is required for publication")
         result = publish(args.source, args.target, args.check, args.backup_dir)
-    except (OSError, ValueError) as error:
+    except (OSError, TypeError, ValueError) as error:
         parser.exit(1, f"project-codex-hooks: {error}\n")
     print(json.dumps({"schema_version": 1, "service": "project-codex-hooks", "status": "pass", "result": result}))
 

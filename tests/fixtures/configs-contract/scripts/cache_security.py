@@ -1,7 +1,15 @@
 """Validate ownership and no-follow paths before trusting cached executables."""
-import ctypes, hashlib, os, runpy, secrets, stat, subprocess, sys
+import ctypes
+import hashlib
+import os
+import runpy
+import secrets
+import stat
+import subprocess
+import sys
 from contextlib import contextmanager
 from pathlib import Path
+
 
 def _physical(path: Path) -> Path:
     path = path.expanduser().absolute()
@@ -115,7 +123,7 @@ def _staging_holder_alive(root_fd: int, name: str) -> bool:
         if pgid <= 0: return True
         try: os.kill(-pgid, 0)
         except ProcessLookupError: return False
-        result = subprocess.run(["/bin/ps", "-A", "-o", "pgid=", "-o", "stat="], capture_output=True, text=True, timeout=2)
+        result = subprocess.run(["/bin/ps", "-A", "-o", "pgid=", "-o", "stat="], capture_output=True, text=True, timeout=2, check=False)
         if result.returncode: return True
         matched = False
         for line in result.stdout.splitlines():
@@ -252,7 +260,9 @@ def run_cached(root: Path, relative: str, arguments: list[str], *, _stage_fd: in
         sys.executable = sys._base_executable = child_provider
         sys.prefix = sys.exec_prefix = str(venv)
         os.environ.pop("__PYVENV_LAUNCHER__", None)
-        import site; site.ENABLE_USER_SITE = False
+        import site
+
+        site.ENABLE_USER_SITE = False
         if pip_mode:
             for setting in ("PIP_TARGET", "PIP_PREFIX", "PIP_ROOT", "PIP_USER", "PIP_EDITABLE", "PIP_SRC"): os.environ.pop(setting, None)
             os.environ["PIP_CONFIG_FILE"] = os.devnull
@@ -270,7 +280,8 @@ def run_cached(root: Path, relative: str, arguments: list[str], *, _stage_fd: in
         else:
             __import__("pkg_resources")
             sys.argv = [str(root / relative), "--legacy", *arguments]
-            exec(compile(source, str(root / relative), "exec"), {"__name__": "__main__", "__file__": str(root / relative)})
+            # MIG-HELPER-1: execute the validated FD snapshot, never reload a mutable cache path.
+            exec(compile(source, str(root / relative), "exec"), {"__name__": "__main__", "__file__": str(root / relative)})  # noqa: S102
     finally:
         os.close(provider_fd)
 

@@ -27,7 +27,7 @@ REPO_ROOT = SCRIPT_DIR.parent
 CONFIG_REPO_ROOT = REPO_ROOT.parent
 CONFIG_PATH = REPO_ROOT / 'config.toml'
 REPO_LOCAL_CONFIG_PATH = REPO_ROOT / '.codex' / 'config.toml'
-PROJECT_CONFIG_SEARCH_ROOTS = tuple((Path(path).expanduser() for path in os.environ.get('CODEX_PROJECT_CONFIG_SEARCH_ROOTS', os.pathsep.join((str(Path.home() / 'dev'), str(Path.home() / 'Documents')))).split(os.pathsep) if path))
+PROJECT_CONFIG_SEARCH_ROOTS = tuple(Path(path).expanduser() for path in os.environ.get('CODEX_PROJECT_CONFIG_SEARCH_ROOTS', os.pathsep.join((str(Path.home() / 'dev'), str(Path.home() / 'Documents')))).split(os.pathsep) if path)
 HOME_CONFIG_PATH = Path.home() / '.codex' / 'config.toml'
 HOME_HOOKS_PATH = Path.home() / '.codex' / 'hooks.json'
 HOME_AGENTS_PATH = Path.home() / '.codex' / 'agents'
@@ -56,7 +56,7 @@ UNIFIED_COMPUTER_USE_NODE_PATH = Path(os.environ.get('CODEX_UNIFIED_COMPUTER_USE
 UNIFIED_COMPUTER_USE_NODE_REPL_PATH = Path(os.environ.get('CODEX_UNIFIED_COMPUTER_USE_NODE_REPL_PATH', '/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node_repl')).expanduser()
 UNIFIED_COMPUTER_USE_NODE_MODULE_DIR = UNIFIED_COMPUTER_USE_NODE_PATH.parent.parent / 'lib' / 'node_modules'
 COMPUTER_USE_LAUNCHER_COMPONENTS = frozenset({'node_repl', 'unified-computer-use', 'computer-use-client-launcher', 'SkyComputerUseService', 'Codex Computer Use.app'})
-COMPUTER_USE_LAUNCHER_BOUNDARY_PATTERN = re.compile('(?:^|[/\\\\\'\\"`\\s({<=,:;|&])(?:' + '|'.join((re.escape(component) for component in sorted(COMPUTER_USE_LAUNCHER_COMPONENTS, key=len, reverse=True))) + ')(?=$|[/\\\\\'\\"`\\s)$}>;,<:|&\\]}])')
+COMPUTER_USE_LAUNCHER_BOUNDARY_PATTERN = re.compile('(?:^|[/\\\\\'\\"`\\s({<=,:;|&])(?:' + '|'.join(re.escape(component) for component in sorted(COMPUTER_USE_LAUNCHER_COMPONENTS, key=len, reverse=True)) + ')(?=$|[/\\\\\'\\"`\\s)$}>;,<:|&\\]}])')
 COMPUTER_USE_LAUNCHER_VALUE_SEPARATOR_PATTERN = re.compile('[/\\\\\'\\"`\\s($<>=,:;|&){}]+')
 COMPUTER_USE_EXECUTION_WRAPPERS = frozenset({'bash', 'dash', 'env', 'fish', 'sh', 'zsh'})
 LEGACY_NODE_REPL_ENV_KEYS = frozenset({'NODE_REPL_NODE_MODULE_DIRS', 'NODE_REPL_NODE_PATH', 'NODE_REPL_TRUSTED_CODE_PATHS', 'NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S', 'CODEX_NODE_REPL_TRUSTED_SERVICES', 'NODE_REPL_UNTRUSTED_ENV_ALLOWLIST', 'BROWSER_USE_AVAILABLE_BACKENDS', 'BROWSER_USE_CODEX_APP_BUILD_FLAVOR', 'BROWSER_USE_CODEX_APP_VERSION', 'CODEX_CLI_PATH', 'SKY_CUA_SERVICE_PATH'})
@@ -335,7 +335,7 @@ def validate_config_maintenance_write_access(config: dict[str, object]) -> list[
                 path_text = '/' if root == ':root' else root
                 if surface == 'filesystem' and path_text.endswith('/**'):
                     path_text = path_text[:-3] or '/'
-                if surface == 'filesystem' and any((char in path_text for char in '*?[]{}')):
+                if surface == 'filesystem' and any(char in path_text for char in '*?[]{}'):
                     errors.append(f'permissions.{profile_name}.{surface} must use an exact write path instead of {root}; use task-scoped access')
                     continue
                 try:
@@ -343,7 +343,7 @@ def validate_config_maintenance_write_access(config: dict[str, object]) -> list[
                 except (OSError, RuntimeError):
                     errors.append(f'permissions.{profile_name}.{surface} cannot resolve {root}')
                     continue
-                if any((path == resolved or resolved in path.parents for path in protected)):
+                if any(path == resolved or resolved in path.parents for path in protected):
                     errors.append(f'permissions.{profile_name}.{surface} must not grant {root} globally; use task-scoped access')
     return errors
 
@@ -365,7 +365,7 @@ def validate_browser_runtime_policy(config: dict[str, object]) -> list[str]:
     """Keep Browser, Chrome, Playwright, and Computer Use runtime paths aligned."""
     errors: list[str] = []
     notify = config.get('notify')
-    if isinstance(notify, list) and any(('SkyComputerUseClient' in str(part) for part in notify)):
+    if isinstance(notify, list) and any('SkyComputerUseClient' in str(part) for part in notify):
         errors.append('notify must not launch SkyComputerUseClient; route Computer Use through SkyComputerUseService')
     permissions = config.get('permissions')
     if not isinstance(permissions, dict):
@@ -479,7 +479,7 @@ def validate_default_signing_socket_absence(config: dict[str, object], *, label:
     errors: list[str] = []
     prefix = f'{label} ' if label else ''
     include_only = shell_env.get('include_only')
-    if isinstance(include_only, list) and any((isinstance(pattern, str) and _shell_env_pattern_matches(pattern, 'SSH_AUTH_SOCK') for pattern in include_only)):
+    if isinstance(include_only, list) and any(isinstance(pattern, str) and _shell_env_pattern_matches(pattern, 'SSH_AUTH_SOCK') for pattern in include_only):
         errors.append(f'{prefix}shell_environment_policy.include_only must not inherit SSH_AUTH_SOCK; signed commits use the bounded host-capable Git route')
     env_values = shell_env.get('set')
     if isinstance(env_values, dict) and 'SSH_AUTH_SOCK' in env_values:
@@ -498,9 +498,9 @@ def validate_shell_environment_policy(config: dict[str, object]) -> list[str]:
         errors.append('shell_environment_policy.ignore_default_excludes must be false')
     include_only = shell_env.get('include_only')
     include_values = include_only if isinstance(include_only, list) else []
-    if not include_values or not all((isinstance(name, str) for name in include_values)):
+    if not include_values or not all(isinstance(name, str) for name in include_values):
         errors.append('shell_environment_policy.include_only must be a nonempty string list')
-    elif any((re.match('[A-Za-z_]', name) is None or name == 'SSH_AUTH_SOCK' for name in include_values)):
+    elif any(re.match('[A-Za-z_]', name) is None or name == 'SSH_AUTH_SOCK' for name in include_values):
         errors.append('shell_environment_policy.include_only must not allow unrestricted inheritance')
     for required_name in REQUIRED_SHELL_ENV_INCLUDE_ONLY:
         if required_name not in include_values:
@@ -510,7 +510,7 @@ def validate_shell_environment_policy(config: dict[str, object]) -> list[str]:
     if env_values.get('COREPACK_HOME') != COREPACK_CACHE_PATH:
         errors.append(f'shell_environment_policy.set.COREPACK_HOME must be {COREPACK_CACHE_PATH}, not a shared temporary directory')
     for name in sorted(LEGACY_NODE_REPL_ENV_KEYS | set(DESKTOP_RUNTIME_ENV_NAMES)):
-        if any((isinstance(pattern, str) and _shell_env_pattern_matches(pattern, name) and (not (pattern == name and name in DESKTOP_RUNTIME_ENV_NAMES)) for pattern in include_values)):
+        if any(isinstance(pattern, str) and _shell_env_pattern_matches(pattern, name) and (not (pattern == name and name in DESKTOP_RUNTIME_ENV_NAMES)) for pattern in include_values):
             errors.append(f'shell_environment_policy.include_only must not retain legacy {name}')
         if name in env_values:
             errors.append(f'shell_environment_policy.set must not retain legacy {name}')
@@ -525,7 +525,7 @@ def validate_auth_environment_routing_id(config: dict[str, object]) -> list[str]
         return []
     valid = False
     if isinstance(environment_id, str):
-        compact_id = len(environment_id) == 26 and all((character.isdigit() or 'a' <= character <= 'z' for character in environment_id))
+        compact_id = len(environment_id) == 26 and all(character.isdigit() or 'a' <= character <= 'z' for character in environment_id)
         try:
             uuid_id = str(uuid.UUID(environment_id)) == environment_id.lower()
         except ValueError:
@@ -601,7 +601,7 @@ def validate_local_memory_cli_policy(config: dict[str, object]) -> list[str]:
                 errors.append(f'mcp_servers.{name} must not enable the retired Local Memory service')
     permissions = config.get('permissions', {})
     profiles = permissions.values() if isinstance(permissions, dict) else ()
-    if any((isinstance(profile, dict) and isinstance(profile.get('workspace_roots'), dict) and (profile['workspace_roots'].get(LOCAL_MEMORY_CLI_STATE_PATH) is True) for profile in profiles)):
+    if any(isinstance(profile, dict) and isinstance(profile.get('workspace_roots'), dict) and (profile['workspace_roots'].get(LOCAL_MEMORY_CLI_STATE_PATH) is True) for profile in profiles):
         errors.append('retired Local Memory state must not be a writable root')
     projects = config.get('projects', {})
     if isinstance(projects, dict) and LOCAL_MEMORY_CLI_STATE_PATH in projects:
@@ -619,15 +619,15 @@ def _contains_computer_use_launcher_component(value: str, *, allow_shell_pattern
         shell_tokens = []
     for token in shell_tokens:
         components.extend(re.split('[/\\\\]', token))
-    if any((component in COMPUTER_USE_LAUNCHER_COMPONENTS for component in components)):
+    if any(component in COMPUTER_USE_LAUNCHER_COMPONENTS for component in components):
         return True
     if not allow_shell_patterns:
         return False
     extglob_prefixes = ('?(', '*(', '+(', '@(', '!(')
-    if any((component.startswith(launcher) and component[len(launcher):].startswith(extglob_prefixes) for component in components for launcher in COMPUTER_USE_LAUNCHER_COMPONENTS)):
+    if any(component.startswith(launcher) and component[len(launcher):].startswith(extglob_prefixes) for component in components for launcher in COMPUTER_USE_LAUNCHER_COMPONENTS):
         return True
-    glob_components = (component for component in components if any((character in component for character in '*?[')))
-    return any((fnmatchcase(launcher, component) for component in glob_components for launcher in COMPUTER_USE_LAUNCHER_COMPONENTS))
+    glob_components = (component for component in components if any(character in component for character in '*?['))
+    return any(fnmatchcase(launcher, component) for component in glob_components for launcher in COMPUTER_USE_LAUNCHER_COMPONENTS)
 
 def _is_computer_use_launcher(server: object) -> bool:
     """Return whether an MCP server starts a known Computer Use runtime."""
@@ -640,7 +640,7 @@ def _is_computer_use_launcher(server: object) -> bool:
         parts.append(cwd)
     args = server.get('args')
     if isinstance(args, list):
-        parts.extend((str(arg) for arg in args))
+        parts.extend(str(arg) for arg in args)
     normalized_args = [str(arg) for arg in args] if isinstance(args, list) else []
     expected_root = str(UNIFIED_COMPUTER_USE_PLUGIN_ROOT)
     expected_launcher = str(UNIFIED_COMPUTER_USE_PLUGIN_ROOT / 'scripts' / 'launch.mjs')
@@ -689,7 +689,7 @@ def validate_trusted_project_scope(config: dict[str, object]) -> list[str]:
             candidate_paths.add(str(Path(project_path).expanduser().resolve(strict=False)))
         except OSError:
             pass
-        if any((path.startswith(DISALLOWED_PROJECT_PREFIXES) for path in candidate_paths)):
+        if any(path.startswith(DISALLOWED_PROJECT_PREFIXES) for path in candidate_paths):
             errors.append(f'''projects."{project_path}{local_path_text('" must not persist in config.toml; Codex scratch workspaces under @HOME@/Documents/Codex/ are transient and must stay project-local under tmp/')}''')
     return errors
 
@@ -874,8 +874,8 @@ def scan_cache_roots(cache_root_candidates: tuple[Path, ...]) -> tuple[set[str],
         if not cache_root.is_dir():
             continue
         sources.append(str(cache_root))
-        for marketplace_dir in sorted((p for p in cache_root.iterdir() if p.is_dir())):
-            for plugin_dir in sorted((p for p in marketplace_dir.iterdir() if p.is_dir())):
+        for marketplace_dir in sorted(p for p in cache_root.iterdir() if p.is_dir()):
+            for plugin_dir in sorted(p for p in marketplace_dir.iterdir() if p.is_dir()):
                 if has_codex_plugin_marker(plugin_dir):
                     allowed.add(f'{plugin_dir.name}@{marketplace_dir.name}')
     return (allowed, sources)
@@ -979,7 +979,7 @@ def has_codex_plugin_marker(plugin_dir: Path) -> bool:
     if (plugin_dir / '.codex-plugin').exists():
         return True
     try:
-        return any((version_dir.is_dir() and (version_dir / '.codex-plugin').exists() for version_dir in plugin_dir.iterdir()))
+        return any(version_dir.is_dir() and (version_dir / '.codex-plugin').exists() for version_dir in plugin_dir.iterdir())
     except OSError:
         return False
 
@@ -1057,13 +1057,13 @@ def scan_config_marketplace_sources(marketplaces: object) -> tuple[set[str], lis
         manifest_allowed, manifest_errors = validate_marketplace_manifest_paths(marketplace_name, source_path)
         allowed.update(manifest_allowed)
         errors.extend(manifest_errors)
-        for plugin_dir in sorted((p for p in source_path.iterdir() if p.is_dir())):
+        for plugin_dir in sorted(p for p in source_path.iterdir() if p.is_dir()):
             if has_codex_plugin_marker(plugin_dir):
                 allowed.add(f'{plugin_dir.name}@{marketplace_name}')
         for plugins_dir in (source_path / 'plugins', source_path / '.agents' / 'plugins'):
             if not plugins_dir.exists() or not plugins_dir.is_dir():
                 continue
-            for plugin_dir in sorted((p for p in plugins_dir.iterdir() if p.is_dir())):
+            for plugin_dir in sorted(p for p in plugins_dir.iterdir() if p.is_dir()):
                 if has_codex_plugin_marker(plugin_dir):
                     allowed.add(f'{plugin_dir.name}@{marketplace_name}')
     return (allowed, sources, errors)
@@ -1118,7 +1118,7 @@ def root_approval_policy_is_allowed(value: object) -> bool:
     reject = value.get('reject')
     if not isinstance(reject, dict):
         return False
-    return all((reject.get(key) is True for key in REQUIRED_REJECT_APPROVAL_KEYS))
+    return all(reject.get(key) is True for key in REQUIRED_REJECT_APPROVAL_KEYS)
 
 def validate_root_approvals_reviewer(data: dict[str, object]) -> list[str]:
     """Require auto-review as the root approval reviewer."""
@@ -1217,7 +1217,7 @@ def validate_feature_table(features: object, *, label: str, errors: list[str]) -
         errors.append(f'{label}.codex_hooks is deprecated; use {label}.hooks')
     if 'context_management' in features:
         context_management = features['context_management']
-        if not isinstance(context_management, bool) and (not isinstance(context_management, dict) or set(context_management) - {'experimental_mode'} or any((not isinstance(value, bool) for value in context_management.values()))):
+        if not isinstance(context_management, bool) and (not isinstance(context_management, dict) or set(context_management) - {'experimental_mode'} or any(not isinstance(value, bool) for value in context_management.values())):
             errors.append(f'{label}.context_management must be a boolean or a table containing only boolean experimental_mode')
     return features
 
@@ -1286,7 +1286,7 @@ def app_tool_approval_modes_from_schema(schema_path: Path) -> tuple[set[str], st
     definitions = schema.get('definitions') if isinstance(schema, dict) else None
     approval = definitions.get('AppToolApproval') if isinstance(definitions, dict) else None
     modes = approval.get('enum') if isinstance(approval, dict) else None
-    if not isinstance(modes, list) or not all((isinstance(mode, str) for mode in modes)):
+    if not isinstance(modes, list) or not all(isinstance(mode, str) for mode in modes):
         return (set(), f'config schema must define definitions.AppToolApproval.enum: {schema_path}')
     return (set(modes), None)
 
@@ -1368,7 +1368,7 @@ OWNED_GENERATED_CONFIG_ROOTS = (Path.home() / 'dev' / 'trace-narrative' / 'tmp' 
 def _is_owned_generated_config_root(path: Path) -> bool:
     """Return whether path is inside an explicitly owned generated-output tree."""
     resolved = path.resolve()
-    return any((resolved == generated_root.resolve() or generated_root.resolve() in resolved.parents for generated_root in OWNED_GENERATED_CONFIG_ROOTS))
+    return any(resolved == generated_root.resolve() or generated_root.resolve() in resolved.parents for generated_root in OWNED_GENERATED_CONFIG_ROOTS)
 
 def _iter_codex_config_files(root: Path) -> Iterator[Path]:
     """Yield project-local Codex configs while pruning dependency and build trees."""
@@ -1386,13 +1386,13 @@ def _iter_codex_config_files(root: Path) -> Iterator[Path]:
 def _is_allowed_project_local_config(path: Path) -> bool:
     """Return whether ``path`` has an explicit, content-validated contract."""
     candidate = Path(os.path.abspath(path))
-    return any((candidate == Path(os.path.abspath(allowed_path)) for allowed_path in ALLOWED_PROJECT_LOCAL_CONFIG_PATHS))
+    return any(candidate == Path(os.path.abspath(allowed_path)) for allowed_path in ALLOWED_PROJECT_LOCAL_CONFIG_PATHS)
 
 def validate_allowed_project_local_config(path: Path) -> list[str]:
     """Validate the narrow content contract for a retained project config."""
     if Path(os.path.abspath(path)) == BORUMI_GENERATED_CONFIG_PATH:
         return validate_borumi_generated_config(path)
-    if any((candidate.is_symlink() for candidate in (path, path.parent, path.parent.parent))):
+    if any(candidate.is_symlink() for candidate in (path, path.parent, path.parent.parent)):
         return [f'allowed LifeOS project config {path} must be a regular file, not a symlink']
     try:
         with path.open('rb') as handle:
@@ -1413,7 +1413,7 @@ def validate_allowed_project_local_config(path: Path) -> list[str]:
 
 def validate_borumi_generated_config(path: Path) -> list[str]:
     """Accept only Borumi's app-owned MCP descriptor, never policy overrides."""
-    if any((candidate.is_symlink() for candidate in (path, path.parent, path.parent.parent))):
+    if any(candidate.is_symlink() for candidate in (path, path.parent, path.parent.parent)):
         return [f'Borumi generated config {path} must be a regular file, not a symlink']
     try:
         with path.open('rb') as handle:
@@ -1431,7 +1431,7 @@ def validate_no_project_local_configs() -> list[str]:
     for search_root in PROJECT_CONFIG_SEARCH_ROOTS:
         if search_root.is_dir():
             project_configs.update(_iter_codex_config_files(search_root))
-    project_configs.update((path for path in ALLOWED_PROJECT_LOCAL_CONFIG_PATHS if path.exists() or any((parent.is_symlink() for parent in (path.parent, path.parent.parent)))))
+    project_configs.update(path for path in ALLOWED_PROJECT_LOCAL_CONFIG_PATHS if path.exists() or any(parent.is_symlink() for parent in (path.parent, path.parent.parent)))
     errors: list[str] = []
     disallowed_configs: list[Path] = []
     for path in sorted(project_configs):
@@ -1440,7 +1440,7 @@ def validate_no_project_local_configs() -> list[str]:
         else:
             disallowed_configs.append(path)
     if disallowed_configs:
-        rendered = ', '.join((str(path) for path in disallowed_configs))
+        rendered = ', '.join(str(path) for path in disallowed_configs)
         errors.append(f'project-local .codex/config.toml files are forbidden; use the global ~/.codex/config.toml only: {rendered}')
     return errors
 
@@ -1533,7 +1533,7 @@ def validate_profile_mcp_transports(profiles: dict[str, dict[str, object]], erro
         ownership_profile = dict(profile)
         if profile_name in ISOLATED_OSS_PROFILE_NAMES and isinstance(mcp_servers, dict):
             ownership_profile['mcp_servers'] = {name: server for name, server in mcp_servers.items() if not (name == 'cua_repl' and isinstance(server, dict) and (set(server) == {'enabled', 'required'} or (set(server) == {'command', 'enabled', 'required'} and (server.get('command') == '/usr/bin/false'))) and (server['enabled'] is False) and (server['required'] is False))}
-        errors.extend((f'profile {profile_name!r}: {error}' for error in validate_unified_computer_use_runtime_policy(ownership_profile)))
+        errors.extend(f'profile {profile_name!r}: {error}' for error in validate_unified_computer_use_runtime_policy(ownership_profile))
         if mcp_servers is None:
             continue
         if not isinstance(mcp_servers, dict):
@@ -1789,7 +1789,7 @@ def main(raw_config: str | None=None) -> int:
                 errors.append('~/.codex/agents/manifest.json is retired; remove the stale manifest projection')
             role_toml_files = sorted(HOME_AGENTS_PATH.rglob('*.toml'))
             if role_toml_files:
-                preview = ', '.join((str(path) for path in role_toml_files[:3]))
+                preview = ', '.join(str(path) for path in role_toml_files[:3])
                 if len(role_toml_files) > 3:
                     preview += ', ...'
                 errors.append(f'~/.codex/agents must remain free of named-role TOMLs; found {len(role_toml_files)} TOML file(s): {preview}')
@@ -1904,7 +1904,7 @@ def main(raw_config: str | None=None) -> int:
         print('[validate-codex-config] validation failed')
         for item in errors:
             print(f'  - {item}')
-        return 69 if snapshot_only and any((isinstance(item, ValidationResourceError) for item in errors)) else 1
+        return 69 if snapshot_only and any(isinstance(item, ValidationResourceError) for item in errors) else 1
     print('[validate-codex-config] OK')
     print(f'  - profiles={len(profiles)}')
     mcp_servers_for_summary = data.get('mcp_servers', {})

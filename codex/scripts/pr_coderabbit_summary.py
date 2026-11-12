@@ -33,7 +33,7 @@ def _pictures(text: str) -> str:
                 or any(value not in {"", "Passed", "Explain Change →"} for key, value in attrs if key in {"alt", "title"})):
                 raise ValueError("unknown picture attributes")
         return ""
-    return re.sub(r"<picture>.*?</picture>", remove, text, flags=re.S)
+    return re.sub(r"<picture>.*?</picture>", remove, text, flags=re.DOTALL)
 
 
 def _details(text: str) -> tuple[str, list[str]]:
@@ -63,7 +63,7 @@ def _wrapper(text: str) -> tuple[str, str]:
     gaps, children = _details(text.strip())
     if gaps or len(children) != 1:
         raise ValueError("expected one details region")
-    match = re.fullmatch(r"<details(?: open)?>\s*<summary><strong>(.*?)</strong></summary>\s*<dl>\s*<dd>\s*(.*?)\s*</dd>\s*</dl>\s*</details>", children[0], re.S)
+    match = re.fullmatch(r"<details(?: open)?>\s*<summary><strong>(.*?)</strong></summary>\s*<dl>\s*<dd>\s*(.*?)\s*</dd>\s*</dl>\s*</details>", children[0], re.DOTALL)
     if match is None:
         raise ValueError("unknown details wrapper")
     return _pictures(match[1]).strip(), re.sub(r"^<br>\s*", "", match[2]).strip()
@@ -73,7 +73,7 @@ def _block(body: str, name: str) -> tuple[str, str]:
     start, end = f"<!-- {name}_start -->", f"<!-- {name}_end -->"
     if body.count(start) != 1 or body.count(end) != 1:
         raise ValueError("missing or repeated region")
-    match = re.search(re.escape(start) + r"(.*?)" + re.escape(end), body, re.S)
+    match = re.search(re.escape(start) + r"(.*?)" + re.escape(end), body, re.DOTALL)
     if match is None:
         raise ValueError("reversed region")
     return match[0], match[1].strip()
@@ -94,12 +94,12 @@ def structured_summary(body: str, slug: str, number: int, head: str) -> dict[str
     """Adapt only the complete observed structured report, retaining its raw text."""
     try:
         if (not isinstance(body, str) or len(body) > 262144 or PENDING_START in body
-            or re.search(r"Actionable comments posted:|Outside diff range comments|cr-indicator-types:potential_issue|review (?:incomplete|skipped|paused)|files skipped", body, re.I)):
+            or re.search(r"Actionable comments posted:|Outside diff range comments|cr-indicator-types:potential_issue|review (?:incomplete|skipped|paused)|files skipped", body, re.IGNORECASE)):
             return None
         failure_start = "<!-- This is an auto-generated comment: all tool run failures by coderabbit.ai -->"
         failure_end = "<!-- end of auto-generated comment: all tool run failures by coderabbit.ai -->"
         if failure_start in body or failure_end in body:
-            failure = re.search(re.escape(failure_start) + r"(.*?)" + re.escape(failure_end), body, re.S)
+            failure = re.search(re.escape(failure_start) + r"(.*?)" + re.escape(failure_end), body, re.DOTALL)
             if body.count(failure_start) != 1 or body.count(failure_end) != 1 or failure is None or failure[1].strip():
                 return None
         metadata = body
@@ -134,7 +134,7 @@ def structured_summary(body: str, slug: str, number: int, head: str) -> dict[str
         risk_region, risk = _block(body, "final_review_risk")
         label = re.search(r"<!-- final_review_risk_label\s+\*\*Merge Risk:\*\* \*\*⚪ Minimal\*\* · up to `([0-9a-f]{5,40})`\s*-->", risk)
         coverage = re.findall(r"<!-- final_review_risk_coverage:([^\n]+) -->", risk)
-        outer = re.search(r'<details>\s*<summary><strong>Merge Risk:</strong> <strong>(.*?)Minimal</strong> · up to <code>([0-9a-f]{5,40})</code></summary>\s*<dl>\s*<dd>\s*<br>\s*' + re.escape(risk_region) + r"\s*</dd>\s*</dl>\s*</details>", body, re.S)
+        outer = re.search(r'<details>\s*<summary><strong>Merge Risk:</strong> <strong>(.*?)Minimal</strong> · up to <code>([0-9a-f]{5,40})</code></summary>\s*<dl>\s*<dd>\s*<br>\s*' + re.escape(risk_region) + r"\s*</dd>\s*</dl>\s*</details>", body, re.DOTALL)
         if (label is None or len(coverage) != 1 or outer is None or _pictures(outer[1]).strip()
             or label[1] != outer[2] or not head.startswith(label[1])):
             return None
@@ -180,7 +180,7 @@ def structured_summary(body: str, slug: str, number: int, head: str) -> dict[str
             if autopilot is None or body.count("<!-- autopilot:start -->") != 1 or body.count("<!-- autopilot:end -->") != 1:
                 return None
             metadata = metadata.replace(autopilot[0], "")
-        ids = re.findall(r"^- \*\*Run ID\*\*: `(" + UUID + r")`$", recent.replace(context_region, ""), re.M)
+        ids = re.findall(r"^- \*\*Run ID\*\*: `(" + UUID + r")`$", recent.replace(context_region, ""), re.MULTILINE)
         if len(ids) != 1:
             return None
         return {"metadata_body": metadata, "summary_body": body, "review_url": review_url, "run_id": ids[0]}
@@ -191,7 +191,7 @@ def structured_summary(body: str, slug: str, number: int, head: str) -> dict[str
 def _time(value: Any) -> datetime:
     if not isinstance(value, str) or re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", value) is None:
         raise ValueError("invalid evidence timestamp")
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return datetime.fromisoformat(value)
 
 
 def native_binding(entry: dict, structured: dict, history: dict, checks: list, pr: dict, slug: str, head: str) -> dict | None:
@@ -241,8 +241,8 @@ def native_binding(entry: dict, structured: dict, history: dict, checks: list, p
                 if gap or len(configurations) != 1:
                     continue
                 config = configurations[0]
-                if (re.findall(r"^- \*\*Run ID\*\*: `(" + UUID + r")`$", config, re.M) == [structured["run_id"]]
-                    and re.findall(r"^- \*\*Commit\*\*: (.+)$", config, re.M) == [f"[{head[:7]}](<https://github.com/{slug}/commit/{head}>)"]
+                if (re.findall(r"^- \*\*Run ID\*\*: `(" + UUID + r")`$", config, re.MULTILINE) == [structured["run_id"]]
+                    and re.findall(r"^- \*\*Commit\*\*: (.+)$", config, re.MULTILINE) == [f"[{head[:7]}](<https://github.com/{slug}/commit/{head}>)"]
                     and all(re.fullmatch(r"- \*\*(?:Configuration used|Source mode|Repository|Branch|File|Commit|Layers|Review profile|Plan|Run ID)\*\*: [^\r\n]+", line)
                             for line in config.splitlines() if line.strip())):
                     pending.append(node)

@@ -1,11 +1,11 @@
 import importlib.util
 import json
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import tomllib
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location('preview', ROOT / 'scripts/preview-codex.py')
@@ -28,7 +28,7 @@ class CodexPreviewTests(unittest.TestCase):
                        '--machine-input', str(ROOT / 'tests/fixtures/codex-machine.json'),
                        '--target-home', str(home)]
             for _ in range(2):
-                result = subprocess.run(command, capture_output=True, text=True, timeout=20)
+                result = subprocess.run(command, capture_output=True, text=True, timeout=20, check=False)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 for path, payload in before.items():
                     self.assertEqual(path.read_bytes(), payload)
@@ -90,7 +90,7 @@ class CodexPreviewTests(unittest.TestCase):
             result = subprocess.run(
                 [sys.executable, '-B', str(ROOT / 'scripts/preview-codex.py'),
                  '--machine-input', str(source), '--target-home', str(home)],
-                capture_output=True, text=True, timeout=20)
+                capture_output=True, text=True, timeout=20, check=False)
             self.assertNotEqual(result.returncode, 0)
             self.assertNotIn('sentinel-private', result.stdout + result.stderr)
             self.assertEqual(list(home.iterdir()), [])

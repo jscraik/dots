@@ -63,7 +63,7 @@ def _has_legacy_pinned_cua(config: dict[str, object]) -> bool:
 def _has_retired_notify(config: dict[str, object]) -> bool:
     """Identify the already-retired client notifier without claiming MCP ownership."""
     notify = config.get('notify')
-    return isinstance(notify, list) and any((isinstance(part, str) and 'SkyComputerUseClient' in part for part in notify))
+    return isinstance(notify, list) and any(isinstance(part, str) and 'SkyComputerUseClient' in part for part in notify)
 
 def _remove_retired_notify(text: str) -> tuple[str, bool, str | None]:
     """Remove a root assignment only after parsed proof preserves every other field."""
@@ -155,13 +155,13 @@ def _runtime_matches_canonical_policy(runtime_text: str, canonical_text: str) ->
         runtime.pop(key, None)
         canonical.pop(key, None)
     canonical_plugins = canonical.get('plugins') if isinstance(canonical, dict) else None
-    if isinstance(canonical_plugins, dict) and any((plugin_id in canonical_plugins for plugin_id in DESKTOP_OWNED_PLUGIN_IDS)):
+    if isinstance(canonical_plugins, dict) and any(plugin_id in canonical_plugins for plugin_id in DESKTOP_OWNED_PLUGIN_IDS):
         return False
     policy_matches = isinstance(runtime, dict) and isinstance(canonical, dict) and _same_toml_values(_without_desktop_owned_plugins(runtime), _without_desktop_owned_plugins(canonical))
     if not policy_matches:
         return False
     runtime_plugins = runtime.get('plugins') if isinstance(runtime, dict) else None
-    if isinstance(runtime_plugins, dict) and any((plugin_id in runtime_plugins for plugin_id in DESKTOP_OWNED_PLUGIN_IDS)):
+    if isinstance(runtime_plugins, dict) and any(plugin_id in runtime_plugins for plugin_id in DESKTOP_OWNED_PLUGIN_IDS):
         _, preservation_error = _canonical_with_desktop_plugins(canonical_text, runtime_text)
         return preservation_error is None
     return True
@@ -188,7 +188,7 @@ def _canonical_with_desktop_plugins(canonical_text: str, runtime_text: str) -> t
     if not isinstance(runtime_plugins, dict):
         runtime_plugins = {}
     owned = {plugin_id: runtime_plugins[plugin_id] for plugin_id in DESKTOP_OWNED_PLUGIN_IDS if plugin_id in runtime_plugins}
-    if any((plugin_id in canonical_plugins for plugin_id in DESKTOP_OWNED_PLUGIN_IDS)):
+    if any(plugin_id in canonical_plugins for plugin_id in DESKTOP_OWNED_PLUGIN_IDS):
         return (None, 'canonical config must not declare Desktop-owned Computer Use plugins')
     if not owned:
         return (canonical_text, None)
@@ -202,7 +202,7 @@ def _canonical_with_desktop_plugins(canonical_text: str, runtime_text: str) -> t
         if parsed_header is None:
             continue
         header_plugins = parsed_header.get('plugins')
-        owned_header = isinstance(header_plugins, dict) and any((plugin_id in header_plugins for plugin_id in owned))
+        owned_header = isinstance(header_plugins, dict) and any(plugin_id in header_plugins for plugin_id in owned)
         if start is None and (not owned_header):
             continue
         if _loads_toml(''.join(lines[:index]))[0] is not None:
@@ -300,7 +300,7 @@ def _canonical_control_settings() -> dict[str, object]:
             raise CanonicalSourceUnavailable(f'{CONFIG_PATH}: {key} must be a non-empty string')
     for key in MANAGED_ROOT_STRING_LISTS:
         value = settings[key]
-        if not isinstance(value, list) or not value or any((not isinstance(name, str) or not name.strip() or name in {'.', '..'} or ('/' in name) or ('\\' in name) for name in value)):
+        if not isinstance(value, list) or not value or any(not isinstance(name, str) or not name.strip() or name in {'.', '..'} or ('/' in name) or ('\\' in name) for name in value):
             raise CanonicalSourceUnavailable(f'{CONFIG_PATH}: {key} must be a list of non-empty filenames')
     for key, value in _permission_descriptions(config).items():
         if not isinstance(value, str) or not value.strip():
@@ -341,7 +341,7 @@ def _incomplete_label_profiles(config: dict[str, object], expected: dict[str, ob
         required_roots = expected.get(f'permissions.{name}.workspace_roots', {})
         network = profile.get('network')
         domains = network.get('domains') if isinstance(network, dict) else None
-        if profile.get('extends') != (':workspace' if name == 'workspace-net' else ':read-only') or not isinstance(roots, dict) or (not roots) or any((not isinstance(path, str) or not path or type(access) is not bool for path, access in roots.items())) or (not isinstance(required_roots, dict)) or any((roots.get(path) is not access for path, access in required_roots.items())) or (not isinstance(network, dict)) or (network.get('enabled') is not True) or (network.get('allow_local_binding') is not True) or (not isinstance(domains, dict)) or (domains.get('*') == 'allow') or any((domains.get(host) != 'allow' for host in ('localhost', '127.0.0.1'))):
+        if profile.get('extends') != (':workspace' if name == 'workspace-net' else ':read-only') or not isinstance(roots, dict) or (not roots) or any((not isinstance(path, str) or not path or type(access) is not bool for path, access in roots.items())) or (not isinstance(required_roots, dict)) or any((roots.get(path) is not access for path, access in required_roots.items())) or (not isinstance(network, dict)) or (network.get('enabled') is not True) or (network.get('allow_local_binding') is not True) or (not isinstance(domains, dict)) or (domains.get('*') == 'allow') or any(domains.get(host) != 'allow' for host in ('localhost', '127.0.0.1')):
             failures.append(f'permissions.{name}.incomplete_profile')
     return failures
 
@@ -399,7 +399,7 @@ def _has_protected_shell_env_pattern(pattern: str) -> bool:
     if pattern in protected:
         return False
     wildcard = pattern.casefold().replace('[', '[[]')
-    return any((fnmatchcase(name.casefold(), wildcard) for name in protected))
+    return any(fnmatchcase(name.casefold(), wildcard) for name in protected)
 
 def detect_drift(text: str, expected_env: dict[str, str] | None=None, *, expected_shell_env: dict[str, str] | None=None, include_missing_env: bool=False, expected_auto_review_policy: str | None=None, expected_signing_agent_socket: str | None=None, expected_circle_no_telemetry: str | None=None, expected_control_settings: dict[str, object] | None=None) -> list[str]:
     config, parse_error = _loads_toml(text)
@@ -447,16 +447,16 @@ def detect_drift(text: str, expected_env: dict[str, str] | None=None, *, expecte
     if not isinstance(shell_policy, dict) or shell_policy.get('ignore_default_excludes') is not False:
         drift.append('shell_environment_policy.ignore_default_excludes')
     include_only = shell_policy.get('include_only') if isinstance(shell_policy, dict) else None
-    if not isinstance(include_only, list) or any((key not in include_only for key in REQUIRED_SHELL_ENV_INCLUDE_ONLY)):
+    if not isinstance(include_only, list) or any(key not in include_only for key in REQUIRED_SHELL_ENV_INCLUDE_ONLY):
         drift.append('shell_environment_policy.include_only.required')
-    if isinstance(include_only, list) and any((key in include_only and key not in DESKTOP_RUNTIME_ENV_NAMES for key in LEGACY_NODE_REPL_ENV_KEYS)):
+    if isinstance(include_only, list) and any(key in include_only and key not in DESKTOP_RUNTIME_ENV_NAMES for key in LEGACY_NODE_REPL_ENV_KEYS):
         drift.append('shell_environment_policy.include_only.legacy_node_repl')
     if isinstance(include_only, list) and 'SSH_AUTH_SOCK' in include_only:
         drift.append('shell_environment_policy.include_only.SSH_AUTH_SOCK')
-    if isinstance(include_only, list) and any((not isinstance(key, str) or re.match('[A-Za-z_]', key) is None or _has_protected_shell_env_pattern(key) for key in include_only)):
+    if isinstance(include_only, list) and any(not isinstance(key, str) or re.match('[A-Za-z_]', key) is None or _has_protected_shell_env_pattern(key) for key in include_only):
         drift.append('shell_environment_policy.include_only.unsafe')
     shell_set = shell_policy.get('set') if isinstance(shell_policy, dict) else None
-    if isinstance(shell_set, dict) and any((key in shell_set for key in (*LEGACY_NODE_REPL_ENV_KEYS, *DESKTOP_RUNTIME_ENV_NAMES))):
+    if isinstance(shell_set, dict) and any(key in shell_set for key in (*LEGACY_NODE_REPL_ENV_KEYS, *DESKTOP_RUNTIME_ENV_NAMES)):
         drift.append('shell_environment_policy.set.legacy_node_repl')
     expected_socket = expected_signing_agent_socket
     if expected_socket is None:
@@ -476,7 +476,7 @@ def detect_drift(text: str, expected_env: dict[str, str] | None=None, *, expecte
         profile = permissions.get(profile_name) if isinstance(permissions, dict) else None
         network = profile.get('network') if isinstance(profile, dict) else None
         unix_sockets = network.get('unix_sockets') if isinstance(network, dict) else None
-        if isinstance(unix_sockets, dict) and any((socket_path in unix_sockets for socket_path in ONEPASSWORD_SOCKET_PATHS)):
+        if isinstance(unix_sockets, dict) and any(socket_path in unix_sockets for socket_path in ONEPASSWORD_SOCKET_PATHS):
             drift.append(f'permissions.{profile_name}.network.unix_sockets.1password')
         if isinstance(network, dict) and network.get('dangerously_allow_all_unix_sockets'):
             drift.append(f'permissions.{profile_name}.network.dangerously_allow_all_unix_sockets')
@@ -491,7 +491,7 @@ def _ensure_managed_assignment(text: str, key: str, value: object, *, table: str
     """
     config, error = _loads_toml(text)
     label = f'{table}.{key}' if table else key
-    if not isinstance(value, str) and (not (table is None and isinstance(value, list) and all((isinstance(item, str) for item in value)))):
+    if not isinstance(value, str) and (not (table is None and isinstance(value, list) and all(isinstance(item, str) for item in value))):
         return (text, False, f'{label} requires a string or root string list')
     if config is None:
         return (text, False, f'{label} cannot parse config: {error}')
@@ -506,7 +506,7 @@ def _ensure_managed_assignment(text: str, key: str, value: object, *, table: str
     if owner.get(key) == value:
         return (text, False, None)
     old_value = owner.get(key)
-    if key in owner and (type(old_value) is not type(value) or (isinstance(old_value, list) and (not all((isinstance(item, str) for item in old_value))))):
+    if key in owner and (type(old_value) is not type(value) or (isinstance(old_value, list) and (not all(isinstance(item, str) for item in old_value)))):
         return (text, False, f'{label} must retain its managed value type')
     expected = copy.deepcopy(config)
     target = expected
@@ -788,14 +788,14 @@ def _repair_shell_environment_policy(text: str) -> tuple[str, bool, bool, str | 
         return (text, False, False, f'toml_parse_error:{exc}')
     policy = parsed.get('shell_environment_policy')
     include_only = policy.get('include_only') if isinstance(policy, dict) else None
-    if not isinstance(include_only, list) or not all((isinstance(value, str) for value in include_only)):
+    if not isinstance(include_only, list) or not all(isinstance(value, str) for value in include_only):
         return (text, False, False, 'shell_environment_policy.include_only must be a string list')
-    if any((re.match('[A-Za-z_]', value) is None for value in include_only)):
+    if any(re.match('[A-Za-z_]', value) is None for value in include_only):
         return (text, False, False, 'shell_environment_policy.include_only permits unrestricted inheritance')
-    if any((_has_protected_shell_env_pattern(value) for value in include_only)):
+    if any(_has_protected_shell_env_pattern(value) for value in include_only):
         return (text, False, False, 'shell_environment_policy.include_only matches protected runtime variables')
-    removed_legacy = any((value in LEGACY_NODE_REPL_ENV_KEYS and value not in DESKTOP_RUNTIME_ENV_NAMES for value in include_only))
-    restored_required = any((key not in include_only for key in REQUIRED_SHELL_ENV_INCLUDE_ONLY))
+    removed_legacy = any(value in LEGACY_NODE_REPL_ENV_KEYS and value not in DESKTOP_RUNTIME_ENV_NAMES for value in include_only)
+    restored_required = any(key not in include_only for key in REQUIRED_SHELL_ENV_INCLUDE_ONLY)
     retained = [value for value in include_only if value not in LEGACY_NODE_REPL_ENV_KEYS or value in DESKTOP_RUNTIME_ENV_NAMES]
     for key in REQUIRED_SHELL_ENV_INCLUDE_ONLY:
         if key not in retained:
@@ -813,7 +813,7 @@ def _repair_shell_environment_policy(text: str) -> tuple[str, bool, bool, str | 
     else:
         indent = '  '
         rendered = [lines[list_start]]
-        rendered.extend((f'{indent}{_toml_value(key)},\n' for key in retained))
+        rendered.extend(f'{indent}{_toml_value(key)},\n' for key in retained)
         rendered.append(lines[list_end])
         lines[list_start:list_end + 1] = rendered
         repaired = ''.join(lines)

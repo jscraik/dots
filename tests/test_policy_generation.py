@@ -1,12 +1,12 @@
 """Full-bundle generation rejects malformed bindings without touching runtime."""
 import importlib.util
 import json
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import tomllib
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location('policy_generator', ROOT / 'scripts/generate-codex-policy.py')
@@ -78,7 +78,7 @@ class PolicyGenerationTests(unittest.TestCase):
         self.render()
         before = self.path.read_bytes()
         result = subprocess.run([sys.executable, '-B', str(ROOT / 'scripts/generate-codex-policy.py'),
-                                 '--bindings', str(self.path)], capture_output=True, text=True, timeout=10)
+                                 '--bindings', str(self.path)], capture_output=True, text=True, timeout=10, check=False)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('8 policies', result.stdout)
         self.assertNotIn('/synthetic/', result.stdout + result.stderr)

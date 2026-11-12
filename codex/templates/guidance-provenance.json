@@ -598,8 +598,8 @@
       "path": "codex/instructions/migration-scope.md",
       "origin": "local migration adaptation",
       "decision": "Explicit public scope, serialization and proving checks; no new live authority",
-      "candidate_sha256": "de6b38a48efb041509c0b17666068e7b3554e3b4889ff3b5749724a8f83a1246",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks."
+      "candidate_sha256": "4e2f2f9712de0cd79b9f8525305bf2b3330107f67a654add271434d09c5d8b39",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
       "path": "scripts/generate-codex-controls.py",

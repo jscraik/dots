@@ -673,9 +673,10 @@
       "source_path": "scripts/cache_security.py",
       "source_sha256": "6a3ce3b72d09f4881f0cab38c126a97dad8cc7034f80a2e2a7a3ba7aa7ed1c8d",
       "transformations": [
-        "Inert original Configs cache guard; executed only by synthetic original-consumer regressions"
+        "Inert original Configs cache guard; executed only by synthetic original-consumer regressions",
+        "Clear mechanical Ruff diagnostics; preserve pinned-FD snapshot execution under the exact MIG-HELPER-1 S102 compatibility annotation."
       ],
-      "candidate_sha256": "6a3ce3b72d09f4881f0cab38c126a97dad8cc7034f80a2e2a7a3ba7aa7ed1c8d"
+      "candidate_sha256": "12bae79550dc442f07791511e310ed31e82f3133facd9317d25266e97723ae03"
     },
     {
       "path": "codex/scripts/tests/fixtures/codex-code-completion.txt",
@@ -727,17 +728,19 @@
       "origin": "reconciled public source recorded in reconciliation-provenance.json",
       "transformations": [
         "synthetic fixture resources; original selected checks retained",
-        "Add fixed packaged-context admission; retain default disposable admission and original checks."
+        "Add fixed packaged-context admission; retain default disposable admission and original checks.",
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
       ],
-      "candidate_sha256": "06ea7aab86db416c46a153c214c2c738cbba39c495a7812b523e26e0d11d7888"
+      "candidate_sha256": "188b7c4df974bc6bcfe58ca3091856ec8c21179c93ce07ab1b499af8767e2f22"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
       "origin": "reconciled public source recorded in reconciliation-provenance.json",
       "transformations": [
-        "synthetic fixture resources; original selected checks retained"
+        "synthetic fixture resources; original selected checks retained",
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
       ],
-      "candidate_sha256": "5e2b5ec820d97f14834e018a804685b03e9dd275ba9a2c4f2e9c8634eb4db30c"
+      "candidate_sha256": "73fa14a573ec007defea803f122fbbe181d3bf7a47f06069d8262fd65f120604"
     },
     {
       "path": "codex/scripts/tests/fixtures/coderabbit-completed-source-verdict.txt",
@@ -799,9 +802,10 @@
       "path": "codex/scripts/tests/test_pending_hook_findings.py",
       "origin": "reconciled public source recorded in reconciliation-provenance.json",
       "transformations": [
-        "synthetic fixture resources; original selected checks retained"
+        "synthetic fixture resources; original selected checks retained",
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
       ],
-      "candidate_sha256": "6f3b84ca6c0a862baf1e67fdc113bef434864de9f6bb53e3a1e900052f130bff"
+      "candidate_sha256": "dcfcf4601197ee0b32cc9fb71f084097e659ed34e0234d506b24ff4f27ae36dd"
     },
     {
       "path": "codex/scripts/tests/test_pr_coderabbit_structured.py",
@@ -815,25 +819,28 @@
       "path": "codex/scripts/tests/test_pr_codex_completion.py",
       "origin": "reconciled public source recorded in reconciliation-provenance.json",
       "transformations": [
-        "synthetic fixture resources; original selected checks retained"
+        "synthetic fixture resources; original selected checks retained",
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
       ],
-      "candidate_sha256": "6bec02d39f0198260d565880d5e328faba7935e9b7111ebb15d0627d1c173daf"
+      "candidate_sha256": "6f1ce996863629553357beed42901d6803802a2c7f724d346c30ec80273229aa"
     },
     {
       "path": "codex/scripts/tests/test_pr_readiness.py",
       "origin": "reconciled public source recorded in reconciliation-provenance.json",
       "transformations": [
-        "synthetic fixture resources; original selected checks retained"
+        "synthetic fixture resources; original selected checks retained",
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
       ],
-      "candidate_sha256": "607dc035afe9ab058ecb3621eeedc2b8a5592f659a556bccf9753e298217ec4b"
+      "candidate_sha256": "299cb064864c3b184a6ef5f2f887cf8ef49ef542619127f165675a5eea0a680b"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "d5e837292e1ccb670f21f95d5460663e14fd19433e24551d76413a2d07acd860",
-      "candidate_sha256": "d5e837292e1ccb670f21f95d5460663e14fd19433e24551d76413a2d07acd860",
+      "candidate_sha256": "4a65d2e5e33bba897858523a9b1b4082ae1211b3f290d1122d81bbde44c341f4",
       "transformations": [
-        "unchanged pure dependency of the maintained review test loader"
+        "unchanged pure dependency of the maintained review test loader",
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
       ]
     },
     {

@@ -28,6 +28,7 @@ dependency is added by this migration.
 
 ```sh
 python3 -m unittest discover -s tests -v
+ruff check --no-cache .
 python3 scripts/check-source.py
 python3 -B scripts/check-public-guidance.py
 bash -n scripts/resolve-homebrew-bin.sh

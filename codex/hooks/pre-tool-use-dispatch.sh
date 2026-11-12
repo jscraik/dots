@@ -691,10 +691,13 @@ run_guard() {
     fi
   fi
   if [[ "$status" -ne 0 || -z "$output" ]]; then
-    handler_failure "$script_name" "non-zero exit or empty output"
+    # Report bounded process metadata, never potentially sensitive handler data.
+    local output_state="empty"
+    [[ -n "$output" ]] && output_state="non-empty"
+    handler_failure "$script_name" "exit status $status; stdout $output_state"
   fi
   if ! jq -e 'type == "object"' >/dev/null 2>&1 <<<"$output"; then
-    handler_failure "$script_name" "invalid JSON output"
+    handler_failure "$script_name" "exit status $status; invalid JSON output"
   fi
   if jq -e '.hookSpecificOutput.permissionDecision == "ask"' >/dev/null 2>&1 <<<"$output"; then
     handler_failure "$script_name" "unsupported ask decision"

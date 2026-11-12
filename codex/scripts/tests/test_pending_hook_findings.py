@@ -1,6 +1,12 @@
 """Original pending hook regressions, retained in disposable resources."""
-import json, os, shlex, subprocess, tempfile, unittest
+import json
+import os
+import shlex
+import subprocess
+import tempfile
+import unittest
 from pathlib import Path
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 class HookFindingRegressionTests(unittest.TestCase):

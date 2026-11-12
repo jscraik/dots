@@ -737,10 +737,10 @@ class PrReadinessTests(unittest.TestCase):
         concern = {**entry, "body": "Finding remains for head " + head}
         self.assertEqual(MODULE.outstanding_bot_concerns([], [], [concern, entry], head), ["Codex"])
         mutations = []
-        for kind in state:
+        for kind, details in state.items():
             for key, value in (("has_any_findings", True), ("has_unresolved_findings", 0),
                                ("status", "failed"), ("commit_sha", "a" * 40), ("extra", False)):
-                mutations.append(decorated({**state, kind: {**state[kind], key: value}}))
+                mutations.append(decorated({**state, kind: {**details, key: value}}))
         mutations.extend((body + "\nFinding remains", body.replace('"has_any_findings":false',
                           '"has_any_findings":true,"has_any_findings":false', 1),
                           body.replace("<!-- codex-review-state:v1", "<!-- codex-review-state:v2")))
@@ -3659,9 +3659,10 @@ class TesslReviewTests(unittest.TestCase):
             self.assertEqual(MODULE.gh_pr(Path.cwd(), number=7), (None, "check retrieval failed"))
 
     def test_optional_tessl_cannot_supply_completed_repair_review_coverage(self):
-        from codex.scripts import pr_review_clearance, pr_review_risk
         from types import SimpleNamespace
         from unittest.mock import Mock
+
+        from codex.scripts import pr_review_clearance, pr_review_risk
         endorsement = SimpleNamespace(MARKER="pr-repair-endorsement/v1\n",
             parse_endorsement=Mock(side_effect=AssertionError("unexpected endorsement parser")),
             verify_endorsements=Mock(side_effect=RuntimeError("required reviewers reached endorsement verification")))

@@ -87,9 +87,10 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "cd15702f68b9628eff7f0897e94cb05604cad83616381aa3b7ba69dd73ffcecb",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
       ],
-      "candidate_sha256": "5cb8b25a3bbbd832751d73fd75048d3432bb13dac907ae1806b6675437879139"
+      "candidate_sha256": "ccfc2eac237eafa540ff36031e679870654c1bee897d4bb17b51231e11cfdf6e"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",
@@ -171,9 +172,10 @@
       "transformations": [
         "disposable scope admission before runtime helper execution",
         "CLI primary path confined to fixture",
-        "Add fixed packaged-context admission; retain default disposable admission and original checks."
+        "Add fixed packaged-context admission; retain default disposable admission and original checks.",
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
       ],
-      "candidate_sha256": "052c0bd6b63f3e680b77c15362bb5c0ea34bcd981f69791d18ed6b13a0a96dd8"
+      "candidate_sha256": "27c62256d1b3d997ebdab7ae6ce750de6da05c97808a848c8440d66145fcf829"
     },
     {
       "path": "codex/scripts/scrub-codex-scratch-projects.py",
@@ -183,9 +185,10 @@
         "disposable scope admission before runtime helper execution",
         "CLI primary path confined to fixture",
         "home-relative scratch prefix and synthetic self-test paths",
-        "Add fixed packaged-context admission; retain default disposable admission and original checks."
+        "Add fixed packaged-context admission; retain default disposable admission and original checks.",
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
       ],
-      "candidate_sha256": "740299a0a7cdc0e9145de13599ee6394e0f896123c2448f99886da08413f8273"
+      "candidate_sha256": "552b58269f0fc0421235ac946283f2f212139880c053cced99651e4e0b2c96ed"
     },
     {
       "path": "codex/scripts/scrub-computer-use-config.py",
@@ -194,9 +197,10 @@
       "transformations": [
         "disposable scope admission before runtime helper execution",
         "CLI primary path confined to fixture",
-        "Add fixed packaged-context admission; retain default disposable admission and original checks."
+        "Add fixed packaged-context admission; retain default disposable admission and original checks.",
+        "Keep parse-error fallback; unexpected parser exceptions stop before publication. Clear Ruff diagnostics without changing file modes."
       ],
-      "candidate_sha256": "05c6f6e34090d98f9e55d542ede656aa3cbf1b34fb44d4273f69f508ee5d0cae"
+      "candidate_sha256": "41a0f5dff300fc160e0166aa40a9be7e3bf2c43642c036b6a62f1d41c61bb223"
     },
     {
       "path": "codex/scripts/audit-project-codex-config-overrides.sh",
@@ -223,9 +227,10 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "8a9694a9be874ef673ff9c81f73482bf82a0e5c235cb71c0057c2795c106cc77",
       "transformations": [
-        "Strip empty docstring-line spaces before the first local commit; executable AST and other string values unchanged"
+        "Strip empty docstring-line spaces before the first local commit; executable AST and other string values unchanged",
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
       ],
-      "candidate_sha256": "34db64ce5649696612aae24650baf91a0ff702398588a0fe04e22cdba377b30f"
+      "candidate_sha256": "7814508b4b2f8e6ad10af8750382a9c6d5061871ad0f495e90e26b73a93784b5"
     },
     {
       "path": "codex/scripts/pr-readiness.py",
@@ -234,9 +239,10 @@
       "transformations": [
         "disposable scope admission before runtime helper execution",
         "Load the trusted sibling support for the isolated offline parser without changing review policy",
-        "Add fixed packaged-context admission; retain default disposable admission and original checks."
+        "Add fixed packaged-context admission; retain default disposable admission and original checks.",
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
       ],
-      "candidate_sha256": "06ea7aab86db416c46a153c214c2c738cbba39c495a7812b523e26e0d11d7888"
+      "candidate_sha256": "188b7c4df974bc6bcfe58ca3091856ec8c21179c93ce07ab1b499af8767e2f22"
     },
     {
       "path": "codex/scripts/pr_repair_ci.py",
@@ -294,9 +300,10 @@
         "disposable scope admission before runtime helper execution",
         "CLI primary path confined to fixture",
         "Explicit sibling-scope load preserves system Python -I -S and denies source-directory module shadowing",
-        "Add fixed packaged-context admission; retain default disposable admission and original checks."
+        "Add fixed packaged-context admission; retain default disposable admission and original checks.",
+        "Reject wrong-typed managed IDs with TypeError, preserving bounded CLI exit2; clear mechanical Ruff diagnostics."
       ],
-      "candidate_sha256": "3ff8743564303f3fc1373ddcc6449488410c7bf4f6bd4eef6594a0a29737901d"
+      "candidate_sha256": "cd6ef70b0444f6f4814e15b7c5157d8ed8a920b34ab10ee5a09668145e4ba211"
     },
     {
       "path": "codex/scripts/validate-auth-env-mount.py",
@@ -306,9 +313,10 @@
         "disposable scope admission before runtime helper execution",
         "CLI primary path confined to fixture",
         "Explicit sibling-scope load preserves system Python -I -S and denies source-directory module shadowing",
-        "Add fixed packaged-context admission; retain default disposable admission and original checks."
+        "Add fixed packaged-context admission; retain default disposable admission and original checks.",
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
       ],
-      "candidate_sha256": "1a5b3dfbc8dda272a7d1116024f547afac4b61a3d39611c09785d8c07d67e2f0"
+      "candidate_sha256": "ebc6c6b6b139a78dfa92b91c18ec14d8b3e38300aa1566b345c225c7c1ddab1e"
     },
     {
       "path": "codex/scripts/deployment_scope.py",

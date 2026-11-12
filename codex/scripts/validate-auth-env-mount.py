@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Validate the metadata boundary of a 1Password-mounted auth environment."""
 
 from __future__ import annotations

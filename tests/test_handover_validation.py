@@ -1,0 +1,105 @@
+"""Exercise handover error paths in disposable homes, without real services."""
+
+import json
+import subprocess
+import sys
+import unittest
+
+from helper_fixture import HelperFixture
+from policy_fixture import ROOT
+
+
+class HandoverValidationTests(unittest.TestCase):
+    def setUp(self):
+        self.fixture = HelperFixture(self)
+        self.addCleanup(self.fixture.assert_preserved, self)
+
+    def scrub(self, exception):
+        fixture = self.fixture
+        marker = fixture.home / 'parser-called'
+        stub = fixture.codex / 'scripts/tomlkit.py'
+        stub.write_text('from pathlib import Path\n'
+                        'def parse(text):\n'
+                        f'    Path({str(marker)!r}).write_text("called")\n'
+                        f'    raise {exception}("synthetic-private-parser-data")\n')
+        config = fixture.home / 'synthetic-scrub.toml'
+        original = 'model = "keep"\nnotify = ["SkyComputerUseClient"]\n[other]\nnotify = ["keep"]\n'
+        config.write_text(original)
+        result = fixture.helper('scrub-computer-use-config.py', '--config-path', str(config), '--repair', '--json')
+        self.assertTrue(marker.is_file(), result.stdout + result.stderr)
+        return result, config, original
+
+    def test_unexpected_parser_failure_never_rewrites_configuration(self):
+        for error in ('RuntimeError', 'TypeError', 'AssertionError'):
+            with self.subTest(error=error):
+                result, config, original = self.scrub(error)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertEqual(config.read_text(), original)
+                self.assertEqual(json.loads(result.stdout)['reason'], 'config_parser_failed')
+                self.assertEqual(json.loads(result.stdout)['status'], 'blocked')
+                self.assertNotIn('synthetic-private-parser-data', result.stdout + result.stderr)
+                self.assertNotIn('Traceback', result.stdout + result.stderr)
+
+    def test_expected_parser_error_retains_the_existing_bounded_fallback(self):
+        result, config, _ = self.scrub('ValueError')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(config.read_text(), 'model = "keep"\n\n[other]\nnotify = ["keep"]\n')
+        self.assertEqual(json.loads(result.stdout)['removed_count'], 1)
+
+    def test_invalid_binding_document_is_a_bounded_cli_rejection(self):
+        path = self.fixture.home / 'invalid-bindings.json'
+        path.write_text('[]')
+        result = subprocess.run([sys.executable, '-B', str(ROOT / 'scripts/generate-codex-policy.py'),
+                                 '--bindings', str(path)], capture_output=True, text=True, timeout=10, check=False)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, '')
+        self.assertNotIn('Traceback', result.stderr)
+        self.assertEqual(path.read_text(), '[]')
+
+    def test_wrong_typed_auth_configuration_remains_a_bounded_rejection(self):
+        path = self.fixture.home / 'synthetic-auth.toml'
+        path.write_text('[shell_environment_policy.set]\nCODEX_AUTH_ENVIRONMENT_ID = 17\n')
+        result = self.fixture.helper('read-runtime-auth-environment.py', '--config', str(path))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, '')
+        self.assertNotIn('Traceback', result.stderr)
+
+    def test_wrong_typed_hook_manifests_never_replace_the_runtime(self):
+        source, target = self.fixture.source, self.fixture.target
+        target.write_bytes(b'caller-owned runtime sentinel')
+        before = target.read_bytes()
+        for value in ([], None, {'hooks': []}):
+            with self.subTest(value=value):
+                source.write_text(json.dumps(value))
+                result = self.fixture.base.publish(source, target)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertEqual(result.stdout, '')
+                self.assertNotIn('Traceback', result.stderr)
+                self.assertEqual(target.read_bytes(), before)
+
+    def test_handler_failure_metadata_stays_denied_and_hides_payloads(self):
+        handler = self.fixture.codex / 'hooks/pre-tool-use-guard.sh'
+        private = 'synthetic-private-handler-data'
+        cases = (
+            ('exit 17', 'exit status 17; stdout empty'),
+            ('exit 0', 'exit status 0; stdout empty'),
+            ('printf \'%s\' \'{"continue":true}\'; exit 23', 'exit status 23; stdout non-empty'),
+            (f'printf \'%s\' \'{private}\'; exit 0', 'exit status 0; invalid JSON output'),
+        )
+        for body, detail in cases:
+            with self.subTest(detail=detail):
+                handler.write_text(f'#!/bin/bash\nprintf \'%s\' \'{private}\' >&2\n{body}\n')
+                result = self.fixture.run('pre-tool-use-dispatch.sh', {'tool_input': {'command': 'git remote -v'}})
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                output = json.loads(result.stdout)['hookSpecificOutput']
+                self.assertEqual(output['permissionDecision'], 'deny')
+                self.assertEqual(output['permissionDecisionReason'],
+                                 f'Required policy handler failed: {handler.name} ({detail})')
+                self.assertNotIn(private, result.stdout + result.stderr)
+        handler.write_text('#!/bin/bash\nprintf \'%s\' \'{"continue":true}\'\n')
+        result = self.fixture.run('pre-tool-use-dispatch.sh', {'tool_input': {'command': 'git remote -v'}})
+        self.assertEqual(json.loads(result.stdout), {'continue': True})
+        handler.write_text('#!/bin/bash\nprintf \'%s\' \'{"hookSpecificOutput":{"permissionDecision":"deny","permissionDecisionReason":"fixture policy denial"}}\'\n')
+        result = self.fixture.run('pre-tool-use-dispatch.sh', {'tool_input': {'command': 'git remote -v'}})
+        self.assertEqual(json.loads(result.stdout)['hookSpecificOutput']['permissionDecisionReason'],
+                         'fixture policy denial')

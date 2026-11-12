@@ -1,9 +1,9 @@
 import importlib.util
-from pathlib import Path
 import tempfile
 import unittest
-from unittest import mock
+from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 SPEC = importlib.util.spec_from_file_location('stage_home', Path(__file__).resolve().parents[1] / 'scripts/stage-home.py')
 MODULE = importlib.util.module_from_spec(SPEC)
@@ -15,9 +15,9 @@ class StagingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as directory:
             target = Path(directory) / 'child'
             target.mkdir()
-            with mock.patch.object(MODULE.pwd, 'getpwuid', return_value=SimpleNamespace(pw_dir=directory)):
-                with self.assertRaises(ValueError):
-                    MODULE.stage(target)
+            with (mock.patch.object(MODULE.pwd, 'getpwuid', return_value=SimpleNamespace(pw_dir=directory)),
+                  self.assertRaises(ValueError)):
+                MODULE.stage(target)
             self.assertEqual(list(target.iterdir()), [])
 
     def test_stages_defaults_without_auth_and_is_idempotent(self):

@@ -2,8 +2,8 @@
 import argparse
 import os
 import pwd
-from pathlib import Path
 import stat
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FILES = {
@@ -107,9 +107,9 @@ def main():
     parser.add_argument('--target-home', required=True, type=Path)
     args = parser.parse_args()
     try:
-        print('Staged %d defaults; no packages installed and no secrets loaded.' % stage(args.target_home))
+        print(f'Staged {stage(args.target_home)} defaults; no packages installed and no secrets loaded.')
     except (ValueError, OSError) as error:
-        parser.exit(1, 'Staging refused: %s\n' % error)
+        parser.exit(1, f'Staging refused: {error}\n')
 
 if __name__ == '__main__':
     main()

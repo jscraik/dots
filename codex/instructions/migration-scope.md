@@ -20,6 +20,12 @@ Experimental execution admission and host/container qualification stay outside
 this port. Private task links and comment attribution are replaced in synthetic
 test resources rather than copied as operational history.
 
+The handover also carries the bounded handler-failure diagnostics from local
+Configs commit `283db198d281e239524da23563bd3390fa9910c9`. Dots qualifies that
+read-only source import in isolation; it does not claim source-PR acceptance or
+adopt the separate execution-admission prototypes. Handler failures retain
+their denial while reporting exit status and output presence without raw data.
+
 The [Context ledger and provenance](../templates/guidance-provenance.json)
 classify each source file and list deferred Context Pointers. The front doors
 route portable instructions; modules retain the accepted safeguards and source
@@ -117,6 +123,22 @@ and the conformance CLI's final exception-to-nonzero reporting boundary. Their
 two `BLE001` annotations preserve existing failure semantics rather than hiding
 errors. Narrow parser exceptions use their actual parser error types. The
 accepted helper regressions and full local suite validate these boundaries.
+
+MIG-HELPER-1 retains a terminal exception boundary in the configuration-scrub
+CLI: unexpected parser failures return a nonzero, structured blocked result
+before any write, without printing parser payloads. Only expected parse errors
+may use its existing fallback. The inline `BLE001` annotation documents this
+fail-closed boundary; it does not permit recovery or success after an unknown
+failure. The dots maintainer owns the permanent decision and its real CLI
+regressions in `tests/test_handover_validation.py`.
+
+MIG-HELPER-1 also retains the single annotated `S102` execution in the inert
+Configs cache-consumer fixture. It compiles bytes already read through the
+validated file descriptor. Reopening the mutable cache filename would lose that
+binding. The exception is limited to that existing snapshot-execution line;
+it grants no provider execution or cache-bootstrap authority to dots, and does
+not exempt other source from security linting. The dots maintainer owns this
+permanent compatibility decision and its existing consumer regressions.
 
 Only an explicitly declared disposable fixture root admits nested test homes;
 all code, resources and overrides still stay below that root, which cannot be

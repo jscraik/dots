@@ -36,8 +36,8 @@
     {
       "path": "README.md",
       "prior_candidate_sha256": "ced157af36e675f8d6c890a5b04a70805e0835432efc957efc85c92f1e98ab01",
-      "candidate_sha256": "30f9cd98b03fc0d6a4646e24f9beb4dc9293f29ee7b6458c94094e852c083991",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks."
+      "candidate_sha256": "aee64d17ca37ccdbd726ccdc1d05de289aa21fe8fba594aca060c1a445e58fa2",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
       "path": "codex/hooks/README.md",
@@ -52,7 +52,13 @@
     {
       "path": "codex/hooks/pre-tool-use-dispatch.sh",
       "prior_candidate_sha256": "410160a1e4cf544151c390af3e2f56548926d42cd13cfa942dd7efd87c75c515",
-      "candidate_sha256": "5cb8b25a3bbbd832751d73fd75048d3432bb13dac907ae1806b6675437879139"
+      "candidate_sha256": "ccfc2eac237eafa540ff36031e679870654c1bee897d4bb17b51231e11cfdf6e",
+      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
+      "additional_source": {
+        "revision": "283db198d281e239524da23563bd3390fa9910c9",
+        "sha256": "a2fe193fa5bf198a86910b1ee5c64306142dcd08ef16323842bb86079bef76e9",
+        "status": "signed local source commit; diagnostic-only import independently qualified in dots, not source-PR acceptance"
+      }
     },
     {
       "path": "codex/instructions/agents/16-git-and-release.md",
@@ -72,8 +78,8 @@
     {
       "path": "codex/instructions/migration-scope.md",
       "prior_candidate_sha256": "085a3aece03f77510bf5f4f8d85a459f9735069dbb028428539066cdc7c2c741",
-      "candidate_sha256": "de6b38a48efb041509c0b17666068e7b3554e3b4889ff3b5749724a8f83a1246",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks."
+      "candidate_sha256": "4e2f2f9712de0cd79b9f8525305bf2b3330107f67a654add271434d09c5d8b39",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
       "path": "codex/schemas/pr-readiness.v1.schema.json",
@@ -83,13 +89,14 @@
     {
       "path": "codex/scripts/hook-governance/hook_runtime_policy.py",
       "prior_candidate_sha256": "8a9694a9be874ef673ff9c81f73482bf82a0e5c235cb71c0057c2795c106cc77",
-      "candidate_sha256": "34db64ce5649696612aae24650baf91a0ff702398588a0fe04e22cdba377b30f"
+      "candidate_sha256": "7814508b4b2f8e6ad10af8750382a9c6d5061871ad0f495e90e26b73a93784b5",
+      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
       "path": "codex/scripts/pr-readiness.py",
       "prior_candidate_sha256": "6c47ce8d869fb46b338f6ed354ec95eb554471c215bc90b9c1d76c69e9cb60ee",
-      "candidate_sha256": "06ea7aab86db416c46a153c214c2c738cbba39c495a7812b523e26e0d11d7888",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks."
+      "candidate_sha256": "188b7c4df974bc6bcfe58ca3091856ec8c21179c93ce07ab1b499af8767e2f22",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
       "path": "codex/scripts/pr-review-request.py",
@@ -99,7 +106,8 @@
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "5e2b5ec820d97f14834e018a804685b03e9dd275ba9a2c4f2e9c8634eb4db30c"
+      "candidate_sha256": "73fa14a573ec007defea803f122fbbe181d3bf7a47f06069d8262fd65f120604",
+      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
       "path": "codex/scripts/tests/fixtures/coderabbit-completed-source-verdict.txt",
@@ -139,7 +147,8 @@
     {
       "path": "codex/scripts/tests/test_pending_hook_findings.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "6f3b84ca6c0a862baf1e67fdc113bef434864de9f6bb53e3a1e900052f130bff"
+      "candidate_sha256": "dcfcf4601197ee0b32cc9fb71f084097e659ed34e0234d506b24ff4f27ae36dd",
+      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
       "path": "codex/scripts/tests/test_pr_coderabbit_structured.py",
@@ -149,17 +158,20 @@
     {
       "path": "codex/scripts/tests/test_pr_codex_completion.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "6bec02d39f0198260d565880d5e328faba7935e9b7111ebb15d0627d1c173daf"
+      "candidate_sha256": "6f1ce996863629553357beed42901d6803802a2c7f724d346c30ec80273229aa",
+      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "d5e837292e1ccb670f21f95d5460663e14fd19433e24551d76413a2d07acd860"
+      "candidate_sha256": "4a65d2e5e33bba897858523a9b1b4082ae1211b3f290d1122d81bbde44c341f4",
+      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
       "path": "codex/scripts/tests/test_pr_readiness.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "607dc035afe9ab058ecb3621eeedc2b8a5592f659a556bccf9753e298217ec4b"
+      "candidate_sha256": "299cb064864c3b184a6ef5f2f887cf8ef49ef542619127f165675a5eea0a680b",
+      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
       "path": "codex/scripts/tests/test_pr_review_request.py",
@@ -169,8 +181,8 @@
     {
       "path": "codex/scripts/validate-codex-config.py",
       "prior_candidate_sha256": "e9cdebab1d97447c1ac3ff1dce5894c7c13ccf095c2a1cc8e44716c103768e61",
-      "candidate_sha256": "e99dab46ee2d5977f8b904dc9bf18a8b062dbf5e24ea7c0c20b629073ac38000",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks."
+      "candidate_sha256": "a2b643f93427e3aacf05d3d15007f93d586295de3b94ea771a554a8451260711",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
       "path": "scripts/check-source.py",
@@ -185,12 +197,14 @@
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "3291272ed4ee74488c098d4d08146fe2d5dc418722560bb176edacd174d77f8d"
+      "candidate_sha256": "d4d147392840bfc6d269f737666d2a858e417b23784311edeac217c000f6463a",
+      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
       "path": "tests/test_pending_fixes.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "7a146558677110228bd6e54d32ea690e1160e45d7c3f9e95b20f0790c178bdff"
+      "candidate_sha256": "c784338ea9a96ac1e37c4c473a4aae0599ae4e7344a4d63ae02ef1572e134763",
+      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     }
   ],
   "installation_authorised": false,

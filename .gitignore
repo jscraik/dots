@@ -205,6 +205,7 @@
 !/scripts/install-codex.py
 !/codex/scripts/install-codex.py
 !/tests/test_installation_route.py
+!/tests/test_handover_validation.py
 !/codex/README.md
 !/codex/agents/
 !/codex/agents/evals/

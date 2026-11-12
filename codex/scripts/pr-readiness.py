@@ -52,6 +52,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlsplit
 
+
 @lru_cache(maxsize=1)
 def _coderabbit_summary_adapter() -> Any:
     """Load the trusted sibling only when structured review evidence needs it."""
@@ -1654,12 +1655,12 @@ def _coderabbit_native_sources(root: Path, slug: str, head: str, entry: dict[str
 def _coderabbit_benign_details(context: str) -> bool:
     """Only empty details or count-matched, literal LGTM comments are inert."""
     wrapper = r"\s*<details>\s*<summary><strong>📜 Recent review details</strong></summary>\s*<dl>\s*<dd>\s*(.*?)\s*</dd>\s*</dl>\s*</details>\s*"
-    match = re.fullmatch(wrapper, context, re.S)
+    match = re.fullmatch(wrapper, context, re.DOTALL)
     if match is None:
         return False
     if not match[1].strip():
         return True
-    additional = re.fullmatch(r"<details>\s*<summary><strong>\s*Additional comments: ([1-9][0-9]*)</strong></summary>\s*<dl>\s*<dd>\s*(.*?)\s*</dd>\s*</dl>\s*</details>", match[1], re.S)
+    additional = re.fullmatch(r"<details>\s*<summary><strong>\s*Additional comments: ([1-9][0-9]*)</strong></summary>\s*<dl>\s*<dd>\s*(.*?)\s*</dd>\s*</dl>\s*</details>", match[1], re.DOTALL)
     if additional is None:
         return False
     item = re.compile(r"\s*<details>\s*<summary><strong>([^<>\r\n]+): 1</strong></summary>\s*<dl>\s*<dd>\s*`([1-9][0-9]*)-([1-9][0-9]*)`: LGTM!\s*(?:Also applies to: [1-9][0-9]*-[1-9][0-9]*\s*)?<!-- cr-comment:v1:[0-9a-f]{24} -->\s*</dd>\s*</dl>\s*</details>\s*")
@@ -1722,7 +1723,7 @@ def _coderabbit_status_layout(body: str) -> str:
         return body
     if any(body.count(marker) != 1 for marker in (start, end, recent_start, recent_end)):
         return body
-    match = re.search(re.escape(start) + r"\s*(.*?)\s*" + re.escape(end), body, re.S)
+    match = re.search(re.escape(start) + r"\s*(.*?)\s*" + re.escape(end), body, re.DOTALL)
     verdict = "No actionable comments were generated in the recent review."
     if match is None or match[1] not in (verdict, verdict + " 🎉"):
         return body
@@ -1736,7 +1737,7 @@ def _coderabbit_status_layout(body: str) -> str:
     body = body[:match.start()] + body[match.end():]
     return re.sub(re.escape(recent_start) + r".*?" + re.escape(recent_end),
                   lambda _: recent_start + "\n" + match[1] + "\n" + recent + "\n" + recent_end,
-                  body, count=1, flags=re.S)
+                  body, count=1, flags=re.DOTALL)
 
 
 def coderabbit_completion_review(root: Path, pr: dict[str, Any], head: str, inline: list[dict[str, Any]], entries: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, str | None]:
@@ -1770,9 +1771,9 @@ def coderabbit_completion_review(root: Path, pr: dict[str, Any], head: str, inli
         if not body.startswith(markers[0]) or any(body.count(marker) != 1 for marker in markers):
             continue
         envelope = body
-        envelope = re.sub(r"<!-- autopilot:start -->\s*<!-- autopilot:end -->", "", envelope, flags=re.S)
-        envelope = re.sub(r"<!-- This is an auto-generated comment: all tool run failures by coderabbit.ai -->\s*<!-- end of auto-generated comment: all tool run failures by coderabbit.ai -->", "", envelope, flags=re.S)
-        envelope = re.sub(r"<details>\s*<summary><strong>Merge Risk:</strong>\s*</summary>\s*</details>", "", envelope, flags=re.S)
+        envelope = re.sub(r"<!-- autopilot:start -->\s*<!-- autopilot:end -->", "", envelope, flags=re.DOTALL)
+        envelope = re.sub(r"<!-- This is an auto-generated comment: all tool run failures by coderabbit.ai -->\s*<!-- end of auto-generated comment: all tool run failures by coderabbit.ai -->", "", envelope, flags=re.DOTALL)
+        envelope = re.sub(r"<details>\s*<summary><strong>Merge Risk:</strong>\s*</summary>\s*</details>", "", envelope, flags=re.DOTALL)
         if any(marker in envelope for marker in ("<!-- autopilot:start -->", "<!-- This is an auto-generated comment: all tool run failures by coderabbit.ai -->", "<summary><strong>Merge Risk:</strong>")):
             continue
         coverage = []
@@ -1781,14 +1782,14 @@ def coderabbit_completion_review(root: Path, pr: dict[str, Any], head: str, inli
             if envelope.count(start) != envelope.count(end) or envelope.count(start) > 1:
                 break
             if name == "final_review_risk":
-                risk = re.findall(re.escape(start) + r"(.*?)" + re.escape(end), envelope, re.S)
+                risk = re.findall(re.escape(start) + r"(.*?)" + re.escape(end), envelope, re.DOTALL)
                 coverage = re.findall(r"<!-- final_review_risk_coverage:(.*?) -->", risk[0]) if len(risk) == 1 else []
-            payload = re.findall(re.escape(start) + r"(.*?)" + re.escape(end), envelope, re.S)
+            payload = re.findall(re.escape(start) + r"(.*?)" + re.escape(end), envelope, re.DOTALL)
             if name not in {"recent_review", "final_review_risk"} and any(part.strip() for part in payload):
                 break
             if name == "final_review_risk" and payload and re.sub(r"<!-- final_review_risk_coverage:.*? -->", "", payload[0]).strip():
                 break
-            envelope = re.sub(re.escape(start) + r".*?" + re.escape(end), "", envelope, flags=re.S)
+            envelope = re.sub(re.escape(start) + r".*?" + re.escape(end), "", envelope, flags=re.DOTALL)
         if " ".join(envelope.split()) != markers[0] + " " + markers[1]:
             continue  # Unknown top-level prose may contain findings.
         recent = body.split(markers[2])[1].split(markers[3])[0].strip()
@@ -1805,12 +1806,12 @@ def coderabbit_completion_review(root: Path, pr: dict[str, Any], head: str, inli
             context = recent.split(context_start)[1].split(context_end)[0]
             if not _coderabbit_benign_details(context):
                 continue
-        info = re.sub(re.escape(context_start) + r".*?" + re.escape(context_end), "", recent, flags=re.S)
+        info = re.sub(re.escape(context_start) + r".*?" + re.escape(context_end), "", recent, flags=re.DOTALL)
         info = re.sub(r"</?(?:details|summary|strong|dl|dd|blockquote)(?: open)?>|<br>", "\n", info)
         fields = [line.strip() for line in info.splitlines() if line.strip()]
         info = "\n".join(fields)
-        selected = re.findall(r"^📒 Files selected for processing: ([1-9][0-9]*)$", info, re.M)
-        paths = re.findall(r"^\* `[^`\r\n]+`$", info, re.M)
+        selected = re.findall(r"^📒 Files selected for processing: ([1-9][0-9]*)$", info, re.MULTILINE)
+        paths = re.findall(r"^\* `[^`\r\n]+`$", info, re.MULTILINE)
         if len(selected) > 1 or (paths and not selected) or (selected and int(selected[0]) != len(paths)):
             continue
         metadata_line = (r"(?:ℹ️ Recent review info|⚙️ Run configuration|📥 Commits|📒 Files selected for processing: [1-9][0-9]*"
@@ -1827,15 +1828,15 @@ def coderabbit_completion_review(root: Path, pr: dict[str, Any], head: str, inli
             covered = json.loads(coverage[0], object_pairs_hook=_unique_provider_object) if len(coverage) == 1 else None
         except (ValueError, RecursionError):
             continue
-        reviewed_range = re.findall(r"^Reviewing files that changed from the base of the PR and between ([0-9a-f]{40}) and " + re.escape(head) + r"\.$", info, re.M)
+        reviewed_range = re.findall(r"^Reviewing files that changed from the base of the PR and between ([0-9a-f]{40}) and " + re.escape(head) + r"\.$", info, re.MULTILINE)
         created, updated = (_codex_event_time(entry.get(key)) for key in ("created_at", "updated_at"))
         if (not recent.startswith(verdict + "\n") or not recent[len(verdict):].strip().startswith("<details>")
             or covered != {"sourceCommitId": head, "coveredCommitId": head, "kind": "reviewed"}
-            or re.findall(r"^- \*\*Configuration used\*\*: (.+)$", info, re.M)
+            or re.findall(r"^- \*\*Configuration used\*\*: (.+)$", info, re.MULTILINE)
             not in ([f"Repository: {slug}/.coderabbit.yaml"], ["Organization UI"])
-            or len(re.findall(r"^- \*\*Run ID\*\*: `[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}`$", info, re.M)) != 1
+            or len(re.findall(r"^- \*\*Run ID\*\*: `[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}`$", info, re.MULTILINE)) != 1
             or len(reviewed_range) != 1
-            or re.search(r"Actionable comments posted:|Outside diff range comments|cr-indicator-types:potential_issue|review (?:incomplete|skipped|paused)|files skipped", body, re.I)
+            or re.search(r"Actionable comments posted:|Outside diff range comments|cr-indicator-types:potential_issue|review (?:incomplete|skipped|paused)|files skipped", body, re.IGNORECASE)
             or created is None or updated is None or updated < created):
             continue
         merge_base = run_command(["git", "merge-base", str(pr.get("baseRefOid", "")), head], root, check=False)
@@ -2715,7 +2716,7 @@ def native_review_diagnostics(entries: list[dict[str, Any]]) -> list[dict[str, A
         for name in ("review_stack_entry", "walkthrough", "pre_merge_checks_walkthrough",
                      "finishing_touch_checkbox", "review_details", "final_review_risk"):
             parts = re.findall(re.escape(f"<!-- {name}_start -->") + r"(.*?)"
-                               + re.escape(f"<!-- {name}_end -->"), body, re.S)
+                               + re.escape(f"<!-- {name}_end -->"), body, re.DOTALL)
             if any(part.strip() for part in parts):
                 sections.append(name)
         if sections:

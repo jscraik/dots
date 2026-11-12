@@ -2,11 +2,10 @@
 import argparse
 import json
 import math
-from pathlib import Path
 import re
 import tomllib
-
 from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = spec_from_file_location('dots_stage', ROOT / 'scripts/stage-home.py')
@@ -101,7 +100,7 @@ def toml_document(data):
 def render(bindings_path):
     bindings = read_json(bindings_path)
     if not isinstance(bindings, dict):
-        raise ValueError('Bindings must be an object')
+        raise TypeError('Bindings must be an object')
     bundle = read_json(ROOT / 'codex/templates/policy-bundle.json')
     if set(bundle) != set(NAMES):
         raise ValueError('Incomplete policy/profile bundle')
@@ -110,7 +109,7 @@ def render(bindings_path):
     for name in NAMES:
         data = substitute(bundle[name], bindings, used)
         if not isinstance(data, dict):
-            raise ValueError('Policy must be a table')
+            raise TypeError('Policy must be a table')
         output = toml_document(data)
         if tomllib.loads(output) != data:
             raise ValueError('TOML round-trip mismatch')
@@ -128,9 +127,9 @@ def main():
         # Keep output private. This command emits no configuration values and
         # deliberately has no live install or arbitrary output-directory mode.
         result = render(args.bindings)
-    except (ValueError, KeyError, OSError, UnicodeError):
+    except (ValueError, TypeError, KeyError, OSError, UnicodeError):
         parser.exit(1, 'Policy generation refused; inspect inputs locally.\n')
-    print('PASS: generated and TOML-round-tripped %d policies; no files installed' % len(result))
+    print(f'PASS: generated and TOML-round-tripped {len(result)} policies; no files installed')
 
 
 if __name__ == '__main__':

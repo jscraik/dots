@@ -1,10 +1,10 @@
 """Synthetic local resources for handler and real app-server tests."""
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import test_governance_port as governance
 
@@ -69,7 +69,7 @@ class HookFixture:
         event.update(payload or {})
         return subprocess.run(['bash', str(self.codex / 'hooks' / hook)],
             input=json.dumps(event), text=True, capture_output=True, timeout=30,
-            cwd=self.repo, env=self.env | (env or {}))
+            cwd=self.repo, env=self.env | (env or {}), check=False)
 
     def assert_preserved(self, testcase):
         for path, contents in self.sentinels.items():
