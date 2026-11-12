@@ -8,7 +8,9 @@
     "home-relative quoted Braid launcher",
     "regular-copy validator including hard-link rejection",
     "source confinement applies to publication and without-braid rendering",
-    "disposable scope uses the system temporary root and excludes account-home descendants"
+    "disposable scope uses the system temporary root and excludes account-home descendants",
+    "fixed private packaged context preserves default fixture admission",
+    "deployed publication requires its declared runtime hooks.json target; installation backups retain a separate validated location"
   ],
   "installation_authorised": false,
   "handler_closure_ported": true,

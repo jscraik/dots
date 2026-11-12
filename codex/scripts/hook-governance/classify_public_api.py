@@ -389,8 +389,8 @@ def main() -> int:
     if args.out is None:
         print(output)
     else:
-        _fixture_resource(args.out.parent).mkdir(parents=True, exist_ok=True)
-        _fixture_resource(args.out).write_text(output + "\n", encoding="utf-8")
+        _fixture_scope().output(args.out.parent).mkdir(parents=True, exist_ok=True)
+        _fixture_scope().output(args.out).write_text(output + "\n", encoding="utf-8")
     return 0
 
 

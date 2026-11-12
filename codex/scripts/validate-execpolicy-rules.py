@@ -15,7 +15,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from migration_scope import require_disposable_scope, require_fixture_path
+from migration_scope import require_policy_path, require_policy_scope
 
 try:
     import tomllib
@@ -27,10 +27,10 @@ except ModuleNotFoundError:
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RULES_DIR = REPO_ROOT / "rules"
 REQUIREMENTS_PATH = REPO_ROOT / "requirements.toml"
-require_disposable_scope()
-require_fixture_path(REPO_ROOT)
-require_fixture_path(RULES_DIR)
-require_fixture_path(REQUIREMENTS_PATH)
+require_policy_scope()
+require_policy_path(REPO_ROOT)
+require_policy_path(RULES_DIR)
+require_policy_path(REQUIREMENTS_PATH)
 
 
 def fixture_literal(value: str) -> str:
@@ -932,7 +932,7 @@ def load_requirements_toml() -> dict[str, object]:
 
 def run_execpolicy_command(cmd: list[str]) -> subprocess.CompletedProcess[str]:
     with tempfile.TemporaryDirectory(
-        prefix="dots-execpolicy-", dir=require_fixture_path(Path(os.environ["TMPDIR"]))
+        prefix="dots-execpolicy-", dir=require_policy_path(Path(os.environ["TMPDIR"]))
     ) as codex_home:
         process = subprocess.Popen(
             cmd,
@@ -1097,8 +1097,8 @@ def validate_requirements() -> tuple[bool, str]:
 def validate_fixture_boundary() -> tuple[bool, str]:
     """Bind managed constraints to canonical input; never install system policy."""
     try:
-        require_disposable_scope()
-        require_fixture_path(Path(os.environ["TMPDIR"]))
+        require_policy_scope()
+        require_policy_path(Path(os.environ["TMPDIR"]))
         expected_names = {
             "automation.rules",
             "default.rules",
@@ -1115,7 +1115,7 @@ def validate_fixture_boundary() -> tuple[bool, str]:
             REPO_ROOT / "config.toml",
             *RULES_DIR.iterdir(),
         ):
-            require_fixture_path(path)
+            require_policy_path(path)
             if not path.is_file() or path.is_symlink() or path.stat().st_nlink != 1:
                 raise ValueError(
                     "Canonical controls must be separate regular fixture files"

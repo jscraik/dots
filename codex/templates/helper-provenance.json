@@ -8,18 +8,20 @@
       "source_sha256": "00bb32dc9bfd4ee54eb48d2f69edbdbfe5294eca90d1fc337e45d1d740ddb21b",
       "transformations": [
         "public local path literals",
-        "fixture-only CLI and Path I/O admission"
+        "fixture-only CLI and Path I/O admission",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "55ef7e6c1a49876995c4367f0ef1b95f233cec5c2588e9af1e8972d9721aba3e"
+      "candidate_sha256": "a482738140bcb4e200029dc08f168a699a2cbae9b419babb00ffe8225640370d"
     },
     {
       "path": "codex/scripts/workflow-closeout.py",
       "source_sha256": "73ea40a215bfa4d266443a1b1f750e8a0a1157b784c6e8676fb3a934b991711c",
       "transformations": [
         "public local path literals",
-        "fixture-only CLI and Path I/O admission"
+        "fixture-only CLI and Path I/O admission",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "3160e004c7b814144f72420e5a7602363fc79252f495fc5735441c0be540bc14"
+      "candidate_sha256": "015fb6f8392e7aad22554ed2dafa2f8cd03e9926d7a44171ab98789339a7b4f8"
     },
     {
       "path": "codex/scripts/select-validation-for-changes.py",
@@ -80,9 +82,10 @@
       "source_sha256": "64b850e7e711e5c884728b64b462e31718ffe4a01a9bd90efed55c7b04004c39",
       "transformations": [
         "public local path literals",
-        "fixture-only CLI and Path I/O admission"
+        "fixture-only CLI and Path I/O admission",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "e52edd43dfa0e2f6207305742307782aad331a48fd25f316a602f6872017b65b"
+      "candidate_sha256": "83710324ccf46202d360e71df46886034c88b96388d09998db2a2a8aff14e2d3"
     },
     {
       "path": "codex/scripts/plan-graph-lint.py",
@@ -116,18 +119,20 @@
       "source_sha256": "d155a596b8eedfe32d0eacc4a5662fa286bc10a40e3f184ff88d46e7885272b5",
       "transformations": [
         "public local path literals",
-        "fixture-only CLI and Path I/O admission"
+        "fixture-only CLI and Path I/O admission",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "d82bfa33ceed54d9e4cb0c84cb2c5a559d6b93ec323159e1e24b12cf520d2d4c"
+      "candidate_sha256": "d536a7c437cbea0b737f7e640ce00cc79f26d36852e507af7c6fee2aae1f0159"
     },
     {
       "path": "codex/scripts/pr-body-refresh.py",
       "source_sha256": "37a56c2c014a61def2b717451a3df45de4cc0e749fec35e220f3848eb054a2dd",
       "transformations": [
         "public local path literals",
-        "fixture-only CLI and Path I/O admission"
+        "fixture-only CLI and Path I/O admission",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "a95399df0e6149b17f2bd09988655aab89946b18f5b6111147ff6d3a936cf9cd"
+      "candidate_sha256": "54ec603bcc69bbf95cba210ecda88d5acdb3cde64efad6dbc55f2f171aac0b29"
     },
     {
       "path": "codex/scripts/pr-review-request.py",
@@ -143,9 +148,10 @@
       "source_sha256": "06cea6f73b47dd50f6af42c0e68b9905e495f02542e3a1c6a6f31c33647d9c36",
       "transformations": [
         "public local path literals",
-        "fixture-only CLI and Path I/O admission"
+        "fixture-only CLI and Path I/O admission",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "0e3b7394dcf364af38665c37ec52cce533b63a487156a01fb160620ee27da934"
+      "candidate_sha256": "6f0256e6d44c8fba704719241807c733172d99b7a3b6730f4c53d4c39dca6f62"
     },
     {
       "path": "codex/scripts/git-metadata-preflight.py",
@@ -170,9 +176,10 @@
       "source_sha256": "43cd653c104487d1787e58a47cbdd05e75dce30e4f3a238be7f4e36894bc8b24",
       "transformations": [
         "public local path literals",
-        "fixture-only CLI and Path I/O admission"
+        "fixture-only CLI and Path I/O admission",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "15b00eba5e944d7ab41b353a44ed54516b19c2944e2129f24600b2348ce940cd"
+      "candidate_sha256": "0c171db28dcfafed681fc891c6f841d4ae6f7c194b5fbf5fe462d91073489034"
     },
     {
       "path": "codex/scripts/hook-governance/arbitrate_hook_results.py",
@@ -188,18 +195,20 @@
       "source_sha256": "64202b174b5b5a2e9b9dd1c482e93360a58943fd614bce8836d91279eaec4195",
       "transformations": [
         "public local path literals",
-        "fixture-only CLI and Path I/O admission"
+        "fixture-only CLI and Path I/O admission",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "7ecc15be8c2f7c14ce3f63833efe5abfa8f8270eff8c5aa2557a1ba6ab2e654b"
+      "candidate_sha256": "ef414f311afebd6c4458893cde40c406caeb59ddb1c4660372508425ebde6723"
     },
     {
       "path": "codex/scripts/hook-governance/evaluate_docstring_ratchet.py",
       "source_sha256": "b65570fb223cb79a84e484398634e50d0bf2f472c7a2b0b67c3c47822133a1aa",
       "transformations": [
         "public local path literals",
-        "fixture-only CLI and Path I/O admission"
+        "fixture-only CLI and Path I/O admission",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "985a96ab96dbf359f497fded56f82e889dbb8095ed9e58597e0601569fbc55f3"
+      "candidate_sha256": "8c4dc0023978b67de5f92db10af3cbbd1fb0e8eb8e5bc822a2e08ff45f7ac89a"
     },
     {
       "path": "codex/scripts/hook-governance/generate_conformance.py",
@@ -215,18 +224,20 @@
       "source_sha256": "652a937e228a682ebe99905ceb4cf46c7d5ece9fcb647406bc2b414be7dc9874",
       "transformations": [
         "public local path literals",
-        "fixture-only CLI and Path I/O admission"
+        "fixture-only CLI and Path I/O admission",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "def823de644314eef124d211fc2d8b29afac8c19e12adf434f73d4ed8cd52cbe"
+      "candidate_sha256": "43721aec89598798da0a2e226082192726222763cb6dbda4684f8ee951e6dd6b"
     },
     {
       "path": "codex/scripts/hook-governance/rollout_check.py",
       "source_sha256": "13debf2fa8130909b793d72672027cf71a658985b8fea997af996ae4f128a5e2",
       "transformations": [
         "public local path literals",
-        "fixture-only CLI and Path I/O admission"
+        "fixture-only CLI and Path I/O admission",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "8b1aa52e825db0f121877615910722e03b76f3cac2d5a236134a690b671d8c01"
+      "candidate_sha256": "bce2d4f17d26456da451ccd2a7e3e5ee01293df857d3abf73b4e45c3eee6b299"
     },
     {
       "path": "codex/scripts/hook-governance/validate_conformance.py",
@@ -649,12 +660,13 @@
       "path": "codex/scripts/git_metadata_core.py",
       "source_sha256": "3c21e1cbf3ad2d94bde4d116b32e3b36144b84cf9f6ffedf2db2b3ffc54f23f2",
       "transformations": [
-        "Canonical local copy of the shared leaf; fixture I/O and CLI confinement"
+        "Canonical local copy of the shared leaf; fixture I/O and CLI confinement",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
       "source_repository": "agent-skills",
       "source_revision": "afddb36dc2bdddd3e6ed84ac7c3393cd8e171f4c",
       "source_path": "Infrastructure/scripts/validation-and-linting/git_metadata_preflight.py",
-      "candidate_sha256": "489379f7eb02a16767f2e7e337fa131ad92d73222a9e70075c70b257676419f7"
+      "candidate_sha256": "a079793d7e5732496e0f6ffa50733228c254ede50f687fbb3d96051864082b33"
     },
     {
       "path": "tests/fixtures/configs-contract/scripts/cache_security.py",
@@ -678,25 +690,28 @@
       "path": "codex/scripts/helper_fixture_scope.py",
       "origin": "dots migration implementation",
       "transformations": [
-        "Shared disposable resource admission and missing-helper failure"
+        "Shared disposable resource admission and missing-helper failure",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "2a5a2313e5b07fa75286253e4dcbc6239799abaca8b56a9bb7432701bbd2ced2"
+      "candidate_sha256": "456ae9b744f916f269d28eda437b0f9dd5a5e7c0e10c2ee2842d0a0cbdd62e25"
     },
     {
       "path": "codex/scripts/adapt-hook-fixture-event.py",
       "origin": "dots migration implementation",
       "transformations": [
-        "Bind only generic harness resource placeholders, preserving tool commands as data"
+        "Bind only generic harness resource placeholders, preserving tool commands as data",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "8744de1fe55ec1fbecc1792f352426bded91aadd9faa53079af04d40718f05b7"
+      "candidate_sha256": "ff5ae651c06ef4210d2658d8081a8494c8742b0efa9c5b8b8aaf5af7630a9cdd"
     },
     {
       "path": "codex/scripts/core-hook-fixture-manifest.py",
       "origin": "dots migration implementation",
       "transformations": [
-        "Consume the publisher-validated original-core view from one captured snapshot"
+        "Consume the publisher-validated original-core view from one captured snapshot",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "833f8bdfdc09cb02930264278346a463602208736e4f01d4f30962a8e5b92e5e"
+      "candidate_sha256": "2634b864810b9ba18c819e03f4d50c949bc89764e46bcc656533ef20b3e99a00"
     },
     {
       "path": "codex/scripts/tests/runtime_config_fixture.py",
@@ -711,9 +726,10 @@
       "path": "codex/scripts/pr-readiness.py",
       "origin": "reconciled public source recorded in reconciliation-provenance.json",
       "transformations": [
-        "synthetic fixture resources; original selected checks retained"
+        "synthetic fixture resources; original selected checks retained",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "95861605c59574b8b2a3062ebc6d740161a3b012473b247468ce9a866f0fec47"
+      "candidate_sha256": "06ea7aab86db416c46a153c214c2c738cbba39c495a7812b523e26e0d11d7888"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",

@@ -1,8 +1,9 @@
 """Bound project metadata mutations to opened directories, without symlinks."""
 
 
-from migration_scope import require_disposable_scope, require_fixture_path
-require_disposable_scope()
+from migration_scope import require_policy_path, require_policy_scope
+
+require_policy_scope()
 
 import argparse
 import os
@@ -171,12 +172,12 @@ if __name__ == "__main__":
     parser.add_argument("repo", type=Path)
     parser.add_argument("value", nargs="?")
     args = parser.parse_args()
-    require_fixture_path(args.repo)
+    require_policy_path(args.repo)
     try:
         if args.operation == "append-learning" and args.value:
             append_learning(args.repo, args.value)
         elif args.operation == "publish-brain" and args.value:
-            require_fixture_path(Path(args.value))
+            require_policy_path(Path(args.value))
             publish_brain(args.repo, Path(args.value))
         elif (
             args.operation in {"ensure-ignore", "remove-config"} and args.value is None

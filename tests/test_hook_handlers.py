@@ -19,6 +19,38 @@ class HookHandlerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return json.loads(result.stdout)
 
+    def test_aikido_launcher_preserves_arguments_and_uses_only_fixture_providers(self):
+        fixture = self.fixture
+        binary = fixture.bin / 'aikido-fixture'
+        binary.write_text('#!/bin/sh\nprintf "synthetic-mcp:%s\\n" "$1"\n')
+        binary.chmod(0o755)
+        op = fixture.bin / 'op-fixture'
+        op.write_text('#!/bin/sh\n[ "$1" = run ] && [ "$2" = --env-file ] && [ "$4" = -- ] || exit 99\n'
+                      'shift 4\nexec "$@"\n')
+        op.chmod(0o755)
+        env_file = fixture.home / '.codex/aikido-mcp.env'
+        env_file.write_text('SYNTHETIC_REFERENCE=fixture-only\n')
+        script = fixture.codex / 'scripts/aikido-mcp.sh'
+
+        def run(**overrides):
+            env = fixture.env | {'AIKIDO_MCP_BIN': str(binary), 'OP_BIN': str(op)} | overrides
+            return subprocess.run(['bash', str(script), 'space in argument'],
+                                  env=env, cwd=fixture.repo, capture_output=True,
+                                  text=True, timeout=15, check=False)
+
+        for overrides in ({}, {'AIKIDO_MCP_USE_OP_RUN': '0'}):
+            result = run(**overrides)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(result.stdout, 'synthetic-mcp:space in argument\n')
+        missing = run(AIKIDO_MCP_BIN=str(fixture.bin / 'absent'))
+        self.assertEqual(missing.returncode, 127)
+        for overrides in ({'AIKIDO_MCP_BIN': '/outside-fixture'},
+                          {'AIKIDO_MCP_ENV_FILE': '/outside-fixture'},
+                          {'OP_BIN': '/bin/sh'}, {'DOTS_TEST_HOME': ''}):
+            result = run(**overrides)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn('synthetic-mcp:', result.stdout)
+
     def test_all_shell_syntax_and_manifest_targets(self):
         for directory in ('hooks', 'scripts'):
             for path in self.fixture.codex.joinpath(directory).rglob('*.sh'):

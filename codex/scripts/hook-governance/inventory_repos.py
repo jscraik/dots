@@ -54,7 +54,7 @@ class ManifestValidationError(ValueError):
 
 def load_manifest(manifest_path: Path) -> dict[str, object]:
     try:
-        with _fixture_resource(manifest_path).open("r", encoding="utf-8") as handle:
+        with _fixture_scope().fixture_open(manifest_path, "r", encoding="utf-8") as handle:
             payload = json.load(handle)
     except FileNotFoundError as exc:
         raise ManifestValidationError(
@@ -254,8 +254,8 @@ def main() -> int:
         return 1
     output = json.dumps(inventory, indent=2, sort_keys=True)
     if args.out is not None:
-        _fixture_resource(args.out.parent).mkdir(parents=True, exist_ok=True)
-        _fixture_resource(args.out).write_text(output + "\n", encoding="utf-8")
+        _fixture_scope().output(args.out.parent).mkdir(parents=True, exist_ok=True)
+        _fixture_scope().output(args.out).write_text(output + "\n", encoding="utf-8")
     else:
         print(output)
     return 0

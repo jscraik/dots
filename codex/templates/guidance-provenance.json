@@ -585,7 +585,8 @@
       "path": "codex/scripts/validate-execpolicy-rules.py",
       "source_sha256": "dba70e04d94ab617ca5b59e8bf02a757d87d45a62b04d504077e374c79e60aea",
       "decision": "Preserve all 93 native rule cases, hygiene, alias, timeout and retry checks; fixture-only paths, exact managed constraints and required CLI",
-      "candidate_sha256": "71bc7149b149c8862617d340e26cac8f0a1d9c34c5ac9b95b9a9bcf4c91e6418"
+      "candidate_sha256": "8ab81a3220732c53c1e25549dfb6a7e880da3bb539f69e543e22d8e4a1774053",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks."
     },
     {
       "path": "AGENTS.md",
@@ -597,7 +598,8 @@
       "path": "codex/instructions/migration-scope.md",
       "origin": "local migration adaptation",
       "decision": "Explicit public scope, serialization and proving checks; no new live authority",
-      "candidate_sha256": "249044a2baa713809c27ce7678327c1f3f33c689d37bcc50fc0eaeb8c56aa900"
+      "candidate_sha256": "de6b38a48efb041509c0b17666068e7b3554e3b4889ff3b5749724a8f83a1246",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks."
     },
     {
       "path": "scripts/generate-codex-controls.py",

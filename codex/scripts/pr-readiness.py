@@ -27,12 +27,13 @@ if _scope_spec is None or _scope_spec.loader is None:
     raise RuntimeError('Disposable migration scope is unavailable')
 _scope = _scope_import.module_from_spec(_scope_spec)
 _scope_spec.loader.exec_module(_scope)
-require_auth_free_environment = _scope.require_auth_free_environment
-require_disposable_scope = _scope.require_disposable_scope
-require_fixture_path = _scope.require_fixture_path
+require_policy_environment = _scope.require_policy_environment
+require_policy_scope = _scope.require_policy_scope
+require_policy_path = _scope.require_policy_path
+require_policy_output = _scope.require_policy_output
 
-require_disposable_scope()
-require_auth_free_environment()
+require_policy_scope()
+require_policy_environment()
 
 import argparse
 import hashlib
@@ -3714,10 +3715,10 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    require_fixture_path(args.repo_root or Path.cwd())
+    require_policy_path(args.repo_root or Path.cwd())
     for candidate in (args.scope_file, args.review_waiver_file, args.receipt):
         if candidate is not None:
-            require_fixture_path(candidate)
+            require_policy_path(candidate)
     try:
         root = resolve_root(args.repo_root)
         if args.export_review_clearance:
@@ -3777,6 +3778,7 @@ def main() -> int:
         result = build_result(args)
         if args.write_receipt:
             path = args.receipt or Path(result["receipt"]["path"])
+            require_policy_output(path)
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
             result["receipt"]["path"] = str(path)

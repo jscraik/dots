@@ -73,7 +73,14 @@ def require_disposable_scope():
 
 
 def local_path_text(value):
-    return value.replace("@HOME@", str(require_disposable_scope()))
+    home = require_policy_scope()
+    result = value.replace("@HOME@", str(home))
+    module = deployment_module()
+    if module is not None:
+        result = result.replace(str(home / 'dev/dots/codex/usage-data'),
+                                str(home / '.codex/usage-data'))
+        result = result.replace(str(home / 'dev/dots'), str(module.ROOT))
+    return result
 
 
 def require_fixture_path(path):
@@ -122,3 +129,45 @@ def require_auth_free_environment():
         if candidate.is_dir() and candidate not in seen:
             seen.add(candidate)
             pending.extend(candidate.iterdir())
+
+
+_DEPLOYMENT_MODULE = None
+
+
+def deployment_module():
+    """Load only the packaged sibling; no environment flag selects deployment."""
+    import importlib.util
+    global _DEPLOYMENT_MODULE
+    marker = Path(__file__).resolve().parents[1] / '.deployment.json'
+    if not os.path.lexists(marker):
+        return None
+    if _DEPLOYMENT_MODULE is not None:
+        return _DEPLOYMENT_MODULE
+    spec = importlib.util.spec_from_file_location('dots_deployment_scope',
+        Path(__file__).with_name('deployment_scope.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _DEPLOYMENT_MODULE = module
+    return module
+
+
+def require_policy_scope():
+    module = deployment_module()
+    if module is None:
+        return require_disposable_scope()
+    return Path(module.context()['home'])
+
+
+def require_policy_path(path):
+    module = deployment_module()
+    return require_fixture_path(path) if module is None else module.require_path(path)
+
+
+def require_policy_output(path):
+    module = deployment_module()
+    return require_fixture_path(path) if module is None else module.require_path(path, output=True)
+
+
+def require_policy_environment():
+    module = deployment_module()
+    return require_auth_free_environment() if module is None else module.require_environment()

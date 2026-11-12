@@ -530,7 +530,7 @@ def main() -> int:
                 "checked_at": datetime.now(UTC).isoformat(),
             }
             if args.write_receipt:
-                _fixture_resource(args.receipt).write_text(
+                _fixture_scope().output(args.receipt).write_text(
                     json.dumps(result, indent=2) + "\n"
                 )
         print(

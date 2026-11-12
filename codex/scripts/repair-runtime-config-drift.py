@@ -1,7 +1,9 @@
 """Detect and repair recurring Codex runtime config drift."""
 from __future__ import annotations
-from migration_scope import local_path_text, require_disposable_scope, require_fixture_path
-require_disposable_scope()
+
+from migration_scope import local_path_text, require_policy_path, require_policy_scope
+
+require_policy_scope()
 import argparse
 import contextlib
 import copy
@@ -16,9 +18,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 from fnmatch import fnmatchcase
 from pathlib import Path
-import tomllib
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = SCRIPT_DIR.parent / 'config.toml'
 SCHEMA_VERSION = 'runtime-config-drift-repair/v1'
@@ -1289,9 +1292,9 @@ def _emit(payload: dict[str, object], json_output: bool, message: str='') -> Non
 def main(argv: list[str] | None=None) -> int:
     args = parse_args(argv)
     config_path = args.config_path.expanduser()
-    require_fixture_path(config_path)
+    require_policy_path(config_path)
     if args.backup_path is not None:
-        require_fixture_path(args.backup_path)
+        require_policy_path(args.backup_path)
     if config_path.is_symlink() or not config_path.is_file():
         payload = _payload(status='blocked', path=config_path, reason='config_unreadable', error='runtime config must be a regular file, not a symlink')
         _emit(payload, args.json)

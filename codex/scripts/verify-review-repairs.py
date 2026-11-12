@@ -103,7 +103,7 @@ def main() -> int:
         output = root / ".tmp" / "repair-evidence"
         if (root / ".tmp").is_symlink() or output.is_symlink():
             raise ValueError("artifact directory must not be a symlink")
-        _fixture_resource(output).mkdir(parents=True, exist_ok=True)
+        _fixture_scope().output(output).mkdir(parents=True, exist_ok=True)
         for number in numbers:
             pr, error = READINESS.gh_pr(root, for_export=True, number=number)
             if error or not pr:
@@ -188,7 +188,7 @@ def main() -> int:
                 "evidence": evidence,
                 "grants_merge_authority": False,
             }
-            with _fixture_resource(output / f"pr-{number}.json").open(
+            with _fixture_scope().fixture_open(output / f"pr-{number}.json",
                 "x", encoding="utf-8"
             ) as handle:
                 json.dump(report, handle, indent=2, sort_keys=True)

@@ -159,9 +159,10 @@
       "source_sha256": "5b4e1fc54637416e828bf9a6b8b57255fb3b7141451386fb5187b175ce34078b",
       "transformations": [
         "disposable scope admission before runtime helper execution",
-        "CLI primary path confined to fixture"
+        "CLI primary path confined to fixture",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "7c38c72729b31ce38be966aa696ab974d333a8e06bbc79df39f05f17b4970910"
+      "candidate_sha256": "c1dede426384d1d5e553feb3eb11a3efa7a70135e3bf92fde5dcd545d3c9ea13"
     },
     {
       "path": "codex/scripts/workflow-priority-gate.py",
@@ -169,9 +170,10 @@
       "source_sha256": "1bcf7dcca18a77788146f1d9ea336a9514163a123e8850d8588a417b38a8033a",
       "transformations": [
         "disposable scope admission before runtime helper execution",
-        "CLI primary path confined to fixture"
+        "CLI primary path confined to fixture",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "40321af575512c399cd46e3e6fd5adc8d826687f111cc56e4a75ef4da105198b"
+      "candidate_sha256": "052c0bd6b63f3e680b77c15362bb5c0ea34bcd981f69791d18ed6b13a0a96dd8"
     },
     {
       "path": "codex/scripts/scrub-codex-scratch-projects.py",
@@ -180,9 +182,10 @@
       "transformations": [
         "disposable scope admission before runtime helper execution",
         "CLI primary path confined to fixture",
-        "home-relative scratch prefix and synthetic self-test paths"
+        "home-relative scratch prefix and synthetic self-test paths",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "e61d24a760ebc3b8e53785661ab868e1e3d35adb956d4cf4f141e7e377d13624"
+      "candidate_sha256": "740299a0a7cdc0e9145de13599ee6394e0f896123c2448f99886da08413f8273"
     },
     {
       "path": "codex/scripts/scrub-computer-use-config.py",
@@ -190,9 +193,10 @@
       "source_sha256": "25a9588293446ce085c3b40a50b24112d66342d120dedfe1e61c8c770f04fb80",
       "transformations": [
         "disposable scope admission before runtime helper execution",
-        "CLI primary path confined to fixture"
+        "CLI primary path confined to fixture",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "a6f2478e1d888b3a8bbeeff9c2ba4535e03d4b75ec1382395c89274ea1eef5a2"
+      "candidate_sha256": "05c6f6e34090d98f9e55d542ede656aa3cbf1b34fb44d4273f69f508ee5d0cae"
     },
     {
       "path": "codex/scripts/audit-project-codex-config-overrides.sh",
@@ -229,9 +233,10 @@
       "source_sha256": "100014a0b8a7acc35c2a09d890a03413bb9953dae7ccd40807af4cef3e486af7",
       "transformations": [
         "disposable scope admission before runtime helper execution",
-        "Load the trusted sibling support for the isolated offline parser without changing review policy"
+        "Load the trusted sibling support for the isolated offline parser without changing review policy",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "95861605c59574b8b2a3062ebc6d740161a3b012473b247468ce9a866f0fec47"
+      "candidate_sha256": "06ea7aab86db416c46a153c214c2c738cbba39c495a7812b523e26e0d11d7888"
     },
     {
       "path": "codex/scripts/pr_repair_ci.py",
@@ -288,9 +293,10 @@
       "transformations": [
         "disposable scope admission before runtime helper execution",
         "CLI primary path confined to fixture",
-        "Explicit sibling-scope load preserves system Python -I -S and denies source-directory module shadowing"
+        "Explicit sibling-scope load preserves system Python -I -S and denies source-directory module shadowing",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "d8b4440f746df616c15f412e57b697ce536326894cd709451d28b7c4ccf70d58"
+      "candidate_sha256": "3ff8743564303f3fc1373ddcc6449488410c7bf4f6bd4eef6594a0a29737901d"
     },
     {
       "path": "codex/scripts/validate-auth-env-mount.py",
@@ -299,9 +305,26 @@
       "transformations": [
         "disposable scope admission before runtime helper execution",
         "CLI primary path confined to fixture",
-        "Explicit sibling-scope load preserves system Python -I -S and denies source-directory module shadowing"
+        "Explicit sibling-scope load preserves system Python -I -S and denies source-directory module shadowing",
+        "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "163bdc0c61450cdf9817191c1714a32ad901a0862b4f47bd07ce313fec74a66f"
+      "candidate_sha256": "1a5b3dfbc8dda272a7d1116024f547afac4b61a3d39611c09785d8c07d67e2f0"
+    },
+    {
+      "path": "codex/scripts/deployment_scope.py",
+      "source_revision": null,
+      "source_sha256": null,
+      "transformation": "New fixed private-package identity and resource adapter; fixture defaults retained.; Add fixed packaged-context admission; retain default disposable admission and original checks.",
+      "candidate_sha256": "7fd760ab2bf09d1f983eed3db332415c1bcde0dee1b25863af3960e3eb2455fa"
+    },
+    {
+      "path": "codex/scripts/aikido-mcp.sh",
+      "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
+      "source_sha256": "e391752936c1a6f2eb4a05f4922bedbe51441b53f32fd43d2957e71899afd0ec",
+      "transformations": [
+        "Retain pinned local binary and 1Password execution; admit fixture or fixed packaged context and each provider path before execution."
+      ],
+      "candidate_sha256": "83c374937bbf77514861cf5c3abcf26adec3b1b2f3b6700014bf84fe65c02f77"
     }
   ],
   "external_boundaries": [

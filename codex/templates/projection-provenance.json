@@ -42,6 +42,20 @@
       "source_sha256": "19cc6571551e375afc612b6630fac7205d4fe9e0ddccde5263cc8ec358d00309",
       "transformation": "unchanged",
       "candidate_sha256": "19cc6571551e375afc612b6630fac7205d4fe9e0ddccde5263cc8ec358d00309"
+    },
+    {
+      "path": "scripts/install-codex.py",
+      "source_revision": null,
+      "source_sha256": null,
+      "transformation": "New thin entrypoint to the repository-owned installation procedure.",
+      "candidate_sha256": "00ad185d9cf508a55221b028386d088a305f6de6af132550b2ededcb90ddd983"
+    },
+    {
+      "path": "codex/scripts/install-codex.py",
+      "source_revision": null,
+      "source_sha256": null,
+      "transformation": "New local prepare/apply/check/rollback procedure reusing existing validators and publishers.; Add fixed packaged-context admission; retain default disposable admission and original checks.",
+      "candidate_sha256": "a182b58046a5701caa724ec9d87910ab7e002574546bf56ce22a915521820952"
     }
   ],
   "fixture_kind": "full-policy-v1",

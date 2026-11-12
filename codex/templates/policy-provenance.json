@@ -186,7 +186,48 @@
     "value_0139",
     "value_0140",
     "value_0141",
-    "value_0142"
+    "value_0142",
+    "value_0143",
+    "value_0144",
+    "value_0145",
+    "value_0146",
+    "value_0147",
+    "value_0148",
+    "value_0149",
+    "value_0150",
+    "value_0151",
+    "value_0152",
+    "value_0153",
+    "value_0154",
+    "value_0155",
+    "value_0156",
+    "value_0157",
+    "value_0158",
+    "value_0159",
+    "value_0160",
+    "value_0161",
+    "value_0162",
+    "value_0163",
+    "value_0164",
+    "value_0165",
+    "value_0166",
+    "value_0167",
+    "value_0168",
+    "value_0169",
+    "value_0170",
+    "value_0171",
+    "value_0172",
+    "value_0173"
   ],
-  "classification": "Machine paths, private endpoint and app identities, consent hashes and personal Desktop state are local string bindings. All other parsed values are retained."
+  "classification": "Machine paths, private endpoint and app identities, consent hashes and personal Desktop state are local string bindings. All other parsed values are retained.",
+  "local_policy_reconciliation": {
+    "source_status": "12 November read-only working-tree snapshot; not an accepted commit",
+    "config_sha256": "e41aa85006721ff037edcf3c939840d9395d5fa6f65dba33ffc7b8479b5f9fca",
+    "public_structure": [
+      "marketplaces.drawio",
+      "plugins.drawio@drawio"
+    ],
+    "local_state": "Fifteen additional consent records use local string slots; no machine identities or trust hashes are public. Inspect exact definitions and obtain current consent before activation.",
+    "disabled_profiles": "Retain the reviewed /usr/bin/false transport for five disabled legacy cua_repl entries; it does not enable them."
+  }
 }

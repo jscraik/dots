@@ -47,6 +47,57 @@ Existing machine-specific files are preserved; conflicting managed paths require
 manual review. No package installation, tool trust, shell activation, background
 updater, credential access or live projection occurs.
 
+The reusable Aikido launcher is included under `codex/scripts/`. Its executable
+and 1Password reference file remain local. The launcher retains the existing
+1Password route and pinned-binary requirement; tests use synthetic providers
+inside disposable homes. No provider is installed or authenticated by the port.
+Packaged provider admission recognises its named local binary/reference inputs
+and the existing 1Password CLI locations. It adds no writable helper roots;
+rehearsals continue to reject host providers and escaping symlinks.
+
+## First-machine installation candidate
+
+`scripts/install-codex.py` provides one local procedure: `prepare`, `apply`,
+`check` and `rollback`. It reuses the existing projector, full policy validator,
+Desktop-setting preservation and atomic config/hook publishers. It installs no
+packages, starts no background service and does not contact a provider or CI.
+
+Preparation creates a private, read-only policy package and validates it before
+backing up the 19 managed targets. Config and hook manifests remain independent
+regular files; profiles and reusable code use links into that package. Existing
+agents, automations, usage data, browser/pet state and all session/auth stores
+remain local. Backups cover managed files and link metadata, not those stores.
+
+Rehearse only in an owned disposable home under resolved `/tmp`, with an existing
+synthetic Codex setup and private binding JSON. The test entrypoint builds that
+setup and exercises the actual commands:
+
+```sh
+DOTS_CODEX_BIN=/absolute/path/to/codex python3 -B -m unittest discover -s tests -p test_installation_route.py -v
+```
+
+For an operator-prepared rehearsal, the command sequence is:
+
+```sh
+python3 -B scripts/install-codex.py prepare --mode rehearsal --home TEMP_HOME --state-dir TEMP_HOME/installation/one --bindings BINDINGS_JSON --braid-bin BRAID_BINARY
+python3 -B scripts/install-codex.py apply --state-dir TEMP_HOME/installation/one --plan-digest PREPARED_DIGEST
+python3 -B scripts/install-codex.py check --state-dir TEMP_HOME/installation/one --plan-digest PREPARED_DIGEST
+python3 -B scripts/install-codex.py rollback --state-dir TEMP_HOME/installation/one --plan-digest PREPARED_DIGEST
+```
+
+Substitute explicit paths and the digest returned by preparation. That digest
+identifies the prepared change; it grants no execution or installation authority.
+Do not edit the source or package between commands. Repeated application is a
+check; interrupted application resumes before rollback. Unexpected newer target
+content stops recovery and retains the backup for inspection.
+
+The candidate also distinguishes the current OS account home from disposable
+homes. That admission is not live qualification. A quiet maintenance window,
+private binding and external-dependency checks, current consent, independent
+review and a separate activation decision are still required. This migration
+has not installed into the live home or changed `/etc/codex` policy. Without a
+packaged context, all imported tools retain their original strict fixture guard.
+
 ## Synthetic Codex projection preview
 
 The first projection increment uses an explicitly synthetic public template
@@ -141,8 +192,12 @@ governance validation before installation. Never supply credentials as bindings.
 The synthetic bindings are invented strings for serialization testing, not
 working endpoints, valid hook consent or a deployable workstation configuration.
 Private reconstruction was compared against the accepted source: all eight
-parsed policies matched before the integration adaptation below. Current
-reconstruction matches with only that explicit disabled-transport adaptation.
+parsed policies matched before the integration adaptation below. The template
+also retains the newer draw.io registration. Its source path and additional
+hook-consent identities and hashes use local slots with synthetic examples;
+they are not public machine state. Inspect the exact hook definitions and
+establish current consent before activation. The reviewed disabled-transport
+adaptation remains in place.
 The accepted validator's schema feature/approval-mode
 parity and seven-profile policy, transport and OSS-isolation checks passed on
 that reconstruction. Negative probes rejected weakened approvals and isolation.

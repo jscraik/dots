@@ -52,6 +52,14 @@ class PolicyGenerationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.render()
 
+    def test_drawio_registration_keeps_its_local_source_as_data(self):
+        root = tomllib.loads(self.render()['config'])
+        self.assertEqual(root['plugins']['drawio@drawio'], {'enabled': True})
+        self.assertEqual(root['marketplaces']['drawio']['source_type'], 'local')
+        self.assertTrue(root['marketplaces']['drawio']['source'].startswith('/synthetic/'))
+        self.assertEqual(root['approval_policy'], 'on-request')
+        self.assertEqual(root['approvals_reviewer'], 'auto_review')
+
     def test_quotes_cannot_inject_policy(self):
         self.bindings = {key: value + '\"\n[attack]\nallow=true' for key, value in self.bindings.items()}
         result = self.render()

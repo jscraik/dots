@@ -11,9 +11,9 @@ _scope_spec = _scope_import.spec_from_file_location(
     'auth_migration_scope', Path(__file__).resolve().with_name('migration_scope.py'))
 _scope = _scope_import.module_from_spec(_scope_spec)
 _scope_spec.loader.exec_module(_scope)
-require_disposable_scope = _scope.require_disposable_scope
-require_fixture_path = _scope.require_fixture_path
-require_disposable_scope()
+require_policy_scope = _scope.require_policy_scope
+require_policy_path = _scope.require_policy_path
+require_policy_scope()
 
 import argparse
 import ast
@@ -89,7 +89,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, required=True)
     args = parser.parse_args()
-    require_fixture_path(args.config)
+    require_policy_path(args.config)
 
     try:
         value = read_environment_id(args.config)

@@ -7,8 +7,8 @@ This library is a public-appropriate port of accepted Configs revision
 content-bound hook-copy integration in `templates/hook-copy-provenance.json`.
 The dots migration maintainer owns this candidate. Configs remains the live
 control plane; other outstanding work there is preserved separately and is not
-adopted, rewritten or replaced. Dots is an inactive candidate with no
-live-home installer. Publication, live cutover and managed-system installation
+adopted, rewritten or replaced. Dots is an inactive candidate with a locally
+rehearsed installation route. Publication, live cutover and managed-system installation
 require separate authority and proof.
 
 `templates/reconciliation-provenance.json` records selected reusable pending
@@ -31,9 +31,20 @@ a missing no-op validator.
 
 `${CONFIGS_CHECKOUT}`, `${CODEX_POLICY_SOURCE}` and `${CODEX_HOME}` in retained
 examples are local path placeholders, not configuration values to discover from
-sessions. Resolve them explicitly for an authorised task. During this migration
-only disposable fixture paths are admitted by the ported runtime tools.
+sessions. Resolve them explicitly for an authorised task. Imported tools default
+to disposable fixture admission. The isolated installation candidate additionally
+recognises its fixed private package context; it checks source identity, the
+target OS account or disposable home, and the named policy resources. This
+context grants no task, review, credential, execution or activation authority.
 Never direct an installation recipe at the real home as a way of validating it.
+
+The [installation procedure](../../README.md#first-machine-installation-candidate)
+reuses the existing projector and validators. Managed-only backups and readback
+support cutover, repeat, interrupted-apply recovery and rollback in isolation.
+All local stores stay on the machine; browser, pets and usage-data aliases are
+preserved rather than moved. A rehearsal does not qualify external services,
+native active-turn enforcement or live activation. The separate first-machine
+acceptance and approval boundary remains in force.
 
 ## Checks and dependencies
 

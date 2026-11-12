@@ -127,7 +127,7 @@ def _resolve_git_path(
 
 
 def _probe_write(path: Path) -> dict[str, Any]:
-    _fixture_resource(path)
+    _fixture_scope().output(path)
     if not path.is_dir():
         return {"path": str(path), "status": "blocked", "reason": "path_missing"}
     fd: int | None = None
@@ -150,7 +150,7 @@ def _probe_write(path: Path) -> dict[str, Any]:
             os.close(fd)
         if probe_path is not None:
             try:
-                _fixture_resource(probe_path).unlink()
+                _fixture_scope().output(probe_path).unlink()
             except OSError as exc:
                 result = {
                     "path": str(path),

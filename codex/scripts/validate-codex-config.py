@@ -1,7 +1,9 @@
 """Validate solo-dev Codex config governance and MCP hygiene."""
 from __future__ import annotations
-from migration_scope import local_path_text, require_disposable_scope
-require_disposable_scope()
+
+from migration_scope import deployment_module, local_path_text, require_policy_scope
+
+require_policy_scope()
 import argparse
 import json
 import os
@@ -15,6 +17,7 @@ from fnmatch import fnmatchcase
 from importlib import import_module
 from pathlib import Path
 from urllib.parse import urlparse
+
 try:
     import tomllib
 except ModuleNotFoundError:
@@ -544,7 +547,18 @@ def validate_tracked_projection_paths(tracked_paths: list[str]) -> list[str]:
     return sorted(set(errors))
 
 def tracked_repo_paths() -> tuple[list[str], str | None]:
-    """Return Git-tracked paths for the config repo, or an error string."""
+    """Use Git, or its captured public-source inventory in a sealed package."""
+    deployed = deployment_module()
+    if deployed is not None:
+        try:
+            deployed.context()
+            source = json.loads(deployed.read_regular(deployed.ROOT / 'codex/.public-source.json'))
+            paths = [row['path'] for row in source]
+            if not paths or len(paths) != len(set(paths)):
+                raise ValueError('Source inventory must be nonempty and unique')
+            return paths, None
+        except (KeyError, OSError, TypeError, ValueError) as error:
+            return [], 'unable to inspect captured public-source inventory: ' + str(error)
     try:
         result = subprocess.run(['git', '-C', str(CONFIG_REPO_ROOT), 'ls-files'], check=False, capture_output=True, text=True)
     except OSError as exc:

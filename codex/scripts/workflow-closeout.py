@@ -150,7 +150,7 @@ def sample_receipt() -> dict[str, Any]:
 
 def load_json(path: Path) -> tuple[object | None, str | None]:
     try:
-        with _fixture_resource(path).open("r", encoding="utf-8") as handle:
+        with _fixture_scope().fixture_open(path, "r", encoding="utf-8") as handle:
             return (json.load(handle), None)
     except OSError as exc:
         return (None, f"unable to read {path}: {exc}")

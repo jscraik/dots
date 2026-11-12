@@ -8,12 +8,14 @@ import copy
 import importlib.util
 import json
 import os
-import stat
 import shlex
+import stat
 import tempfile
 from pathlib import Path
-from migration_scope import require_disposable_scope, require_fixture_path
-require_disposable_scope()
+
+from migration_scope import deployment_module, require_policy_path, require_policy_scope
+
+require_policy_scope()
 
 
 def guard_manifest() -> dict:
@@ -52,7 +54,7 @@ def unique_keys(pairs: list) -> dict:
 
 def without_braid(payload: dict) -> dict:
     """Validate the approved Braid alpha.17 contract, retaining all other hooks."""
-    command = shlex.quote(str(require_disposable_scope() / ".local/bin/braid")) + " hook codex"
+    command = shlex.quote(str(require_policy_scope() / ".local/bin/braid")) + " hook codex"
     capture = {"type": "command", "command": command + " --capture"}
     inject = {"type": "command", "command": command + " --inject", "additionalContextLimit": 2500}
     asynchronous = {**capture, "async": True}
@@ -87,7 +89,7 @@ def without_braid(payload: dict) -> dict:
 
 def validated_bytes(source: Path) -> bytes:
     """Reject incomplete manifests before touching the current runtime file."""
-    require_fixture_path(source)
+    require_policy_path(source)
     if source.is_symlink() or not source.is_file():
         raise ValueError('Canonical hooks must be a regular source file')
     data = source.read_bytes()
@@ -122,10 +124,13 @@ def identity(path: Path) -> tuple:
     return (entry.st_dev, entry.st_ino, entry.st_mode, content)
 
 
-def publish(source: Path, target: Path, check: bool = False) -> str:
+def publish(source: Path, target: Path, check: bool = False, backup_dir: Path | None = None) -> str:
     """Keep canonical bytes authoritative; preserve displaced files for recovery."""
-    require_fixture_path(source)
-    require_fixture_path(target)
+    require_policy_path(source)
+    require_policy_path(target)
+    deployed = deployment_module()
+    if deployed is not None and target != Path(deployed.context()['home']) / '.codex/hooks.json':
+        raise ValueError('Deployed hook publication requires its declared runtime target')
     if target.exists() and not target.is_symlink() and target.samefile(source):
         raise ValueError('Runtime target must not share the canonical inode')
     data = validated_bytes(source)
@@ -144,7 +149,11 @@ def publish(source: Path, target: Path, check: bool = False) -> str:
     if target.resolve() == source.resolve() and not target.is_symlink():
         raise ValueError("runtime target must be separate from canonical source")
     target.parent.mkdir(parents=True, exist_ok=True)
-    fd, name = tempfile.mkstemp(prefix=".hooks-backup-", dir=target.parent)
+    if backup_dir is not None:
+        if deployed is None or backup_dir != Path(deployed.context()['state_dir']) / 'publisher-backups':
+            raise ValueError('Hook backup directory must belong to this installation')
+        require_policy_path(backup_dir)
+    fd, name = tempfile.mkstemp(prefix=".hooks-backup-", dir=target.parent if backup_dir is None else backup_dir)
     staged = Path(name)
     exchanged = False
     try:
@@ -178,6 +187,7 @@ def main() -> None:
     parser.add_argument("--source", required=True, type=Path)
     parser.add_argument("--target", type=Path)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--backup-dir", type=Path)
     parser.add_argument("--without-braid", action="store_true")
     args = parser.parse_args()
     try:
@@ -186,7 +196,7 @@ def main() -> None:
             return
         if args.target is None:
             parser.error("--target is required for publication")
-        result = publish(args.source, args.target, args.check)
+        result = publish(args.source, args.target, args.check, args.backup_dir)
     except (OSError, ValueError) as error:
         parser.exit(1, f"project-codex-hooks: {error}\n")
     print(json.dumps({"schema_version": 1, "service": "project-codex-hooks", "status": "pass", "result": result}))

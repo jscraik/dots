@@ -131,12 +131,12 @@ def run_self_test() -> tuple[bool, dict[str, Any]]:
         fresh = temp_root / "fresh.txt"
         stale = temp_root / "stale.txt"
         missing = temp_root / "missing.txt"
-        _fixture_resource(fresh).write_text("fresh\n", encoding="utf-8")
-        _fixture_resource(stale).write_text("stale\n", encoding="utf-8")
+        _fixture_scope().output(fresh).write_text("fresh\n", encoding="utf-8")
+        _fixture_scope().output(stale).write_text("stale\n", encoding="utf-8")
         now = time.time()
         old_mtime = now - 7200
-        _fixture_resource(stale).touch()
-        _fixture_resource(fresh).touch()
+        _fixture_scope().output(stale).touch()
+        _fixture_scope().output(fresh).touch()
         stale_stat = (old_mtime, old_mtime)
         import os
 

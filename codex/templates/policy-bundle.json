@@ -577,6 +577,9 @@
       },
       "browser@openai-bundled": {
         "enabled": true
+      },
+      "drawio@drawio": {
+        "enabled": true
       }
     },
     "skills": {
@@ -662,6 +665,10 @@
         "@local:value_0075": "@local:value_0080",
         "source_type": "local",
         "source": "@local:value_0081"
+      },
+      "drawio": {
+        "source_type": "local",
+        "source": "@local:value_0143"
       }
     },
     "hooks": {
@@ -734,6 +741,51 @@
         },
         "skill-factory@agent-skills-local:hooks/hooks.json:session_start:0:0": {
           "trusted_hash": "@local:value_0123"
+        },
+        "@local:value_0144": {
+          "trusted_hash": "@local:value_0145"
+        },
+        "@local:value_0146": {
+          "trusted_hash": "@local:value_0147"
+        },
+        "@local:value_0148": {
+          "trusted_hash": "@local:value_0149"
+        },
+        "@local:value_0150": {
+          "trusted_hash": "@local:value_0151"
+        },
+        "@local:value_0152": {
+          "trusted_hash": "@local:value_0153"
+        },
+        "@local:value_0154": {
+          "trusted_hash": "@local:value_0155"
+        },
+        "@local:value_0156": {
+          "trusted_hash": "@local:value_0157"
+        },
+        "@local:value_0158": {
+          "trusted_hash": "@local:value_0159"
+        },
+        "@local:value_0160": {
+          "trusted_hash": "@local:value_0161"
+        },
+        "@local:value_0162": {
+          "trusted_hash": "@local:value_0163"
+        },
+        "@local:value_0164": {
+          "trusted_hash": "@local:value_0165"
+        },
+        "@local:value_0166": {
+          "trusted_hash": "@local:value_0167"
+        },
+        "@local:value_0168": {
+          "trusted_hash": "@local:value_0169"
+        },
+        "@local:value_0170": {
+          "trusted_hash": "@local:value_0171"
+        },
+        "@local:value_0172": {
+          "trusted_hash": "@local:value_0173"
         }
       }
     },

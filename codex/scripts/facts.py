@@ -265,12 +265,12 @@ class FactRegistry:
 
         Returns dict of {purpose: path} for files written.
         """
-        _fixture_resource(output_dir).mkdir(parents=True, exist_ok=True)
+        _fixture_scope().output(output_dir).mkdir(parents=True, exist_ok=True)
         paths = {}
 
         def write_export(name: str, payload: object) -> None:
             path = output_dir / f"{name}.json"
-            _fixture_resource(path).write_text(
+            _fixture_scope().output(path).write_text(
                 json.dumps(sanitize_export(payload), indent=2), encoding="utf-8"
             )
             paths[name] = path

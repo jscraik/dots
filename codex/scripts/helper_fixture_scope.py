@@ -50,12 +50,12 @@ PATH_ARGUMENTS = {
 
 
 def admit_file(file: str, arguments=None):
-    SCOPE.require_disposable_scope()
-    SCOPE.require_fixture_path(Path(file).resolve())
+    SCOPE.require_policy_scope()
+    SCOPE.require_policy_path(Path(file).resolve())
     if not os.environ.get("TMPDIR"):
         raise RuntimeError("Helper validation requires an explicit fixture TMPDIR")
-    SCOPE.require_fixture_path(Path(os.environ["TMPDIR"]))
-    SCOPE.require_auth_free_environment()
+    SCOPE.require_policy_path(Path(os.environ["TMPDIR"]))
+    SCOPE.require_policy_environment()
     if arguments is not None:
         for name, value in vars(arguments).items():
             if value is None or isinstance(value, bool):
@@ -64,26 +64,37 @@ def admit_file(file: str, arguments=None):
                 if (isinstance(item, Path) or name in PATH_ARGUMENTS) and item != "-":
                     # Keep the parser's original spelling for its own traversal
                     # checks; admission only bounds the resolved resource here.
-                    SCOPE.require_fixture_path(Path(item).expanduser().resolve())
+                    guard = SCOPE.require_policy_output if name in {
+                        'out', 'output', 'out_dir', 'output_dir'} else SCOPE.require_policy_path
+                    guard(Path(item).expanduser().resolve())
     return arguments
 
 
 def resource(value):
     """Guard Path I/O without changing string methods with the same names."""
     if isinstance(value, Path):
-        SCOPE.require_fixture_path(value)
+        SCOPE.require_policy_path(value)
     return value
 
 
 def fixture_open(file, *args, **kwargs):
-    SCOPE.require_fixture_path(Path(file).expanduser())
+    mode = args[0] if args else kwargs.get('mode', 'r')
+    guard = SCOPE.require_policy_output if any(flag in mode for flag in 'wax+') else SCOPE.require_policy_path
+    guard(Path(file).expanduser())
     return open(file, *args, **kwargs)
+
+
+def output(value):
+    """Admit an explicit mutating Path operation without changing fixture scope."""
+    if isinstance(value, Path):
+        SCOPE.require_policy_output(value)
+    return value
 
 
 def require_helper_bundle(root):
     """Fail before the aggregate can skip a missing migrated validator."""
     admit_file(__file__)
-    SCOPE.require_fixture_path(Path(root))
+    SCOPE.require_policy_path(Path(root))
     # The accepted aggregate can inspect another target repository. Check the
     # canonical helper bundle independently; do not select helpers from that
     # target or forbid the original target-owned duplication regression.
@@ -101,7 +112,7 @@ def require_helper_bundle(root):
         if not isinstance(name, str) or not name.startswith("codex/"):
             # Original Configs consumer recipes are inert regression resources.
             continue
-        candidate = SCOPE.require_fixture_path(policy_root.parent / name)
+        candidate = SCOPE.require_policy_path(policy_root.parent / name)
         if candidate.is_symlink() or not candidate.is_file():
             raise ValueError("Missing migrated helper dependency: " + name)
 

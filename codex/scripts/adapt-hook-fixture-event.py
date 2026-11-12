@@ -4,9 +4,9 @@ import json
 import sys
 from pathlib import Path
 
-from migration_scope import require_disposable_scope
+from migration_scope import require_policy_scope
 
-home = require_disposable_scope()
+home = require_policy_scope()
 raw = sys.stdin.read()
 try:
     data = json.loads(raw)

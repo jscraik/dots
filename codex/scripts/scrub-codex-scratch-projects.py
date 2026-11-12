@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
-from migration_scope import require_disposable_scope, require_fixture_path
-require_disposable_scope()
+from migration_scope import require_policy_scope, require_policy_path
+require_policy_scope()
 
 import argparse
 import json
@@ -174,7 +174,7 @@ def emit(result: dict[str, Any], *, as_json: bool) -> None:
 
 def main() -> int:
     args = parse_args()
-    require_fixture_path(args.config)
+    require_policy_path(args.config)
     if args.self_test:
         result = run_self_test()
         emit(result, as_json=args.json)

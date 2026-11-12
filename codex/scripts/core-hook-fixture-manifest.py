@@ -7,15 +7,15 @@ import sys
 import tempfile
 from pathlib import Path
 
-from migration_scope import require_disposable_scope, require_fixture_path
+from migration_scope import require_policy_path, require_policy_scope
 
-require_disposable_scope()
-source = require_fixture_path(Path(sys.argv[1]))
+require_policy_scope()
+source = require_policy_path(Path(sys.argv[1]))
 # The publisher's CLI verifies every core and Braid definition first. The view
 # below is solely for pre-existing core assertions; full native tests retain all.
 snapshot = source.read_bytes()
 with tempfile.TemporaryDirectory(
-    dir=require_fixture_path(Path(os.environ["TMPDIR"]))
+    dir=require_policy_path(Path(os.environ["TMPDIR"]))
 ) as directory:
     captured = Path(directory) / "hooks.json"
     captured.write_bytes(snapshot)

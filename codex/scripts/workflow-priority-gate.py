@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
-from migration_scope import require_disposable_scope, require_fixture_path
-require_disposable_scope()
+from migration_scope import require_policy_scope, require_policy_path
+require_policy_scope()
 
 import argparse
 import json
@@ -222,9 +222,9 @@ def human_summary(result: dict[str, Any]) -> str:
 
 def main() -> int:
     args = parse_args()
-    require_fixture_path(args.repo_root)
+    require_policy_path(args.repo_root)
     if args.report is not None:
-        require_fixture_path(args.report)
+        require_policy_path(args.report)
     items, checked_sources = find_gate_items(args.repo_root.resolve(), args.report)
     result = build_result(items, checked_sources, args.max_items)
     if args.json:

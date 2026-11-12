@@ -11,9 +11,9 @@ _scope_spec = _scope_import.spec_from_file_location(
     'auth_migration_scope', Path(__file__).resolve().with_name('migration_scope.py'))
 _scope = _scope_import.module_from_spec(_scope_spec)
 _scope_spec.loader.exec_module(_scope)
-require_disposable_scope = _scope.require_disposable_scope
-require_fixture_path = _scope.require_fixture_path
-require_disposable_scope()
+require_policy_scope = _scope.require_policy_scope
+require_policy_path = _scope.require_policy_path
+require_policy_scope()
 
 import argparse
 import os
@@ -61,7 +61,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    require_fixture_path(args.path)
+    require_policy_path(args.path)
     try:
         validate_mount(args.path, expected_uid=os.getuid())
     except MountValidationError as error:

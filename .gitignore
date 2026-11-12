@@ -36,6 +36,7 @@
 !/codex/scripts/scrub-computer-use-config.py
 !/codex/scripts/audit-project-codex-config-overrides.sh
 !/codex/scripts/run-auth-backed.sh
+!/codex/scripts/aikido-mcp.sh
 !/codex/scripts/pr-readiness.py
 !/codex/scripts/pr_repair_ci.py
 !/codex/scripts/pr_repair_endorsement.py
@@ -200,6 +201,10 @@
 !/tests/test_public_controls.py
 
 # Reviewed helper closure and inert source-consumer regressions.
+!/codex/scripts/deployment_scope.py
+!/scripts/install-codex.py
+!/codex/scripts/install-codex.py
+!/tests/test_installation_route.py
 !/codex/README.md
 !/codex/agents/
 !/codex/agents/evals/

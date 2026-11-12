@@ -156,8 +156,8 @@ def main() -> int:
         out = Path(args.out)
         if not out.is_absolute():
             out = root / out
-        _fixture_resource(out.parent).mkdir(parents=True, exist_ok=True)
-        _fixture_resource(out).write_text(summary, encoding="utf-8")
+        _fixture_scope().output(out.parent).mkdir(parents=True, exist_ok=True)
+        _fixture_scope().output(out).write_text(summary, encoding="utf-8")
         print(f"[render-agent-artifact-summary] wrote {out}")
     else:
         print(summary)

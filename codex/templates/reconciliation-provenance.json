@@ -36,7 +36,8 @@
     {
       "path": "README.md",
       "prior_candidate_sha256": "ced157af36e675f8d6c890a5b04a70805e0835432efc957efc85c92f1e98ab01",
-      "candidate_sha256": "841bf967a99d09132bbba0c49e00ed0b9a1c0afd2bad234031fdfc6a1a6f3e8a"
+      "candidate_sha256": "30f9cd98b03fc0d6a4646e24f9beb4dc9293f29ee7b6458c94094e852c083991",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks."
     },
     {
       "path": "codex/hooks/README.md",
@@ -71,7 +72,8 @@
     {
       "path": "codex/instructions/migration-scope.md",
       "prior_candidate_sha256": "085a3aece03f77510bf5f4f8d85a459f9735069dbb028428539066cdc7c2c741",
-      "candidate_sha256": "249044a2baa713809c27ce7678327c1f3f33c689d37bcc50fc0eaeb8c56aa900"
+      "candidate_sha256": "de6b38a48efb041509c0b17666068e7b3554e3b4889ff3b5749724a8f83a1246",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks."
     },
     {
       "path": "codex/schemas/pr-readiness.v1.schema.json",
@@ -86,7 +88,8 @@
     {
       "path": "codex/scripts/pr-readiness.py",
       "prior_candidate_sha256": "6c47ce8d869fb46b338f6ed354ec95eb554471c215bc90b9c1d76c69e9cb60ee",
-      "candidate_sha256": "95861605c59574b8b2a3062ebc6d740161a3b012473b247468ce9a866f0fec47"
+      "candidate_sha256": "06ea7aab86db416c46a153c214c2c738cbba39c495a7812b523e26e0d11d7888",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks."
     },
     {
       "path": "codex/scripts/pr-review-request.py",
@@ -166,7 +169,8 @@
     {
       "path": "codex/scripts/validate-codex-config.py",
       "prior_candidate_sha256": "e9cdebab1d97447c1ac3ff1dce5894c7c13ccf095c2a1cc8e44716c103768e61",
-      "candidate_sha256": "9c606e273666fd85ea9cda16799f9cfb261bb25a8fb1e99fb49da8c8357754f4"
+      "candidate_sha256": "e99dab46ee2d5977f8b904dc9bf18a8b062dbf5e24ea7c0c20b629073ac38000",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks."
     },
     {
       "path": "scripts/check-source.py",
@@ -181,7 +185,7 @@
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "4b88e3f31b620b7ea751d5c223398cb67892841aa9b88e2fdc713a07965425a8"
+      "candidate_sha256": "3291272ed4ee74488c098d4d08146fe2d5dc418722560bb176edacd174d77f8d"
     },
     {
       "path": "tests/test_pending_fixes.py",

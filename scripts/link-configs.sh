@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Migration-only adaptation of Configs cfd2e591. Never operate on a live home.
+# Fixture admission remains strict. A packaged context has separate validation.
+dots_package_root="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+DEPLOYMENT_STATE=""
+if [[ -f "$dots_package_root/codex/.deployment.json" ]]; then
+  python3 "$dots_package_root/codex/scripts/deployment_scope.py"
+  DEPLOYMENT_STATE="$(python3 "$dots_package_root/codex/scripts/deployment_scope.py" --state-dir)"
+else
 python3 - "$HOME" <<'PYHOME'
 import os
 from pathlib import Path
@@ -19,6 +25,7 @@ if os.environ.get('DOTS_PROJECTION_FIXTURE') != 'full-policy-v1':
         if any((Path(parent) / name).is_symlink() for name in dirs + files):
             raise SystemExit('Migration projector refuses symlinks in disposable HOME')
 PYHOME
+fi
 
 MODE="check"
 DRY_RUN=0
@@ -32,11 +39,19 @@ PROJECTION_SOURCE_ROOT="${REPO_ROOT}"
 PROJECTION_MAP=""
 STAMP="$(date +%Y%m%d-%H%M%S)-$$"
 BACKUP_ROOT="${HOME}/.config-symlink-backups/${STAMP}"
+if [[ -n "$DEPLOYMENT_STATE" ]]; then
+  BACKUP_ROOT="$DEPLOYMENT_STATE/publisher-backups/links-$STAMP"
+fi
 BACKUP_ROOT_READY=0
 
 PLUGINS_CANON_RESOLVED=""
 
 resolve_projection_source_root() {
+  if [[ -n "$DEPLOYMENT_STATE" ]]; then
+    python3 "$REPO_ROOT/codex/scripts/deployment_scope.py" >/dev/null
+    printf '%s\n' "$REPO_ROOT"
+    return 0
+  fi
   local common_dir=""
   local common_dir_abs=""
   local common_checkout=""
@@ -523,8 +538,12 @@ repair_projection_runtime_copy() {
       fi
       return 0
     fi
+    local backup_args=(--json)
+    if [[ -n "$DEPLOYMENT_STATE" ]]; then
+      backup_args+=(--backup-path "$DEPLOYMENT_STATE/publisher-backups/config-$STAMP.toml")
+    fi
     if ! python3 "$(dirname "$source_abs")/scripts/repair-runtime-config-drift.py" \
-      --config-path "$target_abs" --repair --json; then
+      --config-path "$target_abs" --repair "${backup_args[@]}"; then
       mark_fail "${name}: runtime config reconciliation failed (${target_abs})"
       return 1
     fi
@@ -532,7 +551,7 @@ repair_projection_runtime_copy() {
     return 0
   fi
 
-  if [[ "${DOTS_PROJECTION_FIXTURE:-}" == "full-policy-v1" ]]; then
+  if [[ "${DOTS_PROJECTION_FIXTURE:-}" == "full-policy-v1" || -n "$DEPLOYMENT_STATE" ]]; then
     if [[ "$DRY_RUN" -eq 1 ]]; then
       mark_plan "create validated runtime config ${target_abs}"
     elif python3 "${PROJECTION_SOURCE_ROOT}/codex/scripts/admit-policy-fixture.py" --map "$PROJECTION_MAP" --publish-initial-config; then
@@ -603,6 +622,9 @@ run_projection_entry() {
   case "$strategy" in
     hook-copy)
       local hook_args=(--source "$source_abs" --target "$target_abs")
+      if [[ -n "$DEPLOYMENT_STATE" ]]; then
+        hook_args+=(--backup-dir "$DEPLOYMENT_STATE/publisher-backups")
+      fi
       if [[ "$MODE" == "check" ]]; then
         hook_args+=(--check)
       elif [[ "$DRY_RUN" -eq 1 ]]; then
@@ -636,6 +658,13 @@ run_projection_entry() {
       else
         repair_projection_runtime_copy "$name" "$source_abs" "$target_abs" "$optional"
       fi
+      ;;
+    preserve)
+      if [[ -z "$DEPLOYMENT_STATE" ]]; then
+        mark_fail "${name}: preservation requires a packaged deployment"
+        return 1
+      fi
+      mark_ok "${name}: retained local state"
       ;;
     runtime-directory)
       if [[ "$MODE" == "check" ]]; then
@@ -711,7 +740,7 @@ if [[ ! -f "$PROJECTION_MAP" ]]; then
 fi
 
 # Each route admits one closed map, never a caller-selected live map.
-if [[ "${DOTS_PROJECTION_FIXTURE:-}" == "full-policy-v1" ]]; then
+if [[ "${DOTS_PROJECTION_FIXTURE:-}" == "full-policy-v1" || -n "$DEPLOYMENT_STATE" ]]; then
   python3 "${REPO_ROOT}/codex/scripts/admit-policy-fixture.py" --map "$PROJECTION_MAP"
 elif [[ -n "${DOTS_PROJECTION_FIXTURE:-}" ]]; then
   echo 'Unknown isolated projection fixture' >&2
@@ -870,10 +899,12 @@ for codex_home in "${CODEX_HOME_LIST[@]}"; do
     [[ -n "$name" ]] || continue
     strategy="${strategy:-symlink}"
 
-    if [[ "$strategy" != "runtime-directory" ]]; then
+    if [[ "$strategy" != "runtime-directory" && "$strategy" != "preserve" ]]; then
       validate_candidate_source "$name" "$candidate_source_abs" "$optional" || continue
     fi
-    run_projection_entry "$name" "$source_abs" "$target_abs" "$optional" "$strategy" || true
+    if ! run_projection_entry "$name" "$source_abs" "$target_abs" "$optional" "$strategy"; then
+      if [[ -n "$DEPLOYMENT_STATE" ]]; then exit 1; fi
+    fi
   done < <(resolve_tokens_from_map "codex_projection" "$codex_home")
 done
 

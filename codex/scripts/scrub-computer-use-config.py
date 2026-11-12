@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
-from migration_scope import require_disposable_scope, require_fixture_path
-require_disposable_scope()
+from migration_scope import require_policy_scope, require_policy_path
+require_policy_scope()
 
 import argparse
 import json
@@ -104,7 +104,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    require_fixture_path(args.config_path)
+    require_policy_path(args.config_path)
     config_path = args.config_path.expanduser()
     try:
         original = config_path.read_text(encoding="utf-8")

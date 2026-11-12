@@ -5,20 +5,24 @@ import sys
 from pathlib import Path
 
 from migration_scope import (
-    require_auth_free_environment,
-    require_disposable_scope,
-    require_fixture_path,
+    deployment_module,
+    require_policy_environment,
+    require_policy_path,
+    require_policy_scope,
 )
 
 
 def admit(event):
-    home = require_disposable_scope()
-    require_auth_free_environment()
-    require_fixture_path(Path(__file__).resolve())
+    deployed = deployment_module()
+    if deployed is not None:
+        return deployed.admit_event(event)
+    home = require_policy_scope()
+    require_policy_environment()
+    require_policy_path(Path(__file__).resolve())
     if not os.environ.get('TMPDIR'):
         raise ValueError('An explicit disposable TMPDIR is required for hook fixtures')
     for relative in ('.codex', '.codex/state', '.codex/usage-data', '.codex/config.toml', 'dev'):
-        require_fixture_path(home / relative)
+        require_policy_path(home / relative)
     if not isinstance(event, dict):
         raise TypeError('Hook event must be an object')
     # These values can become actual filesystem reads/writes; tool arguments
@@ -28,15 +32,15 @@ def admit(event):
         if value:
             # Read-only event inputs retain the original normalisation tests.
             # Output paths below keep their stricter lexical/alias checks.
-            require_fixture_path(Path(value).expanduser().resolve())
+            require_policy_path(Path(value).expanduser().resolve())
     tool_input = event.get('tool_input')
     if isinstance(tool_input, dict):
         for name in ('cwd', 'workdir'):
             if tool_input.get(name):
-                require_fixture_path(Path(tool_input[name]).expanduser())
+                require_policy_path(Path(tool_input[name]).expanduser())
     card = event.get('runtime_card')
     if isinstance(card, dict) and card.get('path'):
-        require_fixture_path(Path(card['path']).expanduser())
+        require_policy_path(Path(card['path']).expanduser())
     resources = [(home / '.codex', False), (home / '.cache', False), (home / 'tmp', True)]
     mutable_names = (
         'CODEX_HOME', 'CODEX_PROJECT_CONFIG_TARGET', 'DOTS_PROJECT_CONFIG_EXCEPTION',
@@ -55,7 +59,7 @@ def admit(event):
     )
     for name in (*mutable_names, *input_names):
         if os.environ.get(name):
-            resource = require_fixture_path(Path(os.environ[name]).expanduser())
+            resource = require_policy_path(Path(os.environ[name]).expanduser())
             resources.append((resource, name in input_names))
     # Writers and runtime-card readers choose nested default paths. Reject
     # pre-existing escaping symlinks at those leaves, including writer-health,
@@ -66,7 +70,7 @@ def admit(event):
                   for name in ('hooks', 'scripts', 'instructions', 'schemas', 'model-catalogs', 'rules')}
 
     def inspect_resource(path, input_aliases):
-        require_fixture_path(path)
+        require_policy_path(path)
         if not input_aliases and path.is_symlink() and path.is_dir():
             expected = code_links.get(path)
             if expected is None or path.resolve() != expected:
@@ -102,7 +106,20 @@ if __name__ == '__main__':
     try:
         if len(sys.argv) == 3 and sys.argv[1] == '--provider-path':
             admit({})
-            require_fixture_path(Path(sys.argv[2]))
+            deployed = deployment_module()
+            if deployed is None:
+                require_policy_path(Path(sys.argv[2]))
+            else:
+                deployed.require_provider_input(sys.argv[2], 'onepassword')
+        elif len(sys.argv) == 4 and sys.argv[1] == '--aikido-input':
+            if sys.argv[2] not in {'aikido-binary', 'aikido-reference'}:
+                raise ValueError('Unknown Aikido provider-input role')
+            admit({})
+            deployed = deployment_module()
+            if deployed is None:
+                require_policy_path(Path(sys.argv[3]))
+            else:
+                deployed.require_provider_input(sys.argv[3], sys.argv[2])
         else:
             admit(json.loads(sys.argv[1]))
     except (IndexError, OSError, TypeError, ValueError, RuntimeError) as exc:

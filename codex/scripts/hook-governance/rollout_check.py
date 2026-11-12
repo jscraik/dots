@@ -337,8 +337,8 @@ def main() -> int:
         print(f"[rollout_check] {exc}")
         return 1
     if args.out is not None:
-        _fixture_resource(args.out.parent).mkdir(parents=True, exist_ok=True)
-        _fixture_resource(args.out).write_text(
+        _fixture_scope().output(args.out.parent).mkdir(parents=True, exist_ok=True)
+        _fixture_scope().output(args.out).write_text(
             json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
     else:

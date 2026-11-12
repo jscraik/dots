@@ -638,8 +638,8 @@ def execute(args: argparse.Namespace) -> dict[str, object]:
         ) from exc
     with tempfile.TemporaryDirectory(prefix="pr-body-validated-") as directory:
         snapshot = Path(directory) / "body.md"
-        _fixture_resource(snapshot).write_bytes(content)
-        _fixture_resource(snapshot).chmod(384)
+        _fixture_scope().output(snapshot).write_bytes(content)
+        _fixture_scope().output(snapshot).chmod(384)
         copied = argparse.Namespace(**vars(args))
         copied.body_file = snapshot
         return _execute_snapshot(copied)
