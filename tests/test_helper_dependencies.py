@@ -6,6 +6,7 @@ import pwd
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -500,8 +501,42 @@ class HelperDependencyTests(unittest.TestCase):
             (runtime / "config.toml").read_bytes(),
             (destination / "codex/config.toml").read_bytes(),
         )
+        projects = tomllib.loads((destination / "codex/config.toml").read_text())["projects"]
+        self.assertTrue(projects)
+        for project in projects:
+            path = Path(project)
+            self.assertTrue(path.is_dir(), f"fixture project is missing: {path}")
+            self.assertTrue(path.resolve().is_relative_to(nested_home.resolve()))
         self.assertFalse((runtime / "hooks.json").is_symlink())
         self.assertEqual((runtime / "scripts").resolve(), destination / "codex/scripts")
+        fixture.assert_preserved(self)
+
+    def test_nested_runtime_snapshot_rejects_project_symlink_escape(self):
+        fixture = self.fixture
+        fixture.prepare_governance_inputs()
+        with tempfile.TemporaryDirectory(dir=Path("/tmp").resolve()) as outside:
+            nested_home = fixture.home / "nested-untrusted-home"
+            nested_home.mkdir()
+            (nested_home / "escape").symlink_to(outside, target_is_directory=True)
+            config = fixture.codex / "config.toml"
+            injected = fixture.home / "escape" / "must-not-be-created"
+            config.write_text(
+                config.read_text() + "\n[projects." + json.dumps(str(injected))
+                + ']\ntrust_level = "trusted"\n'
+            )
+            code = (
+                "from pathlib import Path; import sys; "
+                "from codex.scripts.tests.runtime_config_fixture import create_runtime_checkout; "
+                "create_runtime_checkout(Path(sys.argv[1]), Path(sys.argv[2]))"
+            )
+            result = subprocess.run(
+                [sys.executable, "-B", "-c", code, str(nested_home / "dev/dots"), str(fixture.repo)],
+                cwd=fixture.repo, env=fixture.env, text=True, capture_output=True,
+                timeout=75, check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Nested fixture project leaves its disposable HOME", result.stderr)
+            self.assertFalse((Path(outside) / "must-not-be-created").exists())
         fixture.assert_preserved(self)
 
     def test_full_hook_harness_and_fast_aggregate(self):

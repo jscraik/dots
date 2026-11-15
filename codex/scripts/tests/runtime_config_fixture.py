@@ -8,7 +8,7 @@ import subprocess
 import tomllib
 from pathlib import Path
 
-from helper_fixture_scope import admit_file, resource
+from helper_fixture_scope import admit_file, output, resource
 
 
 def create_runtime_checkout(repo: Path, source_root: Path) -> None:
@@ -81,6 +81,15 @@ def create_runtime_checkout(repo: Path, source_root: Path) -> None:
     config = codex / "config.toml"
     canonical = config.read_text()
     parsed = tomllib.loads(canonical)
+    for project_path in parsed.get("projects", {}):
+        project = Path(project_path)
+        if (
+            not project.is_absolute()
+            or ".." in project.parts
+            or not project.resolve().is_relative_to(home.resolve())
+        ):
+            raise ValueError("Nested fixture project leaves its disposable HOME")
+        output(project).mkdir(parents=True, exist_ok=True)
     for name, marketplace in parsed.get("marketplaces", {}).items():
         registry = repo / "fixture-marketplaces" / name
         registry.mkdir(parents=True)
