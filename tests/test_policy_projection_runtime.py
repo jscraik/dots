@@ -1,9 +1,13 @@
 """Installed Codex loading the complete projected policy, without model turns."""
 import json
 import os
+import shutil
 import subprocess
+import tempfile
 import tomllib
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
 
 from policy_fixture import PolicyFixture
 from test_hook_discovery import AppServer
@@ -11,6 +15,42 @@ from test_hook_discovery import AppServer
 
 @unittest.skipUnless(os.environ.get('DOTS_CODEX_BIN'), 'DOTS_CODEX_BIN required for full projected-policy runtime proof')
 class ProjectedPolicyRuntimeTests(unittest.TestCase):
+    def test_launcher_cleanup_preserves_external_targets_and_rejects_aliases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home, outside = root / 'home', root / 'outside'
+            runtime = home / '.codex'
+            launchers = runtime / 'tmp/arg0'
+            launchers.mkdir(parents=True)
+            outside.mkdir()
+            sentinel = outside / 'keep'
+            sentinel.write_text('preserved')
+            (launchers / 'wrapper').symlink_to(sentinel)
+            fixture = SimpleNamespace(home=home, runtime=runtime)
+            self.clear_native_launchers(fixture)
+            self.assertFalse(launchers.exists())
+            self.assertEqual(sentinel.read_text(), 'preserved')
+            launchers.symlink_to(outside, target_is_directory=True)
+            with self.assertRaises(AssertionError):
+                self.clear_native_launchers(fixture)
+            self.assertEqual(sentinel.read_text(), 'preserved')
+            launchers.unlink()
+            launchers.parent.rmdir()
+            launchers.parent.symlink_to(outside, target_is_directory=True)
+            with self.assertRaises(AssertionError):
+                self.clear_native_launchers(fixture)
+            self.assertEqual(sentinel.read_text(), 'preserved')
+
+    def clear_native_launchers(self, fixture):
+        # Older CLIs leave external executable symlinks here after shutdown.
+        # Remove only fixture-owned transient launchers, never admit the links
+        # as projection resources or clean any live runtime directory.
+        launchers = fixture.runtime / 'tmp/arg0'
+        self.assertFalse(launchers.is_symlink())
+        self.assertTrue(launchers.resolve().is_relative_to(fixture.home.resolve()))
+        if launchers.exists():
+            shutil.rmtree(launchers)
+
     def test_full_policy_loading_and_hook_discovery(self):
         fixture = PolicyFixture(self)
         self.addCleanup(fixture.assert_preserved, self)
@@ -45,6 +85,7 @@ class ProjectedPolicyRuntimeTests(unittest.TestCase):
             'keyPath': 'hooks.state', 'value': states, 'mergeStrategy': 'replace'})
         self.assertEqual(response['status'], 'ok')
         server.close()
+        self.clear_native_launchers(fixture)
         # The API intentionally writes only user config. Reconstruct this
         # fixture's canonical input from its existing policy plus ONLY the
         # explicitly selected native hashes, never the entire runtime file.
@@ -52,7 +93,8 @@ class ProjectedPolicyRuntimeTests(unittest.TestCase):
         canonical = tomllib.loads((fixture.codex / 'config.toml').read_text())
         canonical['hooks']['state'] = states
         (fixture.codex / 'config.toml').write_text(governance.GEN.toml_document(canonical))
-        self.assertEqual(fixture.project().returncode, 0)
+        result = fixture.project()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         result = fixture.script('validate-codex-config.py')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         consented = AppServer(fixture, strict_config=True, enable_hooks=False)
@@ -63,7 +105,9 @@ class ProjectedPolicyRuntimeTests(unittest.TestCase):
         self.assertTrue(all(hook['trustStatus'] == 'trusted' for hook in result['data'][0]['hooks']))
         self.assertEqual(len(result['data'][0]['hooks']), 29)
         consented.close()
-        self.assertEqual(fixture.project('--check').returncode, 0)
+        self.clear_native_launchers(fixture)
+        result = fixture.project('--check')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_all_standalone_profiles_load_through_native_metadata_route(self):
         fixture = PolicyFixture(self)
