@@ -3,8 +3,8 @@
 #   eval "$(mise activate zsh)"
 #   python3 -m pip install --user -r requirements/python-document-reading.txt
 defusedxml==0.7.1
-pillow==12.3.0
-pypdf==6.15.0
+pillow==13.0.0
+pypdf==6.21.4
 pdfminer.six==20260107
 pymupdf==1.27.2.3
 pdf2image==1.17.0
