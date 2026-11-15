@@ -78,6 +78,18 @@ pins in `requirements/codex-validation.txt`. The instruction-pointer checker
 uses the already-declared `markdown-it-py==4.2.0`. No online bootstrap or new
 dependency is added by this migration.
 
+Provision an isolated validation environment before running the app wrapper:
+
+```sh
+python3 -m venv /private/tmp/dots-validation
+/private/tmp/dots-validation/bin/python -m pip install -r requirements/codex-validation.txt
+source /private/tmp/dots-validation/bin/activate
+bash scripts/test-app-codex.sh
+```
+
+The wrapper checks the declared package versions before collecting tests. It
+does not install packages. Nested helpers reuse the selected environment's Python.
+
 ```sh
 python3 -m unittest discover -s tests -v
 ruff check --no-cache .
