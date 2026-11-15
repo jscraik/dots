@@ -506,7 +506,29 @@ class InstallationRouteTests(unittest.TestCase):
         self.assertEqual(installer.describe(source), installer.describe(target))
         self.assertEqual((target / 'nested').stat().st_mode & 0o777, 0o700)
 
-    @unittest.skipUnless(sys.platform == 'darwin', 'Temporary rename permissions are macOS-only')
+    def test_linux_rename_modes_are_journalled_and_restored_on_error(self):
+        installer = self.import_installer(ROOT)
+        state = self.home / 'tmp/linux-rename'
+        staged = state / '.copy-test/scripts'
+        target = self.home / 'tmp/runtime/scripts'
+        staged.mkdir(parents=True)
+        target.mkdir(parents=True)
+        staged.chmod(0o500)
+        target.chmod(0o500)
+        with mock.patch.object(installer.sys, 'platform', 'linux'):
+            with self.assertRaisesRegex(RuntimeError, 'synthetic failure'):
+                with installer.renameable_directories(state, staged, target):
+                    self.assertEqual(staged.stat().st_mode & 0o777, 0o700)
+                    self.assertEqual(target.stat().st_mode & 0o777, 0o700)
+                    self.assertTrue((state / 'rename-modes.json').exists())
+                    raise RuntimeError('synthetic failure')
+        self.assertEqual(staged.stat().st_mode & 0o777, 0o500)
+        self.assertEqual(target.stat().st_mode & 0o777, 0o500)
+        self.assertFalse((state / 'rename-modes.json').exists())
+        self.fixture.assert_preserved(self)
+
+    @unittest.skipUnless(sys.platform == 'darwin' or sys.platform.startswith('linux'),
+                         'Atomic directory exchange is supported on macOS and Linux')
     def test_killed_directory_swap_recovers_modes_before_and_after_exchange(self):
         installer = self.import_installer(ROOT)
         for phase in ('before', 'after'):
@@ -530,9 +552,15 @@ state, staged, target = map(Path, sys.argv[2:5])
 with installer.renameable_directories(state, staged, target):
     if sys.argv[5] == 'after':
         library = ctypes.CDLL(None, use_errno=True)
-        rename = library.renamex_np
-        rename.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint)
-        assert rename(os.fsencode(staged), os.fsencode(target), 2) == 0
+        if sys.platform == 'darwin':
+            rename = library.renamex_np
+            rename.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint)
+            result = rename(os.fsencode(staged), os.fsencode(target), 2)
+        else:
+            rename = library.renameat2
+            rename.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
+            result = rename(-100, os.fsencode(staged), -100, os.fsencode(target), 2)
+        assert result == 0
     os.kill(os.getpid(), signal.SIGKILL)
 """
                 result = subprocess.run([sys.executable, '-B', '-c', probe,

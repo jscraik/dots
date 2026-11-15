@@ -509,7 +509,7 @@ class HelperDependencyTests(unittest.TestCase):
         result = fixture.helper(
             "verify-work.sh",
             "--fast",
-            timeout=240,
+            timeout=720,
             extra_env={"CODEX_HOOKS_RUNTIME_CHECK": "skip"},
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

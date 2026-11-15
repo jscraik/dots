@@ -168,14 +168,14 @@ def recover_rename_permissions(state, runtime):
 
 @contextlib.contextmanager
 def renameable_directories(state, *paths):
-    """Journal temporary macOS rename modes and restore by open inode."""
+    """Journal temporary rename modes and restore them by open inode."""
     opened, entries = [], []
     journal = state / 'rename-modes.json'
     if os.path.lexists(journal):
         raise ValueError('Recover the previous directory rename before continuing')
     saved = False
     try:
-        if sys.platform == 'darwin':
+        if sys.platform == 'darwin' or sys.platform.startswith('linux'):
             for path in paths:
                 try:
                     info = path.lstat()

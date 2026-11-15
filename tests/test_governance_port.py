@@ -45,6 +45,14 @@ class GovernancePortTests(unittest.TestCase):
             filename = 'config.toml' if name == 'config' else name + '.config.toml'
             (self.codex / filename).write_text(text)
         self.root = tomllib.loads(self.generated['config'])
+        # The generated policy names synthetic projects under this disposable
+        # home. Make them real on every OS so the runtime's stale-temporary-
+        # project check evaluates the fixture consistently.
+        for value in self.root.get('projects', {}):
+            project = Path(value)
+            if not project.is_absolute() or not project.is_relative_to(self.home):
+                raise ValueError('Fixture project leaves its disposable home')
+            project.mkdir(parents=True, exist_ok=True)
         # Test-only registry contents exercise discovery; no installed cache is copied.
         for name, marketplace in self.root['marketplaces'].items():
             location = Path(marketplace['source'])
@@ -183,6 +191,13 @@ class GovernancePortTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(tomllib.loads(runtime.read_text())['approval_policy'], 'on-request')
         self.assertEqual((target.parent / 'auth.json').read_bytes(), b'caller-owned synthetic sentinel')
+
+    def test_generated_project_paths_exist_in_disposable_home(self):
+        for value in self.root['projects']:
+            with self.subTest(project=value):
+                project = Path(value)
+                self.assertTrue(project.is_relative_to(self.home))
+                self.assertTrue(project.is_dir())
 
     def test_live_home_without_explicit_scope_rejected(self):
         env = dict(self.env)
