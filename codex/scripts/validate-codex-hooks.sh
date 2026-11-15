@@ -1428,7 +1428,9 @@ from codex.scripts.tests.runtime_config_fixture import create_runtime_checkout
 create_runtime_checkout(Path(sys.argv[2]), source)
 PY
 sed 's/approvals_reviewer = "auto_review"/approvals_reviewer = "guardian_subagent"/' "$missing_cua_checkout/codex/config.toml" >"$missing_cua_runtime_config"
-mkdir -p "$missing_cua_home/tmp" "$missing_cua_home/usage-data"
+mkdir -p "$missing_cua_home/tmp" "$missing_cua_home/usage-data" "$missing_cua_home/.local/bin"
+# The nested home must use the same validated Python as the first fixture.
+cp "$HOME/.local/bin/python3" "$missing_cua_home/.local/bin/python3"
 if missing_cua_output="$(
   jq -n \
     --arg cwd "$repo_root" \

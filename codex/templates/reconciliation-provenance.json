@@ -196,7 +196,7 @@
     {
       "path": "tests/test_helper_dependencies.py",
       "prior_candidate_sha256": "f8c74a3d7d96e5791162b6abdf902c1705a78226deb56347f56a2a09096384b9",
-      "candidate_sha256": "4d4e12b2916c5bbdd1410e25b60161bdf429f5f14f5db33b83c3432f8724497f"
+      "candidate_sha256": "fdb05c8f244ca8be1987c8c8ecd927ae57e63df709cbf938e83ea44bc0e4dcef"
     },
     {
       "path": "tests/test_hook_handlers.py",

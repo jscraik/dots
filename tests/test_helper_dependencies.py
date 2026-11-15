@@ -4,6 +4,7 @@ import json
 import os
 import pwd
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -515,6 +516,40 @@ class HelperDependencyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("failed:  0", result.stdout)
         self.assertIn("execpolicy-rule-validation", result.stdout)
+        fixture.assert_preserved(self)
+
+    def test_nested_session_fixture_uses_selected_python(self):
+        fixture = self.fixture
+        fixture.prepare_governance_inputs()
+        # Model a host whose PATH-selected Python cannot import tomllib. The
+        # fixture launcher invokes the selected interpreter by absolute path.
+        (fixture.codex / "scripts/sitecustomize.py").write_text(
+            "import sys\n"
+            "from pathlib import Path\n"
+            "if (Path(sys.argv[0]).name in "
+            "('repair-runtime-config-drift.py', 'scrub-computer-use-config.py') "
+            "and sys.orig_argv[0] == 'python3'):\n"
+            "    sys.modules['tomllib'] = None\n"
+        )
+        probe = fixture.home / "repair-runtime-config-drift.py"
+        probe.write_text("import tomllib\n")
+        fallback = subprocess.run(
+            ["python3", str(probe)], executable=sys.executable,
+            env=fixture.env, capture_output=True, text=True, timeout=10, check=False,
+        )
+        self.assertNotEqual(fallback.returncode, 0, "fallback simulation must fail")
+        self.assertIn("tomllib", fallback.stderr)
+        selected = subprocess.run(
+            [sys.executable, str(probe)], env=fixture.env, capture_output=True,
+            text=True, timeout=10, check=False,
+        )
+        self.assertEqual(selected.returncode, 0, selected.stderr)
+        result = fixture.helper(
+            "validate-codex-hooks.sh",
+            timeout=720,
+            extra_env={"CODEX_HOOKS_RUNTIME_CHECK": "skip"},
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         fixture.assert_preserved(self)
 
     def test_accepted_governance_regressions(self):
