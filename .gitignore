@@ -202,6 +202,7 @@
 !/tests/test_public_controls.py
 
 # Reviewed helper closure and inert source-consumer regressions.
+!/scripts/test-app-codex.sh
 !/codex/scripts/deployment_scope.py
 !/scripts/install-codex.py
 !/codex/scripts/install-codex.py

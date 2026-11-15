@@ -73,10 +73,30 @@ candidates; publication and exact-content acceptance retain separate authority.
 
 ### Local checks
 
+CircleCI runs the full suite with `DOTS_CODEX_BIN=/tmp/dots-ci-tools/codex`,
+the checksum-verified Linux CLI pinned by its configuration. This enables native
+runtime tests instead of silently skipping them. Linux results prove compatibility
+with that CLI version; they do not prove Desktop app behaviour. Run the app wrapper
+below separately on macOS for Desktop runtime evidence. Hook trust refresh timing
+may differ by release; the lifecycle test requires trusted state after explicit
+reload and restart, modified-definition detection, and revoked consent.
+
 Use Python 3.12 or newer in an existing validation environment containing the
 pins in `requirements/codex-validation.txt`. The instruction-pointer checker
 uses the already-declared `markdown-it-py==4.2.0`. No online bootstrap or new
 dependency is added by this migration.
+
+Provision an isolated validation environment before running the app wrapper:
+
+```sh
+python3 -m venv /private/tmp/dots-validation
+/private/tmp/dots-validation/bin/python -m pip install -r requirements/codex-validation.txt
+source /private/tmp/dots-validation/bin/activate
+bash scripts/test-app-codex.sh
+```
+
+The wrapper checks the declared package versions before collecting tests. It
+does not install packages. Nested helpers reuse the selected environment's Python.
 
 ```sh
 python3 -m unittest discover -s tests -v
@@ -147,7 +167,7 @@ synthetic Codex setup and private binding JSON. The test entrypoint builds that
 setup and exercises the actual commands:
 
 ```sh
-DOTS_CODEX_BIN=/absolute/path/to/codex python3 -B -m unittest discover -s tests -p test_installation_route.py -v
+bash scripts/test-app-codex.sh -p test_installation_route.py -v
 ```
 
 For native hook consent, `hooks/list` with `cwds` proves on-disk discovery only.
@@ -472,16 +492,26 @@ approval, missing readiness receipts, lifecycle receipts, startup maintenance
 and Stop/prompt safety decisions. Shell syntax is checked for every ported
 shell file. Fixture auth, session and database sentinels must remain unchanged.
 
-To run actual app-server discovery, supply the installed Codex CLI's absolute
-path. This command starts a local app-server but no model turn, login, review,
+To run app-server discovery with the app-bundled Codex CLI, use the wrapper
+below. These tests start a local app-server but no model turn, login, review,
 CI job or deployment:
 
 ```sh
-DOTS_CODEX_BIN=/absolute/path/to/codex python3 -B -m unittest discover -s tests -v
+bash scripts/test-app-codex.sh
 ```
 
-Without `DOTS_CODEX_BIN`, the installed-runtime test is visibly skipped. With
-it, `tests/test_hook_discovery.py` creates a separate minimal fixture config,
+The wrapper selects `/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex`,
+prints its version, and overrides any inherited `DOTS_CODEX_BIN`. It never falls
+back to PATH, mise or npm. If the app launcher is missing, validation fails.
+For only the discovery and consent lifecycle checks, run:
+
+```sh
+bash scripts/test-app-codex.sh -p test_hook_discovery.py -v
+```
+
+Direct Python runs without `DOTS_CODEX_BIN` visibly skip installed-runtime tests;
+use the wrapper for app-runtime proof. With the app CLI selected,
+`tests/test_hook_discovery.py` creates a separate minimal fixture config,
 discovers every manifest definition with `hooks/list`, and records only their
 fresh hashes through `config/value/write` at `hooks.state`. A fresh server must
 recognise that consent. Changing a definition must report modified consent;

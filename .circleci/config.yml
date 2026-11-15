@@ -50,10 +50,13 @@ jobs:
           name: Verify public guidance and instruction links
           command: /tmp/dots-validation-venv/bin/python -B scripts/check-public-guidance.py
       - run:
-          name: Test disposable-home staging
+          name: Test Linux CLI compatibility and disposable-home staging
           no_output_timeout: 15m
           command: |
             export PATH="/tmp/dots-ci-tools:/tmp/dots-validation-venv/bin:$PATH"
+            export DOTS_CODEX_BIN=/tmp/dots-ci-tools/codex
+            echo 'Linux pinned CLI compatibility only; Desktop app-runtime proof is a separate local check.'
+            "$DOTS_CODEX_BIN" --version
             /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -v
       - run:
           name: Check shell syntax
