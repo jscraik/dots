@@ -19,6 +19,14 @@ class HookHandlerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return json.loads(result.stdout)
 
+    def test_fixture_python_keeps_the_parent_virtual_environment(self):
+        result = subprocess.run([str(self.fixture.bin / 'python3'), '-B', '-c',
+                                 'import sys; print(sys.prefix)'],
+                                env=self.fixture.env, cwd=self.fixture.repo,
+                                capture_output=True, text=True, timeout=15, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(Path(result.stdout.strip()), Path(sys.prefix))
+
     def test_aikido_launcher_preserves_arguments_and_uses_only_fixture_providers(self):
         fixture = self.fixture
         binary = fixture.bin / 'aikido-fixture'

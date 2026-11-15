@@ -1,6 +1,7 @@
 """Synthetic local resources for handler and real app-server tests."""
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -34,7 +35,11 @@ class HookFixture:
             raise AssertionError(result.stdout + result.stderr)
         self.bin = self.home / '.local/bin'
         self.bin.mkdir(parents=True, exist_ok=True)
-        (self.bin / 'python3').symlink_to(sys.executable)
+        # A symlink outside a venv makes Python resolve the base interpreter
+        # and lose its dependencies when the fixture HOME is changed.
+        python = self.bin / 'python3'
+        python.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' "$@"\n')
+        python.chmod(0o755)
         # This launcher is test-only. Discovery does not run it. It neither
         # captures real prompts nor supplies production Braid consent.
         (self.bin / 'braid').write_text('#!/bin/sh\nprintf \'{"continue":true}\\n\'\n')
