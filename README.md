@@ -73,6 +73,14 @@ candidates; publication and exact-content acceptance retain separate authority.
 
 ### Local checks
 
+CircleCI runs the full suite with `DOTS_CODEX_BIN=/tmp/dots-ci-tools/codex`,
+the checksum-verified Linux CLI pinned by its configuration. This enables native
+runtime tests instead of silently skipping them. Linux results prove compatibility
+with that CLI version; they do not prove Desktop app behaviour. Run the app wrapper
+below separately on macOS for Desktop runtime evidence. Hook trust refresh timing
+may differ by release; the lifecycle test requires trusted state after explicit
+reload and restart, modified-definition detection, and revoked consent.
+
 Use Python 3.12 or newer in an existing validation environment containing the
 pins in `requirements/codex-validation.txt`. The instruction-pointer checker
 uses the already-declared `markdown-it-py==4.2.0`. No online bootstrap or new
