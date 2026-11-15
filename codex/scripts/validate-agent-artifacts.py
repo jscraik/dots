@@ -52,7 +52,7 @@ def _fixture_open(*args, **kwargs):
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DEFAULT_ROOT = SCRIPT_DIR.parent
+DEFAULT_ROOT = _fixture_scope().SCOPE.policy_source_root(SCRIPT_DIR.parent)
 REQUIRED_TEMPLATES = {
     "review_artifact": ("WROTE: <artifact_path>", "Accountability Receipt"),
     "blocker_artifact": ("STATUS: blocked_runtime", "coordinator_next_step"),

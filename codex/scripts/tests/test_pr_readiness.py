@@ -3623,6 +3623,10 @@ class TesslReviewTests(unittest.TestCase):
                            'submitted_at': '2026-11-01T11:59:00Z', 'body': 'P1: unsafe input remains'}
                 self.assertNotEqual(MODULE.reviews_lane(Path.cwd(), {**pr, 'reviews': [earlier, review, *peers]}, head)['status'], 'pass')
                 self.assertEqual(MODULE.reviews_lane(Path.cwd(), {**pr, 'reviews': [review, *peers]}, head)['status'], 'pass')
+                no_check = MODULE.reviews_lane(
+                    Path.cwd(), {**pr, 'reviews': [review, *peers], 'tessl_check_runs': []}, head)
+                self.assertNotEqual(no_check['status'], 'pass')
+                self.assertIn('Tessl Reviewer', no_check['details']['outstanding_bot_concerns'])
                 self.assertEqual(MODULE.reviews_lane(Path.cwd(), {**pr, 'reviews': [old, *peers]}, head)['status'], 'pass')
                 dirty_old = {**old, 'body': old['body'] + '\nP1: Fix unsafe input validation.'}
                 self.assertNotEqual(MODULE.reviews_lane(Path.cwd(), {**pr, 'reviews': [dirty_old, *peers]}, head)['status'], 'pass')
@@ -3634,7 +3638,8 @@ class TesslReviewTests(unittest.TestCase):
                 self.assertTrue(MODULE._join_tessl_review_check(history, history_pr)['tessl_check_verified'])
                 cases = (('current historical', history, history_pr, 'fail'),
                          ('current canonical', review, pr, 'pass'),
-                         ('old historical', {**history, 'commit_id': 'c' * 40}, history_pr, 'pass'))
+                         ('old historical', {**history, 'commit_id': 'c' * 40}, history_pr, 'pass'),
+                         ('dismissed old historical', {**history, 'state': 'DISMISSED', 'commit_id': 'c' * 40}, history_pr, 'pass'))
                 for label, candidate, candidate_pr, expected in cases:
                     with self.subTest(tessl_review=label):
                         lane = MODULE.reviews_lane(Path.cwd(), {**candidate_pr, 'reviews': [candidate, *peers]}, head)

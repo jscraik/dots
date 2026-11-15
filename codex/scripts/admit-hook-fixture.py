@@ -123,5 +123,9 @@ if __name__ == '__main__':
         else:
             admit(json.loads(sys.argv[1]))
     except (IndexError, OSError, TypeError, ValueError, RuntimeError) as exc:
-        print(f'hook fixture admission failed: {exc}', file=sys.stderr)
+        # Deployment checks attach only fixed stage/field/error labels. Keep
+        # legacy fixture errors unchanged; never add rejected resource values.
+        diagnostic = getattr(exc, '_dots_admission_diagnostic', None)
+        print(f'hook fixture admission failed: {diagnostic if isinstance(diagnostic, str) else exc}',
+              file=sys.stderr)
         raise SystemExit(2)

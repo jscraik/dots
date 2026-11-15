@@ -72,6 +72,12 @@ Code that is present may still require an admitted fixture; file presence does
 not make a live command available. Report the exact missing lane as blocked.
 No full Configs aggregate or live acceptance is claimed by this port.
 
+The isolated Desktop-compatibility candidate preserves only an explicitly
+reviewed, private, installation-bound restart delta. Canonical policy remains
+strict; a proposal's existence is not acceptance. See the
+[candidate boundary](../../README.md#desktop-restart-compatibility-candidate).
+It does not upgrade existing sealed packages or approve a live recovery action.
+
 Review identity, exact-head freshness, completed coverage, zero outstanding
 findings, current CI and unresolved-thread checks remain unchanged. The accepted
 Git/release procedures still govern when that workflow is authorised. Copying
@@ -115,6 +121,13 @@ Roll back this candidate by discarding its owned disposable fixtures. Do not
 alter the live setup, other work or original Configs checks.
 
 ## Helper boundary decisions
+
+MIG-HELPER-1 retains admission-before-import ordering in migrated entrypoints.
+The dots maintainer owns this permanent compatibility decision: the specific
+late imports carry `E402` annotations because moving them ahead of scope checks
+would change the execution boundary. The annotations apply only to those imports,
+not to a file or global lint exclusion. Parsed-code equivalence, admission
+regressions and the full lint gate validate these mechanical cleanups.
 
 MIG-HELPER-1 records the permanent compatibility decision for the migrated
 helper graph. The dots maintainer owns it. Retain the accepted FactRegistry

@@ -108,6 +108,7 @@
 !/tests/test_policy_projection_runtime.py
 !/tests/test_hook_handlers.py
 !/tests/test_hook_discovery.py
+!/tests/test_hook_active_turn.py
 !/tests/test_projection_core.py
 !/tests/fixtures/
 !/tests/fixtures/codex-machine.json
@@ -204,6 +205,8 @@
 !/codex/scripts/deployment_scope.py
 !/scripts/install-codex.py
 !/codex/scripts/install-codex.py
+!/codex/scripts/desktop_compatibility.py
+!/tests/test_desktop_compatibility.py
 !/tests/test_installation_route.py
 !/tests/test_deployment_temp.py
 !/tests/test_handover_validation.py

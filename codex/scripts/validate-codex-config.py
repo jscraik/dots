@@ -4,26 +4,26 @@ from __future__ import annotations
 from migration_scope import deployment_module, local_path_text, require_policy_scope
 
 require_policy_scope()
-import argparse
-import json
-import os
-import re
-import shlex
-import subprocess
-import sys
-import uuid
-from collections.abc import Iterator
-from fnmatch import fnmatchcase
-from importlib import import_module
-from pathlib import Path
-from urllib.parse import urlparse
+import argparse  # noqa: E402
+import json  # noqa: E402
+import os  # noqa: E402
+import re  # noqa: E402
+import shlex  # noqa: E402
+import subprocess  # noqa: E402
+import sys  # noqa: E402
+import uuid  # noqa: E402
+from collections.abc import Iterator  # noqa: E402
+from fnmatch import fnmatchcase  # noqa: E402
+from importlib import import_module  # noqa: E402
+from pathlib import Path  # noqa: E402
+from urllib.parse import urlparse  # noqa: E402
 
 try:
     import tomllib
 except ModuleNotFoundError:
     tomllib = import_module('tomli')
 SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SCRIPT_DIR.parent
+REPO_ROOT = deployment_module().ROOT / 'codex' if deployment_module() is not None else SCRIPT_DIR.parent
 CONFIG_REPO_ROOT = REPO_ROOT.parent
 CONFIG_PATH = REPO_ROOT / 'config.toml'
 REPO_LOCAL_CONFIG_PATH = REPO_ROOT / '.codex' / 'config.toml'
@@ -1451,6 +1451,10 @@ def validate_profile_symlinks(errors: list[str]) -> None:
         expected_target = (HOME_PROJECTION_SOURCE_ROOT / f'{name}.config.toml').resolve()
         if not home_path.exists():
             errors.append(f'~/.codex/{name}.config.toml must exist')
+        elif deployment_module() is not None:
+            if (home_path.is_symlink() or not home_path.is_file() or home_path.samefile(expected_target)
+                    or home_path.read_bytes() != expected_target.read_bytes()):
+                errors.append(f'~/.codex/{name}.config.toml must be an independent exact installed copy')
         elif not home_path.is_symlink():
             errors.append(f'~/.codex/{name}.config.toml must be a symlink to {profile_config_path(name)}')
         elif not canonical_paths_match(home_path.resolve(), expected_target):

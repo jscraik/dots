@@ -645,6 +645,12 @@ run_projection_entry() {
         repair_projection_link "$name" "$source_abs" "$target_abs" "$optional"
       fi
       ;;
+    copy-managed)
+      # The installation transaction owns publication, backups and recovery.
+      # The projector checks the exact files, never recreates repository links.
+      python3 "${PROJECTION_SOURCE_ROOT}/codex/scripts/install-codex.py" \
+        check-copy --state-dir "$DEPLOYMENT_STATE" --name "$name" || return 1
+      ;;
     copy)
       if [[ "$MODE" == "check" ]]; then
         check_projection_copy "$name" "$source_abs" "$target_abs" "$optional"

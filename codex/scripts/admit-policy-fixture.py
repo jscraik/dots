@@ -32,6 +32,12 @@ def expected_map(deployed=False):
     for name in ('agents', 'automations', 'usage-data'):
         rows.append({'name': name, 'target': '{CODEX_HOME}/' + name,
                      'strategy': 'preserve' if deployed else 'runtime-directory'})
+    if deployed:
+        for row in rows:
+            if row.get('strategy', 'symlink') == 'symlink':
+                row['strategy'] = 'copy-managed'
+        rows.append({'name': '.dots-package.json', 'source': 'codex/.runtime-source.json',
+                     'target': '{CODEX_HOME}/.dots-package.json', 'strategy': 'copy-managed'})
     return {'schema_version': 1, 'codex_projection': rows, 'global_projection': []}
 
 
@@ -80,7 +86,7 @@ def preflight(map_path):
                         raise ValueError('Canonical source tree must not contain symlinks')
             if target.is_symlink() and (strategy != 'symlink' or target.resolve() != source):
                 admitted_old = False
-                if deployed is not None and strategy == 'symlink':
+                if deployed is not None and strategy in {'symlink', 'copy-managed'}:
                     before = deployed.context()['before'][row['name']]
                     info = target.lstat()
                     admitted_old = (before.get('kind') == 'symlink'

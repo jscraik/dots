@@ -17,7 +17,7 @@ dots_helper_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 python3 "$dots_helper_dir/admit-hook-fixture.py" '{}' || exit $?
 
 script_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-repo_root="$(cd -P "$script_dir/.." && pwd -P)"
+repo_root="$(python3 "$script_dir/migration_scope.py" --source-root)"
 hooks_file="$repo_root/hooks/hooks.json"
 readme_file="$repo_root/hooks/README.md"
 config_file="$repo_root/config.toml"

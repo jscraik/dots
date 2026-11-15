@@ -14,11 +14,11 @@ require_policy_scope = _scope.require_policy_scope
 require_policy_path = _scope.require_policy_path
 require_policy_scope()
 
-import argparse
-import ast
-import stat
-import sys
-from typing import Any
+import argparse  # noqa: E402
+import ast  # noqa: E402
+import stat  # noqa: E402
+import sys  # noqa: E402
+from typing import Any  # noqa: E402
 
 SECTION = "shell_environment_policy.set"
 KEY = "CODEX_AUTH_ENVIRONMENT_ID"

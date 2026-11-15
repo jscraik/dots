@@ -586,7 +586,7 @@
       "path": "codex/scripts/validate-execpolicy-rules.py",
       "source_sha256": "dba70e04d94ab617ca5b59e8bf02a757d87d45a62b04d504077e374c79e60aea",
       "decision": "Preserve all 93 native rule cases, hygiene, alias, timeout and retry checks; fixture-only paths, exact managed constraints and required CLI",
-      "candidate_sha256": "8ab81a3220732c53c1e25549dfb6a7e880da3bb539f69e543e22d8e4a1774053",
+      "candidate_sha256": "52209629ed9bd11a4343889494a7605a87244e58b70b17aef20342752f8af6e8",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks."
     },
     {
@@ -600,8 +600,8 @@
       "path": "codex/instructions/migration-scope.md",
       "origin": "local migration adaptation",
       "decision": "Explicit public scope, serialization and proving checks; no new live authority",
-      "candidate_sha256": "7f3c3c3edbce52a5550fee5ab72b421efe4909a1db3de03fd5eb3151078f7110",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. State installation authority separately from each machine's verified active or rollback state."
+      "candidate_sha256": "a8ad0c51e80b11398915be16be50a9e912ba7dbc429afb47f4030238fcfe78bf",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. State installation authority separately from each machine's verified active or rollback state. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
     },
     {
       "path": "scripts/generate-codex-controls.py",

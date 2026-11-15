@@ -141,7 +141,8 @@ def deployment_module():
     import importlib.util
     global _DEPLOYMENT_MODULE
     marker = Path(__file__).resolve().parents[1] / '.deployment.json'
-    if not os.path.lexists(marker):
+    reference = marker.with_name('.dots-package.json')
+    if not os.path.lexists(marker) and not os.path.lexists(reference):
         return None
     if _DEPLOYMENT_MODULE is not None:
         return _DEPLOYMENT_MODULE
@@ -173,3 +174,21 @@ def require_policy_output(path):
 def require_policy_environment():
     module = deployment_module()
     return require_auth_free_environment() if module is None else module.require_environment()
+
+
+def policy_source_root(fallback):
+    """Resolve read-only policy resources without relying on a directory symlink."""
+    deployed = deployment_module()
+    if deployed is None:
+        return Path(fallback)
+    deployed.context()
+    return deployed.ROOT / 'codex'
+
+
+if __name__ == '__main__':
+    import sys
+    if sys.argv[1:] != ['--source-root']:
+        raise SystemExit('Unknown source-root operation')
+    require_policy_scope()
+    require_policy_environment()
+    print(policy_source_root(Path(__file__).resolve().parent.parent))

@@ -52,7 +52,7 @@ def _fixture_open(*args, **kwargs):
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DEFAULT_ROOT = SCRIPT_DIR.parent
+DEFAULT_ROOT = _fixture_scope().SCOPE.policy_source_root(SCRIPT_DIR.parent)
 
 
 @dataclass(frozen=True)

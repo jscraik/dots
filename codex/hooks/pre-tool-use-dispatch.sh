@@ -32,7 +32,7 @@ indirect_failure() {
 }
 
 if ! parsed="$(
-  printf '%s' "$input_json" | python3 -I -S -c '
+  printf '%s' "$input_json" | python3 -I -S -B -c '
 import json
 import os
 import re
@@ -48,7 +48,8 @@ command_contexts = policy["command_contexts"]
 protect_quoted_punctuation = policy["protect_quoted_punctuation"]
 decode_protected_punctuation = policy["decode_protected_punctuation"]
 declared_functions = policy["declared_functions"]
-repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(sys.argv[1]))))
+scope = runpy.run_path(os.path.join(os.path.dirname(sys.argv[1]), "migration_scope.py"))
+repo_root = str(scope["policy_source_root"](os.path.dirname(os.path.dirname(os.path.realpath(sys.argv[1])))).parent)
 payload = json.load(sys.stdin)
 if not isinstance(payload, dict):
     raise TypeError("hook payload must be a JSON object")

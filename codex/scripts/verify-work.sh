@@ -79,7 +79,7 @@ while (($# > 0)); do
   esac
 done
 
-script_repo_root="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+script_repo_root="$(python3 "$dots_helper_dir/migration_scope.py" --source-root)"
 if [[ -z "$repo_root" ]]; then
   repo_root="$script_repo_root"
 fi

@@ -14,10 +14,10 @@ require_policy_scope = _scope.require_policy_scope
 require_policy_path = _scope.require_policy_path
 require_policy_scope()
 
-import argparse
-import os
-import stat
-import sys
+import argparse  # noqa: E402
+import os  # noqa: E402
+import stat  # noqa: E402
+import sys  # noqa: E402
 
 EXIT_MOUNT_INVALID = 66
 

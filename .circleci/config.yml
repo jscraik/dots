@@ -12,7 +12,15 @@ jobs:
           command: python3 -B scripts/check-source.py
       - run:
           name: Install declared validation dependencies
-          command: python3 -m pip install --disable-pip-version-check -r requirements/codex-validation.txt
+          command: |
+            ruff_requirement="$(python3 -c 'import tomllib; from pathlib import Path; print("ruff==" + tomllib.loads(Path("mise/config.toml").read_text())["tools"]["ruff"])')"
+            python3 -m pip install --disable-pip-version-check -r requirements/codex-validation.txt "$ruff_requirement"
+      - run:
+          name: Check Python style
+          command: ruff check --no-cache .
+      - run:
+          name: Verify public guidance and instruction links
+          command: python3 -B scripts/check-public-guidance.py
       - run:
           name: Test disposable-home staging
           command: python3 -B -m unittest discover -s tests -v

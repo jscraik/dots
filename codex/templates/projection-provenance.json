@@ -6,14 +6,14 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "f1d04051212667d750fdae7f0d150abcd51b564d4a61910b287b87535123e169",
       "transformation": "explicit disposable-home admission; original checks retained",
-      "candidate_sha256": "e3cf8504b49a2b9a6286060b0cabf120d9fe3d550ed545d964850ead49c8c352"
+      "candidate_sha256": "0296c591fae37ec09fb7b693a7376133268860ce664a092a8acbd13f977e68e2"
     },
     {
       "path": "codex/scripts/audit-codex-symlinks.sh",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "728e2c2c5795707ca642c5d95b253ee85a361e5458f812399f5a6f1b7d1aa03f",
       "transformation": "explicit disposable-home admission; original checks retained",
-      "candidate_sha256": "435538f7dff7bc5d5e83249d735e078f9efeecc954f1de505dee5273fd7acb95"
+      "candidate_sha256": "27faef77e524e3929afe9cd1941840e6fde032acfb69d1759d5877c3cd6f9720"
     },
     {
       "path": "codex/scripts/check-runtime-config-path.sh",
@@ -55,7 +55,7 @@
       "source_revision": null,
       "source_sha256": null,
       "transformation": "New local prepare/apply/check/rollback procedure reusing existing validators and publishers.; Add fixed packaged-context admission; retain default disposable admission and original checks.",
-      "candidate_sha256": "ba4ca963a7987de818e7534096b4a704c28f38fd25f03c0e6f41cb9d7d58a304"
+      "candidate_sha256": "5075c194493c579f8fe73a3bbad0c00df77e725b50cb337a2e56dbaeb75ee91d"
     }
   ],
   "fixture_kind": "full-policy-v1",
@@ -76,5 +76,6 @@
     "live cutover"
   ],
   "policy_format_adaptation": "Five disabled OSS cua_repl entries gain the same inert /usr/bin/false transport as oss-local; enabled=false and required=false retained",
-  "fixture_map_sha256": "9d19f4a41603e7529d8e2d8e606f3093f44dc59a2ca6a8686f90e5a57dca8493"
+  "fixture_map_sha256": "9d19f4a41603e7529d8e2d8e606f3093f44dc59a2ca6a8686f90e5a57dca8493",
+  "installed_copy_adaptation": "Packaged installations copy managed policy files and directory trees; isolated legacy source fixtures retain their historical symlink map. Installer receipts bind exact content and modes, copied helpers resolve the sealed package explicitly, and rollback preserves private state and displaced trees."
 }

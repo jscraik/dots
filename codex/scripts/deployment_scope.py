@@ -18,7 +18,47 @@ _CHECKED_MARKER = None
 _MACOS_TEMP_PARENT = Path('/private/var/folders')
 # Native app metadata is not consumed by migrated handlers. It adds no resource
 # root, provider input or execution authority; rehearsals retain path isolation.
-_NATIVE_APP_METADATA = frozenset({'CODEX_APP_TOOLS_PIPE_PATH', 'CODEX_TECTONIC_PATH'})
+_NATIVE_APP_METADATA = frozenset({
+    'CODEX_APP_TOOLS_PIPE_PATH', 'CODEX_TECTONIC_PATH',
+    'CODEX_APP_RUNTIME_CLI_PATH', 'CODEX_MCP_NODE_PATH',
+})
+_ENVIRONMENT_PATHS = ('GH_CONFIG_DIR', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME',
+                      'TMPDIR', 'CODEX_CONFIG_SOURCE_ROOT', 'CODEX_SOURCE_SCHEMA_PATH',
+                      'CODEX_PROJECT_CONFIG_SEARCH_ROOTS')
+_DIAGNOSTIC_FIELDS = {
+    'deployment': frozenset({'context', 'policy_roots', 'final_context'}),
+    'environment': frozenset(_ENVIRONMENT_PATHS) | _NATIVE_APP_METADATA | {
+        'configuration', 'CODEX_HOME', 'CODEX_HOOK_USAGE_ROOT', 'CODEX_COMPACT_HOOK_LOG',
+        'CODEX_SUBAGENT_HOOK_LOG', 'CODEX_HOOK_BYPASS_LOG', 'CODEX_RUNTIME_CARD_PATH',
+        'other_CODEX_path', 'other_DOTS_path',
+    },
+    'event': frozenset({'cwd', 'transcript_path', 'tool_input.cwd',
+                        'tool_input.workdir', 'runtime_card.path'}),
+    'outputs': frozenset({'.codex/state', '.codex/usage-data', '.codex/.tmp'}),
+}
+_ADMISSION_ERRORS = (IndexError, OSError, TypeError, ValueError, RuntimeError)
+_SAFE_DIAGNOSTICS = frozenset(
+    f'stage={stage}; field={field}; error={kind.__name__}'
+    for stage, fields in _DIAGNOSTIC_FIELDS.items() for field in fields
+    for kind in _ADMISSION_ERRORS
+)
+
+
+def _checked(stage, field, operation, *args, **kwargs):
+    """Annotate a rejection with fixed labels, without changing its semantics."""
+    try:
+        return operation(*args, **kwargs)
+    except _ADMISSION_ERRORS as error:
+        try:
+            if getattr(error, '_dots_admission_diagnostic', None) not in _SAFE_DIAGNOSTICS:
+                kind = next(kind for kind in _ADMISSION_ERRORS if isinstance(error, kind))
+                diagnostic = f'stage={stage}; field={field}; error={kind.__name__}'
+                if diagnostic in _SAFE_DIAGNOSTICS:
+                    error._dots_admission_diagnostic = diagnostic
+        except (AttributeError, TypeError):
+            # Diagnostic metadata must never replace the original rejection.
+            pass
+        raise
 
 
 def unique(pairs):
@@ -75,6 +115,18 @@ def fingerprint(root):
     return result
 
 
+def directory_modes(root):
+    result = []
+    for path in sorted(root.rglob('*')):
+        physical(path)
+        if path.is_dir():
+            info = path.stat()
+            if info.st_uid != os.getuid() or info.st_mode & 0o022:
+                raise ValueError('Managed directories must be owned and unshared')
+            result.append({'path': str(path.relative_to(root)), 'mode': stat.S_IMODE(info.st_mode)})
+    return result
+
+
 def identity(files):
     return hashlib.sha256(json.dumps(files, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
@@ -97,7 +149,23 @@ def target_home(value, mode):
 
 
 def context():
-    global _CHECKED_MARKER
+    global _CHECKED_MARKER, ROOT, MARKER
+    code_root = Path(__file__).resolve().parents[1]
+    reference = code_root / '.dots-package.json'
+    copied = code_root == Path(os.environ.get('HOME', '')) / '.codex'
+    if copied:
+        data = json.loads(read_regular(reference), object_pairs_hook=unique)
+        if (not isinstance(data, dict) or set(data) != {'schema_version', 'state_dir'}
+                or type(data['schema_version']) is not int or data['schema_version'] != 1):
+            raise ValueError('Invalid runtime package reference')
+        state = physical(Path(data['state_dir']))
+        home = physical(Path(os.environ['HOME']))
+        if state == home or not state.is_relative_to(home) or state.is_relative_to(home / '.codex'):
+            raise ValueError('Runtime package reference leaves its private state boundary')
+        ROOT = state / 'payload'
+        MARKER = ROOT / 'codex/.deployment.json'
+        if read_regular(reference) != read_regular(ROOT / 'codex/.runtime-source.json'):
+            raise ValueError('Runtime reference differs from its package')
     marker_bytes = read_regular(MARKER, 2 * 1024 * 1024)
     data = json.loads(marker_bytes, object_pairs_hook=unique)
     if (not isinstance(data, dict) or set(data) != {'schema_version', 'mode', 'home',
@@ -115,7 +183,7 @@ def context():
         raise ValueError('Deployment source, state and HOME disagree')
     physical(home / '.codex')
     names = {row['name'] for row in json.loads(read_regular(
-        ROOT / 'codex/templates/projection-map.json'))['codex_projection']}
+        ROOT / 'codex/projection-map.json'))['codex_projection']}
     if not isinstance(data['before'], dict) or set(data['before']) != names:
         raise ValueError('Incomplete managed-target inventory')
     for name, record in data['before'].items():
@@ -139,6 +207,11 @@ def context():
                 fields.add('link')
                 if not isinstance(record.get('link'), str) or not record['link'] or '\0' in record['link']:
                     raise ValueError('Invalid managed-link evidence')
+        if record['kind'] == 'directory' and name in {'hooks', 'scripts', 'instructions', 'schemas', 'model-catalogs', 'rules'}:
+            fields.update({'files', 'directories', 'mode'})
+            if (not isinstance(record.get('files'), list) or not isinstance(record.get('directories'), list)
+                    or type(record.get('mode')) is not int or not 0 <= record['mode'] <= 0o7777):
+                raise ValueError('Invalid managed directory inventory')
         if set(record) != fields:
             raise ValueError('Unexpected managed-target fields')
     marker_digest = hashlib.sha256(marker_bytes).hexdigest()
@@ -149,6 +222,12 @@ def context():
             raise ValueError('Deployment package changed or is not sealed read-only')
         # Private packages are sealed before use. Check code once per process;
         # HOME, retention and resource/environment checks remain per call.
+        if copied:
+            for name in ('hooks', 'scripts', 'instructions', 'schemas', 'model-catalogs', 'rules'):
+                if (fingerprint(code_root / name) != fingerprint(ROOT / 'codex' / name)
+                        or directory_modes(code_root / name) != directory_modes(ROOT / 'codex' / name)
+                        or stat.S_IMODE((code_root / name).stat().st_mode) != stat.S_IMODE((ROOT / 'codex' / name).stat().st_mode)):
+                    raise ValueError('Installed runtime resources differ from their package')
         _CHECKED_MARKER = marker_digest
     if not isinstance(data['retained'], dict) or set(data['retained']) != {'automations', 'usage-data', 'browser', 'pets'}:
         raise ValueError('Incomplete retained-state boundary')
@@ -238,7 +317,7 @@ def require_path(value, *, output=False, data=None, _root_resolver=None):
     resolve_root = Path.resolve if _root_resolver is None else _root_resolver
     resolved_path = path.resolve()
     exact = {home, home / '.codex', home / '.cache', home / '.config', home / '.local/share'}
-    exact.update(home / '.codex' / name for name in ('config.toml', 'hooks.json', 'AGENTS.md', 'automations',
+    exact.update(home / '.codex' / name for name in ('config.toml', 'hooks.json', 'AGENTS.md', 'automations', '.dots-package.json',
         'docs.config.toml', 'oss-local.config.toml', 'oss-local-code.config.toml',
         'oss-local-fallback.config.toml', 'oss-security.config.toml',
         'oss-cloud.config.toml', 'oss-inspect.config.toml'))
@@ -331,19 +410,17 @@ def require_environment(data=None):
             if resolved.is_dir() and resolved not in seen:
                 seen.add(resolved)
                 pending.extend(resolved.iterdir())
-    for name in ('GH_CONFIG_DIR', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME',
-                 'TMPDIR', 'CODEX_CONFIG_SOURCE_ROOT', 'CODEX_SOURCE_SCHEMA_PATH',
-                 'CODEX_PROJECT_CONFIG_SEARCH_ROOTS'):
+    for name in _ENVIRONMENT_PATHS:
         for value in os.environ.get(name, '').split(os.pathsep):
             if value:
-                require_path(Path(value).expanduser(), data=data)
+                _checked('environment', name, require_path, Path(value).expanduser(), data=data)
 
 
 def admit_event(event):
     """Check deployed event resources without walking session or auth stores."""
-    data = context()
-    require_environment(data)
-    resource_roots(data)
+    data = _checked('deployment', 'context', context)
+    _checked('environment', 'configuration', require_environment, data)
+    _checked('deployment', 'policy_roots', resource_roots, data)
     resolved_roots = {}
 
     def resolve_root(path):
@@ -354,34 +431,39 @@ def admit_event(event):
         raise TypeError('Hook event must be an object')
     for name in ('cwd', 'transcript_path'):
         if event.get(name):
-            require_path(Path(event[name]).expanduser(), data=data)
+            _checked('event', name, require_path, Path(event[name]).expanduser(), data=data)
     tool_input = event.get('tool_input')
     if isinstance(tool_input, dict):
         for name in ('cwd', 'workdir'):
             if tool_input.get(name):
-                require_path(Path(tool_input[name]).expanduser(), data=data)
+                _checked('event', 'tool_input.' + name, require_path,
+                         Path(tool_input[name]).expanduser(), data=data)
     card = event.get('runtime_card')
     if isinstance(card, dict) and card.get('path'):
-        require_path(Path(card['path']).expanduser(), data=data)
+        _checked('event', 'runtime_card.path', require_path,
+                 Path(card['path']).expanduser(), data=data)
     for name, value in os.environ.items():
         if name.startswith(('CODEX_', 'DOTS_')) and value.startswith('/') and name not in {
                 'CODEX_VALIDATION_PYTHON', 'CODEX_VALIDATION_UV_PYTHON'}:
             if data['mode'] == 'machine' and name in _NATIVE_APP_METADATA:
                 continue
+            field = name if name in _DIAGNOSTIC_FIELDS['environment'] else (
+                'other_CODEX_path' if name.startswith('CODEX_') else 'other_DOTS_path')
             for item in value.split(os.pathsep):
-                require_path(Path(item), data=data, output=name in {
+                _checked('environment', field, require_path, Path(item), data=data, output=name in {
                     'CODEX_HOOK_USAGE_ROOT', 'CODEX_COMPACT_HOOK_LOG', 'CODEX_SUBAGENT_HOOK_LOG',
                     'CODEX_HOOK_BYPASS_LOG', 'CODEX_RUNTIME_CARD_PATH'})
     # Only own output trees are traversed. Auth/session/plugin state remains local.
     home = Path(data['home'])
     for relative in ('.codex/state', '.codex/usage-data', '.codex/.tmp'):
-        root = require_path(home / relative, data=data, output=True)
+        root = _checked('outputs', relative, require_path, home / relative, data=data, output=True)
         if root.exists():
             for child in root.rglob('*'):
-                require_path(child, data=data, output=True, _root_resolver=resolve_root)
+                _checked('outputs', relative, require_path, child, data=data, output=True,
+                         _root_resolver=resolve_root)
     if any(path.resolve() != resolved for path, resolved in resolved_roots.items()):
         raise ValueError('Output resource alias changed during admission')
-    context()
+    _checked('deployment', 'final_context', context)
     return home
 
 

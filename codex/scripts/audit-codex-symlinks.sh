@@ -16,7 +16,8 @@ dots_script_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 python3 "$dots_script_dir/admit-hook-fixture.py" '{}' || exit $?
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+POLICY_ROOT="$(python3 "$SCRIPT_DIR/migration_scope.py" --source-root)"
+REPO_ROOT="$(dirname "$POLICY_ROOT")"
 
 declare -a codex_homes=()
 legacy_skills_canon=""

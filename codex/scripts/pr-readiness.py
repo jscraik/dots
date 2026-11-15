@@ -35,22 +35,22 @@ require_policy_output = _scope.require_policy_output
 require_policy_scope()
 require_policy_environment()
 
-import argparse
-import hashlib
-import importlib.util
-import json
-import os
-import re
-import signal
-import subprocess
-import sys
-import tempfile
-from collections.abc import Callable
-from datetime import UTC, datetime
-from functools import lru_cache
-from pathlib import Path
-from typing import Any
-from urllib.parse import quote, urlsplit
+import argparse  # noqa: E402
+import hashlib  # noqa: E402
+import importlib.util  # noqa: E402
+import json  # noqa: E402
+import os  # noqa: E402
+import re  # noqa: E402
+import signal  # noqa: E402
+import subprocess  # noqa: E402
+import sys  # noqa: E402
+import tempfile  # noqa: E402
+from collections.abc import Callable  # noqa: E402
+from datetime import UTC, datetime  # noqa: E402
+from functools import lru_cache  # noqa: E402
+from pathlib import Path  # noqa: E402
+from typing import Any  # noqa: E402
+from urllib.parse import quote, urlsplit  # noqa: E402
 
 
 @lru_cache(maxsize=1)

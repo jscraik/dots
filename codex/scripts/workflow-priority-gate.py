@@ -6,12 +6,12 @@ from migration_scope import require_policy_path, require_policy_scope
 
 require_policy_scope()
 
-import argparse
-import json
-import os
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
+import argparse  # noqa: E402
+import json  # noqa: E402
+import os  # noqa: E402
+from dataclasses import dataclass  # noqa: E402
+from pathlib import Path  # noqa: E402
+from typing import Any  # noqa: E402
 
 BOOTSTRAP_P0: tuple[dict[str, str], ...] = ()
 SERVICE = "workflow-priority-gate"

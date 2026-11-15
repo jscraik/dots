@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from migration_scope import require_policy_path, require_policy_scope
+from migration_scope import deployment_module, require_policy_path, require_policy_scope
 
 require_policy_scope()
 
-import argparse
-import json
-from pathlib import Path
+import argparse  # noqa: E402
+import importlib.util  # noqa: E402
+import json  # noqa: E402
+import os  # noqa: E402
+import tomllib  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 try:
     import tomlkit
@@ -124,6 +127,18 @@ def main() -> int:
         return 1
 
     try:
+        # In packaged runtimes Desktop owns its newer notifier. A historical
+        # retirement helper must not silently remove the current registration.
+        if args.repair and deployment_module() is not None:
+            parsed = tomllib.loads(original)
+            deployment = deployment_module()
+            spec = importlib.util.spec_from_file_location('desktop_scrub_guard',
+                deployment.ROOT / 'codex/scripts/desktop_compatibility.py')
+            desktop = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(desktop)
+            pending = Path(deployment.context()['state_dir']) / 'desktop-review.json'
+            if desktop.requires_preservation(parsed) or os.path.lexists(pending):
+                raise ValueError('Packaged Desktop registration requires preservation review')
         scrubbed, removed = scrub_forbidden_notify(original)
     except Exception:  # noqa: BLE001 -- MIG-HELPER-1: fail closed without exposing parser payloads.
         payload = {

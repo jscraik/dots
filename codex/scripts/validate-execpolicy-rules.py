@@ -15,7 +15,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from migration_scope import require_policy_path, require_policy_scope
+from migration_scope import policy_source_root, require_policy_path, require_policy_scope
 
 try:
     import tomllib
@@ -24,7 +24,7 @@ except ModuleNotFoundError:
         tomllib = importlib.import_module("tomli")
     except ModuleNotFoundError:
         tomllib = None
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = policy_source_root(Path(__file__).resolve().parent.parent)
 RULES_DIR = REPO_ROOT / "rules"
 REQUIREMENTS_PATH = REPO_ROOT / "requirements.toml"
 require_policy_scope()

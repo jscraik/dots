@@ -57,7 +57,7 @@
         "public local path literals",
         "fixture-only CLI and Path I/O admission"
       ],
-      "candidate_sha256": "bf60d5ad0e207ecd346fa6b38f59861caeb23493d009ef92ba7044851b41f0bc"
+      "candidate_sha256": "dc05bf9394534d5d0762385547e88efa20009ceae7c7fd7e14dd147e0babc1cd"
     },
     {
       "path": "codex/scripts/validate-agent-governance.py",
@@ -66,7 +66,7 @@
         "public local path literals",
         "fixture-only CLI and Path I/O admission"
       ],
-      "candidate_sha256": "3ae45c5e73d6a0e910914de61701a93e3b107d674994aac9d236a1af7ef40e8f"
+      "candidate_sha256": "00fc5a2d1642d62f56eda80d84c0e6c31423046a28cb4d5eca78d2474e330576"
     },
     {
       "path": "codex/scripts/validate-agent-artifacts.py",
@@ -75,7 +75,7 @@
         "public local path literals",
         "fixture-only CLI and Path I/O admission"
       ],
-      "candidate_sha256": "02bac128b39cd7af5f3873b437d734fdcba1959805a0217d560e865333149043"
+      "candidate_sha256": "13e0f6e418c0efbcfba09a6ad8acbe6ebf1ecac76efe7a911db859ce03c769c2"
     },
     {
       "path": "codex/scripts/render-agent-artifact-summary.py",
@@ -85,7 +85,7 @@
         "fixture-only CLI and Path I/O admission",
         "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "83710324ccf46202d360e71df46886034c88b96388d09998db2a2a8aff14e2d3"
+      "candidate_sha256": "e89527ff0183216be341561729610c20e1010ab1ca6a64efafda3eae5386999a"
     },
     {
       "path": "codex/scripts/plan-graph-lint.py",
@@ -281,7 +281,7 @@
       "transformations": [
         "Original check selection and assertions retained; disposable admission and required helper inventory before execution"
       ],
-      "candidate_sha256": "1128a2d220553bcf4763f66e2cf78afecb41fcffd7436e86139703a021681831"
+      "candidate_sha256": "c28fa5a37a3be2ee204e5c632c4f5290471f796a88cdca5c89d3cb537c73e603"
     },
     {
       "path": "codex/scripts/codex-preflight.sh",
@@ -308,7 +308,7 @@
         "fixture admission before shell helper execution",
         "public local paths"
       ],
-      "candidate_sha256": "3d30c462fd53a7aaf4d39025d18bd65434236b1d28c15241b74efaf881846c68"
+      "candidate_sha256": "e416c176fea381a74572d1fa9101f892fe2948ecfe95c65b4ba44086921a2ae1"
     },
     {
       "path": "codex/scripts/validate-codex-hooks.sh",
@@ -316,7 +316,7 @@
       "transformations": [
         "Original core assertions retained; canonical publisher core view, disposable event/resource plumbing and isolated synthetic FIFO canary"
       ],
-      "candidate_sha256": "a8c05849040a7fd136e6de8781032b843762fbb7b90aea9fdeaabfce34f503d5"
+      "candidate_sha256": "49d2912d3b8c8b3b7186e3f86dc6f051377148355a3d01e0f43bb71328d5db2c"
     },
     {
       "path": "codex/README.md",
@@ -674,9 +674,10 @@
       "source_sha256": "6a3ce3b72d09f4881f0cab38c126a97dad8cc7034f80a2e2a7a3ba7aa7ed1c8d",
       "transformations": [
         "Inert original Configs cache guard; executed only by synthetic original-consumer regressions",
-        "Clear mechanical Ruff diagnostics; preserve pinned-FD snapshot execution under the exact MIG-HELPER-1 S102 compatibility annotation."
+        "Clear mechanical Ruff diagnostics; preserve pinned-FD snapshot execution under the exact MIG-HELPER-1 S102 compatibility annotation.",
+        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
       ],
-      "candidate_sha256": "12bae79550dc442f07791511e310ed31e82f3133facd9317d25266e97723ae03"
+      "candidate_sha256": "1f4df76f554fc034c1b705868b975676946432f2a04688882f698fc5b14bfef8"
     },
     {
       "path": "codex/scripts/tests/fixtures/codex-code-completion.txt",
@@ -729,9 +730,10 @@
       "transformations": [
         "synthetic fixture resources; original selected checks retained",
         "Add fixed packaged-context admission; retain default disposable admission and original checks.",
-        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
+        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
       ],
-      "candidate_sha256": "188b7c4df974bc6bcfe58ca3091856ec8c21179c93ce07ab1b499af8767e2f22"
+      "candidate_sha256": "e35256f37685e934619af6cd23e3071f0043a03e599e872edaa4db1d3ea174df"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
@@ -820,18 +822,20 @@
       "origin": "reconciled public source recorded in reconciliation-provenance.json",
       "transformations": [
         "synthetic fixture resources; original selected checks retained",
-        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
+        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
       ],
-      "candidate_sha256": "6f1ce996863629553357beed42901d6803802a2c7f724d346c30ec80273229aa"
+      "candidate_sha256": "0531109f33d4a754040f92a0c146c99ee61d7550e06c6658cf47be14b15d9835"
     },
     {
       "path": "codex/scripts/tests/test_pr_readiness.py",
       "origin": "reconciled public source recorded in reconciliation-provenance.json",
       "transformations": [
         "synthetic fixture resources; original selected checks retained",
-        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
+        "Add missing-check and dismissed historical-review scenarios from the coordinated follow-up."
       ],
-      "candidate_sha256": "bb45c47e6c7d6a436736176d640df755d38f0dee2d8596ced9730962d433bd4f"
+      "candidate_sha256": "f40d992d8871c69b1fe60635cfcac68ddc8bdcd731ceb349688e6b60223456be"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",

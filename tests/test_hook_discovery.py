@@ -87,7 +87,11 @@ class HookDiscoveryTests(unittest.TestCase):
         # use. It replaces only fixture config; it is not the generated policy.
         config = fixture.runtime / 'config.toml'
         config.write_text('approval_policy = "on-request"\nsandbox_mode = "read-only"\n'
-                          'check_for_update_on_startup = false\n[features]\nhooks = true\n'
+                          'check_for_update_on_startup = false\n'
+                          'model = "fixture-model"\nmodel_provider = "fixture"\n'
+                          '[model_providers.fixture]\nname = "Local inert fixture"\n'
+                          'base_url = "http://127.0.0.1:1/v1"\nwire_api = "responses"\n'
+                          'requires_openai_auth = false\n[features]\nhooks = true\n'
                           'plugin_hooks = false\n[analytics]\nenabled = false\n')
         def start():
             instance = AppServer(fixture)
@@ -119,6 +123,22 @@ class HookDiscoveryTests(unittest.TestCase):
         self.assertTrue(all(re.fullmatch(r'sha256:[0-9a-f]{64}', hook['currentHash']) for hook in discovered))
         self.assertFalse(any(hook.get('statusMessage') for hook in discovered))
 
+        # An ephemeral loaded thread exercises runtime state without a model
+        # turn. Its provider is local and inert; no production auth is copied.
+        thread_id = server.rpc('thread/start', {
+            'cwd': str(fixture.repo), 'ephemeral': True,
+        })['thread']['id']
+
+        def loaded_hooks():
+            entry = server.rpc('hooks/list', {'threadId': thread_id})['data'][0]
+            self.assertFalse(entry['errors'], entry)
+            self.assertFalse(entry['warnings'], entry)
+            self.assertEqual({hook['key'] for hook in entry['hooks']},
+                             {hook['key'] for hook in discovered})
+            return entry['hooks']
+
+        self.assertTrue(all(hook['trustStatus'] == 'untrusted' for hook in loaded_hooks()))
+
         # Use the installed config API to opt into only the discovered fixture
         # definitions. No production trust hashes are copied or inferred.
         states = {hook['key']: {'enabled': True, 'trusted_hash': hook['currentHash']} for hook in discovered}
@@ -130,8 +150,17 @@ class HookDiscoveryTests(unittest.TestCase):
             self.assertEqual(response['filePath'], str(config))
 
         consent(states)
-        # hooks/list uses the server's loaded config. Restart to prove persisted
-        # consent, rather than treating a successful config write as acceptance.
+        # Cwd discovery reads disk, not the loaded thread's runtime. A successful
+        # value write alone must not be mistaken for active hook acceptance.
+        self.assertTrue(all(hook['trustStatus'] == 'trusted' for hook in hooks()))
+        self.assertTrue(all(hook['trustStatus'] == 'untrusted' for hook in loaded_hooks()))
+        response = server.rpc('config/batchWrite', {
+            'edits': [], 'filePath': str(config), 'reloadUserConfig': True,
+        })
+        self.assertEqual(response['status'], 'ok', response)
+        self.assertTrue(all(hook['trustStatus'] == 'trusted' and hook['enabled']
+                            for hook in loaded_hooks()))
+        # Restart separately to prove persisted consent as well as loaded state.
         server.close()
         server, _ = start()
         trusted = hooks()

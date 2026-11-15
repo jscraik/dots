@@ -5,12 +5,12 @@ from migration_scope import require_policy_path, require_policy_scope
 
 require_policy_scope()
 
-import argparse
-import os
-import secrets
-import stat
-from contextlib import contextmanager
-from pathlib import Path
+import argparse  # noqa: E402
+import os  # noqa: E402
+import secrets  # noqa: E402
+import stat  # noqa: E402
+from contextlib import contextmanager  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 
 @contextmanager

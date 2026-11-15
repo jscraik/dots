@@ -1,29 +1,30 @@
 """Detect and repair recurring Codex runtime config drift."""
 from __future__ import annotations
 
-from migration_scope import local_path_text, require_policy_path, require_policy_scope
+from migration_scope import deployment_module, local_path_text, require_policy_path, require_policy_scope
 
 require_policy_scope()
-import argparse
-import contextlib
-import copy
-import ctypes
-import errno
-import hashlib
-import json
-import math
-import os
-import re
-import shutil
-import subprocess
-import sys
-import tempfile
-import tomllib
-from fnmatch import fnmatchcase
-from pathlib import Path
+import argparse  # noqa: E402
+import contextlib  # noqa: E402
+import copy  # noqa: E402
+import ctypes  # noqa: E402
+import errno  # noqa: E402
+import hashlib  # noqa: E402
+import importlib.util  # noqa: E402
+import json  # noqa: E402
+import math  # noqa: E402
+import os  # noqa: E402
+import re  # noqa: E402
+import shutil  # noqa: E402
+import subprocess  # noqa: E402
+import sys  # noqa: E402
+import tempfile  # noqa: E402
+import tomllib  # noqa: E402
+from fnmatch import fnmatchcase  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-CONFIG_PATH = SCRIPT_DIR.parent / 'config.toml'
+CONFIG_PATH = (deployment_module().ROOT / 'codex' if deployment_module() is not None else SCRIPT_DIR.parent) / 'config.toml'
 SCHEMA_VERSION = 'runtime-config-drift-repair/v1'
 SERVICE = 'runtime-config-drift-repair'
 EXPECTED_APPROVALS_REVIEWER = 'auto_review'
@@ -1326,7 +1327,49 @@ def main(argv: list[str] | None=None) -> int:
         payload = _payload(status='blocked', path=config_path, reason='canonical_source_unavailable', error=str(exc))
         _emit(payload, args.json)
         return 1
+    # An explicit installer check may validate the pinned Desktop overlay and
+    # then inspect its original policy view. Never let the ordinary repair path
+    # erase that registration or accept whatever Desktop currently contains.
+    review_state = os.environ.get('DOTS_DESKTOP_REVIEW_STATE')
+    review_digest = os.environ.get('DOTS_DESKTOP_REVIEW_SHA256')
+    if review_state or review_digest:
+        try:
+            if args.repair or not review_state or not review_digest:
+                raise ValueError('Desktop review is read-only and needs its explicit digest')
+            spec = importlib.util.spec_from_file_location(
+                'desktop_check_installer', Path(__file__).with_name('install-codex.py'))
+            installer = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(installer)
+            context = installer.SCOPE.context()
+            state = installer.SCOPE.physical(Path(review_state))
+            if state != Path(context['state_dir']) or config_path != Path(context['home']) / '.codex/config.toml':
+                raise ValueError('Desktop review targets another runtime')
+            digest = hashlib.sha256(installer.SCOPE.read_regular(state / 'plan.json')).hexdigest()
+            plan = installer.load_plan(state, digest)
+            if installer.load_result(state, plan)['status'] != 'applied':
+                raise ValueError('Desktop review requires an applied installation')
+            review = installer.reviewed_desktop(state, digest, plan, review_digest)
+            if original_bytes != review['observed'].encode():
+                raise ValueError('Desktop registration changed after review')
+            original = review['installed']
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            _emit(_payload(status='blocked', path=config_path,
+                reason='desktop_review_invalid', error=str(exc)), args.json)
+            return 1
     drift = detect_drift(original, expected_auto_review_policy=expected_auto_review_policy, expected_signing_agent_socket=expected_signing_agent_socket, expected_circle_no_telemetry=expected_circle_no_telemetry, expected_control_settings=expected_control_settings)
+    if args.repair and deployment_module() is not None:
+        runtime, _ = _loads_toml(original)
+        deployment = deployment_module()
+        spec = importlib.util.spec_from_file_location('desktop_repair_guard',
+            deployment.ROOT / 'codex/scripts/desktop_compatibility.py')
+        desktop = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(desktop)
+        pending = Path(deployment.context()['state_dir']) / 'desktop-review.json'
+        if runtime is None or desktop.requires_preservation(runtime) or os.path.lexists(pending):
+            _emit(_payload(status='blocked', path=config_path,
+                reason='desktop_registration_preservation_required',
+                error='Review Desktop registration before repair; no config was changed'), args.json)
+            return 1
     if not _runtime_matches_canonical_policy(original, canonical_text) and (not drift):
         drift.append('canonical_file_mismatch')
     if LEGACY_CUA_DRIFT in drift and (not args.repair or 'notify.SkyComputerUseClient' not in drift):

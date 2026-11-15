@@ -22,6 +22,57 @@ this repository does not install itself into the live home.
 
 ## Verify locally
 
+### Desktop restart compatibility candidate
+
+An installed config may gain Desktop-owned executable registrations after a
+restart. The ordinary check and rollback continue to reject those newer bytes.
+The isolated compatibility candidate adds `prepare-desktop-review` to the
+installer. It writes a private, create-once proposal in installation state and
+returns its SHA-256; it does not approve the proposal or change runtime files.
+Only twelve named Desktop slots may differ. All remaining parsed policy must
+agree with the installed baseline, and every other managed target must match.
+
+After independent review and explicit operator acceptance, `check` or `rollback`
+can receive `--desktop-review-sha256` with that exact digest. Checks never learn
+new settings automatically. Changed executable arguments, environment values,
+plugin settings, unknown fields or safety policy still block. Canonical schema,
+hook and rule validation remain intact. The review-aware drift checker is
+read-only; it refuses `--repair` rather than deleting retained registrations.
+Ordinary packaged repair, initial preparation and the historical notifier
+scrubber also stop before writing when that Desktop registration is present.
+
+Reviewed rollback derives its target from the original backup and the exact
+Desktop delta. It preserves original plan, receipt and backup files, and keeps
+a separate digest-bound recovery receipt for interrupted retries. Newer or
+concurrent edits stop restoration without granting overwrite authority. The
+review proposal contains private configuration and must remain outside Git.
+
+The source supports newly built packages; a disposable rehearsal does not
+prove acceptance on a particular machine or authorise live recovery. An existing
+sealed package must not be edited or have its recorded hashes rewritten to make
+this route available.
+
+The pure `desktop_compatibility.repair_candidate(installed, observed)` API can
+prepare configuration text for the bounded seven-field repair. It preserves
+the named Desktop preferences and app-tools enabled flag, restores a missing
+canonical `multi_agent` flag, and removes only the reviewed legacy sandbox
+aliases. It does not write files, approve a proposal or clear the observed
+drift. Ordinary check/review continues to reject the unrepaired configuration.
+After separately authorised publication, a fresh content-bound Desktop review
+is still required. Custom Chrome theme additions and code theme IDs other than
+the verified `codex` ID remain blocked pending their schema port. Automatic
+archive days remain local lifecycle settings and must be nonnegative integers.
+
+The paired generator can restore sealed Braid command quoting and the original
+matching consent hashes together. It accepts only equal literal arguments and
+unchanged handler metadata; it creates no new trust hashes or trust exceptions.
+Either mixed file pair remains blocked by the existing review checks. Micro
+layout preservation supports only the verified bundled TOML bindings plus the
+separate-microphone-keys boolean. Other bindings remain blocked. These are text
+candidates; publication and exact-content acceptance retain separate authority.
+
+### Local checks
+
 Use Python 3.12 or newer in an existing validation environment containing the
 pins in `requirements/codex-validation.txt`. The instruction-pointer checker
 uses the already-declared `markdown-it-py==4.2.0`. No online bootstrap or new
@@ -57,8 +108,9 @@ Packaged provider admission recognises its named local binary/reference inputs
 and the existing 1Password CLI locations. It adds no writable helper roots;
 rehearsals continue to reject host providers and escaping symlinks.
 
-Machine admission treats `CODEX_APP_TOOLS_PIPE_PATH` and `CODEX_TECTONIC_PATH`
-as unused native app metadata. Migrated handlers do not open or execute these
+Machine admission treats `CODEX_APP_TOOLS_PIPE_PATH`, `CODEX_TECTONIC_PATH`,
+`CODEX_APP_RUNTIME_CLI_PATH` and `CODEX_MCP_NODE_PATH` as unused native app
+metadata. Migrated handlers do not open or execute these
 values, and they add no resource roots or helper-output permissions. Event paths,
 all other scoped environment paths and retained-store protections remain
 checked. Rehearsals still reject native metadata paths outside their owned home.
@@ -71,8 +123,12 @@ Desktop-setting preservation and atomic config/hook publishers. It installs no
 packages, starts no background service and does not contact a provider or CI.
 
 Preparation creates a private, read-only policy package and validates it before
-backing up the 19 managed targets. Config and hook manifests remain independent
-regular files; profiles and reusable code use links into that package. Existing
+backing up the 20 managed targets. Config, hook manifests, profiles and reusable
+code are independent regular-file or directory copies. The additional private
+`.dots-package.json` reference identifies the sealed installed package without
+using a filesystem link. Copied helpers validate that package and the installed
+code inventory before use. Development-checkout edits cannot change the running
+installation. Existing
 agents, automations, usage data, browser/pet state and all session/auth stores
 remain local. Backups cover managed files and link metadata, not those stores.
 The sealed package records the existing session-evidence storage root from its
@@ -94,6 +150,13 @@ setup and exercises the actual commands:
 DOTS_CODEX_BIN=/absolute/path/to/codex python3 -B -m unittest discover -s tests -p test_installation_route.py -v
 ```
 
+For native hook consent, `hooks/list` with `cwds` proves on-disk discovery only.
+After an authorised change, use the owning app server's `config/batchWrite` with
+`reloadUserConfig: true`, then verify `hooks/list` with the target `threadId`.
+A successful `config/value/write` or fresh-server listing does not prove that an
+already loaded thread uses the new hooks. The focused `test_hook_discovery.py`
+regression checks this distinction in a disposable home without a model turn.
+
 For an operator-prepared rehearsal, the command sequence is:
 
 ```sh
@@ -106,15 +169,36 @@ python3 -B scripts/install-codex.py rollback --state-dir TEMP_HOME/installation/
 Substitute explicit paths and the digest returned by preparation. That digest
 identifies the prepared change; it grants no execution or installation authority.
 Do not edit the source or package between commands. Repeated application is a
-check; interrupted application resumes before rollback. Unexpected newer target
-content stops recovery and retains the backup for inspection.
+check. Interrupted application can be rolled back without resuming activation.
+Unexpected newer target content stops recovery and retains the backup for inspection.
+Managed directory inventories include nested modes and file hashes. Displaced trees
+are retained privately, not recursively deleted. On macOS, directory swaps briefly
+need owner-write permission; an inode-bound journal is flushed before that change
+and recovers the original modes after interruption. Recovery refuses replaced or
+ambiguous inodes rather than changing an unrelated directory.
+
+Updates use the same `prepare`, `apply`, `check` and `rollback` commands with a fresh
+state directory and bindings rendered for that package. Preparation refuses managed
+runtime drift; review intentional edits before updating rather than overwriting or
+uploading them. Only selected reusable changes belong in the GitHub source. Private
+bindings, Desktop consent, authentication, sessions, databases, plugins and generated
+state stay local. No automatic bidirectional sync or background service is added.
+Existing private data aliases are preserved; their relocation is a separate task.
+
+For recovery after the development checkout changes, use the exact previously
+prepared package entrypoint, state directory and plan digest, for example
+`python3 -B STATE_DIR/payload/scripts/install-codex.py rollback --state-dir STATE_DIR --plan-digest PREPARED_DIGEST`.
+This pinned local recovery route needs the same authority as rollback and must be
+available outside an affected assistant chat. The original checkout entrypoint still
+refuses source mismatches. Disposable recovery proof is not live Studio acceptance.
 
 The candidate also distinguishes the current OS account home from disposable
 homes. That admission is not live qualification. A quiet maintenance window,
 private binding and external-dependency checks, current consent, independent
-review and a separate activation decision are still required. This migration
-has not installed into the live home or changed `/etc/codex` policy. Without a
-packaged context, all imported tools retain their original strict fixture guard.
+review and a separate activation decision are required for each machine. The
+local installation receipt records whether that machine is active or rolled
+back; the repository does not change `/etc/codex` policy. Without a packaged
+context, all imported tools retain their original strict fixture guard.
 
 ## Synthetic Codex projection preview
 

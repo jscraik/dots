@@ -65,7 +65,9 @@ class DeploymentTempTests(unittest.TestCase):
         executable.chmod(0o700)
         environment = {'HOME': str(self.home), 'TMPDIR': str(self.temp),
                        'CODEX_APP_TOOLS_PIPE_PATH': str(transport),
-                       'CODEX_TECTONIC_PATH': str(executable)}
+                       'CODEX_TECTONIC_PATH': str(executable),
+                       'CODEX_APP_RUNTIME_CLI_PATH': str(executable),
+                       'CODEX_MCP_NODE_PATH': str(executable)}
         with (mock.patch.object(SCOPE, 'context', return_value=self.data),
               mock.patch.dict(os.environ, environment, clear=True)):
             self.assertEqual(SCOPE.admit_event({}), self.home)
@@ -81,7 +83,8 @@ class DeploymentTempTests(unittest.TestCase):
         temporary.mkdir()
         outside = self.root / 'native-outside'
         outside.mkdir()
-        for name in ('CODEX_APP_TOOLS_PIPE_PATH', 'CODEX_TECTONIC_PATH'):
+        for name in ('CODEX_APP_TOOLS_PIPE_PATH', 'CODEX_TECTONIC_PATH',
+                     'CODEX_APP_RUNTIME_CLI_PATH', 'CODEX_MCP_NODE_PATH'):
             environment = {'HOME': str(self.home), 'TMPDIR': str(temporary), name: str(outside)}
             with (self.subTest(field=name),
                   mock.patch.object(SCOPE, 'context', return_value=self.data | {'mode': 'rehearsal'}),
@@ -89,10 +92,23 @@ class DeploymentTempTests(unittest.TestCase):
                   self.assertRaisesRegex(ValueError, 'Rehearsal resource leaves')):
                 SCOPE.admit_event({})
 
+    def test_machine_rejection_identifies_role_even_when_basename_is_codex(self):
+        outside = self.root / 'private-sentinel/codex'
+        environment = {'HOME': str(self.home), 'TMPDIR': str(self.temp),
+                       'CODEX_HOOK_USAGE_ROOT': str(outside)}
+        with (mock.patch.object(SCOPE, 'context', return_value=self.data),
+              mock.patch.dict(os.environ, environment, clear=True),
+              self.assertRaisesRegex(ValueError, 'Resource leaves the deployment policy scope: codex') as caught):
+            SCOPE.admit_event({})
+        self.assertEqual(caught.exception._dots_admission_diagnostic,
+                         'stage=environment; field=CODEX_HOOK_USAGE_ROOT; error=ValueError')
+        self.assertFalse(outside.exists())
+
     def test_native_app_metadata_exception_does_not_cover_other_prefixed_resources(self):
         outside = self.root / 'unadmitted'
         outside.mkdir()
-        for name in ('CODEX_HOOK_USAGE_ROOT', 'DOTS_REPORT_PATH', 'CODEX_UNKNOWN_PATH'):
+        for name in ('CODEX_HOOK_USAGE_ROOT', 'DOTS_REPORT_PATH', 'CODEX_UNKNOWN_PATH',
+                     'CODEX_APP_RUNTIME_CLI_PATH_EXTRA', 'CODEX_MCP_NODE_PATH_EXTRA'):
             environment = {'HOME': str(self.home), 'TMPDIR': str(self.temp), name: str(outside)}
             with (self.subTest(field=name),
                   mock.patch.object(SCOPE, 'context', return_value=self.data),
@@ -175,6 +191,41 @@ class DeploymentTempTests(unittest.TestCase):
 
 
 class DeploymentTempPrimitiveTests(unittest.TestCase):
+    def test_diagnostic_preserves_original_failure_and_specific_label(self):
+        failure = ValueError('private error sentinel')
+        operation = mock.Mock(side_effect=failure)
+        with self.assertRaises(ValueError) as caught:
+            SCOPE._checked('environment', 'configuration', SCOPE._checked,
+                           'environment', 'CODEX_HOME', operation, 'argument', output=True)
+        self.assertIs(caught.exception, failure)
+        self.assertEqual(str(failure), 'private error sentinel')
+        self.assertEqual(failure._dots_admission_diagnostic,
+                         'stage=environment; field=CODEX_HOME; error=ValueError')
+        operation.assert_called_once_with('argument', output=True)
+
+    def test_diagnostic_returns_success_without_changing_arguments(self):
+        sentinel = object()
+        operation = mock.Mock(return_value=sentinel)
+        self.assertIs(SCOPE._checked('event', 'cwd', operation, sentinel, output=False), sentinel)
+        operation.assert_called_once_with(sentinel, output=False)
+
+    def test_diagnostic_rejection_cannot_replace_original_failure(self):
+        class RefusesDiagnostic(ValueError):
+            def __setattr__(self, name, value):
+                raise AttributeError('no diagnostic attributes')
+
+        failure = RefusesDiagnostic('original failure')
+        with self.assertRaises(RefusesDiagnostic) as caught:
+            SCOPE._checked('event', 'cwd', mock.Mock(side_effect=failure))
+        self.assertIs(caught.exception, failure)
+
+    def test_diagnostic_labels_never_include_unrecognised_input(self):
+        failure = OSError('private error sentinel')
+        with self.assertRaises(OSError) as caught:
+            SCOPE._checked('event', 'private-field-sentinel', mock.Mock(side_effect=failure))
+        self.assertIs(caught.exception, failure)
+        self.assertFalse(hasattr(failure, '_dots_admission_diagnostic'))
+
     def test_component_containment_preserves_posix_path_semantics(self):
         paths = ('/', '/home', '/home/local', '/home/local/log', '/home/locality',
                  '/home/local/../outside', '//home/local', '/home/./local')

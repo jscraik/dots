@@ -6,13 +6,13 @@ from migration_scope import require_policy_path, require_policy_scope
 
 require_policy_scope()
 
-import argparse
-import json
-import re
-import tempfile
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
+import argparse  # noqa: E402
+import json  # noqa: E402
+import re  # noqa: E402
+import tempfile  # noqa: E402
+from dataclasses import dataclass  # noqa: E402
+from pathlib import Path  # noqa: E402
+from typing import Any  # noqa: E402
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG_PATH = SCRIPT_DIR.parent / "config.toml"
