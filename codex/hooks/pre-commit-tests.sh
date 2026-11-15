@@ -139,6 +139,23 @@ try:
             raise ValueError("unsupported Git global option: " + option)
     if not tokens:
         raise ValueError("git commit target was not found")
+    options = tokens[1:]
+    value_options = {"-m", "--message", "-F", "--file", "--cleanup", "--trailer"}
+    switches = {"--allow-empty", "--allow-empty-message", "--signoff", "-s", "--verbose", "-v", "--quiet", "-q", "-S", "--gpg-sign"}
+    while options:
+        option = options.pop(0)
+        if option in value_options:
+            if not options:
+                raise ValueError("missing commit option value")
+            options.pop(0)
+        elif option in switches:
+            continue
+        elif any(option.startswith(prefix + "=") for prefix in value_options if prefix.startswith("--")):
+            continue
+        elif option.startswith("-m") and len(option) > 2:
+            continue
+        else:
+            raise ValueError("unsupported commit option")
     result = subprocess.run(["git", "-C", str(target), "rev-parse", "--show-toplevel"],
                             text=True, capture_output=True, timeout=5, check=True)
     resolved = result.stdout.rstrip("\n")
@@ -153,6 +170,13 @@ try:
     if (not active_root or any(c in active_root for c in "\n\r\t")
             or Path(resolved).resolve(strict=True) != Path(active_root).resolve(strict=True)):
         raise ValueError("commit validation must stay in the active worktree")
+    expected = {"commit.gpgsign": "true", "gpg.format": "ssh",
+                "gpg.ssh.program": "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"}
+    for key, value in expected.items():
+        actual = subprocess.run(["git", "-C", resolved, "config", "--get", key],
+                                capture_output=True, text=True, timeout=5, check=False)
+        if actual.returncode != 0 or actual.stdout.rstrip("\n") != value:
+            raise ValueError("effective Git signing configuration must use 1Password: " + key)
     print(resolved)
 except (ValueError, OSError, subprocess.SubprocessError) as error:
     print("Cannot resolve commit validation target: " + str(error), file=sys.stderr)
@@ -170,10 +194,7 @@ if [[ -f "$run_dir/package.json" ]] && ! jq -e 'type == "object" and ((.scripts?
   exit 0
 fi
 
-jq -n '{
-  hookSpecificOutput: {
-    hookEventName: "PreToolUse",
-    permissionDecision: "deny",
-    permissionDecisionReason: "Commit blocked: this hook cannot request native approval. Use a separately approved supported execution route. No repository tests were executed by this pre-approval hook; normal Git hooks remain unchanged."
-  }
-}'
+# Structural admission is not execution approval. Leave the tool's native
+# sandbox and approval policy to decide whether this command may execute.
+# Git runs its normal hooks and configured 1Password signer after that decision.
+jq -n '{hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: "Commit syntax and active-worktree scope passed. Native execution approval still applies; Git hooks and configured signing remain required."}}'

@@ -315,9 +315,10 @@
       "source_sha256": "30477f08592fb82e111a33b8aafe2c6573a5b51b86fd711b905e10ddd07fa0e8",
       "transformations": [
         "Original core assertions retained; canonical publisher core view, disposable event/resource plumbing and isolated synthetic FIFO canary",
-        "Reuse the validated Python launcher in the nested missing-Computer-Use home"
+        "Reuse the validated Python launcher in the nested missing-Computer-Use home",
+        "Use the imported Path class in the native hook trust probe"
       ],
-      "candidate_sha256": "b4fe3bf55d599681a0d7e460f304a43745fa05a36f0e6b8ab6a184f89c61001a"
+      "candidate_sha256": "4c96b133ee1c21ada58a1c336b7b94b02bb38ab44ad57a46433480d92395ad68"
     },
     {
       "path": "codex/README.md",
@@ -333,7 +334,7 @@
       "transformations": [
         "public path placeholders; accepted schema/policy content retained"
       ],
-      "candidate_sha256": "39163053f4ca56f5c37ba2367898ab550106d739537aa139784acd0269db7c26"
+      "candidate_sha256": "f22a4ec71678837ec32b344c676b7ce0d1543336d310dbad145920d2b410cdaf"
     },
     {
       "path": "codex/duplication-policy.json",
