@@ -195,6 +195,9 @@ supported, but repository membership never grants test-execution authority.
 The pre-approval hook inspects metadata only. Eligible normal commits continue
 to native sandbox and execution approval after scope, option and effective
 1Password signing checks. Unsigned, alternate-key and amend options are rejected.
+Commit arguments must be literal: parameter, command, arithmetic, brace, pathname
+and tilde expansion are rejected before option parsing. Single-quote or escape
+literal expansion characters in messages; double quotes still permit expansion.
 The hook neither grants approval nor executes tests or signing. The dispatcher converts
 unsupported handler `ask` responses to denial. No repository tests run before
 the tool permission decision, and normal Git hooks remain unchanged.

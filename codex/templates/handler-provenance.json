@@ -60,9 +60,10 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "1484dd2dc30b8bfc3ff61eef9eaade6e6e4ab8ff7eefbe381bcde7f09ef9e1cf",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "Reject shell expansions before literal commit option admission; preserve native approval and signing safeguards"
       ],
-      "candidate_sha256": "c1072e48855c0fc3b37a1bc422ee478e52f87a1bd124efcbd2b91c0cad01f4e8"
+      "candidate_sha256": "35abad05fbdab305a7c9cb9b364093a0a64c75ed4ef8f679d4397dfb5e2f6302"
     },
     {
       "path": "codex/hooks/pre-compact-guard.sh",

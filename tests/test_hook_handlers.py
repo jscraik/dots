@@ -97,6 +97,49 @@ class HookHandlerTests(unittest.TestCase):
         self.assertNotEqual(output.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
         self.assertIn('Native execution approval still applies', output['hookSpecificOutput']['additionalContext'])
 
+    def test_commit_rejects_shell_expansion_before_option_admission(self):
+        commands = (
+            'git commit -mfixture${IFS}--no-verify${IFS}--no-gpg-sign',
+            'git commit -mfixture$IFS--no-verify$IFS--no-gpg-sign',
+            'git commit --message=fixture${IFS}--no-verify${IFS}--no-gpg-sign',
+            'git commit -m ${MESSAGE}',
+            'git commit -m "$MESSAGE"',
+            'git commit -m "${MESSAGE}"',
+            'git commit -m "$@"',
+            'git commit -m $((1 + 1))',
+            'git commit -m $(printf fixture)',
+            'git commit -m `printf fixture`',
+            'git commit -m {fixture,--no-verify,--no-gpg-sign}',
+            'git commit -m *',
+            'git commit -m ?fixture',
+            'git commit -m [ab]',
+            'git commit -F ~/message.txt',
+        )
+        for command in commands:
+            for hook in ('pre-commit-tests.sh', 'pre-tool-use-dispatch.sh'):
+                with self.subTest(command=command, hook=hook):
+                    output = self.output(hook, {'tool_input': {'command': command}})
+                    self.assertEqual(output.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+
+    def test_commit_preserves_literal_messages_and_native_approval(self):
+        commands = (
+            'git commit -m fixture',
+            "git commit -m 'literal ${IFS} $MESSAGE `text` * ? [ab] {a,b} ~'",
+            r'git commit -m "literal \$MESSAGE \`text\` * ? [ab] {a,b} ~"',
+            r'git commit -m literal\$MESSAGE',
+            r'git commit -m literal\*\?\[ab\]\{a,b\}\~',
+            'git commit --message="literal spaces"',
+            "git commit -m'quoted 'message",
+        )
+        for command in commands:
+            for hook in ('pre-commit-tests.sh', 'pre-tool-use-dispatch.sh'):
+                with self.subTest(command=command, hook=hook):
+                    output = self.output(hook, {'tool_input': {'command': command}})
+                    decision = output.get('hookSpecificOutput', {}).get('permissionDecision')
+                    self.assertNotIn(decision, ('allow', 'deny'))
+                    self.assertIn('Native execution approval still applies',
+                                  output['hookSpecificOutput']['additionalContext'])
+
     def test_commit_rejects_local_signing_overrides(self):
         for key, value in {'commit.gpgsign': 'false', 'gpg.format': 'openpgp',
                            'gpg.ssh.program': '/tmp/other-signer'}.items():

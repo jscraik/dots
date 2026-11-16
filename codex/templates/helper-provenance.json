@@ -334,7 +334,7 @@
       "transformations": [
         "public path placeholders; accepted schema/policy content retained"
       ],
-      "candidate_sha256": "f22a4ec71678837ec32b344c676b7ce0d1543336d310dbad145920d2b410cdaf"
+      "candidate_sha256": "f504948c350155241ed5979ef7112b94e9551150e80a614de58cdf9a81cd0845"
     },
     {
       "path": "codex/duplication-policy.json",
