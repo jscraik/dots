@@ -494,9 +494,34 @@ def update_desktop_text(canonical, original):
 def normalized_desktop_update(original, canonical):
     review = effective_previous_review()
     if not review:
-        return original, None
+        context = SCOPE.context()
+        before = context['before']['config.toml']
+        if before['kind'] != 'file':
+            return original, None
+        state = Path(context['state_dir'])
+        backup = SCOPE.read_regular(state / 'backups/config.toml')
+        if hashlib.sha256(backup).hexdigest() != before['sha256']:
+            raise ValueError('Initial configuration backup changed')
+        prepared = update_desktop_text(canonical, backup.decode())
+        expected_states = tomllib.loads(prepared).get('hooks', {}).get('state', {})
+        canonical_states = tomllib.loads(canonical).get('hooks', {}).get('state', {})
+        paths = [('hooks', 'state', key, 'enabled') for key, value in expected_states.items()
+                 if value.get('enabled') is False and canonical_states[key].get('enabled') is not False]
+        if not paths:
+            return original, None
+        compat = module('initial_hook_preferences', ROOT / 'codex/scripts/desktop_compatibility.py')
+        observed = tomllib.loads(original)
+        policy = tomllib.loads(canonical)
+        changes = []
+        normalizers = []
+        for path in paths:
+            value = compat.get(observed, path)
+            if not compat.equal(value, {'present': True, 'value': False}):
+                raise ValueError('Prepared hook revocation changed')
+            changes.append({'path': list(path), 'after': value})
+            normalizers.append({'path': list(path), 'after': compat.get(policy, path)})
+        return compat.overlay(original, normalizers), changes
     compat = module('normalize_desktop', ROOT / 'codex/scripts/desktop_compatibility.py')
-    import tomllib
     observed, policy = tomllib.loads(original), tomllib.loads(canonical)
     normalizers = []
     changes = list(review['changes'])

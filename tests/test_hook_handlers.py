@@ -97,6 +97,12 @@ class HookHandlerTests(unittest.TestCase):
         self.assertNotEqual(output.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
         self.assertIn('Native execution approval still applies', output['hookSpecificOutput']['additionalContext'])
 
+    def test_commit_rejects_argument_expansion(self):
+        for hook in ('pre-commit-tests.sh', 'pre-tool-use-dispatch.sh'):
+            with self.subTest(hook=hook):
+                output = self.output(hook, {'tool_input': {'command': 'git commit -m $MESSAGE'}})
+                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+
     def test_commit_rejects_local_signing_overrides(self):
         for key, value in {'commit.gpgsign': 'false', 'gpg.format': 'openpgp',
                            'gpg.ssh.program': '/tmp/other-signer'}.items():

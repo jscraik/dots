@@ -63,9 +63,10 @@
       "source_sha256": "1484dd2dc30b8bfc3ff61eef9eaade6e6e4ab8ff7eefbe381bcde7f09ef9e1cf",
       "transformations": [
         "fixture scope and event admission before handler actions",
-        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Retain parent commit admission checks for literal shell arguments"
       ],
-      "candidate_sha256": "fdc486959b69fc5b94058047c591cecefd41c80bd00a37761ae0afd89fb6b0c7"
+      "candidate_sha256": "3aeae963d50033c5e61ffe504c97d7a69d26a22be03159c73428941c0aafbdf7"
     },
     {
       "path": "codex/hooks/pre-compact-guard.sh",

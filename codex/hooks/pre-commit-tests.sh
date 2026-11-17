@@ -94,6 +94,26 @@ try:
     policy = runpy.run_path(sys.argv[2])
     if policy["substitution_commands"](command) != []:
         raise ValueError("command substitutions are not supported")
+    # shlex does not perform shell expansion. Only admit literal words, so
+    # an attached message cannot expand into options that bypass safeguards.
+    # Single quotes and backslash escapes keep expansion characters as data;
+    # double quotes still permit parameter/arithmetic/command expansion.
+    quote = None
+    index = 0
+    while index < len(command):
+        char = command[index]
+        if quote == "'":
+            if char == "'":
+                quote = None
+        elif char == "\\":
+            index += 1
+        elif char == "'" and quote is None:
+            quote = char
+        elif char == '"':
+            quote = None if quote == char else char
+        elif char in ("$", chr(96)) or (quote is None and char in "*?[]{}~"):
+            raise ValueError("shell expansions are not supported; quote literal arguments")
+        index += 1
     protected = policy["protect_quoted_punctuation"](command)
     lexer = shlex.shlex(protected, posix=True, punctuation_chars=";&|<>()\n")
     lexer.whitespace = " \t\r"

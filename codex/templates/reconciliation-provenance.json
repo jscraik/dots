@@ -47,7 +47,7 @@
     {
       "path": "codex/hooks/pre-commit-tests.sh",
       "prior_candidate_sha256": "da8c32b3ee00003e38fabaea57151d518935326235741e2cbc4ac92a2bb5eb7b",
-      "candidate_sha256": "fdc486959b69fc5b94058047c591cecefd41c80bd00a37761ae0afd89fb6b0c7"
+      "candidate_sha256": "3aeae963d50033c5e61ffe504c97d7a69d26a22be03159c73428941c0aafbdf7"
     },
     {
       "path": "codex/hooks/pre-tool-use-dispatch.sh",
@@ -201,7 +201,7 @@
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "f25d154c1d07ad82d1a73c6a4b54701f2fcef467373ffe5b31d6ea86d7f18fb6",
+      "candidate_sha256": "9eb27cee68ee316d644e06700541ca127118ebd193b59df69ccb9c61ad5d83ff",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment."
     },
     {

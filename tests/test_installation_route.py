@@ -1366,6 +1366,19 @@ with installer.renameable_directories(state, staged, target):
             '--usage-directory-repair', repair_state / 'proof.json'))['plan_digest']
         return digest, before, repair_state
 
+    def test_initial_install_preserves_all_hook_disables(self):
+        config = self.runtime / 'config.toml'
+        selected = tomllib.loads(config.read_text())
+        for value in selected['hooks']['state'].values():
+            value['enabled'] = False
+        config.write_text(GEN.toml_document(selected))
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        self.success(self.operation('check', digest))
+        states = tomllib.loads(config.read_text())['hooks']['state']
+        self.assertTrue(states)
+        self.assertTrue(all(row['enabled'] is False for row in states.values()))
+
     def test_policy_update_preserves_current_desktop_preferences(self):
         digest, _before, _repair = self.prepare_usage_policy_update(
             disable_hooks=True, desktop_preferences=True)
