@@ -1322,6 +1322,7 @@ with installer.renameable_directories(state, staged, target):
                 entry['enabled'] = False
         config.write_text(GEN.toml_document(selected))
         if desktop_preferences:
+            selected['desktop']['git-commit-instructions'] = 'Use a specific subject.\nExplain the change.'
             selected['model'] = 'gpt-6-sol'
             selected['model_reasoning_effort'] = 'low'
             selected['desktop']['daybreak-enabled'] = {
@@ -1371,6 +1372,8 @@ with installer.renameable_directories(state, staged, target):
         self.success(self.operation('apply', digest))
         self.success(self.operation('check', digest))
         actual = tomllib.loads((self.runtime / 'config.toml').read_text())
+        self.assertEqual(actual['desktop']['git-commit-instructions'],
+                         'Use a specific subject.\nExplain the change.')
         self.assertEqual(actual['model'], 'gpt-6-sol')
         self.assertEqual(actual['model_reasoning_effort'], 'low')
         self.assertEqual(actual['desktop']['daybreak-enabled'], {

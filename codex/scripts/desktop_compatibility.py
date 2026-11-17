@@ -14,6 +14,7 @@ from pathlib import Path
 PATHS = (
     ('model',),
     ('model_reasoning_effort',),
+    ('desktop', 'git-commit-instructions'), ('desktop', 'git-pr-instructions'),
     ('desktop', 'daybreak-enabled'),
     ('desktop', 'selected-avatar-id'),
     ('marketplaces', 'openai-bundled', 'last_updated'),
@@ -129,6 +130,8 @@ def validate_desktop_change(path: tuple, new: dict) -> None:
     if path in {('model',), ('model_reasoning_effort',)} and (type(value) is not str or not value.strip()
             or len(value) > 256 or any(ord(char) < 32 for char in value)):
         raise ValueError('Selected model or reasoning effort must be a bounded nonempty identifier')
+    if path in {('desktop', 'git-commit-instructions'), ('desktop', 'git-pr-instructions')} and type(value) is not str:
+        raise ValueError('Git instructions must be text')
     if path == ('desktop', 'daybreak-enabled') and (
             type(value) is not dict or set(value) != {'accountId', 'userId', 'enabled'}
             or type(value['enabled']) is not bool

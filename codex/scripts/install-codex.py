@@ -342,7 +342,8 @@ def packaged_previous_review():
 
 
 THEME_PATHS = {('desktop', 'appearanceDarkChromeTheme'), ('desktop', 'appearanceDarkCodeThemeId')}
-TRANSITION_PRESERVED_PATHS = {('model',), ('model_reasoning_effort',), ('desktop', 'daybreak-enabled')}
+TRANSITION_PRESERVED_PATHS = {('desktop', 'git-commit-instructions'), ('desktop', 'git-pr-instructions'),
+                               ('model',), ('model_reasoning_effort',), ('desktop', 'daybreak-enabled')}
 
 
 def policy_transition():
