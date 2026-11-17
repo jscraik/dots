@@ -20,6 +20,7 @@ SPEC.loader.exec_module(GEN)
 IDENTITY_SPEC = importlib.util.spec_from_file_location(
     'marketplace_identity', ROOT / 'codex/scripts/marketplace_identity.py')
 IDENTITY = importlib.util.module_from_spec(IDENTITY_SPEC)
+sys.modules[IDENTITY_SPEC.name] = IDENTITY
 IDENTITY_SPEC.loader.exec_module(IDENTITY)
 MARKETPLACE_REVISION_BINDINGS = {
     'openai-bundled': 'value_0174',
