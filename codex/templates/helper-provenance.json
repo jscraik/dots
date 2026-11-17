@@ -325,7 +325,7 @@
       "transformations": [
         "public path placeholders; accepted schema/policy content retained"
       ],
-      "candidate_sha256": "96d4dd98121274c2f820ef6a8e66b7ef7852d4c5f51be329679b9a537c34f5cb"
+      "candidate_sha256": "8076151e6be0744fdf56ebc72ed9741fdc41782ab6eef4f4dc66d7083e8246bd"
     },
     {
       "path": "codex/hooks/README.md",
@@ -333,7 +333,7 @@
       "transformations": [
         "public path placeholders; accepted schema/policy content retained"
       ],
-      "candidate_sha256": "39163053f4ca56f5c37ba2367898ab550106d739537aa139784acd0269db7c26"
+      "candidate_sha256": "f615c2b798501dd0601987029b3bc80f15dafc27cb25b3b1c9de72777b55e0f1"
     },
     {
       "path": "codex/duplication-policy.json",

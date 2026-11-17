@@ -42,7 +42,7 @@
     {
       "path": "codex/hooks/README.md",
       "prior_candidate_sha256": "70d11c516963bd86c8e082f0fda7101cabdcf55e424d26f2b7954fb958abd3aa",
-      "candidate_sha256": "39163053f4ca56f5c37ba2367898ab550106d739537aa139784acd0269db7c26"
+      "candidate_sha256": "f615c2b798501dd0601987029b3bc80f15dafc27cb25b3b1c9de72777b55e0f1"
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",
