@@ -1450,7 +1450,7 @@ with installer.renameable_directories(state, staged, target):
         self.assertEqual(self.snapshot(), before)
 
     def test_unselected_additional_project_still_blocks_migration(self):
-        with self.assertRaisesRegex(AssertionError, 'Runtime differs from the exact source-selected'):
+        with self.assertRaisesRegex(AssertionError, 'Desktop delta contains an unreviewable policy change'):
             self.prepare_usage_policy_update(disable_hooks=True, additional_project=True,
                                             bind_additional_project=False)
 
