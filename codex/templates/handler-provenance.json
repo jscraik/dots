@@ -51,9 +51,10 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "f29647371bf978add9878e93a039dccb839e47f8d23723978d3bae13081d4fbb",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "Reject command-local GH_REPO and GH_HOST assignments before protected PR readiness receipt validation."
       ],
-      "candidate_sha256": "6ab2e767b41efa8c71a2d4a44eeb214a75b915df575c8395e8fbf69f356b63a1"
+      "candidate_sha256": "cc90cf1d4b963935161ebfbf65fee88a2bc5355e5f5bb3924c224e905edbda58"
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",
