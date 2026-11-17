@@ -1375,6 +1375,14 @@ with installer.renameable_directories(state, staged, target):
         digest = self.success(self.prepare())['plan_digest']
         self.success(self.operation('apply', digest))
         self.success(self.operation('check', digest))
+        expected = tomllib.loads(config.read_text())
+        drifted = dict(expected, model='synthetic-drift')
+        config.write_text(GEN.toml_document(drifted))
+        result = subprocess.run([sys.executable, '-B', str(self.runtime / 'scripts/repair-runtime-config-drift.py'),
+            '--config-path', str(config), '--repair', '--json'], env=self.installed_env(),
+            capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(tomllib.loads(config.read_text()), expected)
         states = tomllib.loads(config.read_text())['hooks']['state']
         self.assertTrue(states)
         self.assertTrue(all(row['enabled'] is False for row in states.values()))

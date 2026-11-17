@@ -1337,7 +1337,7 @@ def main(argv: list[str] | None=None) -> int:
             if args.repair or not review_state or not review_digest:
                 raise ValueError('Desktop review is read-only and needs its explicit digest')
             spec = importlib.util.spec_from_file_location(
-                'desktop_check_installer', Path(__file__).with_name('install-codex.py'))
+                'desktop_check_installer', CONFIG_PATH.parent / 'scripts/install-codex.py')
             installer = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(installer)
             context = installer.SCOPE.context()
@@ -1429,7 +1429,7 @@ def main(argv: list[str] | None=None) -> int:
             _emit(payload, args.json)
             return 1
     if approved_update_changes:
-        repaired_text = updater.module('restore_desktop_overlay', Path(__file__).with_name('desktop_compatibility.py')).overlay(repaired_text, approved_update_changes)
+        repaired_text = updater.module('restore_desktop_overlay', CONFIG_PATH.parent / 'scripts/desktop_compatibility.py').overlay(repaired_text, approved_update_changes)
     try:
         _write_repair(config_path, repaired_text, expected=original_bytes, unchanged=((CONFIG_PATH, canonical_bytes),))
         if config_path.read_bytes() != repaired_text.encode('utf-8'):

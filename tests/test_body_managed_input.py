@@ -37,6 +37,7 @@ class ManagedBodyInputTests(unittest.TestCase):
         spec.loader.exec_module(helper)
         receipt = {'status': 'pass', 'lanes': {'pull_request': {'details': {'number': 1}}}}
         with (mock.patch.dict(os.environ, installation.installed_env(), clear=True),
+              mock.patch.object(tempfile, 'tempdir', installation.env['TMPDIR']),
               mock.patch.object(helper, 'receipt_for_current_pr', return_value=receipt),
               mock.patch.object(helper, 'current_repository_slug', return_value='fixture/project') as slug,
               mock.patch.object(helper, 'run_command') as hosted):
