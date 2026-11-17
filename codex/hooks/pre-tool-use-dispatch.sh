@@ -598,9 +598,10 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                 route.update({"pr": True, "unsafe": True})
             if substitutions and marker in subcommand:
                 route.update({"pr": True, "unsafe": True})
-            protected_gh = subcommand == "pr" or (
-                subcommand == "api" and "graphql" in [token.lower() for token in remaining]
-            )
+            # Every raw API request reaches operation-aware readiness analysis.
+            # Read-only requests are returned unchanged by that guard; writes
+            # must match one of its target-bound mutation contracts.
+            protected_gh = subcommand in {"pr", "api"}
             route["pr"] = route["pr"] or protected_gh
             if indirect and protected_gh:
                 route["unsafe"] = True

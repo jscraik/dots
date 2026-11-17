@@ -51,9 +51,10 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "f29647371bf978add9878e93a039dccb839e47f8d23723978d3bae13081d4fbb",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "Classify raw GitHub API methods and normalized endpoints; bind canonical REST merges to update receipts and fail closed on uninspectable writes."
       ],
-      "candidate_sha256": "6ab2e767b41efa8c71a2d4a44eeb214a75b915df575c8395e8fbf69f356b63a1"
+      "candidate_sha256": "48830c897e87672e9d8f71eba8a887cfd24e432778c0790a61ae8e80ef261dbe"
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",
@@ -88,9 +89,10 @@
       "source_sha256": "cd15702f68b9628eff7f0897e94cb05604cad83616381aa3b7ba69dd73ffcecb",
       "transformations": [
         "fixture scope and event admission before handler actions",
-        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
+        "Route every raw GitHub API command through operation-aware PR readiness analysis."
       ],
-      "candidate_sha256": "4c6d9fce35e412a49f46c2e2498b45b72ae0971bfb229638309b152d149b4bbe"
+      "candidate_sha256": "0911c846afc756e28f2fd7adb4f92ca406e03682615d797275f6869267043c91"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",
