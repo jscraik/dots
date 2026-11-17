@@ -434,15 +434,38 @@ def _parse_review_thread_page(
 ) -> tuple[list[dict[str, Any]], bool, str | None, str | None]:
     try:
         payload = json.loads(raw)
-        threads = payload["data"]["repository"]["pullRequest"]["reviewThreads"]
-    except (KeyError, TypeError, json.JSONDecodeError) as exc:
+    except json.JSONDecodeError as exc:
         return [], False, None, f"review-thread response page {page_number} was invalid: {exc}"
+    if not isinstance(payload, dict):
+        return [], False, None, f"review-thread response page {page_number} was invalid: response must be an object"
+    if "errors" in payload:
+        errors = payload["errors"]
+        if not isinstance(errors, list):
+            return [], False, None, f"review-thread response page {page_number} was invalid: errors must be an array"
+        if errors:
+            return [], False, None, f"review-thread response page {page_number} contained GraphQL errors"
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        return [], False, None, f"review-thread response page {page_number} was invalid: data must be an object"
+    repository = data.get("repository")
+    if not isinstance(repository, dict):
+        return [], False, None, f"review-thread response page {page_number} was invalid: repository must be an object"
+    pull_request = repository.get("pullRequest")
+    if not isinstance(pull_request, dict):
+        return [], False, None, f"review-thread response page {page_number} was invalid: pullRequest must be an object"
+    threads = pull_request.get("reviewThreads")
     if not isinstance(threads, dict):
         return [], False, None, f"review-thread response page {page_number} was invalid: reviewThreads must be an object"
     nodes = threads.get("nodes")
     page_info = threads.get("pageInfo")
     if not isinstance(nodes, list) or not all(isinstance(node, dict) for node in nodes):
         return [], False, None, f"review-thread response page {page_number} was invalid: nodes must be objects"
+    for index, node in enumerate(nodes):
+        node_id = node.get("id")
+        if not isinstance(node_id, str) or not node_id or len(node_id) > 256:
+            return [], False, None, f"review-thread response page {page_number} was invalid: node {index} id must be a nonempty string of at most 256 characters"
+        if not isinstance(node.get("isResolved"), bool):
+            return [], False, None, f"review-thread response page {page_number} was invalid: node {index} isResolved must be boolean"
     if not isinstance(page_info, dict):
         return [], False, None, f"review-thread response page {page_number} was invalid: pageInfo must be an object"
     has_next_page = page_info.get("hasNextPage")
@@ -500,13 +523,11 @@ def review_threads(root: Path, number: int, head_sha: str) -> tuple[dict[str, An
         if error:
             return {}, error
         fetched_threads += len(nodes)
-        unresolved += sum(1 for node in nodes if node.get("isResolved") is False)
+        unresolved += sum(1 for node in nodes if node["isResolved"] is False)
         unresolved_thread_ids.extend(
-            str(node["id"])
+            node["id"]
             for node in nodes
-            if node.get("isResolved") is False
-            and isinstance(node.get("id"), str)
-            and node["id"]
+            if node["isResolved"] is False
         )
         if not has_next_page:
             break
