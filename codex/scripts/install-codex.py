@@ -612,7 +612,7 @@ def apply(state, digest):
             if merged is None or not same({'kind': 'file', 'sha256': hashlib.sha256(
                     merged.encode()).hexdigest(), 'size': len(merged.encode())}, plan['expected']['config.toml']):
                 raise ValueError('Prepared canonical policy or Desktop state changed: ' + str(error))
-            repair._validate_canonical_snapshot(canonical.decode())
+            repair._validate_runtime_snapshot(merged)
             if original != merged.encode():
                 repair._write_repair(target, merged, expected=original,
                     unchanged=((ROOT / 'codex/config.toml', canonical),))

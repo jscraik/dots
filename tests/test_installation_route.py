@@ -326,13 +326,15 @@ class InstallationRouteTests(unittest.TestCase):
         self.success(self.operation('apply', digest))
         config = self.runtime / 'config.toml'
         installed = config.read_bytes()
-        for kind in ('history', 'notify'):
+        for kind in ('history', 'notify', 'computer-use'):
             with self.subTest(kind=kind):
                 data = tomllib.loads(installed.decode())
                 if kind == 'history':
                     data['plugins']['computer-history@openai-bundled'] = {'enabled': True}
-                else:
+                elif kind == 'notify':
                     data['notify'] = [str(self.home / 'app/desktop-notify'), 'done']
+                else:
+                    data['plugins']['computer-use@openai-bundled'] = {'enabled': True}
                 config.write_text(GEN.toml_document(data))
                 observed = config.read_bytes()
                 result = subprocess.run([sys.executable, '-B',
@@ -372,9 +374,7 @@ class InstallationRouteTests(unittest.TestCase):
     def test_cutover_repeat_and_exact_managed_rollback(self):
         config = self.runtime / 'config.toml'
         original = config.read_text().replace('model_verbosity = "medium"', 'model_verbosity = "high"', 1)
-        desktop = ('[plugins."computer-use@openai-bundled"]\nenabled = false\n'
-                   '[plugins."computer-use@openai-bundled".mcp_servers.computer-use.tools.click]\n'
-                   'approval_mode = "prompt"\n')
+        desktop = '[plugins."computer-use@openai-bundled"]\nenabled = false\n'
         config.write_text(original.replace('\n[desktop]\n', '\n' + desktop + '\n[desktop]\n', 1))
         self.before = self.snapshot()
         prepared = self.success(self.prepare())
