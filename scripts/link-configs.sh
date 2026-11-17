@@ -21,7 +21,7 @@ validate_projector_python() {
 }
 
 if [[ -f "$dots_package_root/codex/.deployment.json" ]]; then
-  PROJECTOR_PYTHON="${DOTS_PROJECTOR_PYTHON:-}"
+  PROJECTOR_PYTHON="${CODEX_VALIDATION_PYTHON:-}"
 else
   PROJECTOR_PYTHON="/usr/bin/python3"
 fi

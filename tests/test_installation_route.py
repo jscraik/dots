@@ -58,7 +58,10 @@ class InstallationRouteTests(unittest.TestCase):
         return self.run_cli(operation, '--state-dir', self.state, '--plan-digest', digest)
 
     def installed_env(self):
-        return self.env | {'CODEX_CONFIG_SOURCE_ROOT': str(self.payload / 'codex')}
+        return self.env | {
+            'CODEX_CONFIG_SOURCE_ROOT': str(self.payload / 'codex'),
+            'CODEX_VALIDATION_PYTHON': sys.executable,
+        }
 
     def snapshot(self):
         result = {}
@@ -925,7 +928,9 @@ except ValueError:
     def test_partial_cutover_rolls_back_without_resuming_activation(self):
         digest = self.success(self.prepare())['plan_digest']
         installer = self.import_installer(self.payload)
-        with mock.patch.dict(os.environ, self.installed_env(), clear=True), mock.patch.object(
+        script_path = str(self.payload / 'codex/scripts')
+        with mock.patch.object(sys, 'path', [script_path, *sys.path]), mock.patch.dict(
+                os.environ, self.installed_env(), clear=True), mock.patch.object(
                 installer, 'projector', side_effect=ValueError('synthetic projector refusal')):
             with self.assertRaisesRegex(ValueError, 'synthetic projector refusal'):
                 installer.apply(self.state, digest)

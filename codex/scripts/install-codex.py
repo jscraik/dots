@@ -399,7 +399,6 @@ def projector(state, *args, lock_fd=None):
     for name in ('DOTS_DESKTOP_REVIEW_STATE', 'DOTS_DESKTOP_REVIEW_SHA256'):
         if name in os.environ:
             env[name] = os.environ[name]
-    env['DOTS_PROJECTOR_PYTHON'] = active_python_executable()
     command = [system_executable('bash'), str(ROOT / 'scripts/link-configs.sh'), *args,
                '--scope', 'codex', '--codex-home', str(Path(context['home']) / '.codex')]
     result = subprocess.run(command, env=env, cwd=ROOT, capture_output=True, text=True,
