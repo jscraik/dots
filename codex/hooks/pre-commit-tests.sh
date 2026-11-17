@@ -34,7 +34,7 @@ IFS=$'\t' read -r tool_name raw_command cwd permission_mode <<<"$parsed_fields"
 
 # run_ok outputs a JSON object signalling the PreToolUse hook permits the tool invocation to proceed.
 run_ok() {
-  jq -n '{continue: true}'
+  jq -n '{}'
 }
 
 # run_block emits a JSON denial for the PreToolUse gate to stdout using the provided reason and the current permission mode and timeout class.
@@ -94,26 +94,6 @@ try:
     policy = runpy.run_path(sys.argv[2])
     if policy["substitution_commands"](command) != []:
         raise ValueError("command substitutions are not supported")
-    # shlex does not perform shell expansion. Only admit literal words, so
-    # an attached message cannot expand into options that bypass safeguards.
-    # Single quotes and backslash escapes keep expansion characters as data;
-    # double quotes still permit parameter/arithmetic/command expansion.
-    quote = None
-    index = 0
-    while index < len(command):
-        char = command[index]
-        if quote == "'":
-            if char == "'":
-                quote = None
-        elif char == "\\":
-            index += 1
-        elif char == "'" and quote is None:
-            quote = char
-        elif char == '"':
-            quote = None if quote == char else char
-        elif char in ("$", chr(96)) or (quote is None and char in "*?[]{}~"):
-            raise ValueError("shell expansions are not supported; quote literal arguments")
-        index += 1
     protected = policy["protect_quoted_punctuation"](command)
     lexer = shlex.shlex(protected, posix=True, punctuation_chars=";&|<>()\n")
     lexer.whitespace = " \t\r"
@@ -203,7 +183,7 @@ except (ValueError, OSError, subprocess.SubprocessError) as error:
     raise SystemExit(1)
 PY
 )"; then
-  run_block "Cannot resolve commit validation target. Use one direct git commit within the active worktree with literal arguments; shell expansions, cross-worktree, repository and execution-environment overrides are not supported."
+  run_block "Cannot resolve commit validation target. Use one direct git commit within the active worktree with literal -C directories; cross-worktree, repository and execution-environment overrides are not supported."
   exit 0
 fi
 

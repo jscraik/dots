@@ -311,6 +311,20 @@ def same_owned_path(candidate, canonical):
     return False
 
 
+def native_test_args(args):
+    """Keep discovery rooted at the project tests directory."""
+    index = 0
+    while index < len(args):
+        if args[index] in {"-v", "--verbose", "-q", "--quiet", "-f", "--failfast", "-b", "--buffer"}:
+            index += 1
+        elif (args[index] in {"-k", "-p", "--pattern"} and index + 1 < len(args)
+              and re.fullmatch(r"[A-Za-z0-9_.-]+", args[index + 1])):
+            index += 2
+        else:
+            return False
+    return True
+
+
 def owned_test(arg):
     if not re.fullmatch(r"codex(?:/scripts/tests/test_\w+\.py|\.scripts\.tests\.test_\w+(?:\.\w+){0,2})", arg):
         return False
@@ -571,9 +585,17 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                     literal_script = literal_script and index == 0 and depth == 0 and len(segments) == 1 and os.path.realpath(cwd) == os.path.abspath(cwd) and same_owned_path(cwd.rstrip(os.sep) or os.sep, repo_root)
                 # Admit a direct project verifier structurally; execution remains
                 # governed by the native sandbox and approval policy.
+                syntax_only = segment[index + 1:index + 2] == ["-n"] and len(segment[index + 1:]) == 2
+                project_entry = script in {
+                    "scripts/verify-work.sh", "scripts/validate-repository.sh",
+                    "scripts/validate-codestyle.sh", "scripts/test-app-codex.sh",
+                }
+                if script == "scripts/test-app-codex.sh":
+                    project_entry = native_test_args(args[1:])
                 if (index == 0 and depth == 0 and len(segments) == 1
                         and executable == "bash" and canonical_entry
-                        and script in {"scripts/verify-work.sh", "scripts/validate-repository.sh", "scripts/validate-codestyle.sh"}
+                        and (project_entry or syntax_only)
+                        and os.path.isfile(selected)
                         and not any(arg.startswith("--repo-root") for arg in args[1:])):
                     info = os.stat(selected, follow_symlinks=False)
                     project_result = subprocess.run(
@@ -584,7 +606,8 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                     literal_script |= (project_result.returncode == 0
                                        and stat.S_ISREG(info.st_mode) and info.st_nlink == 1
                                        and os.path.realpath(cwd) == cwd == project
-                                       and payload.get("cwd") == cwd)
+                                       and payload.get("cwd") == cwd
+                                       and os.path.commonpath([project, selected]) == project)
                 # Registration alone does not authorise other candidate tests.
                 # Literal Python admission stays limited to the canonical checkout above.
                 route["unsafe"] |= literal_script and (active_home or scoped_home)
@@ -615,7 +638,12 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                 route.update({"pr": True, "unsafe": True})
             if substitutions and marker in subcommand:
                 route.update({"pr": True, "unsafe": True})
-            protected_gh = subcommand == "pr" or (
+            # Inspecting a PR is not publication. Keep unknown/mutating verbs
+            # guarded, including when another segment of a pipeline mutates.
+            read_only_pr = subcommand == "pr" and remaining and remaining[0] in {
+                "view", "list", "status", "checks", "diff"
+            }
+            protected_gh = (subcommand == "pr" and not read_only_pr) or (
                 subcommand == "api" and "graphql" in [token.lower() for token in remaining]
             )
             route["pr"] = route["pr"] or protected_gh
@@ -667,7 +695,7 @@ if [[ "$unsafe_route" == "1" ]]; then
 fi
 
 if [[ "$safe_route" == "1" ]]; then
-  jq -n '{continue: true}'
+  jq -n '{}'
   exit 0
 fi
 
@@ -738,7 +766,7 @@ run_guard "pre-tool-use-guard.sh"
 
 if [[ ${#contexts[@]} -gt 0 ]]; then
   context_blob="$(printf '%s\n' "${contexts[@]}")"
-  jq -n --arg context "$context_blob" '{continue: true, hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $context}}'
+  jq -n --arg context "$context_blob" '{hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $context}}'
 else
-  jq -n '{continue: true}'
+  jq -n '{}'
 fi

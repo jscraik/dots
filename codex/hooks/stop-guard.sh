@@ -4,18 +4,19 @@ set -euo pipefail
 export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 
 input_json="$(cat)"
+# Native Stop retries are a termination signal, not a resource operation.
+# Parse strictly and return before admission, libraries or receipt access.
+stop_hook_active="$(printf '%s' "$input_json" | jq -r 'if type != "object" then error("Stop input must be an object") else .stop_hook_active == true end')"
+if [[ "$stop_hook_active" == "true" ]]; then
+  jq -n '{continue: true}'
+  exit 0
+fi
 dots_hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 python3 "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit $?
 hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=codex/hooks/hook-runtime-lib.sh
 . "$hook_dir/hook-runtime-lib.sh"
-stop_hook_active="$(printf '%s' "$input_json" | jq -r '.stop_hook_active // false')"
 last_message="$(printf '%s' "$input_json" | jq -r '.last_assistant_message // ""')"
-
-if [[ "$stop_hook_active" == "true" ]]; then
-  jq -n '{continue: true}'
-  exit 0
-fi
 
 normalized_message="$(printf '%s' "$last_message" | tr '[:upper:]' '[:lower:]')"
 

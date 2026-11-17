@@ -212,8 +212,73 @@ Neither provider completion skips later-finding, thread, CI or quorum guards.
 The exact native separate recent-status wrapper, 12px/16px review icons and
 Organization UI configuration without repository YAML are supported metadata
 variants. CHILL/Essentials labels describe configuration, not clearance.
+Repository UI inheriting Organization UI is also supported. Exact automatic
+approval-policy metadata is informational, never approval-origin evidence or a
+clearance verdict. A contiguous immutable-history refresh can change only that
+validated block; all review-business text remains byte-identical and the
+original completion time remains the clearance boundary. Unknown additional
+comments, changed risk/context/check explanations and partial histories still
+block. A pending UI record with an unavailable commit requires the independently
+authenticated official App check's exact PR/head/base binding.
+The provider's exact approval-policy slot may insert one blank line on each side
+after `review_info_content`. Remove only that complete validated slot and restore
+its single separator newline; do not normalise whitespace elsewhere. Unknown
+padding, placement or surrounding prose remains blocked. Publication may join a
+successful native check within five seconds of any contiguous, authenticated
+terminal revision whose review-business bytes remain identical after that exact
+metadata removal. Count all candidate checks across all such windows before
+filtering state, App identity or URL; one record in overlapping windows counts
+once, but two records remain ambiguous. Preserve the original terminal completion
+as the finding-clearance boundary even when a later metadata edit corroborates
+publication. Record that publication edit and timestamp separately in the evidence.
+Same-second and intervening findings therefore remain outstanding. This does not
+widen the five-second window or admit changed review content or incomplete runs.
+Scope-less Explain Change navigation is presentation only: derive its scoped
+destination from the sole temporal official App check and require that check's
+output link to agree. Count temporal candidates before URL filtering; duplicate,
+unknown or malformed URL parameters remain blocking. A declared navigation scope
+must still match exactly. A context-timeout section may list one to 100 unique
+plain-text GitHub Check names, with an exact matching count and no added prose,
+markup or duplicate section. Retain the raw section as unavailable supplemental
+CI context; it proves neither inspection of that context nor successful CI.
+Completion still requires the independently authenticated successful CodeRabbit
+check and every completed inspection phase. The separate current-head CI gate
+still rejects failed, pending or missing check evidence. A review can finish
+before CI context becomes available; do not mistake that for a failed code
+inspection or use it to waive CI. See the provider's
+[GitHub Checks contract](https://docs.coderabbit.ai/tools/github-checks).
 Repository identity still comes from the authenticated same-PR source and all
 range, coverage, run identity, status and snapshot checks remain required.
+The exact automatic-review scheduling notice may remain after a completed manual
+review. Its complete fixed text must name this full head and contain two distinct,
+unchecked UUID controls. Retain it in the raw evidence; it supplies no completion
+or verdict. Pending, failed or missing native full-run evidence still blocks.
+The exact unchecked `harness docs parity` custom finishing-touch control is also
+presentation only. Unknown controls, checked controls and additional prose block.
+The exact `utg-output-choice-group-unknown_comment_id` placeholder is accepted
+only on the same unchecked UUID-bound unit-test options as a numeric group ID.
+It supplies no review coverage or execution authority. A finite LanguageTool
+context variant is also supported: only `jscraik/rSearch` head
+`4d940dd7d9d74459cbea0da683814fe218330e21`, `docs/robin-review.md`, range `~20-~20`,
+the `THE_CC` missing-noun note and its intact environment-variable excerpt.
+Source inspection identifies that note as a false positive: the inline variable
+identifiers precede the noun phrase `Actions secrets`. Require the file in the
+complete selected-file inventory and retain the full raw note. Changed text,
+paths, ranges, extra notes or unknown diagnostics remain blocking. This exception
+grants no completion, timestamp or current-head coverage. It is an immutable
+source-specific disposition, not permission to ignore the same text on later
+heads or in another repository.
+One inspected affirmative Additional comment is supported as a finite literal
+layout, not a free-form sentiment classifier: `tests/ci-policy.test.ts: 1`, range
+`88-89`, the Data Integrity & Integration heading, and the complete paragraph
+confirming the GitHub Actions identity assertion while correcting the claim that
+the validator rejects CircleCI or Semgrep Cloud. Require its intact provider
+comment marker, count of one, and this file in the full selected-file inventory.
+Any changed paragraph, extra comment, different path or unknown content blocks.
+This paragraph is retained informational evidence; it cannot supply a verdict,
+erase another finding, replace current-head coverage, or alter completion time.
+Authenticated App identity, successful inspection phases, immutable history and
+all existing CI, thread and reviewer-quorum requirements remain mandatory.
 Unknown walkthrough, pre-merge, context and merge-risk prose remains blocking.
 Diagnostics identify source URLs, body digests and unclassified sections without
 qualifying them. Adjudication uses qualifying formal evidence, or the existing

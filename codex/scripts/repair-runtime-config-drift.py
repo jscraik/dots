@@ -1356,6 +1356,17 @@ def main(argv: list[str] | None=None) -> int:
             _emit(_payload(status='blocked', path=config_path,
                 reason='desktop_review_invalid', error=str(exc)), args.json)
             return 1
+    approved_update_changes = None
+    update_descriptor = Path(__file__).resolve().parents[1] / '.previous-desktop-review.json'
+    if update_descriptor.exists():
+        try:
+            spec = importlib.util.spec_from_file_location('desktop_update_installer', Path(__file__).with_name('install-codex.py'))
+            updater = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(updater)
+            original, approved_update_changes = updater.normalized_desktop_update(original, canonical_text)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            _emit(_payload(status='blocked', path=config_path, reason='desktop_update_invalid', error=str(exc)), args.json)
+            return 1
     drift = detect_drift(original, expected_auto_review_policy=expected_auto_review_policy, expected_signing_agent_socket=expected_signing_agent_socket, expected_circle_no_telemetry=expected_circle_no_telemetry, expected_control_settings=expected_control_settings)
     if args.repair and deployment_module() is not None:
         runtime, _ = _loads_toml(original)
@@ -1417,6 +1428,8 @@ def main(argv: list[str] | None=None) -> int:
             payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason='config_backup_failed', error=str(exc), backup_path=args.backup_path)
             _emit(payload, args.json)
             return 1
+    if approved_update_changes:
+        repaired_text = updater.module('restore_desktop_overlay', Path(__file__).with_name('desktop_compatibility.py')).overlay(repaired_text, approved_update_changes)
     try:
         _write_repair(config_path, repaired_text, expected=original_bytes, unchanged=((CONFIG_PATH, canonical_bytes),))
         if config_path.read_bytes() != repaired_text.encode('utf-8'):
