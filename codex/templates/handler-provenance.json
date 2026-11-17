@@ -107,9 +107,10 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "58d7e2b49cb9dc1ede2dab9b1326de67dbcc536fe2833d6fc6f0e061cf271220",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "disable repository-selected fsmonitor execution during automatic status observation"
       ],
-      "candidate_sha256": "d1adeca1078bca43e1c61bcd06ec3d4773afdbf3b236db8f24b663edea547458"
+      "candidate_sha256": "0a6f6a77aa01dab6e0352d1bb79b0c48eec8832da1307fbaa7e27f847d0e5c72"
     },
     {
       "path": "codex/hooks/stop-guard.sh",

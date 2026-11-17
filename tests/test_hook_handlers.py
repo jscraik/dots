@@ -137,6 +137,30 @@ class HookHandlerTests(unittest.TestCase):
         self.assertNotIn('could not run', context)
         self.assertTrue(list((self.fixture.runtime / 'usage-data/runtime-cards').rglob('*.json')))
 
+    def test_session_start_ignores_repository_fsmonitor_and_reports_dirty_state(self):
+        tracked = self.fixture.repo / 'tracked.txt'
+        tracked.write_text('before\n')
+        subprocess.run(['git', 'add', tracked.name], env=self.fixture.env, cwd=self.fixture.repo,
+                       capture_output=True, text=True, timeout=10, check=True)
+        subprocess.run(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                        'commit', '-m', 'fixture'], env=self.fixture.env, cwd=self.fixture.repo,
+                       capture_output=True, text=True, timeout=10, check=True)
+        tracked.write_text('after\n')
+        sentinel = self.fixture.home / 'fsmonitor-invoked'
+        helper = self.fixture.home / 'fsmonitor-sentinel.sh'
+        helper.write_text('#!/bin/sh\n: > "$DOTS_FSMONITOR_SENTINEL"\nexit 1\n')
+        helper.chmod(0o755)
+        subprocess.run(['git', 'config', '--local', 'core.fsmonitor', str(helper)],
+                       env=self.fixture.env, cwd=self.fixture.repo, capture_output=True,
+                       text=True, timeout=10, check=True)
+
+        output = self.output('session-start.sh', {'source': 'startup'},
+                             {'DOTS_FSMONITOR_SENTINEL': str(sentinel)})
+
+        self.assertTrue(output['continue'])
+        self.assertIn('Dirty worktree detected', output['systemMessage'])
+        self.assertFalse(sentinel.exists())
+
     def test_fixture_admission_blocks_missing_scope_and_external_resources(self):
         for event, env in (({}, {'DOTS_TEST_HOME': ''}),
                            ({'cwd': '/'}, {}),
