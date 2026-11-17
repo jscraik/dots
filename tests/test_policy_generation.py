@@ -57,6 +57,7 @@ class PolicyGenerationTests(unittest.TestCase):
         self.assertEqual(root['plugins']['drawio@drawio'], {'enabled': True})
         self.assertEqual(root['marketplaces']['drawio']['source_type'], 'local')
         self.assertTrue(root['marketplaces']['drawio']['source'].startswith('/synthetic/'))
+        self.assertRegex(root['marketplaces']['drawio']['last_revision'], r'^sha256:[0-9a-f]{64}$')
         self.assertEqual(root['approval_policy'], 'on-request')
         self.assertEqual(root['approvals_reviewer'], 'auto_review')
 

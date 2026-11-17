@@ -21,6 +21,7 @@
 !/codex/templates/hooks.json
 !/codex/scripts/
 !/codex/scripts/migration_scope.py
+!/codex/scripts/marketplace_identity.py
 !/codex/scripts/validate-codex-config.py
 !/codex/scripts/repair-runtime-config-drift.py
 !/codex/scripts/project-codex-hooks.py
