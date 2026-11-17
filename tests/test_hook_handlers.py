@@ -88,6 +88,41 @@ class HookHandlerTests(unittest.TestCase):
         self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
         self.assertIn('No repository tests were executed', output['hookSpecificOutput']['permissionDecisionReason'])
 
+    def test_destructive_git_global_options_are_denied_by_both_guards(self):
+        blocked_commands = (
+            'git -C . reset --hard',
+            "git -C . reset $'--hard'",
+            'git --work-tree=. checkout -- tracked.txt',
+            '/usr/bin/git --git-dir .git --work-tree . reset --har HEAD',
+            'git status && bash -lc "git -C . checkout -f topic"',
+            'git status\ngit -C . reset --hard',
+            'echo "$(git -C . reset --hard)"',
+            'echo `git --work-tree=. checkout -- tracked.txt`',
+            "git -c alias.nuke='reset --hard' nuke",
+            "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.nuke GIT_CONFIG_VALUE_0='reset --hard' git nuke",
+            'git --future-global-option status',
+        )
+        safe_commands = (
+            'git -C . status --short',
+            'git -c color.ui=false status --short',
+            'git --work-tree=. checkout topic',
+            'git --help reset --hard',
+            'echo git -C . reset --hard',
+            "echo '$(git -C . reset --hard)'",
+        )
+        for name in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
+            for command in blocked_commands:
+                with self.subTest(name=name, command=command):
+                    output = self.output(name, {'tool_name': 'Bash', 'tool_input': {'command': command}})
+                    if name == 'permission-request-guard.sh':
+                        self.assertEqual(output['hookSpecificOutput']['decision']['behavior'], 'deny')
+                    else:
+                        self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+            for command in safe_commands:
+                with self.subTest(name=name, command=command):
+                    output = self.output(name, {'tool_name': 'Bash', 'tool_input': {'command': command}})
+                    self.assertNotIn('hookSpecificOutput', output)
+
     def test_permission_and_edit_guards_protect_auth_material(self):
         event = {'tool_name': 'Write', 'tool_input': {'file_path': str(self.fixture.runtime / 'auth.json')}}
         for name in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):

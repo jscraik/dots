@@ -6,9 +6,10 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "0a614a1764c7a5c97ebd568bb81f98407c99f97908bd4231f0008ca1b1bce671",
       "transformations": [
-        "sourced-library fixture admission"
+        "sourced-library fixture admission",
+        "Share token-level destructive Git worktree detection across hook enforcement layers; fail closed on unsupported global-option layouts."
       ],
-      "candidate_sha256": "e7a976b6ad1501604b04c0c2936321c03f5a2d6668b5bd7def06d59a4d6c6429"
+      "candidate_sha256": "a4ee0d0f6f0043311264de9cb0cb88934fd1d8bc28864933f3a53f5976d58513"
     },
     {
       "path": "codex/hooks/lifeos-codex.sh",
@@ -24,9 +25,10 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "7863e7e1c74a1d51e15b65deb001dacf239696368e751552f61f684dced484db",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "Use exact command bytes with the shared token-level destructive Git classifier for approval denials."
       ],
-      "candidate_sha256": "dc755f5d554f6614a3df7f30d6e1557e12b6ba141dddd2994884659ff6db1f7d"
+      "candidate_sha256": "7ee3d0858335944353d0dd4f13bdec4d121d0941f9fd48e523720a3f39c5c630"
     },
     {
       "path": "codex/hooks/post-compact-recorder.sh",
@@ -98,9 +100,10 @@
       "source_sha256": "cc1270d301f4334bc6ef9432c6c76989a947bbc6a102a408f6a2b06db1658e94",
       "transformations": [
         "canonical auth wrapper identity is derived from the ported helper",
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "Use the shared token-level destructive Git classifier for pre-tool denials."
       ],
-      "candidate_sha256": "11c5938e71c8a32bef9551c84bbbccf560ed87f94dc46801b409557856468214"
+      "candidate_sha256": "bb0a8b0b03aa7df27081e7c8573274199648fa1e2bf49d5b110db51b0e2a238b"
     },
     {
       "path": "codex/hooks/session-start.sh",

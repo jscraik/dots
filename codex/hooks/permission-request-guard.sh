@@ -57,7 +57,7 @@ parsed_fields="$(
       | join("\u001e");
     [
       (.tool_name // ""),
-      (tool_command | gsub("[\\r\\n\\t]+"; " ")),
+      (tool_command | @base64),
       tool_description,
       tool_cwd,
       (.permission_mode // "default"),
@@ -65,9 +65,10 @@ parsed_fields="$(
     ] | join("\u001f")
   '
 )"
-IFS=$'\x1f' read -r tool_name raw_command raw_description _command_cwd permission_mode edit_targets <<<"$parsed_fields"
+IFS=$'\x1f' read -r tool_name encoded_command raw_description _command_cwd permission_mode edit_targets <<<"$parsed_fields"
+raw_command="$(printf '%s' "$encoded_command" | jq -Rr '@base64d')"
 
-command_lc="$(printf '%s' "$raw_command" | tr '[:upper:]' '[:lower:]')"
+command_lc="$(printf '%s' "$raw_command" | tr '\r\n\t' '   ' | tr '[:upper:]' '[:lower:]')"
 description_lc="$(printf '%s' "$raw_description" | tr '[:upper:]' '[:lower:]')"
 home_canon="$HOME"
 if [[ -d "$HOME" ]]; then
@@ -76,6 +77,7 @@ fi
 home_lc="$(printf '%s' "$home_canon" | tr '[:upper:]' '[:lower:]')"
 
 deny_reason=""
+git_worktree_risk=""
 
 canonicalize_edit_target() {
   local target="$1"
@@ -133,10 +135,18 @@ if [[ "$tool_name" == "apply_patch" || "$tool_name" == "Edit" || "$tool_name" ==
 elif [[ "$tool_name" != "Bash" ]]; then
   printf '{}\n'
   exit 0
-elif [[ "$command_lc" == *"git reset --hard"* ]]; then
-  deny_reason="Blocked approval request for git reset --hard due to destructive reset risk."
-elif [[ "$command_lc" == *"git checkout --"* ]]; then
-  deny_reason="Blocked approval request for git checkout -- because it can discard local changes."
+elif git_worktree_risk="$(hook_runtime_destructive_git_operation "$raw_command")"; then
+  case "$git_worktree_risk" in
+    reset-hard)
+      deny_reason="Blocked approval request for git reset --hard due to destructive reset risk."
+      ;;
+    checkout-paths|checkout-destructive)
+      deny_reason="Blocked approval request for destructive git checkout because it can discard local changes."
+      ;;
+    *)
+      deny_reason="Blocked approval request for Git command with an unsupported global-option layout because destructive intent cannot be ruled out."
+      ;;
+  esac
 elif [[ "$command_lc" == *"rm -rf /"* \
      || "$command_lc" == *"rm -rf ~"* \
      || "$command_lc" == *"rm -rf ${home_lc}"* ]]; then

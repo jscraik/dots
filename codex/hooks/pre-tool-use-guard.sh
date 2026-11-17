@@ -61,6 +61,7 @@ parsed_fields="$(printf '%s' "$input_json" | jq -r '
 ')"
 IFS=$'\x1f' read -r tool_name encoded_command _command_cwd permission_mode session_id turn_id edit_targets <<<"$parsed_fields"
 raw_command="$(printf '%s' "$encoded_command" | jq -Rr '@base64d')"
+git_worktree_risk=""
 run_ok() {
   jq -n '{continue: true}'
 }
@@ -959,10 +960,18 @@ elif contains_forbidden_publish_or_review_action "$command_lc"; then
 elif contains_destructive_branch_option "$command_lc" \
   || contains_destructive_update_ref "$command_lc"; then
   block_reason="Blocked local branch deletion or rename. Re-run only with explicit scoped intent and approval."
-elif [[ "$command_lc" == *"git reset --hard"* ]]; then
-  block_reason="Blocked potentially destructive git reset --hard. Re-run with explicit scoped intent and confirmation."
-elif [[ "$command_lc" == *"git checkout --"* ]]; then
-  block_reason="Blocked git checkout -- because it can discard local changes. Use a targeted non-destructive approach."
+elif git_worktree_risk="$(hook_runtime_destructive_git_operation "$raw_command")"; then
+  case "$git_worktree_risk" in
+    reset-hard)
+      block_reason="Blocked potentially destructive git reset --hard. Re-run with explicit scoped intent and confirmation."
+      ;;
+    checkout-paths|checkout-destructive)
+      block_reason="Blocked destructive git checkout because it can discard local changes. Use a targeted non-destructive approach."
+      ;;
+    *)
+      block_reason="Blocked Git command with an unsupported global-option layout because destructive intent cannot be ruled out."
+      ;;
+  esac
 elif [[ "$command_lc" == *"rm -rf /"* \
      || "$command_lc" == *"rm -rf ~"* \
      || "$command_lc" == *"rm -rf ${home_lc}"* ]]; then
