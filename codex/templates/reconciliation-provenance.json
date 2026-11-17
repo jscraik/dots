@@ -185,8 +185,8 @@
     {
       "path": "codex/scripts/validate-codex-config.py",
       "prior_candidate_sha256": "e9cdebab1d97447c1ac3ff1dce5894c7c13ccf095c2a1cc8e44716c103768e61",
-      "candidate_sha256": "b7dd39479d6058517481ed3bbd94eb0487fafd1dc97225e24d62d2c32e24ccc0",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+      "candidate_sha256": "29ec3e824ef156a19c8f656caa69c738c820d8bd01eeeb86edcbb5a323b8f124",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks. Require exact auth FIFO denies in both networked profiles so ordinary workloads cannot consume Desktop credentials."
     },
     {
       "path": "scripts/check-source.py",
