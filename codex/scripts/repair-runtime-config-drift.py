@@ -1360,7 +1360,7 @@ def main(argv: list[str] | None=None) -> int:
     update_descriptor = Path(__file__).resolve().parents[1] / '.previous-desktop-review.json'
     if update_descriptor.exists() or deployment_module() is not None:
         try:
-            spec = importlib.util.spec_from_file_location('desktop_update_installer', Path(__file__).with_name('install-codex.py'))
+            spec = importlib.util.spec_from_file_location('desktop_update_installer', CONFIG_PATH.parent / 'scripts/install-codex.py')
             updater = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(updater)
             original, approved_update_changes = updater.normalized_desktop_update(original, canonical_text)
