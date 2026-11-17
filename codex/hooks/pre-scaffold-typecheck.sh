@@ -1,7 +1,9 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
 # Scaffolding has not happened at PreToolUse time. Never execute scripts from
 # the existing parent project or claim the not-yet-created project was checked.
 set -euo pipefail
+# shellcheck source=codex/hooks/hook-runtime-path.sh
+. "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh"
 input_json="$(cat)"
 dots_hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 python3 "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit $?

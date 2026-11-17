@@ -1,4 +1,7 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
+
+# shellcheck source=codex/hooks/hook-runtime-path.sh
+. "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh"
 
 dots_lib_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 python3 "$dots_lib_dir/../scripts/admit-hook-fixture.py" '{}' || return $?

@@ -46,6 +46,10 @@ ALLOWED_LIFEOS_PROJECT_CONFIG_VERBOSITY = frozenset({'low', 'medium', 'high'})
 WORKSTATION_HOME_PATH = local_path_text('@HOME@')
 COREPACK_CACHE_PATH = local_path_text('@HOME@/.cache/corepack')
 REQUIRED_TOOL_CACHE_PATHS = (local_path_text('@HOME@/.npm'), local_path_text('@HOME@/.local/bin'), local_path_text('@HOME@/.local/lib'), local_path_text('@HOME@/.local/share/tessl'), local_path_text('@HOME@/.tessl'), local_path_text('@HOME@/.cache/node'), local_path_text('@HOME@/.cache/uv'), local_path_text('@HOME@/.local/share/mise'), local_path_text('@HOME@/.pnpm-store'), local_path_text('@HOME@/go'), local_path_text('@HOME@/Library/Caches/go-build'), local_path_text('@HOME@/.cargo'), local_path_text('@HOME@/.rustup'), local_path_text('@HOME@/Library/Python'), local_path_text('@HOME@/Library/Caches/pip'), local_path_text('@HOME@/Library/Caches/Homebrew'), local_path_text('@HOME@/.gem'), local_path_text('@HOME@/.bundle'), local_path_text('@HOME@/.codex/tmp'), COREPACK_CACHE_PATH, local_path_text('@HOME@/Library/Caches/mise'), local_path_text('@HOME@/Library/Caches/org.swift.swiftpm'), local_path_text('@HOME@/Library/org.swift.swiftpm'), local_path_text('@HOME@/Library/Developer/Xcode/DerivedData'), local_path_text('@HOME@/Library/Developer/Xcode/SourcePackages'), local_path_text('@HOME@/.swiftpm'))
+HOOK_DEPENDENCY_PATHS = tuple(
+    Path(path)
+    for path in ('/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin')
+)
 PLUGIN_RUNTIME_WRITE_PATHS = (local_path_text('@HOME@/.codex/.tmp/bundled-marketplaces'), local_path_text('@HOME@/.codex/plugins/cache'), local_path_text('@HOME@/.cache/codex-runtimes'))
 BROWSER_RUNTIME_WRITE_PATHS = (local_path_text('@HOME@/Library/Caches/ms-playwright'), local_path_text('@HOME@/Library/Caches/Chromium'), local_path_text('@HOME@/Library/Application Support/Chromium'), local_path_text('@HOME@/.codex/computer-use'), local_path_text('@HOME@/.codex/plugins/cache/openai-bundled/computer-use'))
 BROWSER_RUNTIME_DOWNLOAD_DOMAINS = ('cdn.playwright.dev', 'playwright.azureedge.net', 'playwright.download.prss.microsoft.com')
@@ -304,6 +308,30 @@ def validate_tool_cache_write_access(config: dict[str, object]) -> list[str]:
     for required_path in REQUIRED_TOOL_CACHE_PATHS:
         if required_path not in writable_roots:
             errors.append(f'permissions.{selected_name}.workspace_roots must include {required_path} for mise/npm/uv/corepack/SwiftPM/Tessl runtime writes')
+    return errors
+
+def validate_hook_dependency_isolation(config: dict[str, object]) -> list[str]:
+    """Keep every fixed hook dependency directory outside sandbox-writable roots."""
+    permissions = config.get('permissions')
+    if not isinstance(permissions, dict):
+        return []
+    trusted_paths = tuple(path.resolve(strict=False) for path in HOOK_DEPENDENCY_PATHS)
+    errors: list[str] = []
+    for profile_name, profile in sorted(permissions.items()):
+        if not isinstance(profile, dict):
+            continue
+        workspace_roots = profile.get('workspace_roots')
+        if not isinstance(workspace_roots, dict):
+            continue
+        for value, enabled in workspace_roots.items():
+            if enabled is not True or not isinstance(value, str) or not Path(value).is_absolute():
+                continue
+            writable_root = Path(value).resolve(strict=False)
+            if any(path == writable_root or path.is_relative_to(writable_root) for path in trusted_paths):
+                errors.append(
+                    f'permissions.{profile_name}.workspace_roots must not make fixed '
+                    f'security-hook dependency path writable: {value}'
+                )
     return errors
 
 def validate_config_maintenance_write_access(config: dict[str, object]) -> list[str]:
@@ -1811,6 +1839,7 @@ def main(raw_config: str | None=None) -> int:
     errors.extend(validate_goal_feature(data))
     errors.extend(validate_codex_session_evidence_access(data))
     errors.extend(validate_tool_cache_write_access(data))
+    errors.extend(validate_hook_dependency_isolation(data))
     errors.extend(validate_config_maintenance_write_access(data))
     errors.extend(validate_auth_environment_fifo_access(data))
     errors.extend(validate_browser_runtime_policy(data))

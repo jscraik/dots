@@ -1,7 +1,8 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
 
 set -uo pipefail
-export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
+# shellcheck source=codex/hooks/hook-runtime-path.sh
+. "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh"
 
 # Read-only, fail-open DATA/LifeOS context adapter for Codex UserPromptSubmit.
 # The installed LifeOS owner remains external to Configs; this hook only routes

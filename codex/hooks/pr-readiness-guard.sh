@@ -1,7 +1,8 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
 
 set -euo pipefail
-export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
+# shellcheck source=codex/hooks/hook-runtime-path.sh
+. "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh"
 
 input_json="$(cat)"
 dots_hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

@@ -152,6 +152,14 @@ class GovernancePortTests(unittest.TestCase):
             result = self.validate(self.generated['config'].replace(old, new))
             self.assertEqual(result.returncode, 65, result.stdout + result.stderr)
 
+    def test_hook_dependency_paths_cannot_be_workspace_writable(self):
+        config = tomllib.loads(self.generated['config'])
+        roots = config['permissions'][config['default_permissions']]['workspace_roots']
+        roots['/usr/local'] = True
+        result = self.validate(GEN.toml_document(config))
+        self.assertEqual(result.returncode, 65, result.stdout + result.stderr)
+        self.assertIn('fixed security-hook dependency path', result.stdout)
+
     def test_missing_schema_is_unavailable_not_pass(self):
         (self.codex / 'schemas/config.schema.json').unlink()
         result = self.validate(self.generated['config'])

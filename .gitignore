@@ -50,6 +50,7 @@
 !/codex/scripts/hook-governance/hook_runtime_policy.py
 !/codex/hooks/
 !/codex/hooks/hook-runtime-lib.sh
+!/codex/hooks/hook-runtime-path.sh
 !/codex/hooks/lifeos-codex.sh
 !/codex/hooks/permission-request-guard.sh
 !/codex/hooks/post-compact-recorder.sh

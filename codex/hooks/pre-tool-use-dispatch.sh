@@ -1,6 +1,8 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
 
 set -euo pipefail
+# shellcheck source=codex/hooks/hook-runtime-path.sh
+. "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh"
 
 input_json="$(cat)"
 dots_hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -679,13 +681,13 @@ run_guard() {
   local output
   local status
   if [[ -n "$force_variable" ]]; then
-    if output="$(printf '%s' "$input_json" | env "$force_variable=1" bash "$hook_dir/$script_name" 2>/dev/null)"; then
+    if output="$(printf '%s' "$input_json" | /usr/bin/env "$force_variable=1" /bin/bash -p "$hook_dir/$script_name" 2>/dev/null)"; then
       status=0
     else
       status=$?
     fi
   else
-    if output="$(printf '%s' "$input_json" | bash "$hook_dir/$script_name" 2>/dev/null)"; then
+    if output="$(printf '%s' "$input_json" | /bin/bash -p "$hook_dir/$script_name" 2>/dev/null)"; then
       status=0
     else
       status=$?

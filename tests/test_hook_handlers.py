@@ -1,5 +1,6 @@
 """Real handler decisions and local-state isolation; no tool command execution."""
 import json
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -69,12 +70,32 @@ class HookHandlerTests(unittest.TestCase):
         for groups in manifest['hooks'].values():
             for group in groups:
                 for hook in group['hooks']:
-                    if hook['command'].startswith('~/.codex/hooks/'):
-                        name = hook['command'].split('/')[-1]
+                    tokens = shlex.split(hook['command'])
+                    if (tokens[:2] == ['/bin/bash', '-p'] and len(tokens) == 3
+                            and tokens[2].startswith('~/.codex/hooks/')):
+                        name = tokens[2].split('/')[-1]
                         path = self.fixture.codex / 'hooks' / name
                         self.assertTrue(path.is_file() and path.stat().st_mode & 0o111, name)
                         names.add(name)
         self.assertEqual(len(names), 12)
+
+    def test_workspace_tool_roots_cannot_replace_hook_dependencies(self):
+        marker = self.fixture.home / 'poisoned-hook-dependency'
+        roots = (self.fixture.home / '.local/bin', self.fixture.home / '.local/share/mise/shims')
+        poison = '#!/bin/sh\nprintf poisoned >> ' + shlex.quote(str(marker)) + '\nexit 97\n'
+        for root in roots:
+            root.mkdir(parents=True, exist_ok=True)
+            for name in ('python3', 'jq', 'git', 'gh'):
+                binary = root / name
+                binary.write_text(poison)
+                binary.chmod(0o755)
+
+        self.assertTrue(self.output('pre-tool-use-guard.sh')['continue'])
+        self.assertTrue(self.output('session-start.sh', {'source': 'startup'})['continue'])
+        readiness = self.output('pr-readiness-guard.sh',
+                                {'tool_input': {'command': 'gh pr create --base main'}})
+        self.assertEqual(readiness['hookSpecificOutput']['permissionDecision'], 'deny')
+        self.assertFalse(marker.exists())
 
     def test_command_guards_keep_allow_deny_and_supported_commit_blocking(self):
         safe = self.output('pre-tool-use-dispatch.sh')
