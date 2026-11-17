@@ -16,6 +16,42 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 COPY_DIRECTORIES = frozenset({'hooks', 'scripts', 'instructions', 'schemas', 'model-catalogs', 'rules'})
+SYSTEM_PATH = '/usr/bin:/bin:/usr/sbin:/sbin'
+SYSTEM_EXECUTABLES = {'bash': Path('/bin/bash'), 'git': Path('/usr/bin/git')}
+
+
+def system_executable(name):
+    """Resolve a fixed executable whose complete path is root-controlled."""
+    try:
+        resolved = SYSTEM_EXECUTABLES[name].resolve(strict=True)
+    except (KeyError, OSError) as error:
+        raise ValueError(f'Required system executable is unavailable: {name}') from error
+    info = resolved.stat()
+    if (not stat.S_ISREG(info.st_mode) or not os.access(resolved, os.X_OK)
+            or any(path.stat().st_uid != 0 or path.stat().st_mode & 0o022
+                   for path in (resolved, *resolved.parents))):
+        raise ValueError(f'Required system executable is not root-controlled: {name}')
+    return str(resolved)
+
+
+def active_python_executable():
+    """Return the already-running interpreter without another PATH lookup."""
+    try:
+        resolved = Path(sys.executable).resolve(strict=True)
+        info = resolved.stat()
+    except OSError as error:
+        raise ValueError('Active Python executable is unavailable') from error
+    if not resolved.is_absolute() or not stat.S_ISREG(info.st_mode) or not os.access(resolved, os.X_OK):
+        raise ValueError('Active Python executable is invalid')
+    return str(resolved)
+
+
+def child_environment():
+    """Keep child lookup paths independent from caller-writable tool roots."""
+    env = {name: value for name, value in os.environ.items()
+           if name in {'LANG', 'LC_ALL', 'LC_CTYPE'}}
+    env['PATH'] = SYSTEM_PATH
+    return env
 
 
 def module(name, path):
@@ -313,8 +349,11 @@ def verify_previous(home):
 
 
 def public_files(root):
-    names = subprocess.run(['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
-        cwd=root, capture_output=True, text=True, check=True, timeout=15).stdout.split('\0')
+    env = child_environment()
+    env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM='1')
+    names = subprocess.run([system_executable('git'), '-c', 'core.fsmonitor=false', 'ls-files',
+        '--cached', '--others', '--exclude-standard', '-z'], cwd=root, env=env,
+        capture_output=True, text=True, check=True, timeout=15).stdout.split('\0')
     result = []
     for name in sorted(set(filter(None, names))):
         path = root / name
@@ -327,13 +366,14 @@ def public_files(root):
 
 
 def clean_environment(home, payload):
-    env = {name: value for name, value in os.environ.items()
-           if name in {'PATH', 'LANG', 'LC_ALL', 'LC_CTYPE'}}
+    env = child_environment()
+    python = active_python_executable()
     env.update(HOME=str(home), CODEX_HOME=str(home / '.codex'), TMPDIR=str(home / 'tmp'),
         XDG_CONFIG_HOME=str(home / '.config'), XDG_DATA_HOME=str(home / '.local/share'),
-        XDG_CACHE_HOME=str(home / '.cache'), PYTHONDONTWRITEBYTECODE='1', UV_OFFLINE='1',
-        CODEX_SESSION_REPAIR_MODE='check', CODEX_CONFIG_SOURCE_ROOT=str(payload / 'codex'),
-        CODEX_VALIDATION_PYTHON=sys.executable, CODEX_VALIDATION_UV_PYTHON=sys.executable)
+        XDG_CACHE_HOME=str(home / '.cache'), PYTHONDONTWRITEBYTECODE='1',
+        PYTHONNOUSERSITE='1', UV_OFFLINE='1', CODEX_SESSION_REPAIR_MODE='check',
+        CODEX_CONFIG_SOURCE_ROOT=str(payload / 'codex'), CODEX_VALIDATION_PYTHON=python,
+        CODEX_VALIDATION_UV_PYTHON=python)
     return env
 
 
@@ -354,9 +394,15 @@ def installation_lock(home):
 
 def projector(state, *args, lock_fd=None):
     context = SCOPE.context()
-    command = ['bash', str(ROOT / 'scripts/link-configs.sh'), *args,
+    home = Path(context['home'])
+    env = clean_environment(home, ROOT)
+    for name in ('DOTS_DESKTOP_REVIEW_STATE', 'DOTS_DESKTOP_REVIEW_SHA256'):
+        if name in os.environ:
+            env[name] = os.environ[name]
+    env['DOTS_PROJECTOR_PYTHON'] = active_python_executable()
+    command = [system_executable('bash'), str(ROOT / 'scripts/link-configs.sh'), *args,
                '--scope', 'codex', '--codex-home', str(Path(context['home']) / '.codex')]
-    result = subprocess.run(command, env=os.environ, cwd=ROOT, capture_output=True, text=True,
+    result = subprocess.run(command, env=env, cwd=ROOT, capture_output=True, text=True,
         timeout=120, check=False, pass_fds=() if lock_fd is None else (lock_fd,))
     if result.returncode:
         save(state / 'projector-diagnostic.json', {'exit_code': result.returncode,
@@ -441,7 +487,7 @@ def assemble(args):
     save(state / 'origin.json', {'root': str(ROOT), 'files': files})
     env = clean_environment(home, payload)
     (home / 'tmp').mkdir(mode=0o700, exist_ok=True)
-    result = subprocess.run([sys.executable, '-B', str(payload / 'scripts/install-codex.py'),
+    result = subprocess.run([active_python_executable(), '-B', str(payload / 'scripts/install-codex.py'),
         'prepare', '--state-dir', str(state)], env=env, cwd=payload, capture_output=True, text=True, timeout=120, check=False)
     if result.returncode:
         save(state / 'diagnostic.json', {'stdout': result.stdout, 'stderr': result.stderr})
@@ -812,7 +858,7 @@ def dispatch(args):
             raise ValueError('Packaged public source changed')
     marker = read_json(payload / 'codex/.deployment.json')
     env = clean_environment(Path(marker['home']), payload)
-    command = [sys.executable, '-B', str(payload / 'scripts/install-codex.py'),
+    command = [active_python_executable(), '-B', str(payload / 'scripts/install-codex.py'),
         args.operation, '--state-dir', str(state), '--plan-digest', args.plan_digest or '']
     if args.desktop_review_sha256:
         command.extend(('--desktop-review-sha256', args.desktop_review_sha256))

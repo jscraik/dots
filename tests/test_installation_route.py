@@ -908,19 +908,31 @@ except ValueError:
         self.assertEqual(self.snapshot(), current)
         self.assertTrue((self.state / 'backups/config.toml').is_file())
 
+    def test_installation_ignores_writable_path_shims(self):
+        marker = self.home / 'path-shim-ran'
+        body = '#!/bin/sh\nprintf reached > ' + shlex.quote(str(marker)) + '\nexit 75\n'
+        for name in ('git', 'bash', 'python3'):
+            shadow = self.fixture.bin / name
+            shadow.write_text(body)
+            shadow.chmod(0o700)
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        self.success(self.operation('check', digest))
+        self.success(self.operation('rollback', digest))
+        self.assertFalse(marker.exists())
+        self.assertEqual(self.snapshot(), self.before)
+
     def test_partial_cutover_rolls_back_without_resuming_activation(self):
         digest = self.success(self.prepare())['plan_digest']
-        # Interrupt at the real projector boundary after atomic config publication.
-        shadow = self.fixture.bin / 'bash'
-        shadow.write_text('#!/bin/sh\nexit 75\n')
-        shadow.chmod(0o700)
-        failed = self.operation('apply', digest)
-        self.assertNotEqual(failed.returncode, 0)
+        installer = self.import_installer(self.payload)
+        with mock.patch.dict(os.environ, self.installed_env(), clear=True), mock.patch.object(
+                installer, 'projector', side_effect=ValueError('synthetic projector refusal')):
+            with self.assertRaisesRegex(ValueError, 'synthetic projector refusal'):
+                installer.apply(self.state, digest)
         self.assertEqual(json.loads((self.state / 'result.json').read_text())['status'], 'failed')
         self.assertNotEqual(self.snapshot()['config.toml'], self.before['config.toml'])
-        self.success(self.operation('rollback', digest))
-        shadow.unlink()
-        self.assertEqual(self.snapshot(), self.before)
+        with mock.patch.dict(os.environ, self.installed_env(), clear=True):
+            installer.restore(self.state, digest)
         self.assertEqual(self.snapshot(), self.before)
 
     def test_rehearsal_refuses_credentials_and_nested_auth_alias(self):
