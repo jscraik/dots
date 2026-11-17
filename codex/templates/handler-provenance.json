@@ -88,9 +88,10 @@
       "source_sha256": "cd15702f68b9628eff7f0897e94cb05604cad83616381aa3b7ba69dd73ffcecb",
       "transformations": [
         "fixture scope and event admission before handler actions",
-        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
+        "Deny xargs command construction before protected child routing; retain direct-command behavior."
       ],
-      "candidate_sha256": "4c6d9fce35e412a49f46c2e2498b45b72ae0971bfb229638309b152d149b4bbe"
+      "candidate_sha256": "2179b8b597cc6eb450db5132a3d90766f58858ef00de69649be721330a8f08d1"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",
