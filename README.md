@@ -291,10 +291,10 @@ now. Ignore rules protect future additions; they do not prove absence of secrets
 configuration and seven standalone profiles. The reviewed JSON template stores
 the parsed policy, including approval, permissions, profile isolation, hook
 enablement and delivery instructions. Whole-string local slots separate machine
-paths, private endpoint and application identities, consent hashes and personal
-Desktop state. Source revision and file digests are in
-`codex/templates/policy-provenance.json`. JSON is the source format for this
-candidate; generated output is TOML. Comments are not reproduced.
+paths, private endpoint and application identities, and personal Desktop state.
+Persisted hook trust is deliberately excluded. Source revision and file digests
+are in `codex/templates/policy-provenance.json`. JSON is the source format for
+this candidate; generated output is TOML. Comments are not reproduced.
 
 Run the synthetic, local-only generation check:
 
@@ -309,17 +309,18 @@ missing/extra bindings, non-string values and table-key collisions are rejected.
 Quoting prevents binding text from becoming TOML syntax. Bindings are trusted
 local configuration inputs, not a permission-grant mechanism. They can change
 machine-specific keys and values and therefore still require the complete
-governance validation before installation. Never supply credentials as bindings.
+governance validation before installation. The generator rejects any
+`hooks.state` table and treats historical hook-consent bindings as unknown input.
+Never supply credentials as bindings.
 
 The synthetic bindings are invented strings for serialization testing, not
 working endpoints, valid hook consent or a deployable workstation configuration.
 Private reconstruction was compared against the accepted source: all eight
 parsed policies matched before the integration adaptation below. The template
-also retains the newer draw.io registration. Its source path and additional
-hook-consent identities and hashes use local slots with synthetic examples;
-they are not public machine state. Inspect the exact hook definitions and
-establish current consent before activation. The reviewed disabled-transport
-adaptation remains in place.
+also retains the newer draw.io registration with its source path in a local
+slot. Hook definitions remain discoverable, but generated policy starts without
+trusted hashes so the native runtime must obtain fresh consent for the exact
+current hooks. The reviewed disabled-transport adaptation remains in place.
 The accepted validator's schema feature/approval-mode
 parity and seven-profile policy, transport and OSS-isolation checks passed on
 that reconstruction. Negative probes rejected weakened approvals and isolation.
@@ -564,9 +565,9 @@ No approval, network, review or other policy setting was loosened.
 Integration tests repair drift while preserving valid Desktop presentation and
 Computer Use plugin consent. They also inject an exchange failure to verify
 last-state and backup preservation, update an owned canonical fixture and roll
-it back through reconciliation, and check that fresh native hook consent can be
-carried in that fixture's canonical input across projection and restart. They
-never grant a runtime-only consent exception or copy a live config into Git.
+it back through reconciliation, and check that projected hooks begin untrusted.
+Fresh consent remains an explicit native runtime action and is never imported
+from policy bindings or copied from a live config into Git.
 
 Browser/pet assets, external adapters and live cutover remain separate migration
 surfaces. Passing this generated-policy integration does not retire Configs

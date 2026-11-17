@@ -3,8 +3,6 @@ import importlib.util
 import json
 import os
 import pwd
-import re
-import shlex
 import subprocess
 import sys
 import tempfile
@@ -128,70 +126,13 @@ class InstallationRouteTests(unittest.TestCase):
         for name in ('plan.json', 'backups/config.toml'):
             self.assertEqual((self.state / name).read_bytes(), records[name])
 
-    def test_quote_pair_blocks_mixed_publication_and_preserves_micro_layout(self):
-        # Replace one deliberately synthetic identity only in this fixture input.
+    def test_preseeded_hook_consent_binding_is_rejected(self):
         bindings = json.loads(self.bindings.read_text())
-        bindings['value_0144'] = str(self.runtime / 'hooks.json') + ':pre_tool_use:2:0'
-        bindings['value_0145'] = 'sha256:' + 'a' * 64
+        bindings['value_0082'] = str(self.runtime / 'hooks.json') + ':pre_tool_use:0:0'
+        bindings['value_0083'] = 'sha256:' + 'a' * 64
         self.bindings.write_text(json.dumps(bindings))
-        digest = self.success(self.prepare())['plan_digest']
-        self.success(self.operation('apply', digest))
-        spec = importlib.util.spec_from_file_location(
-            'packaged_pair', self.payload / 'codex/scripts/desktop_compatibility.py')
-        compat = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(compat)
-        config_path, hooks_path = self.runtime / 'config.toml', self.runtime / 'hooks.json'
-        installed, expected_hooks = config_path.read_text(), hooks_path.read_text()
-        declarations = json.loads(expected_hooks)
-        states = tomllib.loads(installed)['hooks']['state']
-        selected = None
-        for event, groups in declarations['hooks'].items():
-            for group_index, group in enumerate(groups):
-                for handler_index, handler in enumerate(group['hooks']):
-                    command = handler.get('command', '')
-                    tokens = shlex.split(command)
-                    for key, state in states.items():
-                        parts = key.rsplit(':', 3)
-                        if (tokens and Path(tokens[0]).name == 'braid' and len(parts) == 4
-                                and parts[0] in {str(hooks_path), 'user:' + str(hooks_path)}
-                                and re.sub('[^a-z]', '', parts[1].lower()) == re.sub('[^a-z]', '', event.lower())
-                                and parts[-2:] == [str(group_index), str(handler_index)]
-                                and re.fullmatch('sha256:[0-9a-f]{64}', state.get('trusted_hash', ''))):
-                            selected = key, handler, tokens
-                            break
-                    if selected:
-                        break
-                if selected:
-                    break
-            if selected:
-                break
-        self.assertIsNotNone(selected, 'Fixture must retain a bound canonical Braid consent entry')
-        key, handler, tokens = selected
-        handler['command'] = '"' + tokens[0] + '" ' + ' '.join(tokens[1:])
-        observed_hooks = json.dumps(declarations)
-        layout = compat.micro_layout()
-        layout['separateMicrophoneKeys'] = True
-        observed = compat.overlay(installed, [
-            {'path': ['desktop', 'codex-micro-layout'], 'after': {'present': True, 'value': layout}},
-            {'path': ['hooks', 'state', key, 'trusted_hash'],
-             'after': {'present': True, 'value': 'sha256:' + 'e' * 64}},
-        ])
-        config_path.write_text(observed)
-        hooks_path.write_text(observed_hooks)
-        proposal = compat.paired_repair_candidate(installed, observed, expected_hooks,
-            observed_hooks, hook_source=str(hooks_path))
-        self.assertEqual(config_path.read_text(), observed)
-        self.assertEqual(hooks_path.read_text(), observed_hooks)
-        config_path.write_text(proposal['candidate'])
-        self.assertNotEqual(self.operation('prepare-desktop-review', digest).returncode, 0)
-        config_path.write_text(observed)
-        hooks_path.write_text(proposal['hooks_candidate'])
-        self.assertNotEqual(self.operation('prepare-desktop-review', digest).returncode, 0)
-        config_path.write_text(proposal['candidate'])
-        review = self.success(self.operation('prepare-desktop-review', digest))
-        self.success(self.run_cli('check', '--state-dir', self.state,
-            '--plan-digest', digest, '--desktop-review-sha256', review['review_sha256']))
-        self.assertEqual(tomllib.loads(config_path.read_text())['hooks']['state'], states)
+        self.assertNotEqual(self.prepare().returncode, 0)
+        self.assertEqual(self.snapshot(), self.before)
 
     def desktop_restart(self):
         path = self.runtime / 'config.toml'
@@ -1038,11 +979,13 @@ except ValueError:
         self.assertTrue(launcher.is_file() and launcher.stat().st_mode & 0o111)
         self.assertEqual(installed['plugins']['drawio@drawio'], {'enabled': True})
         self.assertTrue(Path(installed['experimental_compact_prompt_file']).is_file())
+        self.assertNotIn('hooks', installed)
         hooks = server.rpc('hooks/list', {'cwds': [str(self.payload)]})['data'][0]
         self.assertEqual(len(hooks['hooks']), 29)
         self.assertFalse(hooks['errors'], hooks)
         self.assertFalse(hooks['warnings'], hooks)
         self.assertTrue(all(hook['sourcePath'] == str(self.runtime / 'hooks.json') for hook in hooks['hooks']))
+        self.assertTrue(all(hook['trustStatus'] == 'untrusted' for hook in hooks['hooks']))
         server.close()
         for name in ('docs', 'oss-local', 'oss-local-code', 'oss-local-fallback',
                      'oss-security', 'oss-cloud', 'oss-inspect'):
