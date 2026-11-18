@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# The installer supplies its selected runtime before bootstrap admission.
+dots_python="${CODEX_VALIDATION_PYTHON:-python3}"
+
 # Fixture admission remains strict. A packaged context has separate validation.
 dots_package_root="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 DEPLOYMENT_STATE=""
 if [[ -f "$dots_package_root/codex/.deployment.json" ]]; then
-  python3 "$dots_package_root/codex/scripts/deployment_scope.py"
-  DEPLOYMENT_STATE="$(python3 "$dots_package_root/codex/scripts/deployment_scope.py" --state-dir)"
+  "$dots_python" "$dots_package_root/codex/scripts/deployment_scope.py"
+  DEPLOYMENT_STATE="$("$dots_python" "$dots_package_root/codex/scripts/deployment_scope.py" --state-dir)"
 else
-python3 - "$HOME" <<'PYHOME'
+"$dots_python" - "$HOME" <<'PYHOME'
 import os
 from pathlib import Path
 import pwd
@@ -48,7 +51,7 @@ PLUGINS_CANON_RESOLVED=""
 
 resolve_projection_source_root() {
   if [[ -n "$DEPLOYMENT_STATE" ]]; then
-    python3 "$REPO_ROOT/codex/scripts/deployment_scope.py" >/dev/null
+    "$dots_python" "$REPO_ROOT/codex/scripts/deployment_scope.py" >/dev/null
     printf '%s\n' "$REPO_ROOT"
     return 0
   fi
@@ -61,7 +64,7 @@ resolve_projection_source_root() {
     return 78
   fi
 
-  common_dir_abs="$(python3 - "$REPO_ROOT" "$common_dir" <<'PY'
+  common_dir_abs="$("$dots_python" - "$REPO_ROOT" "$common_dir" <<'PY'
 import os
 import sys
 
@@ -198,7 +201,7 @@ resolve_tokens_from_map() {
   local section="$1"
   local codex_home="$2"
 
-  python3 - "$PROJECTION_MAP" "$section" "$REPO_ROOT" "$PROJECTION_SOURCE_ROOT" "$HOME" "$codex_home" "$PLUGINS_CANON_RESOLVED" <<'PY'
+  "$dots_python" - "$PROJECTION_MAP" "$section" "$REPO_ROOT" "$PROJECTION_SOURCE_ROOT" "$HOME" "$codex_home" "$PLUGINS_CANON_RESOLVED" <<'PY'
 import json
 import os
 import sys
@@ -242,7 +245,7 @@ PY
 }
 
 resolve_realpath() {
-  python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$1"
+  "$dots_python" -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$1"
 }
 
 PROJECTION_SOURCE_ROOT="$(resolve_projection_source_root)"
@@ -275,7 +278,7 @@ link_matches_source() {
   resolved_source="$(resolve_realpath "$source_abs")"
   resolved_target="$(resolve_realpath "$target_abs")"
   [[ "$resolved_source" == "$resolved_target" ]] && return 0
-  python3 - "$resolved_source" "$resolved_target" <<'PYCASE'
+  "$dots_python" - "$resolved_source" "$resolved_target" <<'PYCASE'
 import os
 import sys
 
@@ -383,7 +386,7 @@ copy_contains_source_prefix() {
   local target_abs="$2"
 
   [[ -f "$target_abs" && ! -L "$target_abs" ]] || return 1
-  python3 - "$source_abs" "$target_abs" <<'PY'
+  "$dots_python" - "$source_abs" "$target_abs" <<'PY'
 import sys
 from pathlib import Path
 
@@ -443,7 +446,7 @@ check_projection_runtime_copy() {
     mark_fail "${name}: mutable runtime target must be a regular file, not a symlink (${target_abs} -> $(readlink "$target_abs"))"
     return 1
   elif [[ -f "$target_abs" ]]; then
-    if ! check_output="$(python3 "$(dirname "$source_abs")/scripts/repair-runtime-config-drift.py" \
+    if ! check_output="$("$dots_python" "$(dirname "$source_abs")/scripts/repair-runtime-config-drift.py" \
       --config-path "$target_abs" --check --json 2>&1)"; then
       mark_fail "${name}: runtime config differs from canonical policy (${target_abs}): ${check_output}"
       return 1
@@ -527,9 +530,9 @@ repair_projection_runtime_copy() {
   if [[ -f "$target_abs" && ! -L "$target_abs" ]]; then
     if [[ "$DRY_RUN" -eq 1 ]]; then
       local check_output=""
-      if ! check_output="$(python3 "$(dirname "$source_abs")/scripts/repair-runtime-config-drift.py" \
+      if ! check_output="$("$dots_python" "$(dirname "$source_abs")/scripts/repair-runtime-config-drift.py" \
         --config-path "$target_abs" --check --json 2>&1)"; then
-        if jq -e '.status == "fail"' >/dev/null 2>&1 <<<"$check_output"; then
+        if "$dots_python" -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("status") == "fail" else 1)' >/dev/null 2>&1 <<<"$check_output"; then
           mark_plan "reconcile runtime config from canonical source ${target_abs}"
         else
           mark_fail "${name}: runtime config reconciliation would be blocked (${target_abs}): ${check_output}"
@@ -542,7 +545,7 @@ repair_projection_runtime_copy() {
     if [[ -n "$DEPLOYMENT_STATE" ]]; then
       backup_args+=(--backup-path "$DEPLOYMENT_STATE/publisher-backups/config-$STAMP.toml")
     fi
-    if ! python3 "$(dirname "$source_abs")/scripts/repair-runtime-config-drift.py" \
+    if ! "$dots_python" "$(dirname "$source_abs")/scripts/repair-runtime-config-drift.py" \
       --config-path "$target_abs" --repair "${backup_args[@]}"; then
       mark_fail "${name}: runtime config reconciliation failed (${target_abs})"
       return 1
@@ -554,7 +557,7 @@ repair_projection_runtime_copy() {
   if [[ "${DOTS_PROJECTION_FIXTURE:-}" == "full-policy-v1" || -n "$DEPLOYMENT_STATE" ]]; then
     if [[ "$DRY_RUN" -eq 1 ]]; then
       mark_plan "create validated runtime config ${target_abs}"
-    elif python3 "${PROJECTION_SOURCE_ROOT}/codex/scripts/admit-policy-fixture.py" --map "$PROJECTION_MAP" --publish-initial-config; then
+    elif "$dots_python" "${PROJECTION_SOURCE_ROOT}/codex/scripts/admit-policy-fixture.py" --map "$PROJECTION_MAP" --publish-initial-config; then
       mark_ok "${name}: published validated runtime snapshot ${target_abs}"
     else
       mark_fail "${name}: initial runtime publication failed"
@@ -631,7 +634,7 @@ run_projection_entry() {
         mark_plan "publish validated regular hook copy ${target_abs}"
         return 0
       fi
-      if python3 "${PROJECTION_SOURCE_ROOT}/codex/scripts/project-codex-hooks.py" "${hook_args[@]}"; then
+      if "$dots_python" "${PROJECTION_SOURCE_ROOT}/codex/scripts/project-codex-hooks.py" "${hook_args[@]}"; then
         mark_ok "${name}: managed regular hook copy ${target_abs}"
       else
         mark_fail "${name}: managed hook publication/check failed"
@@ -648,7 +651,7 @@ run_projection_entry() {
     copy-managed)
       # The installation transaction owns publication, backups and recovery.
       # The projector checks the exact files, never recreates repository links.
-      python3 "${PROJECTION_SOURCE_ROOT}/codex/scripts/install-codex.py" \
+      "$dots_python" "${PROJECTION_SOURCE_ROOT}/codex/scripts/install-codex.py" \
         check-copy --state-dir "$DEPLOYMENT_STATE" --name "$name" || return 1
       ;;
     copy)
@@ -747,12 +750,12 @@ fi
 
 # Each route admits one closed map, never a caller-selected live map.
 if [[ "${DOTS_PROJECTION_FIXTURE:-}" == "full-policy-v1" || -n "$DEPLOYMENT_STATE" ]]; then
-  python3 "${REPO_ROOT}/codex/scripts/admit-policy-fixture.py" --map "$PROJECTION_MAP"
+  "$dots_python" "${REPO_ROOT}/codex/scripts/admit-policy-fixture.py" --map "$PROJECTION_MAP"
 elif [[ -n "${DOTS_PROJECTION_FIXTURE:-}" ]]; then
   echo 'Unknown isolated projection fixture' >&2
   exit 2
 else
-python3 - "$PROJECTION_MAP" <<'PYMAP'
+"$dots_python" - "$PROJECTION_MAP" <<'PYMAP'
 import json
 from pathlib import Path
 import sys
@@ -806,7 +809,7 @@ fi
 reconcile_retired_profiles() {
   local codex_home="$1"
   local result=""
-  if ! result="$(python3 - "$codex_home" "$PROJECTION_SOURCE_ROOT" "$REPO_ROOT" "$PROJECTION_MAP" "$MODE" "$DRY_RUN" <<'PY'
+  if ! result="$("$dots_python" - "$codex_home" "$PROJECTION_SOURCE_ROOT" "$REPO_ROOT" "$PROJECTION_MAP" "$MODE" "$DRY_RUN" <<'PY'
 import json
 import os
 import stat

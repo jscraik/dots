@@ -1,5 +1,9 @@
 # Dots repository guidance
 
+Dots owns its current workflow and standards. Configs provenance explains
+origins; it does not require obsolete processes or source-only commands.
+Use the dots CODESTYLE front door and executable validation contract.
+
 This repository owns reusable, public-appropriate configuration. Installation
 and activation require separate authority and verification on the target
 machine. Use its local installation receipt for current state; this file does
