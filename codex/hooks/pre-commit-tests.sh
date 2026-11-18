@@ -35,7 +35,7 @@ IFS=$'\t' read -r tool_name raw_command cwd permission_mode <<<"$parsed_fields"
 
 # run_ok outputs a JSON object signalling the PreToolUse hook permits the tool invocation to proceed.
 run_ok() {
-  jq -n '{continue: true}'
+  jq -n '{}'
 }
 
 # run_block emits a JSON denial for the PreToolUse gate to stdout using the provided reason and the current permission mode and timeout class.

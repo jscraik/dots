@@ -20,7 +20,7 @@ parsed_fields="$(printf '%s' "$input_json" | jq -r '
 IFS=$'\x1f' read -r tool_name raw_command command_cwd <<<"$parsed_fields"
 
 if [[ "$tool_name" != "Bash" ]]; then
-  jq -n '{continue: true}'
+  jq -n '{}'
   exit 0
 fi
 
@@ -239,7 +239,7 @@ fi
 IFS=$'\x1f' read -r readiness_phase expected_repo expected_pr expected_thread_id expected_base expected_head <<<"$target_fields"
 
 if [[ -z "$readiness_phase" ]]; then
-  jq -n '{continue: true}'
+  jq -n '{}'
   exit 0
 fi
 
@@ -292,7 +292,7 @@ receipt_output="$(python3 "$readiness_script" "${readiness_args[@]}" 2>&1)"
 receipt_code=$?
 set -e
 if [[ "$receipt_code" -eq 0 ]]; then
-  jq -n --arg phase "$readiness_phase" '{continue: true, hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:("PR " + $phase + " readiness receipt is current and passing.")}}'
+  jq -n --arg phase "$readiness_phase" '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:("PR " + $phase + " readiness receipt is current and passing.")}}'
   exit 0
 fi
 

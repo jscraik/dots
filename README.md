@@ -73,30 +73,10 @@ candidates; publication and exact-content acceptance retain separate authority.
 
 ### Local checks
 
-CircleCI runs the full suite with `DOTS_CODEX_BIN=/tmp/dots-ci-tools/codex`,
-the checksum-verified Linux CLI pinned by its configuration. This enables native
-runtime tests instead of silently skipping them. Linux results prove compatibility
-with that CLI version; they do not prove Desktop app behaviour. Run the app wrapper
-below separately on macOS for Desktop runtime evidence. Hook trust refresh timing
-may differ by release; the lifecycle test requires trusted state after explicit
-reload and restart, modified-definition detection, and revoked consent.
-
 Use Python 3.12 or newer in an existing validation environment containing the
 pins in `requirements/codex-validation.txt`. The instruction-pointer checker
 uses the already-declared `markdown-it-py==4.2.0`. No online bootstrap or new
 dependency is added by this migration.
-
-Provision an isolated validation environment before running the app wrapper:
-
-```sh
-python3 -m venv /private/tmp/dots-validation
-/private/tmp/dots-validation/bin/python -m pip install -r requirements/codex-validation.txt
-source /private/tmp/dots-validation/bin/activate
-bash scripts/test-app-codex.sh
-```
-
-The wrapper checks the declared package versions before collecting tests. It
-does not install packages. Nested helpers reuse the selected environment's Python.
 
 ```sh
 python3 -m unittest discover -s tests -v
@@ -134,6 +114,13 @@ metadata. Migrated handlers do not open or execute these
 values, and they add no resource roots or helper-output permissions. Event paths,
 all other scoped environment paths and retained-store protections remain
 checked. Rehearsals still reject native metadata paths outside their owned home.
+
+Machine event working directories also recognise explicit trusted projects in
+the owned runtime configuration. This admission is limited to the registered
+directory and its descendants, rejects aliases and unsafe directory modes, and
+retains the installed managed-worktree checks. Runtime trust does not add
+helper-output or environment-resource roots. Rehearsals retain sealed-policy
+containment; session and credential stores remain protected.
 
 ## First-machine installation candidate
 
@@ -177,11 +164,31 @@ external to the mandatory Python/jq/gh package. Without an explicitly available
 runtime, optional retrieval returns no context; it does not clear a security
 decision. The retained LifeOS harness covers the explicit executable route and
 the minimal child environment.
+Readiness helpers use a separate repository-scoped contract for verified managed
+worktrees. It admits contained scope and waiver inputs without adding general
+resource roots. Receipts use regular JSON leaves in an existing owned `.tmp`
+directory; the default is `.tmp/pr-readiness.v1.json`, not shared Git metadata.
+Symlinks, hardlinks, nonregular or unsafe output leaves, retained stores and
+installation resources remain rejected. Publication rechecks the worktree and
+parent identities and uses a no-follow temporary file and atomic replacement.
+These checks detect observed replacement races; they do not claim immunity to
+hostile concurrent filesystem changes. Admission does not waive any readiness
+head, review, CI, scope or receipt-freshness gate, or grant remote authority.
+
+The body-only PR helper uses this same selected-repository boundary for managed
+worktree inputs. It snapshots the admitted body and template, then rechecks the
+worktree identity before a hosted operation. Its current-head receipt or explicit
+metadata-repair preflight, PR number and repository checks remain required.
 
 `scripts/install-codex.py` provides one local procedure: `prepare`, `apply`,
 `check` and `rollback`. It reuses the existing projector, full policy validator,
 Desktop-setting preservation and atomic config/hook publishers. It installs no
 packages, starts no background service and does not contact a provider or CI.
+
+The projector bootstrap uses the installer's selected Python through the existing
+`CODEX_VALIDATION_PYTHON` contract, including quoted paths containing spaces.
+Standalone callers retain the ordinary `python3` fallback. This selection leaves
+PATH, other tool resolution and persistent runtime-manager trust unchanged.
 
 Preparation creates a private, read-only policy package and validates it before
 backing up the 20 managed targets. Config, hook manifests, profiles and reusable
@@ -208,7 +215,7 @@ synthetic Codex setup and private binding JSON. The test entrypoint builds that
 setup and exercises the actual commands:
 
 ```sh
-bash scripts/test-app-codex.sh -p test_installation_route.py -v
+DOTS_CODEX_BIN=/absolute/path/to/codex python3 -B -m unittest discover -s tests -p test_installation_route.py -v
 ```
 
 For native hook consent, `hooks/list` with `cwds` proves on-disk discovery only.
@@ -245,6 +252,89 @@ uploading them. Only selected reusable changes belong in the GitHub source. Priv
 bindings, Desktop consent, authentication, sessions, databases, plugins and generated
 state stay local. No automatic bidirectional sync or background service is added.
 Existing private data aliases are preserved; their relocation is a separate task.
+
+For an already applied generation with an accepted exact Desktop review,
+`prepare --previous-desktop-review-sha256 DIGEST` can preserve that reviewed
+state through an update. The old reference, plan, review and every managed target
+must still match. A sealed descriptor carries the approval identity into the new
+package; canonical policy stays separate from the reviewed Desktop overlay.
+Preparation and application revalidate it. Newer registrations, changed reviews,
+new installation references and conflicts with new canonical policy remain
+blocking. Ordinary preparation without the pin retains its existing rejection.
+Rollback restores the exact pre-update configuration and prior package reference.
+Repeated updates preserve the accepted effective values and absences of the
+existing finite Desktop registration slots, even when a later review records
+no new delta. The previous canonical snapshot is authenticated against its
+package inventory before supplying conflict-check baselines. New canonical
+conflicts and unreviewed runtime edits still block; themes and archive choices
+retain their existing canonical transition rules.
+
+An exact Desktop review can also retain the selected model, reasoning effort and the typed,
+account-scoped `desktop.daybreak-enabled` preference. Account identifiers stay
+in private runtime evidence, never in this repository. Review does not change
+the provider, permissions, tools or service credentials. Existing hook identities
+may change only their explicit `enabled` boolean: trust hashes and every other
+field must remain unchanged, including in the rollback configuration. A missing
+rollback identity is rejected rather than creating a new trusted hook. Native
+hook discovery and loaded-session verification remain separate from config review.
+
+When separately approved model, reasoning, project-trust or presentation choices
+already differ from the installed policy, first express them in the public root
+template and private project bindings. The source-only `prepare-policy-update`
+operation prepares a new generation without clearing the old generation's drift.
+It takes the ordinary `--home`, fresh `--state-dir`, `--bindings`, `--braid-bin`
+and `--mode` arguments, plus all six exact SHA-256 pins:
+`--bindings-sha256`, `--previous-plan-digest`, `--previous-package-digest`,
+`--previous-marker-sha256`, `--previous-expected-config-sha256` and
+`--previous-observed-config-sha256`. Obtain them from the reviewed private inputs,
+old sealed generation and current runtime immediately before preparation.
+
+This route preserves the currently selected model, reasoning effort and typed
+Daybreak preference from the pinned runtime,
+the four explicit private project bindings `value_0174`, `value_0175`, `value_0176` and `value_0177`, and the
+two existing validated presentation preferences and the source-selected
+`desktop.autoArchiveAfterDays` value, plus the source-selected absence of obsolete
+`marketplaces.openai-primary-runtime.last_updated` metadata. Other marketplace
+fields and every other setting remain under strict comparison; the Desktop
+review remains explicit and the previous sealed generation remains unchanged.
+The existing equivalent legacy sandbox spelling may be normalised to the same
+named permission profile; a different permission or network capability is rejected. Existing project trust must be
+preserved; package-local project references move with the normal generation.
+The exact observed config must match that transformation of the verified old
+baseline. Any other policy delta, changed managed target, old receipt or package
+blocks preparation or application. The accepted Desktop executable registration
+overlay is carried separately; the two presentation preferences now follow the
+new canonical template rather than the older overlay.
+
+If another workspace was registered after the previous installation, select its
+absolute path explicitly in the private bindings' optional
+`additional_trusted_projects` list. The binding pin and sealed canonical output
+cover that selection; it is never imported automatically from runtime state.
+Entries must be unique, must not replace an existing template binding, and add
+only `trust_level = "trusted"`. The exact runtime comparison still rejects
+unselected project registrations and any change to existing trust. With no list,
+all generated policy remains byte-for-byte unchanged.
+
+Operator hook revocations are preserved through preparation, application and
+repair readback. Existing `enabled = false` flags do not authorise changed trust
+hashes or new identities. If every recorded hook was disabled, replacement
+identities also remain disabled. A transition never grants hook consent.
+
+A standalone live `repair-usage-directory` forward swap is refused before any
+change: replacing a retained link would invalidate the active deployment's
+ownership record. Rehearsal and explicit recovery remain available. A previously
+applied repair can be included in `prepare-policy-update` through its exact
+`--usage-directory-repair` proof; preparation verifies the retained directory,
+original link backup and previous package. Rollback restores the original link
+and retains new usage logs in repair storage. Do not cancel a prepared migration
+as routine cleanup: its rollback includes that retained-resource inverse.
+
+Preparation seals a private transition proof and leaves the runtime untouched.
+Normal `apply`, `check` and `rollback` retain their gates and exact plan pin.
+Rollback restores the selected pre-update bytes and prior package reference;
+the old check will still report their intentional policy drift. It does not
+retroactively accept those preferences under the old template. This operation
+does not grant installation authority or import arbitrary runtime-only policy.
 
 For recovery after the development checkout changes, use the exact previously
 prepared package entrypoint, state directory and plan digest, for example
@@ -533,26 +623,16 @@ approval, missing readiness receipts, lifecycle receipts, startup maintenance
 and Stop/prompt safety decisions. Shell syntax is checked for every ported
 shell file. Fixture auth, session and database sentinels must remain unchanged.
 
-To run app-server discovery with the app-bundled Codex CLI, use the wrapper
-below. These tests start a local app-server but no model turn, login, review,
+To run actual app-server discovery, supply the installed Codex CLI's absolute
+path. This command starts a local app-server but no model turn, login, review,
 CI job or deployment:
 
 ```sh
-bash scripts/test-app-codex.sh
+DOTS_CODEX_BIN=/absolute/path/to/codex python3 -B -m unittest discover -s tests -v
 ```
 
-The wrapper selects `/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex`,
-prints its version, and overrides any inherited `DOTS_CODEX_BIN`. It never falls
-back to PATH, mise or npm. If the app launcher is missing, validation fails.
-For only the discovery and consent lifecycle checks, run:
-
-```sh
-bash scripts/test-app-codex.sh -p test_hook_discovery.py -v
-```
-
-Direct Python runs without `DOTS_CODEX_BIN` visibly skip installed-runtime tests;
-use the wrapper for app-runtime proof. With the app CLI selected,
-`tests/test_hook_discovery.py` creates a separate minimal fixture config,
+Without `DOTS_CODEX_BIN`, the installed-runtime test is visibly skipped. With
+it, `tests/test_hook_discovery.py` creates a separate minimal fixture config,
 discovers every manifest definition with `hooks/list`, and records only their
 fresh hashes through `config/value/write` at `hooks.state`. A fresh server must
 recognise that consent. Changing a definition must report modified consent;
