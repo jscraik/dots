@@ -188,6 +188,11 @@ replacement of an existing trusted hash remains blocking. Ordinary projection
 and startup repair stop before changing consent-bearing configuration. Generated
 bindings still cannot install trusted hashes, and any later runtime change
 invalidates the accepted snapshot.
+This review also supports a first installation with no previous config. The
+sealed plan must record that absence and no config backup may appear later.
+An explicitly pinned preserving rollback retains a consent-only config in that
+case, restores the other targets, and leaves the original installation receipts
+and absent backup unchanged.
 
 For an operator-prepared rehearsal, the command sequence is:
 

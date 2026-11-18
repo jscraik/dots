@@ -241,7 +241,7 @@ class DesktopCompatibilityTests(unittest.TestCase):
             backup.write_text(original)
             plan = {'home': str(state / 'home'), 'package_digest': 'a' * 64,
                     'expected': {'config.toml': {'sha256': adapter.sha(original.encode())}},
-                    'before': {'config.toml': {'sha256': adapter.sha(original.encode())}}}
+                    'before': {'config.toml': {'kind': 'file', 'sha256': adapter.sha(original.encode())}}}
             record = dict(schema_version=1, state_dir=str(state), home=plan['home'],
                 package_digest=plan['package_digest'], plan_digest='b' * 64,
                 installed=original, observed=observed, original=original,

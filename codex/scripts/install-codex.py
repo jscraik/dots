@@ -541,22 +541,30 @@ def prepare_desktop_review(state, digest):
     plan = load_plan(state, digest)
     result = load_result(state, plan)
     runtime = Path(plan['home']) / '.codex'
-    if result['status'] != 'applied' or plan['before']['config.toml']['kind'] != 'file':
-        raise ValueError('Desktop review requires an applied installation with a regular backup')
+    original_record = plan['before']['config.toml']
+    if result['status'] != 'applied' or original_record['kind'] not in {'file', 'absent'}:
+        raise ValueError('Desktop review requires an applied installation with a file or absent baseline')
     current = {name: describe(runtime / name) for name in plan['before']}
     if (any(semantic(current[name]) != semantic(record) for name, record in result['after'].items()
             if name != 'config.toml') or current['config.toml']['kind'] != 'file'
             or current['config.toml']['mode'] != result['after']['config.toml']['mode']):
         raise ValueError('Desktop review cannot accept other managed changes')
-    original = SCOPE.read_regular(state / 'backups/config.toml').decode()
+    backup = state / 'backups/config.toml'
+    if original_record['kind'] == 'absent':
+        if os.path.lexists(backup):
+            raise ValueError('Absent config baseline must not have a backup')
+        original = ''
+    else:
+        original = SCOPE.read_regular(backup).decode()
     repair = module('desktop_base_repair', ROOT / 'codex/scripts/repair-runtime-config-drift.py')
     installed, error = repair._canonical_with_desktop_plugins(
-        SCOPE.read_regular(ROOT / 'codex/config.toml').decode(), original)
+        SCOPE.read_regular(ROOT / 'codex/config.toml').decode(),
+        original if original_record['kind'] == 'file' else SCOPE.read_regular(ROOT / 'codex/config.toml').decode())
     if installed is None:
         raise ValueError('Desktop baseline could not be reconstructed: ' + str(error))
     compat = module('desktop_review', ROOT / 'codex/scripts/desktop_compatibility.py')
     if (compat.sha(installed.encode()) != plan['expected']['config.toml']['sha256']
-            or compat.sha(original.encode()) != plan['before']['config.toml']['sha256']):
+            or original_record['kind'] == 'file' and compat.sha(original.encode()) != original_record['sha256']):
         raise ValueError('Desktop review baseline or backup changed')
     observed = SCOPE.read_regular(runtime / 'config.toml').decode()
     changes = compat.delta(installed, observed, hook_source=str(runtime / 'hooks.json'))
@@ -667,6 +675,7 @@ def restore(state, digest, review_digest=None):
             result_path = state / ('desktop-' + review_digest + '-result.json')
             before = dict(plan['before'])
             before['config.toml'] = dict(before['config.toml'],
+                kind='file', mode=before['config.toml'].get('mode', result['after']['config.toml']['mode']),
                 sha256=hashlib.sha256(review['rollback'].encode()).hexdigest(),
                 size=len(review['rollback'].encode()))
             after = dict(result['after'])

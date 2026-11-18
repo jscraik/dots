@@ -356,16 +356,24 @@ def load(path: Path, digest: str, *, state: Path, plan_digest: str,
     if any(not isinstance(data[k], str) for k in ('installed', 'observed', 'original', 'rollback')):
         raise ValueError('Invalid Desktop review configuration')
     backup = state / 'backups/config.toml'
-    backup_info = backup.lstat()
-    if (not stat.S_ISREG(backup_info.st_mode) or backup_info.st_uid != os.getuid()
-            or backup_info.st_nlink != 1):
-        raise ValueError('Desktop review backup must be an owned unaliased regular file')
-    backup_fd = os.open(backup, os.O_RDONLY | os.O_NOFOLLOW)
-    with os.fdopen(backup_fd, 'rb') as stream:
-        backup_raw = stream.read(2 * 1024 * 1024 + 1)
+    original_record = plan['before']['config.toml']
+    if original_record['kind'] == 'absent':
+        if data['original'] != '' or os.path.lexists(backup):
+            raise ValueError('Desktop review absent baseline changed')
+    elif original_record['kind'] == 'file':
+        backup_info = backup.lstat()
+        if (not stat.S_ISREG(backup_info.st_mode) or backup_info.st_uid != os.getuid()
+                or backup_info.st_nlink != 1):
+            raise ValueError('Desktop review backup must be an owned unaliased regular file')
+        backup_fd = os.open(backup, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(backup_fd, 'rb') as stream:
+            backup_raw = stream.read(2 * 1024 * 1024 + 1)
+        if (sha(data['original'].encode()) != original_record['sha256']
+                or sha(backup_raw) != original_record['sha256']):
+            raise ValueError('Desktop review backup changed')
+    else:
+        raise ValueError('Unsupported Desktop review config baseline')
     if (sha(data['installed'].encode()) != plan['expected']['config.toml']['sha256']
-            or sha(data['original'].encode()) != plan['before']['config.toml']['sha256']
-            or sha(backup_raw) != plan['before']['config.toml']['sha256']
             or not equal(delta(data['installed'], data['observed'],
                                hook_source=str(Path(plan['home']) / '.codex/hooks.json')), data['changes'])
             or overlay(data['original'], data['changes']) != data['rollback']):

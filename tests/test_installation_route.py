@@ -135,6 +135,17 @@ class InstallationRouteTests(unittest.TestCase):
         self.assertEqual(self.snapshot(), self.before)
 
     def test_post_install_native_consent_is_pinned_and_never_silently_revoked(self):
+        self.check_native_consent_lifecycle()
+
+    def test_first_install_native_consent_without_previous_config(self):
+        (self.runtime / 'config.toml').unlink()
+        self.before = self.snapshot()
+        self.check_native_consent_lifecycle()
+        restored = tomllib.loads((self.runtime / 'config.toml').read_text())
+        self.assertEqual(set(restored), {'hooks'})
+        self.assertFalse((self.state / 'backups/config.toml').exists())
+
+    def check_native_consent_lifecycle(self):
         digest = self.success(self.prepare())['plan_digest']
         self.success(self.operation('apply', digest))
         path = self.runtime / 'config.toml'
@@ -143,7 +154,7 @@ class InstallationRouteTests(unittest.TestCase):
         data['hooks'] = {'state': {key: {'enabled': True, 'trusted_hash': 'sha256:' + 'a' * 64}}}
         path.write_text(GEN.toml_document(data))
         observed = path.read_bytes()
-        records = {name: (self.state / name).read_bytes()
+        records = {name: ((self.state / name).read_bytes() if (self.state / name).exists() else None)
                    for name in ('plan.json', 'result.json', 'backups/config.toml')}
         self.assertNotEqual(self.operation('check', digest).returncode, 0)
         for mode in ('--check', '--repair'):
@@ -169,7 +180,8 @@ class InstallationRouteTests(unittest.TestCase):
         self.success(self.run_cli('rollback', *arguments))
         self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], data['hooks']['state'])
         for name in ('plan.json', 'result.json', 'backups/config.toml'):
-            self.assertEqual((self.state / name).read_bytes(), records[name])
+            actual = (self.state / name).read_bytes() if (self.state / name).exists() else None
+            self.assertEqual(actual, records[name])
 
     def desktop_restart(self):
         path = self.runtime / 'config.toml'
