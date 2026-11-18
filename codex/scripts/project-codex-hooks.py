@@ -101,7 +101,7 @@ def validate_braid_copy(source: Path, digest: str) -> None:
         before = os.fstat(fd)
         if (not stat.S_ISREG(before.st_mode) or before.st_nlink != 1
                 or before.st_uid != os.getuid() or before.st_mode & 0o222
-                or not before.st_mode & 0o111 or before.st_size > MAX_BRAID_BYTES):
+                or not before.st_mode & stat.S_IXUSR or before.st_size > MAX_BRAID_BYTES):
             raise ValueError("Managed Braid must be an owned, sealed, unshared executable")
         with os.fdopen(fd, "rb", closefd=False) as stream:
             raw = stream.read(MAX_BRAID_BYTES + 1)

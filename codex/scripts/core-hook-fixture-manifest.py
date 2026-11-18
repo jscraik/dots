@@ -15,6 +15,13 @@ source = require_policy_path(Path(sys.argv[1]))
 # The publisher's CLI verifies every core and Braid definition first. The view
 # below is solely for pre-existing core assertions; full native tests retain all.
 snapshot = source.read_bytes()
+original = subprocess.run(
+    [sys.executable, "-B", str(Path(__file__).with_name("project-codex-hooks.py")),
+     "--source", str(source), "--without-braid"],
+    capture_output=True, check=False,
+)
+if original.returncode:
+    raise SystemExit("Complete hook manifest validation failed")
 with tempfile.TemporaryDirectory(
     dir=require_policy_path(Path(os.environ["TMPDIR"]))
 ) as directory:

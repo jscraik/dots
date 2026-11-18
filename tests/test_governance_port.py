@@ -145,6 +145,10 @@ class GovernancePortTests(unittest.TestCase):
 
         original = braid.read_bytes()
         self.assertEqual(render_without_braid().returncode, 0)
+        braid.chmod(0o401)
+        self.assertNotEqual(render_without_braid().returncode, 0)
+        braid.chmod(0o500)
+        self.assertEqual(render_without_braid().returncode, 0)
         braid.chmod(0o700)
         braid.write_bytes(original + b'# replacement\n')
         braid.chmod(0o500)

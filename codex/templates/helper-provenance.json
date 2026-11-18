@@ -714,7 +714,7 @@
         "Consume the publisher-validated original-core view from one captured snapshot",
         "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "f5e84694b60bb59ae39ab3226e77a7e486f0595265f3524fec68f6799d1b5ddb"
+      "candidate_sha256": "49b82d23ff4ade7bb75dbb42d080a66a348b26fda7208018de398283c08d6155"
     },
     {
       "path": "codex/scripts/tests/runtime_config_fixture.py",
