@@ -42,18 +42,18 @@
     {
       "path": "codex/hooks/README.md",
       "prior_candidate_sha256": "70d11c516963bd86c8e082f0fda7101cabdcf55e424d26f2b7954fb958abd3aa",
-      "candidate_sha256": "39163053f4ca56f5c37ba2367898ab550106d739537aa139784acd0269db7c26"
+      "candidate_sha256": "f504948c350155241ed5979ef7112b94e9551150e80a614de58cdf9a81cd0845"
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",
       "prior_candidate_sha256": "da8c32b3ee00003e38fabaea57151d518935326235741e2cbc4ac92a2bb5eb7b",
-      "candidate_sha256": "5e7bb93062237d7a41f260ae3d02fff606fd20f797e43c473d387b22d78f16b4",
+      "candidate_sha256": "4f2d0246141fe90ab881fdc2052b0613b1892afb2ae4aaf1fe1d4f7794900c68",
       "transformation": "Use the fixed root-owned hook dependency path and absolute Bash launch."
     },
     {
       "path": "codex/hooks/pre-tool-use-dispatch.sh",
       "prior_candidate_sha256": "410160a1e4cf544151c390af3e2f56548926d42cd13cfa942dd7efd87c75c515",
-      "candidate_sha256": "9aa1d651895d25d6e411f0e305cc5cd128ecc9d9ef4d099b52eda10c4cfee77c",
+      "candidate_sha256": "88ce082790bb8c226e5d87c5378abe4c3669c56bc99e49c19db3c7bce843ddc2",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Use the fixed root-owned hook dependency path and absolute Bash launch.",
       "additional_source": {
         "revision": "283db198d281e239524da23563bd3390fa9910c9",
@@ -197,12 +197,12 @@
     {
       "path": "tests/test_helper_dependencies.py",
       "prior_candidate_sha256": "f8c74a3d7d96e5791162b6abdf902c1705a78226deb56347f56a2a09096384b9",
-      "candidate_sha256": "7e44d266d2c0f87d1bc9889e43b7c76990623646a8a8f3c42d11ac06ddaada73"
+      "candidate_sha256": "dd529f9f732f24f0250b6d3189c0552b41bfcc6a49b18c3e9f3bff9fc01675d1"
     },
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "001f2a7505952edd0727589646d7b40e820c27ac2805d85f4e364a727fb30a40",
+      "candidate_sha256": "eff7187d30f783ad3d5772366d9d5b7fd4469475752d214e90ca957eedf1f482",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment. Verify writable tool roots cannot replace hook dependencies."
     },
     {
