@@ -350,7 +350,7 @@
     {
       "path": "codex/hooks/destructive-git-operation.py",
       "origin": "Extracted isolated destructive Git parser from hook-runtime-lib.sh",
-      "candidate_sha256": "728aab0b1063546c116e0de815c5ece8a5a77168de35a4a1bf1f762a24c00be3"
+      "candidate_sha256": "b570efdca115418a4239eb771b28350de4346da7ce50bbf0782558ce03b93cd0"
     }
   ],
   "external_boundaries": [

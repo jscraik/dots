@@ -250,6 +250,8 @@ def inspect_shell(command, depth=0, budget=None):
             raise ValueError('Sensitive Git environment assignment')
         executable_index = wrapper_command_index(tokens, 0, len(tokens))
         if executable_index < len(tokens):
+            if any(char in tokens[executable_index] for char in '$`*?[{~'):
+                raise ValueError('Dynamic executable requires separate inspection')
             executable = tokens[executable_index].rsplit("/", 1)[-1].lower()
             if executable in {"bash", "sh", "zsh", "dash", "ksh"}:
                 payload = shell_payload_index(tokens, executable_index)
@@ -331,7 +333,12 @@ def wrapper_command_index(tokens, start, limit):
                 if token in {"-u", "--unset"}:
                     index += 2
                     continue
+                if token.startswith('--unset=') or token.startswith('-u'):
+                    index += 1
+                    continue
                 if token.startswith("-"):
+                    if token not in {'-i', '--ignore-environment', '-0', '--null', '-v', '--debug'}:
+                        raise ValueError('Unsupported env option')
                     index += 1
                     continue
                 break
@@ -407,6 +414,17 @@ def checkout_force_option(token):
             return False
         if option in "f23p":
             return True
+    return False
+
+
+def checkout_branch_option_needs_value(token):
+    if not token.startswith('-') or token.startswith('--'):
+        return False
+    for index, option in enumerate(token[1:], 1):
+        if option in 'bB':
+            return index == len(token) - 1
+        if option not in 'qdtl':
+            return False
     return False
 
 
@@ -583,7 +601,7 @@ for git_index in range(len(command_tokens)):
         if checkout_value:
             checkout_value = False
             continue
-        if subcommand == 'checkout' and token in {'-b', '-B', '--orphan'}:
+        if subcommand == 'checkout' and (token == '--orphan' or checkout_branch_option_needs_value(token)):
             checkout_value = True
             continue
         if subcommand == "checkout" and token in {".", ".."}:

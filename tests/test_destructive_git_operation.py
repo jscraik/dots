@@ -116,6 +116,9 @@ class DestructiveGitOperationTests(unittest.TestCase):
             "printf '%s\\n' 'git reset --hard'|command /bin/bash",
             "cat <<'EOF' > >(bash)\ngit reset --hard\nEOF\nwait",
             "NOTE='first\nsecond' git reset --hard",
+            "cmd='git reset --hard'; $cmd",
+            '$(printf git) reset --hard',
+            'env --unknown-option value git reset --hard',
         )
         for command in commands:
             with self.subTest(command=command):
@@ -139,6 +142,13 @@ class DestructiveGitOperationTests(unittest.TestCase):
             'sudo -T 10 git status --short',
             'git checkout -bnew topic',
             'cat <<EOF\nordinary data\nEOF',
+            'git checkout -qb newbranch',
+            'git checkout -qbfeature',
+            'git checkout -qB newbranch',
+            'git checkout -qb newbranch topic',
+            "printf '%s' '$literal'",
+            'printf %s "$(git status --short)"',
+            'X=$(printf x) git status --short',
         )
         for command in commands:
             with self.subTest(command=command):

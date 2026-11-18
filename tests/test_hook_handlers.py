@@ -254,12 +254,14 @@ class HookHandlerTests(unittest.TestCase):
             'cat <<EOF\nEO\\\nF\ngit reset --hard\nexit\nEOF',
             "cat <<'EOF' > >(bash)\ngit reset --hard\nEOF\nwait",
             "NOTE='first\nsecond' git reset --hard",
+            "cmd='git reset --hard'; $cmd",
         )
         allowed = (
             "printf '%s\\n' 'then' git reset --hard",
             "printf '%s\\n' 'rm -rf\n/'",
             "cat <<'EOF'\ndon't run git reset --hard\nEOF",
             'git checkout topic',
+            'git checkout -qb newbranch',
         )
         for name in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
             for command in blocked:
