@@ -61,9 +61,10 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "1484dd2dc30b8bfc3ff61eef9eaade6e6e4ab8ff7eefbe381bcde7f09ef9e1cf",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "Reject shell expansions before literal commit option admission; preserve native approval and signing safeguards"
       ],
-      "candidate_sha256": "096a3423a70c0edd6544bdb4c731f806026e9639660ca8d733d32f91b226ba41"
+      "candidate_sha256": "35abad05fbdab305a7c9cb9b364093a0a64c75ed4ef8f679d4397dfb5e2f6302"
     },
     {
       "path": "codex/hooks/pre-compact-guard.sh",
@@ -91,7 +92,7 @@
         "fixture scope and event admission before handler actions",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
       ],
-      "candidate_sha256": "4c6d9fce35e412a49f46c2e2498b45b72ae0971bfb229638309b152d149b4bbe"
+      "candidate_sha256": "7e04548226a18b2984e29f297af7c239807fdf86035101b93d5bd6569cc2fa30"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",
