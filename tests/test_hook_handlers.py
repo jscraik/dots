@@ -97,11 +97,48 @@ class HookHandlerTests(unittest.TestCase):
         self.assertNotEqual(output.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
         self.assertIn('Native execution approval still applies', output['hookSpecificOutput']['additionalContext'])
 
-    def test_commit_rejects_argument_expansion(self):
-        for hook in ('pre-commit-tests.sh', 'pre-tool-use-dispatch.sh'):
-            with self.subTest(hook=hook):
-                output = self.output(hook, {'tool_input': {'command': 'git commit -m $MESSAGE'}})
-                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+    def test_commit_rejects_shell_expansion_before_option_admission(self):
+        commands = (
+            'git commit -mfixture${IFS}--no-verify${IFS}--no-gpg-sign',
+            'git commit -mfixture$IFS--no-verify$IFS--no-gpg-sign',
+            'git commit --message=fixture${IFS}--no-verify${IFS}--no-gpg-sign',
+            'git commit -m ${MESSAGE}',
+            'git commit -m "$MESSAGE"',
+            'git commit -m "${MESSAGE}"',
+            'git commit -m "$@"',
+            'git commit -m $((1 + 1))',
+            'git commit -m $(printf fixture)',
+            'git commit -m `printf fixture`',
+            'git commit -m {fixture,--no-verify,--no-gpg-sign}',
+            'git commit -m *',
+            'git commit -m ?fixture',
+            'git commit -m [ab]',
+            'git commit -F ~/message.txt',
+        )
+        for command in commands:
+            for hook in ('pre-commit-tests.sh', 'pre-tool-use-dispatch.sh'):
+                with self.subTest(command=command, hook=hook):
+                    output = self.output(hook, {'tool_input': {'command': command}})
+                    self.assertEqual(output.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+
+    def test_commit_preserves_literal_messages_and_native_approval(self):
+        commands = (
+            'git commit -m fixture',
+            "git commit -m 'literal ${IFS} $MESSAGE `text` * ? [ab] {a,b} ~'",
+            r'git commit -m "literal \$MESSAGE \`text\` * ? [ab] {a,b} ~"',
+            r'git commit -m literal\$MESSAGE',
+            r'git commit -m literal\*\?\[ab\]\{a,b\}\~',
+            'git commit --message="literal spaces"',
+            "git commit -m'quoted 'message",
+        )
+        for command in commands:
+            for hook in ('pre-commit-tests.sh', 'pre-tool-use-dispatch.sh'):
+                with self.subTest(command=command, hook=hook):
+                    output = self.output(hook, {'tool_input': {'command': command}})
+                    decision = output.get('hookSpecificOutput', {}).get('permissionDecision')
+                    self.assertNotIn(decision, ('allow', 'deny'))
+                    self.assertIn('Native execution approval still applies',
+                                  output['hookSpecificOutput']['additionalContext'])
 
     def test_commit_rejects_local_signing_overrides(self):
         for key, value in {'commit.gpgsign': 'false', 'gpg.format': 'openpgp',
@@ -132,29 +169,6 @@ class HookHandlerTests(unittest.TestCase):
         script.symlink_to(self.fixture.repo / 'scripts/absent')
         result = self.output('pre-tool-use-dispatch.sh', event)
         self.assertEqual(result['hookSpecificOutput']['permissionDecision'], 'deny')
-
-    def test_native_validation_and_parse_only_commands_keep_native_approval(self):
-        scripts = self.fixture.repo / 'scripts'
-        scripts.mkdir(exist_ok=True)
-        for name in ('test-app-codex.sh', 'example.sh'):
-            (scripts / name).write_text('#!/bin/bash\nexit 97\n')
-        for command in ('bash scripts/test-app-codex.sh -p test_hook_active_turn.py -v',
-                        'bash -n scripts/example.sh'):
-            with self.subTest(command=command):
-                output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
-                self.assertNotIn(output.get('hookSpecificOutput', {}).get('permissionDecision'), ('allow', 'deny'))
-        for command in ('bash scripts/example.sh', 'bash -n scripts/example.sh extra',
-                        'bash -n ../outside.sh', 'bash -n scripts/missing.sh',
-                        'BASH_ENV=scripts/example.sh bash -n scripts/example.sh',
-                        'bash -nx scripts/example.sh', 'bash -n scripts/example.sh; gh pr create',
-                        'bash scripts/test-app-codex.sh -s /outside/project',
-                        'bash scripts/test-app-codex.sh --start-directory /outside/project',
-                        'bash scripts/test-app-codex.sh -t /outside/project',
-                        'bash scripts/test-app-codex.sh ../outside.py',
-                        'bash scripts/test-app-codex.sh -p a*'):
-            with self.subTest(command=command):
-                output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
-                self.assertEqual(output.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
 
     def test_permission_and_edit_guards_protect_auth_material(self):
         event = {'tool_name': 'Write', 'tool_input': {'file_path': str(self.fixture.runtime / 'auth.json')}}

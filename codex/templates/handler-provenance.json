@@ -63,10 +63,9 @@
       "source_sha256": "1484dd2dc30b8bfc3ff61eef9eaade6e6e4ab8ff7eefbe381bcde7f09ef9e1cf",
       "transformations": [
         "fixture scope and event admission before handler actions",
-        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
-        "Retain parent commit admission checks for literal shell arguments"
+        "Reject shell expansions before literal commit option admission; preserve native approval and signing safeguards"
       ],
-      "candidate_sha256": "3aeae963d50033c5e61ffe504c97d7a69d26a22be03159c73428941c0aafbdf7"
+      "candidate_sha256": "35abad05fbdab305a7c9cb9b364093a0a64c75ed4ef8f679d4397dfb5e2f6302"
     },
     {
       "path": "codex/hooks/pre-compact-guard.sh",
@@ -96,7 +95,7 @@
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "e4af7e8fbe1e427fd6523eea6a212325ef2ba4e2be6abb1ce95aa3b703680ea7"
+      "candidate_sha256": "7e04548226a18b2984e29f297af7c239807fdf86035101b93d5bd6569cc2fa30"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",

@@ -585,17 +585,9 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                     literal_script = literal_script and index == 0 and depth == 0 and len(segments) == 1 and os.path.realpath(cwd) == os.path.abspath(cwd) and same_owned_path(cwd.rstrip(os.sep) or os.sep, repo_root)
                 # Admit a direct project verifier structurally; execution remains
                 # governed by the native sandbox and approval policy.
-                syntax_only = segment[index + 1:index + 2] == ["-n"] and len(segment[index + 1:]) == 2
-                project_entry = script in {
-                    "scripts/verify-work.sh", "scripts/validate-repository.sh",
-                    "scripts/validate-codestyle.sh", "scripts/test-app-codex.sh",
-                }
-                if script == "scripts/test-app-codex.sh":
-                    project_entry = native_test_args(args[1:])
                 if (index == 0 and depth == 0 and len(segments) == 1
                         and executable == "bash" and canonical_entry
-                        and (project_entry or syntax_only)
-                        and os.path.isfile(selected)
+                        and script in {"scripts/verify-work.sh", "scripts/validate-repository.sh", "scripts/validate-codestyle.sh"}
                         and not any(arg.startswith("--repo-root") for arg in args[1:])):
                     info = os.stat(selected, follow_symlinks=False)
                     project_result = subprocess.run(
@@ -606,8 +598,7 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                     literal_script |= (project_result.returncode == 0
                                        and stat.S_ISREG(info.st_mode) and info.st_nlink == 1
                                        and os.path.realpath(cwd) == cwd == project
-                                       and payload.get("cwd") == cwd
-                                       and os.path.commonpath([project, selected]) == project)
+                                       and payload.get("cwd") == cwd)
                 # Registration alone does not authorise other candidate tests.
                 # Literal Python admission stays limited to the canonical checkout above.
                 route["unsafe"] |= literal_script and (active_home or scoped_home)

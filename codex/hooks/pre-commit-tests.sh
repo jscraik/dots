@@ -203,7 +203,7 @@ except (ValueError, OSError, subprocess.SubprocessError) as error:
     raise SystemExit(1)
 PY
 )"; then
-  run_block "Cannot resolve commit validation target. Use one direct git commit within the active worktree with literal -C directories; cross-worktree, repository and execution-environment overrides are not supported."
+  run_block "Cannot resolve commit validation target. Use one direct git commit within the active worktree with literal arguments; shell expansions, cross-worktree, repository and execution-environment overrides are not supported."
   exit 0
 fi
 

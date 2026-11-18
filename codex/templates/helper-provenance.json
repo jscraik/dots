@@ -319,10 +319,9 @@
       "transformations": [
         "Original core assertions retained; canonical publisher core view, disposable event/resource plumbing and isolated synthetic FIFO canary",
         "Reuse the validated Python launcher in the nested missing-Computer-Use home",
-        "Use the imported Path class in the native hook trust probe",
-        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
+        "Use the imported Path class in the native hook trust probe"
       ],
-      "candidate_sha256": "d386f80c76887de9752cec5a4b071fcddbc1c1e27d57b44888f600be9810d651"
+      "candidate_sha256": "4c96b133ee1c21ada58a1c336b7b94b02bb38ab44ad57a46433480d92395ad68"
     },
     {
       "path": "codex/README.md",
@@ -339,7 +338,7 @@
         "public path placeholders; accepted schema/policy content retained",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "083140881ac1d321655fbf3a514d05eab795f387995acb6a2bb6f9a7bca2fbeb"
+      "candidate_sha256": "f504948c350155241ed5979ef7112b94e9551150e80a614de58cdf9a81cd0845"
     },
     {
       "path": "codex/duplication-policy.json",
