@@ -1000,6 +1000,9 @@ rm -f "$tmp_breakglass_global_opt_push_audit_log"
 tmp_commit_gate_dir="$(mktemp -d)"
 # Keep Git discovery inside this fixture instead of the enclosing checkout.
 git init --quiet "$tmp_commit_gate_dir"
+git -C "$tmp_commit_gate_dir" config commit.gpgsign true
+git -C "$tmp_commit_gate_dir" config gpg.format ssh
+git -C "$tmp_commit_gate_dir" config gpg.ssh.program /Applications/1Password.app/Contents/MacOS/op-ssh-sign
 cat >"$tmp_commit_gate_dir/package.json" <<'JSON'
 {
   "scripts": []
@@ -2355,7 +2358,7 @@ for profile_config in repo.glob("*.config.toml"):
 
 config_text = (repo / "config.toml").read_text()
 config_text = config_text.replace(
-    str(pathlib.Path.home() / ".codex/hooks.json"),
+    str(Path.home() / ".codex/hooks.json"),
     str(runtime_hooks_json),
 )
 config_text = re.sub(
