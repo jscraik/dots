@@ -20,10 +20,8 @@ parsed_fields="$(
       (if (.tool_input? | type) == "object" then .tool_input.description else null end)
       // "";
     def tool_cwd:
-      (((if (.tool_input? | type) == "object" then .tool_input.cwd else null end) | select(. != ""))
-      // ((if (.tool_input? | type) == "object" then .tool_input.workdir else null end) | select(. != ""))
-      // (.cwd | select(. != ""))
-      // "")
+      ([if (.tool_input? | type) == "object" then .tool_input.cwd, .tool_input.workdir else null end, .cwd]
+      | map(select(. != null and . != "")) | if length > 0 then .[0] else "" end)
       | if type != "string" then "__codex_invalid_cwd__"
         elif test("[\\x00-\\x1f\\x7f]") then "__codex_invalid_cwd__" else . end;
     def edit_payload:
@@ -147,6 +145,9 @@ elif git_worktree_risk="$(hook_runtime_destructive_git_operation "$raw_command" 
       ;;
     checkout-paths|checkout-destructive)
       deny_reason="Blocked approval request for destructive git checkout because it can discard local changes."
+      ;;
+    checkout-unresolved)
+      deny_reason="Cannot prove the checkout operand is a local revision. For a remote branch, use an explicit git checkout --track origin/branch operand; implicit branch guessing is unsupported."
       ;;
     broad-delete)
       deny_reason="Blocked approval request for broad rm -rf on root/home scope."

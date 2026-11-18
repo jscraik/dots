@@ -120,7 +120,7 @@ hook_runtime_destructive_git_operation() {
   fi
   case "$result" in
     safe) return 1 ;;
-    reset-hard|checkout-destructive|checkout-paths|broad-delete|unsupported) ;;
+    reset-hard|checkout-destructive|checkout-paths|checkout-unresolved|broad-delete|unsupported) ;;
     *) result="unsupported" ;;
   esac
   printf '%s\n' "$result"

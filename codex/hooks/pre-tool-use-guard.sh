@@ -22,10 +22,8 @@ parsed_fields="$(printf '%s' "$input_json" | jq -r '
     // .command
     // "";
   def tool_cwd:
-    (((if (.tool_input? | type) == "object" then .tool_input.cwd else null end) | select(. != ""))
-    // ((if (.tool_input? | type) == "object" then .tool_input.workdir else null end) | select(. != ""))
-    // (.cwd | select(. != ""))
-    // "")
+    ([if (.tool_input? | type) == "object" then .tool_input.cwd, .tool_input.workdir else null end, .cwd]
+    | map(select(. != null and . != "")) | if length > 0 then .[0] else "" end)
     | if type != "string" then "__codex_invalid_cwd__"
       elif test("[\\x00-\\x1f\\x7f]") then "__codex_invalid_cwd__" else . end;
   def edit_payload:
@@ -976,6 +974,9 @@ elif git_worktree_risk="$(hook_runtime_destructive_git_operation "$raw_command" 
       ;;
     checkout-paths|checkout-destructive)
       block_reason="Blocked destructive git checkout because it can discard local changes. Use a targeted non-destructive approach."
+      ;;
+    checkout-unresolved)
+      block_reason="Cannot prove the checkout operand is a local revision. For a remote branch, use an explicit git checkout --track origin/branch operand; implicit branch guessing is unsupported."
       ;;
     broad-delete)
       block_reason="Blocked broad rm -rf target (root/home). Use a scoped path and confirm intent."

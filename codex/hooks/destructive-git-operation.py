@@ -121,6 +121,11 @@ def prepare_literals(command):
             index = end
             continue
         if quote is None and pending and char in '|&':
+            if command.startswith(('&&', '||'), index):
+                output.append(command[index:index + 2])
+                index += 2
+                word_start, simple_start = True, len(output)
+                continue
             raise ValueError('Heredoc pipeline requires separate inspection')
         if char in "'\"":
             quote = None if quote == char else char if quote is None else quote
@@ -307,12 +312,32 @@ def wrapper_command_index(tokens, start, limit):
                 raise ValueError("Unsupported timeout duration")
             index += 1
             continue
-        if executable in {"exec", "time"}:
+        if executable == "exec":
+            index += 1
+            while index < limit and tokens[index].startswith('-'):
+                token = tokens[index]
+                index += 1
+                if token == '--':
+                    break
+                if token == '-':
+                    raise ValueError('Unsupported exec option')
+                for offset, option in enumerate(token[1:], 1):
+                    if option in 'cl':
+                        continue
+                    if option != 'a':
+                        raise ValueError('Unsupported exec option')
+                    if offset == len(token) - 1:
+                        if index >= limit or tokens[index] in SHELL_SEPARATORS:
+                            raise ValueError('Missing exec argument zero')
+                        index += 1
+                    break
+            if index >= limit:
+                raise ValueError('Missing exec command')
+            continue
+        if executable == "time":
             index += 1
             while index < limit and tokens[index] in {"--", "-p", "-l", "-c"}:
                 index += 1
-            if executable == "exec" and index < limit and tokens[index] == "-a":
-                index += 2
             continue
         if executable == "env":
             index += 1
@@ -384,10 +409,19 @@ def wrapper_command_index(tokens, start, limit):
     return index
 
 
-def is_git_command(tokens, index, start):
+def command_executable_positions(tokens):
+    positions, start = {}, 0
+    for limit in range(len(tokens) + 1):
+        if limit == len(tokens) or tokens[limit] in SHELL_SEPARATORS:
+            positions[start] = wrapper_command_index(tokens, start, limit)
+            start = limit + 1
+    return positions
+
+
+def is_git_command(tokens, index, start, positions):
     if tokens[index].rsplit("/", 1)[-1].lower() != "git":
         return False
-    return wrapper_command_index(tokens, start, index + 1) == index
+    return positions[start] == index
 
 
 def has_dynamic_git_config_environment(tokens, index, start):
@@ -461,6 +495,8 @@ def git_subcommand(tokens, index):
         if token in value_options:
             if index + 1 >= len(tokens) or tokens[index + 1] in SHELL_SEPARATORS:
                 return "unsupported", None
+            if any(char in tokens[index + 1] for char in '$`*?[{~'):
+                return "unsupported", None
             if token in {"-c", "--config-env"} and unsafe_config_override(tokens[index + 1], token == "--config-env"):
                 return "unsupported", None
             index += 2
@@ -474,15 +510,17 @@ def git_subcommand(tokens, index):
             or token.startswith("--super-prefix=")
             or token.startswith("--work-tree=")
         ):
+            if any(char in token for char in '$`*?[{~'):
+                return "unsupported", None
             index += 1
             continue
         if token.startswith("-c") and token != "-c":
-            if unsafe_config_override(token[2:]):
+            if any(char in token for char in '$`*?[{~') or unsafe_config_override(token[2:]):
                 return "unsupported", None
             index += 1
             continue
         if token.startswith("--config-env="):
-            if unsafe_config_override(token.split("=", 1)[1], True):
+            if any(char in token for char in '$`*?[{~') or unsafe_config_override(token.split("=", 1)[1], True):
                 return "unsupported", None
             index += 1
             continue
@@ -499,16 +537,36 @@ def inspection_timeout(_signum, _frame):
     raise ValueError("Shell inspection time budget exceeded")
 
 
-def known_checkout_ref(tokens, git_index, subcommand_index, operand):
+def known_checkout_ref(tokens, git_index, subcommand_index, operand, positions):
     # Never guess a ref in a different directory after shell state changes.
-    if any(token in {'cd', 'chdir', 'pushd', 'popd'} for token in tokens):
-        return False
+    start = 0
+    for index, token in enumerate(tokens[:git_index]):
+        if token in SHELL_SEPARATORS:
+            start = index + 1
+        elif token in {'cd', 'chdir', 'pushd', 'popd'} and positions[start] == index:
+            return False
     environment = {'PATH': '/usr/bin:/bin', 'HOME': str(Path.home()),
                    'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': os.devnull,
-                   'GIT_TERMINAL_PROMPT': '0'}
+                   'GIT_TERMINAL_PROMPT': '0', 'GIT_NO_LAZY_FETCH': '1'}
+    # Presentation configuration cannot affect ref identity. In particular,
+    # config-env values are unavailable in this deliberately restricted env.
+    arguments, index = [], git_index + 1
+    while index < subcommand_index:
+        token = tokens[index]
+        if token in {'-c', '--config-env'}:
+            if tokens[index + 1].split('=', 1)[0].lower() != 'color.ui':
+                arguments.extend(tokens[index:index + 2])
+            index += 2
+            continue
+        if (token.startswith('--config-env=') and token.split('=', 2)[1].lower() == 'color.ui'
+                or token.startswith('-c') and token[2:].split('=', 1)[0].lower() == 'color.ui'):
+            index += 1
+            continue
+        arguments.append(token)
+        index += 1
     try:
-        result = subprocess.run(['/usr/bin/git', '--no-pager', '-c', 'core.fsmonitor=false',
-            *tokens[git_index + 1:subcommand_index], 'rev-parse', '--verify', '--end-of-options',
+        result = subprocess.run(['/usr/bin/git', '--no-pager', '--no-lazy-fetch', '-c', 'core.fsmonitor=false',
+            *arguments, 'rev-parse', '--verify', '--end-of-options',
             operand + '^{commit}'], env=environment, capture_output=True, text=True,
             cwd=command_cwd, timeout=1, check=False)
     except (OSError, subprocess.TimeoutExpired):
@@ -542,13 +600,13 @@ except (ValueError, IndexError):
     print("unsupported")
     raise SystemExit(0)
 
+positions = command_executable_positions(command_tokens)
 segment_start = 0
 for git_index in range(len(command_tokens)):
     if command_tokens[git_index] in COMMAND_PREDECESSORS:
         segment_start = git_index + 1
         continue
-    if command_tokens[git_index].rsplit('/', 1)[-1].lower() == 'rm' and wrapper_command_index(
-            command_tokens, segment_start, git_index + 1) == git_index:
+    if command_tokens[git_index].rsplit('/', 1)[-1].lower() == 'rm' and positions[segment_start] == git_index:
         arguments = []
         for token in command_tokens[git_index + 1:]:
             if token in SHELL_SEPARATORS:
@@ -562,7 +620,7 @@ for git_index in range(len(command_tokens)):
                                        for token in arguments):
             print('broad-delete')
             raise SystemExit(0)
-    if not is_git_command(command_tokens, git_index, segment_start):
+    if not is_git_command(command_tokens, git_index, segment_start, positions):
         continue
     if has_dynamic_git_config_environment(command_tokens, git_index, segment_start):
         print("unsupported")
@@ -644,9 +702,11 @@ for git_index in range(len(command_tokens)):
                 raise SystemExit(0)
         if subcommand == 'checkout' and not token.startswith('-'):
             checkout_operands += 1
-            if checkout_operands > 1 or not known_checkout_ref(
-                    command_tokens, git_index, subcommand_index, token):
+            if checkout_operands > 1:
                 print('checkout-paths')
+                raise SystemExit(0)
+            if not known_checkout_ref(command_tokens, git_index, subcommand_index, token, positions):
+                print('checkout-unresolved')
                 raise SystemExit(0)
 
 signal.alarm(0)

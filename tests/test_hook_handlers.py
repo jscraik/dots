@@ -255,6 +255,10 @@ class HookHandlerTests(unittest.TestCase):
             "cat <<'EOF' > >(bash)\ngit reset --hard\nEOF\nwait",
             "NOTE='first\nsecond' git reset --hard",
             "cmd='git reset --hard'; $cmd",
+            'exec -cl git reset --hard',
+            'exec -a label -c git reset --hard',
+            'OPTS="never -C /other-repository"; git -c color.ui=$OPTS checkout topic',
+            "cat <<'EOF' && git reset --hard\nliteral data\nEOF",
         )
         allowed = (
             "printf '%s\\n' 'then' git reset --hard",
@@ -262,6 +266,11 @@ class HookHandlerTests(unittest.TestCase):
             "cat <<'EOF'\ndon't run git reset --hard\nEOF",
             'git checkout topic',
             'git checkout -qb newbranch',
+            "cat <<'EOF' && printf '%s\\n' done\nliteral data\nEOF",
+            "printf '%s\\n' cd; git checkout topic",
+            'git --config-env=color.ui=DOTS_COLOUR checkout topic',
+            'exec -a git printf x',
+            'exec -a rm printf x',
         )
         for name in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
             for command in blocked:
@@ -298,6 +307,19 @@ class HookHandlerTests(unittest.TestCase):
             controlled.mkdir(exist_ok=True)
             output = self.output(name, {'tool_input': {
                 'command': 'git checkout --quiet topic', 'cwd': str(controlled)}})
+            decision = output['hookSpecificOutput']
+            actual = decision['decision']['behavior'] if name == 'permission-request-guard.sh' else decision['permissionDecision']
+            self.assertEqual(actual, 'deny')
+
+    def test_false_working_directory_is_rejected_before_fallback(self):
+        for name in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
+            for field in ('cwd', 'workdir'):
+                output = self.output(name, {'tool_input': {
+                    'command': 'git status --short', field: False}})
+                decision = output['hookSpecificOutput']
+                actual = decision['decision']['behavior'] if name == 'permission-request-guard.sh' else decision['permissionDecision']
+                self.assertEqual(actual, 'deny')
+            output = self.output(name, {'cwd': False, 'tool_input': {'command': 'git status --short'}})
             decision = output['hookSpecificOutput']
             actual = decision['decision']['behavior'] if name == 'permission-request-guard.sh' else decision['permissionDecision']
             self.assertEqual(actual, 'deny')

@@ -10,7 +10,7 @@
         "Share token-level destructive Git worktree detection across hook enforcement layers; fail closed on unsupported global-option layouts.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "6179541594dd81318b7f1a6bdff0271ae7061100ad7d8aa52868e9ce1ea414c5"
+      "candidate_sha256": "8813663cb712516b6ee4ab056e3460e2e2789a145f25462a23b06f96b7b3414f"
     },
     {
       "path": "codex/hooks/lifeos-codex.sh",
@@ -29,7 +29,7 @@
         "fixture scope and event admission before handler actions",
         "Use exact command bytes with the shared token-level destructive Git classifier for approval denials."
       ],
-      "candidate_sha256": "cabff9cba182577992b9311d247ec4615de234dddcd8e656d538b681bf1fee92"
+      "candidate_sha256": "f2f67dd408beb15bef226ef832868b048513eeec763a763705fa31ccc5b22357"
     },
     {
       "path": "codex/hooks/post-compact-recorder.sh",
@@ -109,7 +109,7 @@
         "Use the shared token-level destructive Git classifier for pre-tool denials.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "ad1834f6b781adf0a0eabba967d99927616418cf48e9e41e1de042092c55a11e"
+      "candidate_sha256": "90810994cc1e05e24908112454f60f3259fd83126da03b720e97082f0d18834b"
     },
     {
       "path": "codex/hooks/session-start.sh",
@@ -360,7 +360,7 @@
     {
       "path": "codex/hooks/destructive-git-operation.py",
       "origin": "Extracted isolated destructive Git parser from hook-runtime-lib.sh",
-      "candidate_sha256": "b570efdca115418a4239eb771b28350de4346da7ce50bbf0782558ce03b93cd0"
+      "candidate_sha256": "7fa101a37fccb3e8251cf22c31f09e8cdd6d8c0a02d74bcbaeb21600e40534a0"
     }
   ],
   "external_boundaries": [

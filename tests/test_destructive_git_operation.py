@@ -119,6 +119,18 @@ class DestructiveGitOperationTests(unittest.TestCase):
             "cmd='git reset --hard'; $cmd",
             '$(printf git) reset --hard',
             'env --unknown-option value git reset --hard',
+            'exec -cl git reset --hard',
+            'exec -a label -c git reset --hard',
+            'exec -ca label git reset --hard',
+            'exec -z git reset --hard',
+            "cat <<'EOF' && git reset --hard\nliteral data\nEOF",
+            "cat <<'EOF' || git reset --hard\nliteral data\nEOF",
+            'cd other; git checkout topic',
+            'builtin cd other; git checkout topic',
+            'OPTS="COLOR_VALUE -C /other-repository"; git --config-env=color.ui=$OPTS checkout topic',
+            'OPTS="never -C /other-repository"; git -c color.ui=$OPTS checkout topic',
+            'git -ccolor.ui=$OPTS status',
+            'git -C $OPTS status',
         )
         for command in commands:
             with self.subTest(command=command):
@@ -149,6 +161,15 @@ class DestructiveGitOperationTests(unittest.TestCase):
             "printf '%s' '$literal'",
             'printf %s "$(git status --short)"',
             'X=$(printf x) git status --short',
+            "cat <<'EOF' && printf '%s\\n' done\nliteral data\nEOF",
+            "cat <<'EOF' || printf '%s\\n' done\nliteral data\nEOF",
+            "printf '%s\\n' cd; git checkout topic",
+            'git checkout topic; cd other',
+            'git --config-env=color.ui=DOTS_COLOUR checkout topic',
+            'git --config-env color.ui=DOTS_COLOUR checkout topic',
+            'exec -a git printf x',
+            'exec -a rm printf x',
+            'exec -a cd printf x; git checkout topic',
         )
         for command in commands:
             with self.subTest(command=command):
@@ -156,6 +177,8 @@ class DestructiveGitOperationTests(unittest.TestCase):
 
     def test_large_ordinary_argument_list_is_bounded(self):
         self.assertEqual(self.classify('printf %s ' + 'word ' * 5000), 'safe')
+        self.assertEqual(self.classify('printf %s ' + 'git ' * 15000), 'safe')
+        self.assertEqual(self.classify('printf %s ' + 'rm ' * 15000), 'safe')
         self.assertEqual(self.classify("cat <<'EOF'\n" + 'x' * 70000 + '\nEOF'), 'safe')
 
     def test_checkout_ref_is_verified_in_requested_directory(self):
@@ -166,4 +189,13 @@ class DestructiveGitOperationTests(unittest.TestCase):
         seed_checkout_ref(other, self.environment, branch='main')
         (other / 'topic').write_text('local edits\n')
         self.assertEqual(self.classify('git checkout --quiet topic', cwd=self.repository), 'safe')
-        self.assertEqual(self.classify('git checkout --quiet topic', cwd=other), 'checkout-paths')
+        self.assertEqual(self.classify('git checkout --quiet topic', cwd=other), 'checkout-unresolved')
+
+    def test_remote_guess_requires_an_explicit_tracking_operand(self):
+        commit = subprocess.run(['/usr/bin/git', 'rev-parse', 'topic'], cwd=self.repository,
+            env=self.environment, capture_output=True, text=True, check=True, timeout=10).stdout.strip()
+        subprocess.run(['/usr/bin/git', 'update-ref', 'refs/remotes/origin/remote-topic', commit],
+            cwd=self.repository, env=self.environment, check=True, timeout=10)
+        self.assertEqual(self.classify('git checkout remote-topic'), 'checkout-unresolved')
+        self.assertEqual(self.classify('git checkout --track origin/remote-topic'), 'safe')
+        self.assertNotEqual(self.classify('git checkout --no-guess remote-topic'), 'safe')
