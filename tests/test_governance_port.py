@@ -23,10 +23,10 @@ IDENTITY = importlib.util.module_from_spec(IDENTITY_SPEC)
 sys.modules[IDENTITY_SPEC.name] = IDENTITY
 IDENTITY_SPEC.loader.exec_module(IDENTITY)
 MARKETPLACE_REVISION_BINDINGS = {
-    'openai-bundled': 'value_0174',
-    'agent-skills-local': 'value_0175',
-    'openai-primary-runtime': 'value_0176',
-    'drawio': 'value_0177',
+    'openai-bundled': 'value_0178',
+    'agent-skills-local': 'value_0179',
+    'openai-primary-runtime': 'value_0180',
+    'drawio': 'value_0181',
 }
 DEPENDENCIES = ('scripts/validate-codex-config.py', 'scripts/repair-runtime-config-drift.py',
                 'scripts/migration_scope.py', 'scripts/marketplace_identity.py',

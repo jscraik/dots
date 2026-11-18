@@ -40,6 +40,7 @@ import runpy
 import shlex
 import shutil
 import stat
+import subprocess
 import sys
 
 policy = runpy.run_path(sys.argv[1])
@@ -310,6 +311,20 @@ def same_owned_path(candidate, canonical):
     return False
 
 
+def native_test_args(args):
+    """Keep discovery rooted at the project tests directory."""
+    index = 0
+    while index < len(args):
+        if args[index] in {"-v", "--verbose", "-q", "--quiet", "-f", "--failfast", "-b", "--buffer"}:
+            index += 1
+        elif (args[index] in {"-k", "-p", "--pattern"} and index + 1 < len(args)
+              and re.fullmatch(r"[A-Za-z0-9_.-]+", args[index + 1])):
+            index += 2
+        else:
+            return False
+    return True
+
+
 def owned_test(arg):
     if not re.fullmatch(r"codex(?:/scripts/tests/test_\w+\.py|\.scripts\.tests\.test_\w+(?:\.\w+){0,2})", arg):
         return False
@@ -563,12 +578,30 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                     for path in governed if os.path.isfile(path)
                 )
                 literal_script = owned_script and not any(arg.startswith("--repo-root") for arg in args[1:])
+                if (executable == "bash" and same_owned_path(selected, os.path.join(repo_root, "scripts/test-app-codex.sh"))):
+                    literal_script = native_test_args(args[1:])
                 validation_wrapper = os.path.join(repo_root, "codex/scripts/codex-validation-python-uv.sh")
                 if os.path.isfile(selected) and os.path.isfile(validation_wrapper) and same_owned_path(selected, validation_wrapper):
                     literal_script = owned_unittest_args(args[1:])
                     literal_script |= len(args) > 1 and os.path.realpath(os.path.join(cwd, args[1])) == os.path.join(repo_root, "codex/scripts/validate-instruction-routing.py")
                     literal_script = literal_script and index == 0 and depth == 0 and len(segments) == 1 and os.path.realpath(cwd) == os.path.abspath(cwd) and same_owned_path(cwd.rstrip(os.sep) or os.sep, repo_root)
-                # Registration and wrapper bytes do not authorise mutable candidate tests.
+                # Admit a direct project verifier structurally; execution remains
+                # governed by the native sandbox and approval policy.
+                if (index == 0 and depth == 0 and len(segments) == 1
+                        and executable == "bash" and canonical_entry
+                        and script in {"scripts/verify-work.sh", "scripts/validate-repository.sh", "scripts/validate-codestyle.sh"}
+                        and not any(arg.startswith("--repo-root") for arg in args[1:])):
+                    info = os.stat(selected, follow_symlinks=False)
+                    project_result = subprocess.run(
+                        ["git", "-C", cwd, "rev-parse", "--show-toplevel"],
+                        capture_output=True, text=True, timeout=5, check=False,
+                    )
+                    project = project_result.stdout.rstrip("\n")
+                    literal_script |= (project_result.returncode == 0
+                                       and stat.S_ISREG(info.st_mode) and info.st_nlink == 1
+                                       and os.path.realpath(cwd) == cwd == project
+                                       and payload.get("cwd") == cwd)
+                # Registration alone does not authorise other candidate tests.
                 # Literal Python admission stays limited to the canonical checkout above.
                 route["unsafe"] |= literal_script and (active_home or scoped_home)
                 literal_script = literal_script and executable == "bash" and canonical_entry
@@ -598,7 +631,12 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                 route.update({"pr": True, "unsafe": True})
             if substitutions and marker in subcommand:
                 route.update({"pr": True, "unsafe": True})
-            protected_gh = subcommand == "pr" or (
+            # Inspecting a PR is not publication. Keep unknown/mutating verbs
+            # guarded, including when another segment of a pipeline mutates.
+            read_only_pr = subcommand == "pr" and remaining and remaining[0] in {
+                "view", "list", "status", "checks", "diff"
+            }
+            protected_gh = (subcommand == "pr" and not read_only_pr) or (
                 subcommand == "api" and "graphql" in [token.lower() for token in remaining]
             )
             route["pr"] = route["pr"] or protected_gh
@@ -650,7 +688,7 @@ if [[ "$unsafe_route" == "1" ]]; then
 fi
 
 if [[ "$safe_route" == "1" ]]; then
-  jq -n '{continue: true}'
+  jq -n '{}'
   exit 0
 fi
 
@@ -721,7 +759,7 @@ run_guard "pre-tool-use-guard.sh"
 
 if [[ ${#contexts[@]} -gt 0 ]]; then
   context_blob="$(printf '%s\n' "${contexts[@]}")"
-  jq -n --arg context "$context_blob" '{continue: true, hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $context}}'
+  jq -n --arg context "$context_blob" '{hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $context}}'
 else
-  jq -n '{continue: true}'
+  jq -n '{}'
 fi
