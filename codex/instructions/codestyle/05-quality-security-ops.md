@@ -38,12 +38,10 @@
 
 ## 15. Quality Gates: Coverage, Mutation, TDD
 
-PR merge gate MUST pass the repository contract commands:
-
-- `pnpm lint` (parent repo root)
-- `pnpm typecheck` (parent repo root)
-- `pnpm test` (parent repo root)
-- `bash scripts/verify-work.sh --fast` (codex subtree root) or `bash codex/scripts/verify-work.sh --fast` (parent repo root)
+PR merge gates use the active repository's executable contract. Select commands
+from the [CODESTYLE front door](../CODESTYLE.md#command-scope), not a package
+manager assumed by this shared library. Passing local checks does not establish
+hosted CI, independent review or merge readiness.
 
 Coverage and mutation thresholds MAY be enforced only when wired to executable repository validators.
 
@@ -102,7 +100,9 @@ Coverage and mutation thresholds MAY be enforced only when wired to executable r
 
 ## 21. Repository Scripts & Reports
 
-- If codemap/report tooling exists, outputs MUST include service identity and be attachable to PRs.
+- Reports identify the project and evidence needed by their consumer. Add service
+  identity only when it disambiguates multiple services. Keep private runtime
+  data out of public reports.
 
 ---
 
@@ -116,7 +116,7 @@ Coverage and mutation thresholds MAY be enforced only when wired to executable r
 
 ## 23. Config References (Authoritative)
 
-- Package contract: `package.json`, `pnpm-lock.yaml`, and `Makefile`
+- Package contract: the active repository's manifest, lockfile and command wrapper
 - JS/formatting: `biome.json`; ESLint config only when present in a touched project
 - Docs: `.markdownlint.yaml`; `.vale.ini` only when present
 - Python: `ruff` and `pyright` only where configured for the touched project
@@ -126,5 +126,35 @@ Coverage and mutation thresholds MAY be enforced only when wired to executable r
 - Codex runtime: `codex/config.toml`, `codex/projection-map.json`, `codex/requirements.toml`
 - Hooks and projection: `codex/hooks/**`, `codex/scripts/install-codex-hooks.sh`, `codex/scripts/audit-codex-symlinks.sh`
 - CI/policy: `.circleci/config.yml`, `.github/workflows/**`, `harness.contract.json`
+
+Only existing, adopted configuration is authoritative for a project.
+
+### Private self-hosted CI
+
+Private projects may use GitHub Actions or CircleCI on the designated private
+runner host. Select one required CI workflow per project; do not require both
+providers merely because both runners are installed. Keep the host name,
+registration credentials and machine inventory in private operational records.
+
+Separate runner service identities and job workspaces. Limit repository access,
+tokens, concurrency and job timeouts. Keep deployment credentials out of ordinary
+test jobs. Use disposable job environments where feasible; a separate Unix user
+or working directory alone does not prove isolation from hostile code.
+
+Run only authorised private workloads on persistent runners. Evaluate external
+contributions separately before they can execute on the host or access secrets.
+For GitHub Actions, select an explicit runner group/labels and least-privilege
+job token permissions. For CircleCI, use the registered resource class and its
+supported machine/container executor; a hosted `resource_class: small` job does
+not automatically move to an SSH-accessible machine.
+
+Use the same repository validation entrypoint locally and in CI. Pin workflow
+dependencies through the provider's supported immutable dependency mechanism.
+Keep Linux CLI proof separate from macOS Desktop proof. Before declaring a
+runner ready, verify a disposable job, cleanup, permissions and required-check
+reporting; an active service or an SSH connection proves only that observation.
+
+Provider references: [GitHub secure use](https://docs.github.com/en/actions/reference/security/secure-use)
+and [CircleCI self-hosted runners](https://circleci.com/docs/runner-overview/).
 
 ---
