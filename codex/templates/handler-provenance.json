@@ -258,7 +258,7 @@
         "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "3751eebcc4795e06dcf98f47a3a963acadcf68a51651a002cf8dadf578961c31"
+      "candidate_sha256": "c451a84b7e016f6039fc5789378cf6e81e4a5eb1480c9a5e08594e4f87c88101"
     },
     {
       "path": "codex/scripts/pr_repair_ci.py",
@@ -288,7 +288,7 @@
       "transformations": [
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "6e62ba457a227150cf162d41b9e4043acf44441e90a170eeb57f8a59df91b52c"
+      "candidate_sha256": "3178fd2a57839085a3c45332c15d426701cae6cb1f3c647c82745b951ec153df"
     },
     {
       "path": "codex/scripts/codex-validation-lib.sh",
@@ -343,7 +343,7 @@
       "source_revision": null,
       "source_sha256": null,
       "transformation": "New fixed private-package identity and resource adapter; fixture defaults retained.; Add fixed packaged-context admission; retain default disposable admission and original checks. Classify only the two unused native app metadata fields separately in machine mode; retain resource/output and rehearsal checks. Attach fixed stage and field diagnostics to existing admission rejections without changing guards or exception behaviour. Extend only the machine-mode unused metadata set with CODEX_APP_RUNTIME_CLI_PATH and CODEX_MCP_NODE_PATH after names-only native-parent replay; retain direct resource/output checks, strict rehearsals and unknown-name denials. Admit only event working directories of verified managed Git worktrees linked to trusted project roots; retain all other resource and output checks. Reject session stores as event working directories while preserving transcript admission.",
-      "candidate_sha256": "d930c580447dc5248d65e3ba3d8e9f48ec1977fecac70b8c5c1aace4f38d2dd0"
+      "candidate_sha256": "6c1946ab15a16a94b6cc69e94612af1be4793d710a8bac892a82a3d0a4bae3dd"
     },
     {
       "path": "codex/scripts/aikido-mcp.sh",

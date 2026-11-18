@@ -365,6 +365,12 @@ def policy_transition():
     return proof
 
 
+def rebase_hook_identity(key, old_prefix, new_prefix):
+    scope = 'user:' if key.startswith('user:') else ''
+    bare = key[len(scope):]
+    return scope + new_prefix + bare[len(old_prefix):] if bare.startswith(old_prefix) else key
+
+
 def rebase_reviewed_hook_keys(text, review):
     """Rebase package-local historical keys only; never change hook trust values."""
     compat = module('rebase_hook_keys', ROOT / 'codex/scripts/desktop_compatibility.py')
@@ -374,7 +380,7 @@ def rebase_reviewed_hook_keys(text, review):
     new_prefix = str(ROOT) + '/'
     rebased = {}
     for key, value in states.items():
-        target = new_prefix + key[len(old_prefix):] if key.startswith(old_prefix) else key
+        target = rebase_hook_identity(key, old_prefix, new_prefix)
         if target in rebased:
             raise ValueError('Hook identity rebase is ambiguous')
         rebased[target] = value
@@ -393,8 +399,8 @@ def effective_previous_review():
         rows = copy.deepcopy(review['changes'])
         for row in rows:
             path = row['path']
-            if path[:2] == ['hooks', 'state'] and path[2].startswith(old_prefix):
-                path[2] = new_prefix + path[2][len(old_prefix):]
+            if path[:2] == ['hooks', 'state']:
+                path[2] = rebase_hook_identity(path[2], old_prefix, new_prefix)
         review = dict(review, canonical=rebase_reviewed_hook_keys(review['canonical'], review),
                       observed=rebase_reviewed_hook_keys(review['observed'], review), changes=rows)
         previous = tomllib.loads(review['canonical'])
@@ -428,7 +434,7 @@ def effective_previous_review():
                              'after': compat.get(observed, path)}
         review = dict(review, changes=list(changes.values()))
     if review and policy_transition():
-        review = dict(review, changes=[row for row in review['changes'] if tuple(row['path']) not in THEME_PATHS | TRANSITION_PRESERVED_PATHS])
+        review = dict(review, changes=[row for row in review['changes'] if tuple(row['path']) not in THEME_PATHS | TRANSITION_PRESERVED_PATHS | {('desktop', 'autoArchiveAfterDays')}])
     return review
 
 
@@ -468,7 +474,8 @@ def update_desktop_text(canonical, original):
             compat.validate_desktop_change(path, value)
             selected.append({'path': list(path), 'after': value})
         merged = compat.overlay(merged, selected)
-    observed = tomllib.loads(rebase_reviewed_hook_keys(original, review) if review else original)
+    active = {'state_dir': transition['previous']['state_dir']} if transition else review
+    observed = tomllib.loads(rebase_reviewed_hook_keys(original, active) if active else original)
     disabled = {key: value for key, value in observed.get('hooks', {}).get('state', {}).items()
                 if isinstance(value, dict) and value.get('enabled') is False}
     if disabled:
@@ -534,7 +541,8 @@ def normalized_desktop_update(original, canonical):
             changes.append({'path': list(path), 'after': compat.get(selected, path)})
         for identity, value in selected.get('hooks', {}).get('state', {}).items():
             path = ('hooks', 'state', identity, 'enabled')
-            if value.get('enabled') is False and not any(tuple(row['path']) == path for row in changes):
+            if value.get('enabled') is False:
+                changes = [row for row in changes if tuple(row['path']) != path]
                 changes.append({'path': ['hooks', 'state', identity, 'enabled'],
                                 'after': {'present': True, 'value': False}})
     for row in changes:
@@ -705,6 +713,44 @@ def validate_policy_transition(home, proof, canonical, *, check_runtime=True):
         if hashlib.sha256(baseline.encode()).hexdigest() != previous['expected_config_sha256']:
             raise ValueError('Previous policy baseline changed')
         desired, target = tomllib.loads(baseline), tomllib.loads(canonical)
+        def old_address(value):
+            if isinstance(value, str):
+                prefix = str(next_state / 'payload') + '/'
+                if value == str(next_state / 'payload'):
+                    return str(old.ROOT)
+                scope = 'user:' if value.startswith('user:') else ''
+                bare = value[len(scope):]
+                return scope + str(old.ROOT) + '/' + bare[len(prefix):] if bare.startswith(prefix) else value
+            if isinstance(value, list):
+                return [old_address(item) for item in value]
+            if isinstance(value, dict):
+                rebased = {old_address(key): old_address(item) for key, item in value.items()}
+                if len(rebased) != len(value):
+                    raise ValueError('Canonical package paths collide')
+                return rebased
+            return value
+        old_policy = tomllib.loads(old.SCOPE.read_regular(old.ROOT / 'codex/config.toml').decode())
+        new_policy = old_address(target)
+        old_shell = old_policy.get('shell_environment_policy', {})
+        new_shell = new_policy.get('shell_environment_policy', {})
+        if isinstance(old_shell.get('set', {}).get('PATH'), str) and isinstance(new_shell.get('set', {}).get('PATH'), str):
+            new_shell['set']['PATH'] = ':'.join(old_address(part) for part in
+                                               target['shell_environment_policy']['set']['PATH'].split(':'))
+        dotenv = target.get('shell_environment_policy', {}).get('set', {}).get('DOTENV_CONFIG_FILES')
+        if isinstance(dotenv, str):
+            new_shell['set']['DOTENV_CONFIG_FILES'] = ','.join(old_address(part) for part in dotenv.split(','))
+        selected_paths = THEME_PATHS | TRANSITION_PRESERVED_PATHS | {
+            ('projects',), ('desktop', 'autoArchiveAfterDays'),
+            ('marketplaces', 'openai-primary-runtime', 'last_updated')}
+        for path in selected_paths:
+            compat.put(new_policy, path, compat.get(old_policy, path))
+        if not compat.equal(old_policy, new_policy):
+            changed = sorted(key for key in old_policy.keys() | new_policy.keys()
+                             if not compat.equal(old_policy.get(key), new_policy.get(key)))
+            if changed == ['shell_environment_policy']:
+                changed = ['shell_environment_policy.' + key for key in old_shell.keys() | new_shell.keys()
+                           if not compat.equal(old_shell.get(key), new_shell.get(key))]
+            raise ValueError('Canonical transition changes unselected policy: ' + ', '.join(changed))
         old_projects = desired.get('projects', {})
         target_projects = target.get('projects', {})
         if not isinstance(old_projects, dict) or not isinstance(target_projects, dict):
@@ -1008,8 +1054,8 @@ def finish_prepare(state):
     return {'schema_version': 1, 'status': 'prepared', 'plan_digest': digest, 'targets': len(after)}
 
 
-def load_plan(state, digest):
-    context = SCOPE.context()
+def load_plan(state, digest, *, verified_context=None):
+    context = SCOPE.context() if verified_context is None else verified_context
     if state != Path(context['state_dir']):
         raise ValueError('State directory does not belong to this package')
     raw = SCOPE.read_regular(state / 'plan.json')
@@ -1171,6 +1217,21 @@ def check(state, digest, review_digest=None):
 
 
 def restore(state, digest, review_digest=None):
+    previous_scope = sys.modules.get('migration_scope')
+    migration = module('rollback_migration_scope', ROOT / 'codex/scripts/migration_scope.py')
+    migration._DEPLOYMENT_MODULE = SCOPE
+    sys.modules['migration_scope'] = migration
+    try:
+        return restore_selected(state, digest, review_digest)
+    finally:
+        SCOPE._ROLLBACK_ADMISSION = None
+        if previous_scope is None:
+            sys.modules.pop('migration_scope', None)
+        else:
+            sys.modules['migration_scope'] = previous_scope
+
+
+def restore_selected(state, digest, review_digest=None):
     plan = load_plan(state, digest)
     runtime = Path(plan['home']) / '.codex'
     with installation_lock(Path(plan['home'])):
@@ -1506,6 +1567,27 @@ def dispatch(args):
     if args.previous_desktop_review_sha256 and args.operation != 'prepare':
         raise ValueError('Previous Desktop review is valid only for preparation')
     state = SCOPE.physical(args.state_dir)
+    if args.operation == 'rollback' and args.desktop_review_sha256:
+        def admit_reviewed_recovery(data, usage_proof, original_result):
+            plan = load_plan(state, args.plan_digest, verified_context=data)
+            original_result = load_result(state, plan)
+            if original_result.get('status') != 'applied' or usage_proof is None:
+                raise ValueError('Reviewed recovery requires an applied usage transition')
+            review = reviewed_desktop(state, args.plan_digest, plan, args.desktop_review_sha256)
+            before = dict(plan['before'])
+            before['usage-data'] = usage_proof['old_link']
+            before['config.toml'] = dict(before['config.toml'],
+                sha256=hashlib.sha256(review['rollback'].encode()).hexdigest(),
+                size=len(review['rollback'].encode()))
+            after = dict(original_result['after'])
+            after['config.toml'] = dict(after['config.toml'],
+                sha256=hashlib.sha256(review['observed'].encode()).hexdigest(),
+                size=len(review['observed'].encode()))
+            recovery_plan = dict(plan, before=before,
+                                 expected={name: semantic(row) for name, row in after.items()})
+            return load_desktop_result(state / ('desktop-' + args.desktop_review_sha256 + '-result.json'),
+                                       recovery_plan)
+        SCOPE._ROLLBACK_ADMISSION = admit_reviewed_recovery
     transition_inputs = (args.bindings_sha256, args.previous_plan_digest, args.previous_package_digest,
                          args.previous_marker_sha256, args.previous_expected_config_sha256,
                          args.previous_observed_config_sha256)

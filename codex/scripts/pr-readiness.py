@@ -3739,17 +3739,18 @@ def main() -> int:
     args = parse_args()
     repository = args.repo_root or Path.cwd()
     try:
+        repository = resolve_root(repository)
         _scope.require_policy_repository_path(repository, repository)
         repository_identity = _scope.policy_repository_identity(repository)
         for candidate in (args.scope_file, args.review_waiver_file, args.receipt):
             if candidate is not None:
                 _scope.require_policy_repository_path(repository, candidate)
-    except (OSError, ValueError):
+    except (OSError, ValueError, CommandFailure):
         print(json.dumps({"schema_version": SCHEMA_VERSION, "status": "blocked",
                           "phase": args.phase, "error": "Readiness resource admission failed"}))
         return 2
     try:
-        root = resolve_root(args.repo_root)
+        root = repository
         if args.export_review_clearance:
             if args.phase != "update" or args.write_receipt or args.check_receipt or args.review_waiver_file:
                 raise CommandFailure(["--export-review-clearance"], "template export is update-only and cannot consume evidence or write a receipt")

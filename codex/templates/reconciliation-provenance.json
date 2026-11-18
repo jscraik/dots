@@ -95,7 +95,7 @@
     {
       "path": "codex/scripts/pr-readiness.py",
       "prior_candidate_sha256": "6c47ce8d869fb46b338f6ed354ec95eb554471c215bc90b9c1d76c69e9cb60ee",
-      "candidate_sha256": "3751eebcc4795e06dcf98f47a3a963acadcf68a51651a002cf8dadf578961c31",
+      "candidate_sha256": "c451a84b7e016f6039fc5789378cf6e81e4a5eb1480c9a5e08594e4f87c88101",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
     },
     {

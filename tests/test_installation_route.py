@@ -179,6 +179,8 @@ class InstallationRouteTests(unittest.TestCase):
             subprocess.run(['git', *args], env=self.env, check=True, capture_output=True, timeout=15)
         (root / '.tmp').mkdir()
         (root / '.tmp/scope.txt').write_text('example.py\n')
+        exclude = source / '.git/info/exclude'
+        exclude.write_text(exclude.read_text() + '\n/.tmp/pr-readiness.v1.json\n/.tmp/readiness.json\n')
         probe = subprocess.run(['git', 'rev-parse', 'main'], cwd=root,
                                env=self.installed_env(), text=True, capture_output=True, check=False)
         self.assertEqual(probe.returncode, 0, probe.stdout + probe.stderr)
@@ -1537,6 +1539,26 @@ with installer.renameable_directories(state, staged, target):
         (self.state / 'result.json').write_text(json.dumps(dict(applied, status='restoring')))
         self.success(self.packaged_operation('rollback', digest))
         self.success(self.packaged_operation('rollback', digest))
+
+    def test_reviewed_usage_rollback_recovery_retains_original_receipt(self):
+        digest, _before, repair_state = self.prepare_usage_policy_update(disable_hooks=True)
+        self.success(self.operation('apply', digest))
+        original = (self.state / 'result.json').read_bytes()
+        pin = self.success(self.operation('prepare-desktop-review', digest))['review_sha256']
+        command = [sys.executable, '-B', str(self.payload / 'scripts/install-codex.py'),
+                   'rollback', '--state-dir', str(self.state), '--plan-digest', digest,
+                   '--desktop-review-sha256', pin]
+        def rollback():
+            return subprocess.run(command, cwd=self.payload, env=self.installed_env(),
+                                  capture_output=True, text=True, timeout=180, check=False)
+        self.success(rollback())
+        recovery = self.state / ('desktop-' + pin + '-result.json')
+        data = json.loads(recovery.read_text())
+        data['status'] = 'restoring'
+        recovery.write_text(json.dumps(data))
+        self.success(rollback())
+        self.assertEqual((self.state / 'result.json').read_bytes(), original)
+        self.assertEqual((repair_state / 'usage-data/new-log').read_text(), 'retained after rollback')
 
     def prepare_reviewed_update(self, pin):
         return self.run_cli('prepare', '--home', self.home, '--state-dir', self.state,

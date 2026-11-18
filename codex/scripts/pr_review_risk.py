@@ -20,14 +20,14 @@ HIGH_RISK_COMPONENTS = frozenset({
 HIGH_RISK_NAMES = frozenset({
     "agents.md", "claude.md", "gemini.md", "codestyle.md", "contributing.md",
     "security.md", "codeowners", "makefile", "dockerfile", "harness.contract.json",
-    "package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock",
+    "package.json", "package-lock.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "yarn.lock",
     "pyproject.toml", "uv.lock", "poetry.lock", "cargo.toml", "cargo.lock",
     "go.mod", "go.sum", "gemfile", "gemfile.lock", ".env", "mise.toml", ".mise.toml",
     "package.swift", "package.resolved", "composer.json", "composer.lock",
     "setup.py", "setup.cfg", "build.gradle", "build.gradle.kts", "pom.xml",
     ".coderabbit.yaml", ".coderabbit.yml",
 })
-HIGH_RISK_PATH_SUFFIXES = ("mise/config.toml",)
+HIGH_RISK_PATH_SUFFIXES = ("mise/config.toml", "scripts/link-configs.sh")
 HIGH_RISK_WORDS = HIGH_RISK_COMPONENTS | frozenset({
     "permission", "readiness", "review", "approval", "credential", "credentials",
     "secret", "secrets", "credential", "credentials",

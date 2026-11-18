@@ -78,6 +78,9 @@ class HookConsentReviewTests(unittest.TestCase):
         result = installer.rebase_reviewed_hook_keys(self.render(state), review)
         expected = {'hooks': {'state': {new_key: self.state}}}
         self.assertEqual(result, self.render(expected))
+        scoped = self.render({'hooks': {'state': {'user:' + old_key: self.state}}})
+        self.assertEqual(installer.rebase_reviewed_hook_keys(scoped, review),
+                         self.render({'hooks': {'state': {'user:' + new_key: self.state}}}))
         state['hooks']['state'][new_key] = self.state.copy()
         with self.assertRaisesRegex(ValueError, 'ambiguous'):
             installer.rebase_reviewed_hook_keys(self.render(state), review)

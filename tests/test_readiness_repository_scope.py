@@ -44,6 +44,8 @@ class ReadinessRepositoryTests(unittest.TestCase):
             self.addCleanup(patcher.stop)
 
     def test_contained_input_and_atomic_receipt_keep_general_roots_closed(self):
+        exclude = self.source / '.git/info/exclude'
+        exclude.write_text(exclude.read_text() + '\n/.tmp/pr-readiness.v1.json\n')
         with self.assertRaises(ValueError):
             SCOPE.require_path(self.root)
         self.assertEqual(SCOPE.repository_read(self.root, self.scope), b'src/example.py\n')

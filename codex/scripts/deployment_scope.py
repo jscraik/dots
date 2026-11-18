@@ -275,6 +275,9 @@ def exchange_usage_directory(home, proof):
         raise ValueError('Retained usage exchange readback failed')
 
 
+_ROLLBACK_ADMISSION = None
+
+
 def context(*, retained_usage_repair=None):
     global _CHECKED_MARKER, ROOT, MARKER
     code_root = Path(__file__).resolve().parents[1]
@@ -376,6 +379,8 @@ def context(*, retained_usage_repair=None):
                 transition = json.loads(read_regular(transition_path), object_pairs_hook=unique)
                 proof = transition.get('usage_directory_repair')
                 result = json.loads(read_regular(state / 'result.json'), object_pairs_hook=unique)
+                if _ROLLBACK_ADMISSION is not None:
+                    result = _ROLLBACK_ADMISSION(data, proof, result)
                 if (proof is not None and result.get('status') in {'restoring', 'rolled_back'}
                         and usage_directory_pair(home, proof) == 'original'):
                     continue
@@ -465,11 +470,9 @@ def _require_managed_event_directory(value, *, data):
     if any(_within(candidate, root) for candidate in (path, path.resolve())
            for root in (*retained, *(item.resolve() for item in retained))):
         raise ValueError('Retained session storage is not an event directory')
-    try:
-        return require_path(path, data=data)
-    except ValueError:
-        pass
     base = home / '.codex/worktrees'
+    if not _within(path, base):
+        return require_path(path, data=data)
     if not path.is_absolute() or '..' in path.parts or not _within(path, base):
         raise ValueError('Event directory leaves deployment scope')
     relative = path.relative_to(base)
@@ -566,10 +569,8 @@ def require_repository_path(repository, value, *, output=False, data=None):
     if output and _within(root, Path(data['home']) / '.codex/worktrees'):
         if path.parent != root / '.tmp' or path.suffix != '.json':
             raise ValueError('Managed readiness receipts require an existing .tmp JSON destination')
-    try:
-        require_path(root, data=data)
-    except ValueError:
-        base = Path(data['home']) / '.codex/worktrees'
+    base = Path(data['home']) / '.codex/worktrees'
+    if _within(root, base):
         if not _within(root, base) or len(root.relative_to(base).parts) != 2:
             raise ValueError('Readiness requires an exact managed repository root') from None
         require_event_directory(root, data=data)
@@ -633,7 +634,12 @@ def repository_receipt(repository, fallback):
     root = Path(repository).absolute()
     if _within(root, Path(data['home']) / '.codex/worktrees'):
         require_repository_path(root, root, data=data)
-        return root / '.tmp/pr-readiness.v1.json'
+        receipt = root / '.tmp/pr-readiness.v1.json'
+        ignored = subprocess.run(['git', '-C', str(root), 'check-ignore', '--quiet',
+                                  str(receipt)], check=False, capture_output=True)
+        if ignored.returncode != 0:
+            raise ValueError('Managed receipt destination requires a Git ignore rule or local info/exclude entry')
+        return receipt
     return fallback
 
 
