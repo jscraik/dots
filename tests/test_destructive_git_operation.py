@@ -96,6 +96,21 @@ class DestructiveGitOperationTests(unittest.TestCase):
             'shopt -s expand_aliases\nalias nuke="git reset --hard"\nnuke',
             'shopt -s expand_aliases\nalias cat=bash\ncat <<"EOF"\ngit reset --hard\nEOF',
             'cat() { bash; }; cat <<"EOF"\ngit reset --hard\nEOF',
+            'git checkout --quiet topic topic',
+            'git checkout --ours topic',
+            'git checkout -3 topic',
+            'git checkout -p topic',
+            'git checkout --patch topic',
+            'git checkout --pat topic',
+            'git checkout --recurse-submodules topic',
+            'sudo -T 10 git reset --hard',
+            'sudo --command-timeout=10 git reset --hard',
+            'sudo -s "git reset --hard"',
+            'env -C/tmp git checkout topic',
+            'sudo -D/tmp git checkout topic',
+            'cat <<EOF\nEO\\\nF\ngit reset --hard\nexit\nEOF',
+            "printf '%s\\n' 'git reset --hard'|/bin/bash",
+            "printf '%s\\n' 'git reset --hard'|command /bin/bash",
         )
         for command in commands:
             with self.subTest(command=command):
@@ -116,6 +131,9 @@ class DestructiveGitOperationTests(unittest.TestCase):
             'git -c core.fileMode status --short',
             'git commit -m\'quoted \'message',
             'git status # quoted \' comment',
+            'sudo -T 10 git status --short',
+            'git checkout -bnew topic',
+            'cat <<EOF\nordinary data\nEOF',
         )
         for command in commands:
             with self.subTest(command=command):

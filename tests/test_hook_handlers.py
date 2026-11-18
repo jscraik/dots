@@ -248,6 +248,10 @@ class HookHandlerTests(unittest.TestCase):
             'cat <<EOF\n\\\\$(cat ~/.codex/auth.json)\nEOF',
             'cat <<"EOF"|/bin/bash\ngit reset --hard\nEOF',
             'shopt -s expand_aliases\nalias cat=bash\ncat <<"EOF"\ngit reset --hard\nEOF',
+            'git checkout --quiet topic topic',
+            'git checkout --ours topic',
+            'sudo -T 10 git reset --hard',
+            'cat <<EOF\nEO\\\nF\ngit reset --hard\nexit\nEOF',
         )
         allowed = (
             "printf '%s\\n' 'then' git reset --hard",

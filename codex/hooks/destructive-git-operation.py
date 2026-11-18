@@ -132,6 +132,8 @@ def prepare_literals(command):
                     end = len(command) if end < 0 else end + 1
                     line = command[index:end]
                     index = end
+                    if not quoted and '\\\n' in line:
+                        raise ValueError('Continued unquoted heredoc requires separate inspection')
                     if (line.lstrip('\t') if strip_tabs else line).rstrip('\n') == delimiter:
                         break
                     body.append(line)
@@ -222,8 +224,15 @@ def inspect_shell(command, depth=0, budget=None):
     if depth >= 12 or budget[0] > 262144:
         raise ValueError("Shell inspection budget exceeded")
     prepared = prepare_literals(command)
-    if SHELL['declared_functions'](shell_split(prepared)):
+    lexical_tokens = shell_split(prepared)
+    if SHELL['declared_functions'](lexical_tokens):
         raise ValueError('Shell function execution requires separate inspection')
+    for index, token in enumerate(lexical_tokens):
+        if token in {'|', '|&'}:
+            executable = wrapper_command_index(lexical_tokens, index + 1, len(lexical_tokens))
+            if executable < len(lexical_tokens) and lexical_tokens[executable].rsplit('/', 1)[-1].lower() in {
+                    'bash', 'sh', 'zsh', 'dash', 'ksh'}:
+                raise ValueError('Pipeline-fed shell requires separate inspection')
     contexts = SHELL["command_contexts"](prepared)
     if contexts is None:
         raise ValueError("Unsupported shell syntax")
@@ -271,7 +280,7 @@ def wrapper_command_index(tokens, start, limit):
                 raise ValueError("Missing redirection target")
             index += 2
             continue
-        executable = tokens[index].rsplit("/", 1)[-1]
+        executable = tokens[index].rsplit("/", 1)[-1].lower()
         if executable in {"eval", "xargs", "source", ".", "trap", "alias", "unalias"}:
             raise ValueError("Unsupported command-producing wrapper")
         if executable == "nohup":
@@ -315,7 +324,7 @@ def wrapper_command_index(tokens, start, limit):
                 if token == "--":
                     index += 1
                     break
-                if token in {'-C', '--chdir'} or token.startswith('--chdir='):
+                if token.startswith('-C') or token == '--chdir' or token.startswith('--chdir='):
                     raise ValueError('Directory-changing wrapper requires separate inspection')
                 if token in {"-u", "--unset"}:
                     index += 2
@@ -328,21 +337,31 @@ def wrapper_command_index(tokens, start, limit):
         if executable == "sudo":
             index += 1
             value_options = {
-                "-C", "-D", "-R", "-g", "-h", "-p", "-u",
+                "-C", "-D", "-R", "-g", "-h", "-p", "-u", "-T", "-r", "-t", "-U",
                 "--chdir", "--chroot", "--close-from", "--group",
-                "--host", "--prompt", "--user",
+                "--host", "--prompt", "--user", "--command-timeout", "--role", "--type", "--other-user",
             }
             while index < limit:
                 token = tokens[index]
-                if token in {'-D', '-R'} or token.startswith(('--chdir', '--chroot')):
+                if token.startswith(('-D', '-R', '--chdir', '--chroot')):
                     raise ValueError('Directory-changing wrapper requires separate inspection')
+                if token in {'-i', '-s', '--login', '--shell'}:
+                    raise ValueError('Sudo shell payload requires separate inspection')
                 if token == "--":
                     index += 1
                     break
                 if token in value_options:
                     index += 2
                     continue
+                if token.split('=', 1)[0] in value_options or token[:2] in value_options:
+                    index += 1
+                    continue
                 if token.startswith("-"):
+                    if token not in {'-n', '-E', '-H', '-k', '-K', '-S', '-b', '-P', '-v', '-l',
+                                     '--non-interactive', '--preserve-env', '--set-home', '--reset-timestamp',
+                                     '--remove-timestamp', '--stdin', '--background', '--preserve-groups',
+                                     '--validate', '--list'}:
+                        raise ValueError('Unsupported sudo option')
                     index += 1
                     continue
                 break
@@ -384,7 +403,7 @@ def checkout_force_option(token):
     for option in token[1:]:
         if option in {"b", "B"}:
             return False
-        if option == "f":
+        if option in "f23p":
             return True
     return False
 
@@ -544,6 +563,7 @@ for git_index in range(len(command_tokens)):
                 raise SystemExit(0)
     options = True
     checkout_value = False
+    checkout_operands = 0
     for token in command_tokens[subcommand_index + 1:]:
         if token in SHELL_SEPARATORS:
             break
@@ -578,13 +598,33 @@ for git_index in range(len(command_tokens)):
             or token in {"--f", "--fo", "--for", "--forc", "--force"}
             or token == "--pathspec-from-file"
             or token.startswith("--pathspec-from-file=")
+            or token.startswith('--') and len(token) > 2
+            and any(option.startswith(token) for option in ('--ours', '--theirs', '--patch'))
         ):
             print("checkout-destructive")
             raise SystemExit(0)
-        if subcommand == 'checkout' and not token.startswith('-') and not known_checkout_ref(
-                command_tokens, git_index, subcommand_index, token):
-            print('checkout-paths')
-            raise SystemExit(0)
+        if subcommand == 'checkout' and token.startswith('-'):
+            ordinary = token in {'--quiet', '--detach', '--progress', '--no-progress', '--guess',
+                                 '--no-guess', '--track', '--no-track', '--no-overlay'}
+            if token.startswith('--track='):
+                ordinary = token.split('=', 1)[1] in {'direct', 'inherit'}
+            if not token.startswith('--'):
+                ordinary = True
+                for option in token[1:]:
+                    if option in 'bB':
+                        break
+                    if option not in 'qdtl':
+                        ordinary = False
+                        break
+            if not ordinary:
+                print('unsupported')
+                raise SystemExit(0)
+        if subcommand == 'checkout' and not token.startswith('-'):
+            checkout_operands += 1
+            if checkout_operands > 1 or not known_checkout_ref(
+                    command_tokens, git_index, subcommand_index, token):
+                print('checkout-paths')
+                raise SystemExit(0)
 
 signal.alarm(0)
 print("safe")
