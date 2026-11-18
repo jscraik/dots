@@ -192,10 +192,13 @@ Its resolved root must equal the active worktree from the hook event's `cwd`.
 Cross-worktree `-C`, symlink targets and tool directory overrides are denied;
 missing active-worktree context fails closed. Same-worktree subdirectories remain
 supported, but repository membership never grants test-execution authority.
-The pre-approval hook inspects metadata only and returns a supported `deny`
-decision for valid commits. Codex does not support a hook `ask` decision, so this
-hook cannot open an approval prompt. Commits require a separately approved,
-supported execution route; this hook provides no bypass. The dispatcher converts
+The pre-approval hook inspects metadata only. Eligible normal commits continue
+to native sandbox and execution approval after scope, option and effective
+1Password signing checks. Unsigned, alternate-key and amend options are rejected.
+Commit arguments must be literal: parameter, command, arithmetic, brace, pathname
+and tilde expansion are rejected before option parsing. Single-quote or escape
+literal expansion characters in messages; double quotes still permit expansion.
+The hook neither grants approval nor executes tests or signing. The dispatcher converts
 unsupported handler `ask` responses to denial. No repository tests run before
 the tool permission decision, and normal Git hooks remain unchanged.
 Ambiguous compound commits, Git repository environment overrides, and
