@@ -735,7 +735,7 @@
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
         "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
       ],
-      "candidate_sha256": "e35256f37685e934619af6cd23e3071f0043a03e599e872edaa4db1d3ea174df"
+      "candidate_sha256": "40d1c0072d192b1315aee70a2f0dcf3958f44c1b5699fe86432ee9c62e2281a3"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
@@ -837,7 +837,7 @@
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
         "Add missing-check and dismissed historical-review scenarios from the coordinated follow-up."
       ],
-      "candidate_sha256": "f40d992d8871c69b1fe60635cfcac68ddc8bdcd731ceb349688e6b60223456be"
+      "candidate_sha256": "73333d4ef812e6de35f2333f07c0996056d595721767a0508ab13b5aa2c83862"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",
