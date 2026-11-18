@@ -559,7 +559,7 @@ def prepare_desktop_review(state, digest):
             or compat.sha(original.encode()) != plan['before']['config.toml']['sha256']):
         raise ValueError('Desktop review baseline or backup changed')
     observed = SCOPE.read_regular(runtime / 'config.toml').decode()
-    changes = compat.delta(installed, observed)
+    changes = compat.delta(installed, observed, hook_source=str(runtime / 'hooks.json'))
     proposal = {'schema_version': 1, 'state_dir': str(state), 'home': plan['home'],
         'package_digest': plan['package_digest'], 'plan_digest': digest,
         'installed': installed, 'observed': observed, 'original': original,

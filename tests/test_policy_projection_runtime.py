@@ -1,5 +1,6 @@
 """Installed Codex loading the complete projected policy, without model turns."""
 import json
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -78,10 +79,31 @@ class ProjectedPolicyRuntimeTests(unittest.TestCase):
         self.assertTrue(all(hook['trustStatus'] == 'untrusted' for hook in entry['hooks']))
         self.assertNotIn('hooks', tomllib.loads((fixture.codex / 'config.toml').read_text()))
         print('Full projected policy loaded with 29 hooks: ' + info.get('userAgent', 'unknown'))
+        installed = (fixture.runtime / 'config.toml').read_text()
+        states = {hook['key']: {'enabled': True, 'trusted_hash': hook['currentHash']}
+                  for hook in entry['hooks']}
+        response = server.rpc('config/value/write', {
+            'filePath': str(fixture.runtime / 'config.toml'), 'keyPath': 'hooks.state',
+            'value': states, 'mergeStrategy': 'replace'})
+        self.assertEqual(response['status'], 'ok', response)
+        observed = (fixture.runtime / 'config.toml').read_bytes()
         server.close()
         self.clear_native_launchers(fixture)
-        result = fixture.project('--check')
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for mode in ('--check', '--repair'):
+            result = fixture.project(mode)
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual((fixture.runtime / 'config.toml').read_bytes(), observed)
+        spec = importlib.util.spec_from_file_location('native_consent_review',
+            Path(__file__).resolve().parents[1] / 'codex/scripts/desktop_compatibility.py')
+        adapter = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(adapter)
+        try:
+            changes = adapter.delta(installed, observed.decode(), hook_source=str(fixture.target))
+        except ValueError as exc:
+            self.fail(f'Native fixture consent was rejected: {exc}; states={states!r}')
+        self.assertEqual([row['path'] for row in changes], [['hooks', 'state']])
+        self.assertEqual(changes[0]['after']['value'], states)
+        print('Native-discovered consent preserved by ordinary projection and bound to explicit review')
 
     def test_all_standalone_profiles_load_through_native_metadata_route(self):
         fixture = PolicyFixture(self)

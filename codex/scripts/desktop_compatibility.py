@@ -36,7 +36,7 @@ def requires_preservation(config: dict) -> bool:
         ('mcp_servers', 'node_repl'), ('notify',),
         ('plugins', 'computer-history@openai-bundled'),
         ('plugins', 'codex-app-tools@openai-bundled'),
-        ('desktop', 'codex-micro-layout')))
+        ('desktop', 'codex-micro-layout'), ('hooks', 'state')))
 
 
 def get(data: dict, path: tuple) -> dict:
@@ -78,7 +78,7 @@ def equal(left: object, right: object) -> bool:
     return left == right
 
 
-def delta(installed: str, observed: str) -> list:
+def delta(installed: str, observed: str, *, hook_source: str | None = None) -> list:
     """Permit only finite reviewed slots; all other policy must agree exactly."""
     before, after = tomllib.loads(installed), tomllib.loads(observed)
     reduced = copy.deepcopy(after)
@@ -89,14 +89,40 @@ def delta(installed: str, observed: str) -> list:
             validate_desktop_change(path, new)
             changes.append({'path': list(path), 'before': old, 'after': new})
             put(reduced, path, old)
+    # Only an installation-bound proposal may retain newly granted native
+    # consent. Existing hashes cannot be replaced through this route.
+    path = ('hooks', 'state')
+    old, new = get(before, path), get(after, path)
+    if not old['present'] and new['present'] and hook_source is not None:
+        validate_native_consent(new['value'], hook_source)
+        changes.append({'path': list(path), 'before': old, 'after': new})
+        put(reduced, path, old)
     # Empty parent tables are semantic TOML state too. Do not erase arbitrary
     # tables to manufacture policy agreement after deleting a known leaf.
-    for parent in ('plugins', 'mcp_servers', 'marketplaces', 'desktop'):
+    for parent in ('plugins', 'mcp_servers', 'marketplaces', 'desktop', 'hooks'):
         if parent not in before and reduced.get(parent) == {}:
             reduced.pop(parent)
     if not equal(before, reduced):
         raise ValueError('Desktop delta contains an unreviewable policy change')
     return changes
+
+
+def validate_native_consent(states: object, hook_source: str) -> None:
+    """Restrict an explicit review to this installation's native user hooks."""
+    source = Path(hook_source)
+    if not source.is_absolute() or '..' in source.parts or type(states) is not dict or not states:
+        raise ValueError('Native consent needs the exact installed hook source and nonempty state')
+    events = {'session_start', 'session_end', 'interrupt', 'user_prompt_submit', 'pre_tool_use', 'permission_request',
+              'post_tool_use', 'pre_compact', 'post_compact', 'stop',
+              'subagent_start', 'subagent_stop'}
+    for key, row in states.items():
+        parts = key.rsplit(':', 3) if type(key) is str else []
+        if (len(parts) != 4 or parts[0] not in {hook_source, 'user:' + hook_source} or parts[1] not in events
+                or any(not re.fullmatch(r'0|[1-9][0-9]*', index) for index in parts[2:])
+                or type(row) is not dict or set(row) != {'enabled', 'trusted_hash'}
+                or type(row['enabled']) is not bool or type(row['trusted_hash']) is not str
+                or not re.fullmatch(r'sha256:[0-9a-f]{64}', row['trusted_hash'])):
+            raise ValueError('Native consent contains an unbound identity or invalid trust state')
 
 
 def validate_desktop_change(path: tuple, new: dict) -> None:
@@ -340,7 +366,8 @@ def load(path: Path, digest: str, *, state: Path, plan_digest: str,
     if (sha(data['installed'].encode()) != plan['expected']['config.toml']['sha256']
             or sha(data['original'].encode()) != plan['before']['config.toml']['sha256']
             or sha(backup_raw) != plan['before']['config.toml']['sha256']
-            or not equal(delta(data['installed'], data['observed']), data['changes'])
+            or not equal(delta(data['installed'], data['observed'],
+                               hook_source=str(Path(plan['home']) / '.codex/hooks.json')), data['changes'])
             or overlay(data['original'], data['changes']) != data['rollback']):
         raise ValueError('Desktop review disagrees with the verified installation')
     return data

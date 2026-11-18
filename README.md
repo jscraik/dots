@@ -29,7 +29,8 @@ restart. The ordinary check and rollback continue to reject those newer bytes.
 The isolated compatibility candidate adds `prepare-desktop-review` to the
 installer. It writes a private, create-once proposal in installation state and
 returns its SHA-256; it does not approve the proposal or change runtime files.
-Only twelve named Desktop slots may differ. All remaining parsed policy must
+Only twelve named Desktop slots and newly granted native user-hook consent
+for this installation may differ. All remaining parsed policy must
 agree with the installed baseline, and every other managed target must match.
 
 After independent review and explicit operator acceptance, `check` or `rollback`
@@ -176,6 +177,17 @@ After an authorised change, use the owning app server's `config/batchWrite` with
 A successful `config/value/write` or fresh-server listing does not prove that an
 already loaded thread uses the new hooks. The focused `test_hook_discovery.py`
 regression checks this distinction in a disposable home without a model turn.
+
+After granting native hook consent, preserve it through the existing
+`prepare-desktop-review` proposal and explicitly accepted
+`--desktop-review-sha256` check/rollback route. Inspect the proposal's exact
+`hooks.state` identities and hashes against native discovery before accepting
+its digest. Preparing or printing the proposal does not authorise consent.
+Only new consent for this installation's `.codex/hooks.json` can use this route;
+replacement of an existing trusted hash remains blocking. Ordinary projection
+and startup repair stop before changing consent-bearing configuration. Generated
+bindings still cannot install trusted hashes, and any later runtime change
+invalidates the accepted snapshot.
 
 For an operator-prepared rehearsal, the command sequence is:
 

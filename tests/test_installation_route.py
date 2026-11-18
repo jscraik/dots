@@ -134,6 +134,43 @@ class InstallationRouteTests(unittest.TestCase):
         self.assertNotEqual(self.prepare().returncode, 0)
         self.assertEqual(self.snapshot(), self.before)
 
+    def test_post_install_native_consent_is_pinned_and_never_silently_revoked(self):
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        path = self.runtime / 'config.toml'
+        data = tomllib.loads(path.read_text())
+        key = 'user:' + str(self.runtime / 'hooks.json') + ':pre_tool_use:0:0'
+        data['hooks'] = {'state': {key: {'enabled': True, 'trusted_hash': 'sha256:' + 'a' * 64}}}
+        path.write_text(GEN.toml_document(data))
+        observed = path.read_bytes()
+        records = {name: (self.state / name).read_bytes()
+                   for name in ('plan.json', 'result.json', 'backups/config.toml')}
+        self.assertNotEqual(self.operation('check', digest).returncode, 0)
+        for mode in ('--check', '--repair'):
+            projection = subprocess.run(['bash', str(self.payload / 'scripts/link-configs.sh'),
+                mode, '--scope', 'codex', '--codex-home', str(self.runtime)],
+                env=self.installed_env(), cwd=self.payload, text=True, capture_output=True,
+                timeout=60, check=False)
+            self.assertNotEqual(projection.returncode, 0, projection.stdout + projection.stderr)
+            self.assertEqual(path.read_bytes(), observed)
+        proposal = self.success(self.operation('prepare-desktop-review', digest))
+        self.assertEqual(proposal['changed_paths'], [['hooks', 'state']])
+        pin = proposal['review_sha256']
+        self.assertNotEqual(self.operation('check', digest).returncode, 0)
+        arguments = ('--state-dir', self.state, '--plan-digest', digest,
+                     '--desktop-review-sha256', pin)
+        self.success(self.run_cli('check', *arguments))
+        path.write_bytes(observed.replace(b'a' * 64, b'b' * 64))
+        changed = path.read_bytes()
+        self.assertNotEqual(self.run_cli('check', *arguments).returncode, 0)
+        self.assertEqual(path.read_bytes(), changed)
+        path.write_bytes(observed)
+        self.success(self.run_cli('check', *arguments))
+        self.success(self.run_cli('rollback', *arguments))
+        self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], data['hooks']['state'])
+        for name in ('plan.json', 'result.json', 'backups/config.toml'):
+            self.assertEqual((self.state / name).read_bytes(), records[name])
+
     def desktop_restart(self):
         path = self.runtime / 'config.toml'
         data = tomllib.loads(path.read_text())
