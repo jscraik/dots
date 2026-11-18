@@ -42,17 +42,17 @@
     {
       "path": "codex/hooks/README.md",
       "prior_candidate_sha256": "70d11c516963bd86c8e082f0fda7101cabdcf55e424d26f2b7954fb958abd3aa",
-      "candidate_sha256": "39163053f4ca56f5c37ba2367898ab550106d739537aa139784acd0269db7c26"
+      "candidate_sha256": "f504948c350155241ed5979ef7112b94e9551150e80a614de58cdf9a81cd0845"
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",
       "prior_candidate_sha256": "da8c32b3ee00003e38fabaea57151d518935326235741e2cbc4ac92a2bb5eb7b",
-      "candidate_sha256": "096a3423a70c0edd6544bdb4c731f806026e9639660ca8d733d32f91b226ba41"
+      "candidate_sha256": "35abad05fbdab305a7c9cb9b364093a0a64c75ed4ef8f679d4397dfb5e2f6302"
     },
     {
       "path": "codex/hooks/pre-tool-use-dispatch.sh",
       "prior_candidate_sha256": "410160a1e4cf544151c390af3e2f56548926d42cd13cfa942dd7efd87c75c515",
-      "candidate_sha256": "2179b8b597cc6eb450db5132a3d90766f58858ef00de69649be721330a8f08d1",
+      "candidate_sha256": "ce985675eaf88b6f2286ac7c9b4e7c89edb525bd245d0309172532bc5548f5ec",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Deny xargs command construction before protected child routing; retain direct-command behavior.",
       "additional_source": {
         "revision": "283db198d281e239524da23563bd3390fa9910c9",
@@ -196,12 +196,12 @@
     {
       "path": "tests/test_helper_dependencies.py",
       "prior_candidate_sha256": "f8c74a3d7d96e5791162b6abdf902c1705a78226deb56347f56a2a09096384b9",
-      "candidate_sha256": "7e44d266d2c0f87d1bc9889e43b7c76990623646a8a8f3c42d11ac06ddaada73"
+      "candidate_sha256": "dd529f9f732f24f0250b6d3189c0552b41bfcc6a49b18c3e9f3bff9fc01675d1"
     },
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "060259874add13edd78ba04e1e3620fc39e37e7e9417ba6ac23f5dcec5547074",
+      "candidate_sha256": "ffb127c929bfcddf2ecc10383187119f75a6542b00529df356000db9f10a8d80",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment."
     },
     {

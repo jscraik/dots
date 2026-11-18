@@ -40,6 +40,7 @@ import runpy
 import shlex
 import shutil
 import stat
+import subprocess
 import sys
 
 policy = runpy.run_path(sys.argv[1])
@@ -573,7 +574,23 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                     literal_script = owned_unittest_args(args[1:])
                     literal_script |= len(args) > 1 and os.path.realpath(os.path.join(cwd, args[1])) == os.path.join(repo_root, "codex/scripts/validate-instruction-routing.py")
                     literal_script = literal_script and index == 0 and depth == 0 and len(segments) == 1 and os.path.realpath(cwd) == os.path.abspath(cwd) and same_owned_path(cwd.rstrip(os.sep) or os.sep, repo_root)
-                # Registration and wrapper bytes do not authorise mutable candidate tests.
+                # Admit a direct project verifier structurally; execution remains
+                # governed by the native sandbox and approval policy.
+                if (index == 0 and depth == 0 and len(segments) == 1
+                        and executable == "bash" and canonical_entry
+                        and script in {"scripts/verify-work.sh", "scripts/validate-repository.sh", "scripts/validate-codestyle.sh"}
+                        and not any(arg.startswith("--repo-root") for arg in args[1:])):
+                    info = os.stat(selected, follow_symlinks=False)
+                    project_result = subprocess.run(
+                        ["git", "-C", cwd, "rev-parse", "--show-toplevel"],
+                        capture_output=True, text=True, timeout=5, check=False,
+                    )
+                    project = project_result.stdout.rstrip("\n")
+                    literal_script |= (project_result.returncode == 0
+                                       and stat.S_ISREG(info.st_mode) and info.st_nlink == 1
+                                       and os.path.realpath(cwd) == cwd == project
+                                       and payload.get("cwd") == cwd)
+                # Registration alone does not authorise other candidate tests.
                 # Literal Python admission stays limited to the canonical checkout above.
                 route["unsafe"] |= literal_script and (active_home or scoped_home)
                 literal_script = literal_script and executable == "bash" and canonical_entry
