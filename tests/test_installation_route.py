@@ -930,8 +930,9 @@ except ValueError:
         installer = self.import_installer(self.payload)
         script_path = str(self.payload / 'codex/scripts')
         with mock.patch.object(sys, 'path', [script_path, *sys.path]), mock.patch.dict(
-                os.environ, self.installed_env(), clear=True), mock.patch.object(
+                os.environ, self.installed_env(), clear=True), mock.patch.dict(sys.modules), mock.patch.object(
                 installer, 'projector', side_effect=ValueError('synthetic projector refusal')):
+            sys.modules.pop('migration_scope', None)
             with self.assertRaisesRegex(ValueError, 'synthetic projector refusal'):
                 installer.apply(self.state, digest)
         self.assertEqual(json.loads((self.state / 'result.json').read_text())['status'], 'failed')
