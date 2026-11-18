@@ -579,6 +579,13 @@ with installer.renameable_directories(state, staged, target):
                 self.assertEqual((target / 'identity.txt').read_text(), 'new' if phase == 'after' else 'old')
                 self.assertFalse((state / 'rename-modes.json').exists())
 
+    def test_active_python_preserves_virtual_environment_launcher(self):
+        installer = self.import_installer(ROOT)
+        launcher = self.home / 'venv-python'
+        launcher.symlink_to(sys.executable)
+        with mock.patch.object(sys, 'executable', str(launcher)):
+            self.assertEqual(installer.active_python_executable(), str(launcher))
+
     def test_copied_helpers_resolve_the_installed_source(self):
         digest = self.success(self.prepare())['plan_digest']
         self.success(self.operation('apply', digest))

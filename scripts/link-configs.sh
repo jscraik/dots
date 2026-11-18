@@ -561,7 +561,12 @@ repair_projection_runtime_copy() {
       local check_output=""
       if ! check_output="$("$PROJECTOR_PYTHON" "$(dirname "$source_abs")/scripts/repair-runtime-config-drift.py" \
         --config-path "$target_abs" --check --json 2>&1)"; then
-        if "$PROJECTOR_PYTHON" -c 'import json,sys; raise SystemExit(json.load(sys.stdin).get("status") != "fail")' \
+        if "$PROJECTOR_PYTHON" -c 'import json,sys
+try:
+    value = json.load(sys.stdin)
+except (ValueError, TypeError):
+    raise SystemExit(1)
+raise SystemExit(not (isinstance(value, dict) and value.get("status") == "fail"))' \
           <<<"$check_output"; then
           mark_plan "reconcile runtime config from canonical source ${target_abs}"
         else

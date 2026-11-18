@@ -36,14 +36,17 @@ def system_executable(name):
 
 def active_python_executable():
     """Return the already-running interpreter without another PATH lookup."""
+    executable = Path(sys.executable)
+    if not executable.is_absolute():
+        raise ValueError('Active Python executable must be absolute')
     try:
-        resolved = Path(sys.executable).resolve(strict=True)
+        resolved = executable.resolve(strict=True)
         info = resolved.stat()
     except OSError as error:
         raise ValueError('Active Python executable is unavailable') from error
     if not resolved.is_absolute() or not stat.S_ISREG(info.st_mode) or not os.access(resolved, os.X_OK):
         raise ValueError('Active Python executable is invalid')
-    return str(resolved)
+    return str(executable)
 
 
 def child_environment():
