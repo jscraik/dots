@@ -115,7 +115,7 @@ class HookFindingRegressionTests(unittest.TestCase):
                 self.assertEqual(result.get("hookSpecificOutput", {}).get("permissionDecision"), "deny")
         self.assertFalse((self.root / "calls").exists())
 
-    def test_git_metadata_consumer_inherits_only_existing_mise_trust(self) -> None:
+    def test_git_metadata_keeps_writable_git_and_mise_config_inert(self) -> None:
         (self.a / ".mise.toml").write_text("# untrusted inert fixture\n")
         self.env["MISE_TRUSTED_CONFIG_PATHS"] = "/already/trusted/config.toml"
         probe = self.root / "git-trust"
@@ -125,9 +125,8 @@ class HookFindingRegressionTests(unittest.TestCase):
         git.chmod(0o755)
         result = self.commit("git commit -m fixture")
         self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
-        observed = probe.read_text().splitlines()
-        self.assertGreaterEqual(len(observed), 2)
-        self.assertEqual(set(observed), {"/already/trusted/config.toml"})
+        self.assertFalse(probe.exists(), 'The hook must never execute HOME Git')
+        self.assertEqual(self.env['MISE_TRUSTED_CONFIG_PATHS'], '/already/trusted/config.toml')
         self.assertFalse((self.root / "calls").exists())
 
     def test_same_worktree_symlink_components_are_rejected_before_git(self) -> None:

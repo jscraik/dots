@@ -327,7 +327,8 @@ def validate_hook_dependency_isolation(config: dict[str, object]) -> list[str]:
             if enabled is not True or not isinstance(value, str) or not Path(value).is_absolute():
                 continue
             writable_root = Path(value).resolve(strict=False)
-            if any(path == writable_root or path.is_relative_to(writable_root) for path in trusted_paths):
+            if any(path == writable_root or path.is_relative_to(writable_root)
+                   or writable_root.is_relative_to(path) for path in trusted_paths):
                 errors.append(
                     f'permissions.{profile_name}.workspace_roots must not make fixed '
                     f'security-hook dependency path writable: {value}'

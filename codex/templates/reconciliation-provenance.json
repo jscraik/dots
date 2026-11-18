@@ -148,7 +148,7 @@
     {
       "path": "codex/scripts/tests/test_pending_hook_findings.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "dcfcf4601197ee0b32cc9fb71f084097e659ed34e0234d506b24ff4f27ae36dd",
+      "candidate_sha256": "cbdb31eef9925199de87d4d89b7863b72f5e976f5cacfb1e7ab97e0fcc7630c5",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
@@ -186,7 +186,7 @@
     {
       "path": "codex/scripts/validate-codex-config.py",
       "prior_candidate_sha256": "e9cdebab1d97447c1ac3ff1dce5894c7c13ccf095c2a1cc8e44716c103768e61",
-      "candidate_sha256": "295dbc7490de70e1b985da090822aaede82835ad8d6ae3f1349b3deffbb9bb57",
+      "candidate_sha256": "bc297de251160a592bab85a2b81113b3ca6706948bc0bd374627034a24508e9c",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks. Reject workspace roots that contain fixed security-hook dependency directories."
     },
     {
