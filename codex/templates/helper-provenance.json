@@ -134,7 +134,7 @@
         "Admit selected managed-worktree body and template inputs without widening general resource roots; preserve receipt and identity checks.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "90d362bc3d1d09754f697dfc497f3c6713e3aea42d8ba596b00dfa3c555fb3c9"
+      "candidate_sha256": "afba9025a6165b4f57a56f43c443e6a2ab3d03441899efc22ed13a3285a5190b"
     },
     {
       "path": "codex/scripts/pr-review-request.py",

@@ -52,7 +52,7 @@
     {
       "path": "codex/hooks/pre-tool-use-dispatch.sh",
       "prior_candidate_sha256": "410160a1e4cf544151c390af3e2f56548926d42cd13cfa942dd7efd87c75c515",
-      "candidate_sha256": "416211b449726f23d9f782fe8650fdcf902f239fdc43929f5f7f02896f052d25",
+      "candidate_sha256": "1c7f25f9236035f2b1bb331be975ca557bee127f862f4327522fd83d447344e6",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
       "additional_source": {
         "revision": "283db198d281e239524da23563bd3390fa9910c9",

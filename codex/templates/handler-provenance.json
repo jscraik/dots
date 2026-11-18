@@ -95,7 +95,7 @@
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "416211b449726f23d9f782fe8650fdcf902f239fdc43929f5f7f02896f052d25"
+      "candidate_sha256": "1c7f25f9236035f2b1bb331be975ca557bee127f862f4327522fd83d447344e6"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",
@@ -343,7 +343,7 @@
       "source_revision": null,
       "source_sha256": null,
       "transformation": "New fixed private-package identity and resource adapter; fixture defaults retained.; Add fixed packaged-context admission; retain default disposable admission and original checks. Classify only the two unused native app metadata fields separately in machine mode; retain resource/output and rehearsal checks. Attach fixed stage and field diagnostics to existing admission rejections without changing guards or exception behaviour. Extend only the machine-mode unused metadata set with CODEX_APP_RUNTIME_CLI_PATH and CODEX_MCP_NODE_PATH after names-only native-parent replay; retain direct resource/output checks, strict rehearsals and unknown-name denials. Admit only event working directories of verified managed Git worktrees linked to trusted project roots; retain all other resource and output checks. Reject session stores as event working directories while preserving transcript admission.",
-      "candidate_sha256": "6c1946ab15a16a94b6cc69e94612af1be4793d710a8bac892a82a3d0a4bae3dd"
+      "candidate_sha256": "85f3332f1a21d6f06d345cc87584fdb4a52a7c73621adadc3f8b2bb26d9963ab"
     },
     {
       "path": "codex/scripts/aikido-mcp.sh",

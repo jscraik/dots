@@ -501,7 +501,13 @@ def _require_managed_event_directory(value, *, data):
             trusted.append(root)
     if not any(_within(repository, root) and _within(repository.resolve(), root.resolve()) for root in trusted):
         raise ValueError('Managed worktree source is not a trusted project')
-    for directory in (base, worktree.parent, worktree, gitdir.parent.parent, gitdir.parent, gitdir):
+    source_ancestors = []
+    current = repository
+    while current != home and _within(current, home):
+        source_ancestors.append(current)
+        current = current.parent
+    for directory in (base, worktree.parent, worktree, *source_ancestors,
+                      gitdir.parent.parent, gitdir.parent, gitdir):
         identity = _event_directory_identity(directory)
         if identity[2] != os.getuid() or identity[3] & 0o022:
             raise ValueError('Managed worktree metadata directory is unsafe')
@@ -639,6 +645,8 @@ def repository_receipt(repository, fallback):
                                   str(receipt)], check=False, capture_output=True)
         if ignored.returncode != 0:
             raise ValueError('Managed receipt destination requires a Git ignore rule or local info/exclude entry')
+        receipt.parent.mkdir(mode=0o700, exist_ok=True)
+        require_repository_path(root, receipt, output=True, data=data)
         return receipt
     return fallback
 

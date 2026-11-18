@@ -578,6 +578,8 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                     for path in governed if os.path.isfile(path)
                 )
                 literal_script = owned_script and not any(arg.startswith("--repo-root") for arg in args[1:])
+                if (executable == "bash" and same_owned_path(selected, os.path.join(repo_root, "scripts/test-app-codex.sh"))):
+                    literal_script = native_test_args(args[1:])
                 validation_wrapper = os.path.join(repo_root, "codex/scripts/codex-validation-python-uv.sh")
                 if os.path.isfile(selected) and os.path.isfile(validation_wrapper) and same_owned_path(selected, validation_wrapper):
                     literal_script = owned_unittest_args(args[1:])

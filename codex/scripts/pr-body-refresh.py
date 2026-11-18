@@ -656,6 +656,7 @@ def execute(args: argparse.Namespace) -> dict[str, object]:
         copied.body_file = snapshot
         copied._repository_identity = identity
         template = root / ".github" / "PULL_REQUEST_TEMPLATE.md"
+        copied._template_snapshot = Path(directory) / 'template.md'
         if template.exists():
             try:
                 raw = scope.policy_repository_read(root, template)
