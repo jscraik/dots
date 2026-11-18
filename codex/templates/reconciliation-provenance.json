@@ -201,7 +201,7 @@
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "38819c26897998b4f6566d04667c2f623c1a102e29a7a9e16c5f41f944a20d1f",
+      "candidate_sha256": "311ebfd616c102207811fc73d8c41671e3acf0ae4ab31d5b8f203c8e813b8e8d",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment. Assert target-bound REST merge routing, GraphQL merge denial, unknown-write denial and read-only API compatibility."
     },
     {

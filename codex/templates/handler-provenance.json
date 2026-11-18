@@ -54,7 +54,7 @@
         "fixture scope and event admission before handler actions",
         "Classify raw GitHub API methods and normalized endpoints; bind canonical REST merges to update receipts and fail closed on uninspectable writes."
       ],
-      "candidate_sha256": "48830c897e87672e9d8f71eba8a887cfd24e432778c0790a61ae8e80ef261dbe"
+      "candidate_sha256": "582826dd70e585c0b633f571fd889733cd5740d6158088ba7ced2d78bd6bcec9"
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",

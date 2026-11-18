@@ -136,6 +136,9 @@ class HookHandlerTests(unittest.TestCase):
             'gh api --help',
             'gh api --hostname example.invalid repos/example/repo/pulls/349',
             "gh api graphql -f 'query=query { viewer { login } }'",
+            "gh api graphql -f 'query=query { repository(owner: \"example\", name: \"mutation\") { id } }'",
+            "gh api graphql -f 'query=query($ids:[ID!]!){nodes(ids:$ids){id}}' -f 'ids[]=one' -f 'ids[]=two'",
+            "gh api graphql -f 'query=query { viewer { login } } # mutation'",
         ):
             with self.subTest(command=command):
                 output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})

@@ -316,7 +316,7 @@ elif index < len(tokens) and tokens[index] == "api":
             continue
         if field is not None and "=" in field:
             name, value = field.split("=", 1)
-            if name in fields:
+            if name in fields and not name.endswith("[]"):
                 ambiguous_api = True
             fields[name] = value
             if value.startswith("@") and (option in {"-F", "--field"} or option.startswith(("-F", "--field="))):
@@ -328,11 +328,13 @@ elif index < len(tokens) and tokens[index] == "api":
         ambiguous_api = True
     query = fields.get("query", "")
     if endpoint.casefold() == "graphql":
-        if "resolveReviewThread" in query or "addPullRequestReviewThreadReply" in query:
+        # Ignore GraphQL comments and string values when classifying operations.
+        query_code = re.sub(r'"""(?:[^"\\]|\\.|"(?!""))*"""|"(?:[^"\\]|\\.)*"|#[^\n]*', ' ', query)
+        if "resolveReviewThread" in query_code or "addPullRequestReviewThreadReply" in query_code:
             action = "review_reconciliation"
             thread_id = reconciliation_thread(tokens)
         if (file_backed or ambiguous_api or action and (target_override or wrapped_command or hostname)
-            or re.search(r"\bmutation\b", query) and not action):
+            or re.search(r"\bmutation\b", query_code) and not action):
             action = "unsupported_command"
     else:
         normalized_endpoint = endpoint
