@@ -1366,6 +1366,26 @@ with installer.renameable_directories(state, staged, target):
             '--usage-directory-repair', repair_state / 'proof.json'))['plan_digest']
         return digest, before, repair_state
 
+    def test_initial_install_preserves_partial_hook_disable(self):
+        config = self.runtime / 'config.toml'
+        selected = tomllib.loads(config.read_text())
+        identity = next(key for key in selected['hooks']['state']
+                        if key.endswith('/hooks.json:pre_tool_use:0:0'))
+        selected['hooks']['state'][identity]['enabled'] = False
+        config.write_text(GEN.toml_document(selected))
+        original = config.read_bytes()
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        self.success(self.operation('check', digest))
+        states = tomllib.loads(config.read_text())['hooks']['state']
+        self.assertFalse(states[identity]['enabled'])
+        self.assertEqual(states[identity]['trusted_hash'],
+                         selected['hooks']['state'][identity]['trusted_hash'])
+        self.assertTrue(any(row.get('enabled') is not False for key, row in states.items()
+                            if key != identity))
+        self.success(self.operation('rollback', digest))
+        self.assertEqual(config.read_bytes(), original)
+
     def test_initial_install_preserves_all_hook_disables(self):
         config = self.runtime / 'config.toml'
         selected = tomllib.loads(config.read_text())

@@ -321,7 +321,7 @@
         "Reuse the validated Python launcher in the nested missing-Computer-Use home",
         "Use the imported Path class in the native hook trust probe"
       ],
-      "candidate_sha256": "4c96b133ee1c21ada58a1c336b7b94b02bb38ab44ad57a46433480d92395ad68"
+      "candidate_sha256": "d386f80c76887de9752cec5a4b071fcddbc1c1e27d57b44888f600be9810d651"
     },
     {
       "path": "codex/README.md",
@@ -338,7 +338,7 @@
         "public path placeholders; accepted schema/policy content retained",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "f504948c350155241ed5979ef7112b94e9551150e80a614de58cdf9a81cd0845"
+      "candidate_sha256": "e6406f44786c89f67084a6c3931b7e3b583d0db76483cf7493137c11fba631e9"
     },
     {
       "path": "codex/duplication-policy.json",

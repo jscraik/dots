@@ -621,10 +621,12 @@ def preserve_hook_disables(expected, observed):
     result = copy.deepcopy(expected)
     before = expected.get('hooks', {}).get('state', {})
     after = observed.get('hooks', {}).get('state', {})
-    if not isinstance(before, dict) or not isinstance(after, dict) or before.keys() != after.keys():
+    if not isinstance(before, dict) or not isinstance(after, dict):
         raise ValueError('Hook identities changed during transition')
     for identity, value in after.items():
-        original = before[identity]
+        original = before.get(identity)
+        if identity not in before and isinstance(value, dict) and value.get('enabled') is not False:
+            continue
         if value == original:
             continue
         if (not isinstance(value, dict) or not isinstance(original, dict)
