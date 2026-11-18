@@ -115,12 +115,14 @@ hook_runtime_destructive_git_operation() {
 
   result=$(python3 -I -S "$dots_lib_dir/destructive-git-operation.py" "$1") || status=$?
 
-  if [[ "$status" -eq 1 ]]; then
-    return 1
-  fi
-  if [[ "$status" -ne 0 || -z "$result" ]]; then
+  if [[ "$status" -ne 0 ]]; then
     result="unsupported"
   fi
+  case "$result" in
+    safe) return 1 ;;
+    reset-hard|checkout-destructive|checkout-paths|unsupported) ;;
+    *) result="unsupported" ;;
+  esac
   printf '%s\n' "$result"
 }
 

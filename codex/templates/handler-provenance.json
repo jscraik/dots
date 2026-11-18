@@ -9,7 +9,7 @@
         "sourced-library fixture admission",
         "Share token-level destructive Git worktree detection across hook enforcement layers; fail closed on unsupported global-option layouts."
       ],
-      "candidate_sha256": "6fa9fcdce128ab872a5155608ff58f2cf9683aa06a781a850be821076ac6ce81"
+      "candidate_sha256": "7916d4ac37cc58829da513ccb59fbcbda06563397a6920d26cdbbab25f11a46a"
     },
     {
       "path": "codex/hooks/lifeos-codex.sh",
@@ -350,7 +350,7 @@
     {
       "path": "codex/hooks/destructive-git-operation.py",
       "origin": "Extracted isolated destructive Git parser from hook-runtime-lib.sh",
-      "candidate_sha256": "43a87c916f94b29a3748dba8d9df962ac9ca3a571b4ce2746164668e73f15e70"
+      "candidate_sha256": "08cd3e307b95ce8d6115017f416ea470c65a499769796f90fdf5ac208f06d67d"
     }
   ],
   "external_boundaries": [

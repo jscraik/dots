@@ -29,7 +29,7 @@ def shell_split(command):
             index = len(command) if end < 0 else end
             continue
         if quote is not None:
-            protected.append(character)
+            protected.append(ESCAPED_SEPARATOR_MARKERS.get(character, character))
             if character == quote:
                 quote = None
             elif character == "\\" and quote == '"' and index + 1 < len(command):
@@ -72,22 +72,12 @@ def shell_split(command):
         return list(lexer)
 
     tokens = lex(True)
-    source_tokens = lex(False)
     for index, token in enumerate(tokens):
         if token in MARKER_SEPARATORS:
             tokens[index] = QUOTED_SEPARATOR_PREFIX + MARKER_SEPARATORS[token]
             continue
         for marker, separator in MARKER_SEPARATORS.items():
             tokens[index] = tokens[index].replace(marker, separator)
-    if len(tokens) == len(source_tokens):
-        for index, (token, source_token) in enumerate(zip(tokens, source_tokens)):
-            if (
-                token in SHELL_SEPARATORS
-                and len(source_token) >= 2
-                and source_token[0] == source_token[-1]
-                and source_token[0] in {"'", '"'}
-            ):
-                tokens[index] = QUOTED_SEPARATOR_PREFIX + token
     return tokens
 
 
@@ -166,8 +156,17 @@ def nested_command_payloads(command):
 
 
 def shell_payload_index(tokens, start=0):
-    for index in range(start + 1, len(tokens)):
+    index = start + 1
+    while index < len(tokens):
         option = tokens[index]
+        if option in {"-o", "-O", "--rcfile", "--init-file"}:
+            if index + 1 >= len(tokens):
+                raise ValueError("Shell option requires a value")
+            index += 2
+            continue
+        if option.startswith(("-o", "-O")) and len(option) > 2:
+            index += 1
+            continue
         if not option.startswith("-") or option == "--" or option in SHELL_SEPARATORS:
             break
         if not option.startswith("--") and "c" in option[1:]:
@@ -177,12 +176,13 @@ def shell_payload_index(tokens, start=0):
             if payload < len(tokens) and tokens[payload] not in SHELL_SEPARATORS:
                 return payload
             return None
+        index += 1
     return None
 
 
 def expose_nested_shell_commands(tokens, depth=0):
     if depth >= 4:
-        return tokens
+        raise ValueError("Nested shell inspection limit exceeded")
     expanded = []
     index = 0
     while index < len(tokens):
@@ -210,7 +210,7 @@ def wrapper_command_index(tokens, start, limit):
     index = start
     while index < limit and ASSIGNMENT.fullmatch(tokens[index]):
         index += 1
-    for _ in range(4):
+    while index < limit:
         if index >= limit:
             break
         executable = tokens[index].rsplit("/", 1)[-1]
@@ -269,7 +269,7 @@ def wrapper_command_index(tokens, start, limit):
 
 
 def is_git_command(tokens, index):
-    if tokens[index].rsplit("/", 1)[-1] != "git":
+    if tokens[index].rsplit("/", 1)[-1].lower() != "git":
         return False
     start = index
     while start > 0 and tokens[start - 1] not in COMMAND_PREDECESSORS:
@@ -293,11 +293,25 @@ def has_dynamic_git_config_environment(tokens, index):
     return False
 
 
-def unsafe_config_override(value):
-    if "=" not in value:
+def checkout_force_option(token):
+    if not token.startswith("-") or token.startswith("--"):
+        return False
+    for option in token[1:]:
+        if option in {"b", "B"}:
+            return False
+        if option == "f":
+            return True
+    return False
+
+
+def unsafe_config_override(value, require_value=False):
+    if require_value and "=" not in value:
         return True
     key = value.split("=", 1)[0].lower()
-    return not key or key.startswith(("alias.", "include.", "includeif."))
+    return (not key or key.startswith(("alias.", "include.", "includeif.", "credential.", "filter.", "pager."))
+            or key in {"core.pager", "core.editor", "core.sshcommand", "core.fsmonitor", "core.hookspath", "sequence.editor", "diff.external"}
+            or key.startswith("diff.") and key.endswith(".command")
+            or key.startswith("merge.") and key.endswith(".driver"))
 
 
 def git_subcommand(tokens, index):
@@ -323,7 +337,7 @@ def git_subcommand(tokens, index):
         if token in value_options:
             if index + 1 >= len(tokens) or tokens[index + 1] in SHELL_SEPARATORS:
                 return "unsupported", None
-            if token in {"-c", "--config-env"} and unsafe_config_override(tokens[index + 1]):
+            if token in {"-c", "--config-env"} and unsafe_config_override(tokens[index + 1], token == "--config-env"):
                 return "unsupported", None
             index += 2
             continue
@@ -344,7 +358,7 @@ def git_subcommand(tokens, index):
             index += 1
             continue
         if token.startswith("--config-env="):
-            if unsafe_config_override(token.split("=", 1)[1]):
+            if unsafe_config_override(token.split("=", 1)[1], True):
                 return "unsupported", None
             index += 1
             continue
@@ -359,10 +373,16 @@ def git_subcommand(tokens, index):
 
 try:
     command = sys.argv[1]
+    if len(command) > 65536:
+        raise ValueError("Shell input exceeds inspection budget")
     command_tokens = expose_nested_shell_commands(shell_split(command))
     pending_payloads = nested_command_payloads(command)
+    inspected_bytes = len(command)
     while pending_payloads:
         payload = pending_payloads.pop(0)
+        inspected_bytes += len(payload)
+        if inspected_bytes > 262144:
+            raise ValueError("Command substitution inspection budget exceeded")
         command_tokens.append(";")
         command_tokens.extend(expose_nested_shell_commands(shell_split(payload)))
         pending_payloads.extend(nested_command_payloads(payload))
@@ -400,17 +420,17 @@ for git_index in range(len(command_tokens)):
         ):
             print("unsupported")
             raise SystemExit(0)
-        if subcommand == "reset" and token in {"--ha", "--har", "--hard"}:
+        if subcommand == "reset" and token in {"--h", "--ha", "--har", "--hard"}:
             print("reset-hard")
             raise SystemExit(0)
         if subcommand == "checkout" and (
             token == "-f"
-            or (token.startswith("-") and not token.startswith("--") and "f" in token[1:])
-            or token == "--force"
+            or checkout_force_option(token)
+            or token in {"--f", "--fo", "--for", "--forc", "--force"}
             or token == "--pathspec-from-file"
             or token.startswith("--pathspec-from-file=")
         ):
             print("checkout-destructive")
             raise SystemExit(0)
 
-raise SystemExit(1)
+print("safe")

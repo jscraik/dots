@@ -205,6 +205,50 @@ class HookHandlerTests(unittest.TestCase):
                     output = self.output(name, {'tool_name': 'Bash', 'tool_input': {'command': command}})
                     self.assertNotIn('hookSpecificOutput', output)
 
+    def test_destructive_git_shell_options_and_abbreviations_are_denied(self):
+        commands = (
+            "bash -o noclobber -c 'git reset --hard'",
+            "bash -onoclobber -c 'git reset --hard'",
+            "bash --rcfile /dev/null -c 'git reset --hard'",
+            "command command command command command git reset --hard",
+            "git reset --h HEAD",
+            "git checkout --fo branch",
+            "git -c core.pager='git reset --hard' --paginate log",
+        )
+        for command in commands:
+            for name in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
+                with self.subTest(name=name, command=command):
+                    output = self.output(name, {'tool_input': {'command': command}})
+                    if name == 'permission-request-guard.sh':
+                        self.assertEqual(output['hookSpecificOutput']['decision']['behavior'], 'deny')
+                    else:
+                        self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+
+    def test_destructive_git_parser_preserves_option_values(self):
+        for command in ('git checkout -bfeature', 'git -c core.fileMode status --short'):
+            for name in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
+                with self.subTest(name=name, command=command):
+                    output = self.output(name, {'tool_input': {'command': command}})
+                    self.assertNotIn('hookSpecificOutput', output)
+
+    def test_destructive_git_detector_failures_are_denied_by_both_guards(self):
+        detector = self.fixture.codex / 'hooks/destructive-git-operation.py'
+        for program in (
+            'raise RuntimeError("synthetic fault")',
+            'raise SystemExit(1)',
+            'raise SystemExit(0)',
+            'print("unknown")',
+            'print("safe"); raise SystemExit(1)',
+        ):
+            detector.write_text(program + '\n')
+            for name in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
+                with self.subTest(name=name, program=program):
+                    output = self.output(name, {'tool_input': {'command': 'git reset --hard'}})
+                    if name == 'permission-request-guard.sh':
+                        self.assertEqual(output['hookSpecificOutput']['decision']['behavior'], 'deny')
+                    else:
+                        self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+
     def test_permission_and_edit_guards_protect_auth_material(self):
         event = {'tool_name': 'Write', 'tool_input': {'file_path': str(self.fixture.runtime / 'auth.json')}}
         for name in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
