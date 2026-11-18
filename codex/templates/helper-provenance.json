@@ -724,7 +724,7 @@
       ],
       "source_sha256": "218b9f4398ef58a8604855a5ff82456b80cd33204b27b950146dede8002acb7a",
       "source_path": "codex/scripts/tests/runtime_config_fixture.py",
-      "candidate_sha256": "24fbeb1785cba7887609dfca88f249fba6ad133fe426c3525187fa8f1f6672da"
+      "candidate_sha256": "caa4ee78b74e50468e426980a3aaf1c01bb5ed333cc2f6e0e35874ae60daf963"
     },
     {
       "path": "codex/scripts/pr-readiness.py",

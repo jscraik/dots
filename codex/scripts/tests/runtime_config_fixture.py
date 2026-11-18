@@ -47,6 +47,10 @@ def create_runtime_checkout(repo: Path, source_root: Path) -> None:
         path.relative_to(source_root).as_posix()
         for path in (source_root / "codex/rules").glob("*.rules")
     )
+    generated.extend(
+        path.relative_to(source_root).as_posix()
+        for path in (source_root / "codex/hooks").glob("braid-*/braid")
+    )
     for name in sorted(set(filter(None, tracked + generated))):
         source = resource(source_root / name)
         if not source.exists() and not source.is_symlink():
