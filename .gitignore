@@ -114,6 +114,7 @@
 !/tests/fixtures/codex-machine.json
 !/tests/fixtures/policy-bindings.json
 !/tests/fixtures/governance-bindings.json
+!/tests/fixtures/legacy-root-preferences.json
 !/tests/fixtures/projection-map.json
 
 !/AGENTS.md
@@ -335,3 +336,8 @@
 
 !/codex/hooks/destructive-git-operation.py
 !/tests/test_destructive_git_operation.py
+!/tests/test_runtime_project_admission.py
+!/tests/test_readiness_repository_scope.py
+!/tests/test_body_managed_input.py
+
+!/tests/test_hook_consent_review.py

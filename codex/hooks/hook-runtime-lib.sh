@@ -526,6 +526,7 @@ hook_runtime_write_card() {
   shift 9
   local project_override_drift="$1"
   local project_override_excerpt="$2"
+  local project_override_audit_status="${3:-unknown}"
   local card_path
   local tmp_path
   local card_record
@@ -550,6 +551,7 @@ hook_runtime_write_card() {
       --arg preflight_summary "$preflight_summary" \
       --arg project_override_drift "$project_override_drift" \
       --arg project_override_excerpt "$project_override_excerpt" \
+      --arg project_override_audit_status "$project_override_audit_status" \
       '{
         schema_version: $schema_version,
         recorded_at: $recorded_at,
@@ -582,6 +584,7 @@ hook_runtime_write_card() {
           preflight_status: $preflight_status,
           preflight_summary: (if $preflight_summary == "" then null else $preflight_summary end),
           project_override_drift: ($project_override_drift == "1"),
+          project_override_audit_status: $project_override_audit_status,
           project_override_excerpt: (if $project_override_excerpt == "" then null else $project_override_excerpt end)
         },
         resume_reconciliation: {

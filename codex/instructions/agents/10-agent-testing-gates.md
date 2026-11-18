@@ -34,11 +34,12 @@
 
 ## Auto checks
 
-- CircleCI runs `lint`, `typecheck` and `test` once each. The `check` job is a
-  native success-dependency join of those three jobs in the same workflow,
-  not a second `pnpm check` execution. Local `pnpm check` remains the aggregate.
-  `node --test scripts/tests/test-ci-validation-graph.mjs` (repository root)
-  checks the workflow graph and rejects missing or failure-tolerant dependencies.
+- Dots CircleCI defines `validate` and `secret-scan` in
+  [its configuration](../../../.circleci/config.yml). Validation checks provenance,
+  Python style, guidance, the full fixture suite with the pinned Linux CLI, and
+  shell syntax. The separate job scans committed history and checked-out files.
+  No dots `pnpm check`, typecheck job or source-only CI graph test is implied.
+  Hosted execution and required branch protection must be inspected separately.
 
 - Ordinary child returns require no artifact. The coordinator owns durable
   records unless it explicitly assigns an artifact deliverable to a child.

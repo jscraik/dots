@@ -65,7 +65,7 @@ IFS=$'\x1f' read -r tool_name encoded_command _command_cwd permission_mode sessi
 raw_command="$(printf '%s' "$encoded_command" | jq -Rr '@base64d')"
 git_worktree_risk=""
 run_ok() {
-  jq -n '{continue: true}'
+  jq -n '{}'
 }
 run_block() {
   local reason="$1"
@@ -1017,7 +1017,6 @@ if [[ -n "$block_reason" ]]; then
       jq -n \
         --arg reason "$bypass_reason" \
         '{
-          continue: true,
           hookSpecificOutput: {
             hookEventName: "PreToolUse",
             additionalContext: ("Break-glass bypass accepted for git push --no-verify. Reason: " + $reason)

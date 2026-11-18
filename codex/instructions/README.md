@@ -2,6 +2,10 @@
 
 ## Start here
 
+Dots owns the maintained process. Imported Configs commands are source references,
+not default gates. The [CODESTYLE front door](CODESTYLE.md) and
+[dots validation contract](../../README.md#local-checks) own current local checks.
+
 1. Read the active repository's `AGENTS.md` and this canonical `codex/AGENTS.md`.
    These references are checkout-relative even through a fixture projection.
 2. Read [migration scope](migration-scope.md) for source ownership, missing
