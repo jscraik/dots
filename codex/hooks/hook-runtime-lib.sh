@@ -113,7 +113,7 @@ hook_runtime_destructive_git_operation() {
   local result
   local status=0
 
-  result=$(python3 -I -S "$dots_lib_dir/destructive-git-operation.py" "$1") || status=$?
+  result=$(python3 -I -S "$dots_lib_dir/destructive-git-operation.py" "$1" "${2:-$PWD}") || status=$?
 
   if [[ "$status" -ne 0 ]]; then
     result="unsupported"

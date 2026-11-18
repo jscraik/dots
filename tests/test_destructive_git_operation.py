@@ -10,7 +10,7 @@ from pathlib import Path
 DETECTOR = Path(__file__).resolve().parents[1] / 'codex/hooks/destructive-git-operation.py'
 
 
-def seed_checkout_ref(repository, environment):
+def seed_checkout_ref(repository, environment, branch='topic'):
     """Create inert fixture objects, without executing a commit or any hook."""
     def git(*arguments, content=None):
         return subprocess.run(['/usr/bin/git', '-C', str(repository), *arguments],
@@ -20,7 +20,7 @@ def seed_checkout_ref(repository, environment):
     commit = git('hash-object', '-t', 'commit', '-w', '--stdin', content=(
         f'tree {tree}\nauthor Fixture <fixture@example.invalid> 1 +0000\n'
         'committer Fixture <fixture@example.invalid> 1 +0000\n\nInert test object\n'))
-    git('update-ref', 'refs/heads/topic', commit)
+    git('update-ref', 'refs/heads/' + branch, commit)
 
 
 class DestructiveGitOperationTests(unittest.TestCase):
@@ -34,8 +34,11 @@ class DestructiveGitOperationTests(unittest.TestCase):
                        env=self.environment, check=True, capture_output=True, timeout=10)
         seed_checkout_ref(self.repository, self.environment)
 
-    def classify(self, command):
-        result = subprocess.run([sys.executable, '-I', '-S', str(DETECTOR), command],
+    def classify(self, command, cwd=None):
+        arguments = [sys.executable, '-I', '-S', str(DETECTOR), command]
+        if cwd is not None:
+            arguments.append(str(cwd))
+        result = subprocess.run(arguments,
                                 capture_output=True, text=True, timeout=5, check=False,
                                 cwd=self.repository, env=self.environment)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -111,6 +114,8 @@ class DestructiveGitOperationTests(unittest.TestCase):
             'cat <<EOF\nEO\\\nF\ngit reset --hard\nexit\nEOF',
             "printf '%s\\n' 'git reset --hard'|/bin/bash",
             "printf '%s\\n' 'git reset --hard'|command /bin/bash",
+            "cat <<'EOF' > >(bash)\ngit reset --hard\nEOF\nwait",
+            "NOTE='first\nsecond' git reset --hard",
         )
         for command in commands:
             with self.subTest(command=command):
@@ -142,3 +147,13 @@ class DestructiveGitOperationTests(unittest.TestCase):
     def test_large_ordinary_argument_list_is_bounded(self):
         self.assertEqual(self.classify('printf %s ' + 'word ' * 5000), 'safe')
         self.assertEqual(self.classify("cat <<'EOF'\n" + 'x' * 70000 + '\nEOF'), 'safe')
+
+    def test_checkout_ref_is_verified_in_requested_directory(self):
+        other = self.repository / 'other'
+        other.mkdir()
+        subprocess.run(['/usr/bin/git', 'init', '-q', str(other)], env=self.environment,
+                       check=True, capture_output=True, timeout=10)
+        seed_checkout_ref(other, self.environment, branch='main')
+        (other / 'topic').write_text('local edits\n')
+        self.assertEqual(self.classify('git checkout --quiet topic', cwd=self.repository), 'safe')
+        self.assertEqual(self.classify('git checkout --quiet topic', cwd=other), 'checkout-paths')

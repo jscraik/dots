@@ -13,7 +13,7 @@ SHELL_PUNCTUATION = ";&|(){}"
 SHELL_SEPARATORS = {";", "&&", "||", "|", "|&", "&", "(", ")", "{", "}"}
 COMMAND_PREDECESSORS = SHELL_SEPARATORS
 QUOTED_SEPARATOR_PREFIX = "\x1e"
-ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\+?=.*")
+ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\+?=.*", re.DOTALL)
 
 
 def ansi_literal(command, start):
@@ -57,6 +57,8 @@ def prepare_literals(command):
     quote, word_start, index, simple_start = None, True, 0, 0
     while index < len(command):
         char = command[index]
+        if quote is None and command.startswith(('<(', '>('), index):
+            raise ValueError('Process substitution requires separate inspection')
         if char == '\\' and quote != "'" and index + 1 < len(command):
             output.append(command[index:index + 2])
             index += 2
@@ -490,7 +492,7 @@ def known_checkout_ref(tokens, git_index, subcommand_index, operand):
         result = subprocess.run(['/usr/bin/git', '--no-pager', '-c', 'core.fsmonitor=false',
             *tokens[git_index + 1:subcommand_index], 'rev-parse', '--verify', '--end-of-options',
             operand + '^{commit}'], env=environment, capture_output=True, text=True,
-            timeout=1, check=False)
+            cwd=command_cwd, timeout=1, check=False)
     except (OSError, subprocess.TimeoutExpired):
         return False
     return result.returncode == 0 and bool(re.fullmatch(r'[0-9a-f]{40,64}\n?', result.stdout))
@@ -509,6 +511,9 @@ if len(sys.argv) > 1 and sys.argv[1] == '--prepare-literals':
 
 try:
     command = sys.argv[1]
+    command_cwd = sys.argv[2] if len(sys.argv) > 2 else os.getcwd()
+    if not Path(command_cwd).is_absolute():
+        raise ValueError('Requested working directory must be absolute')
     if len(command) > 1048576:
         raise ValueError("Shell transport input exceeds inspection budget")
     command = prepare_literals(command)

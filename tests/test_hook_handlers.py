@@ -252,6 +252,8 @@ class HookHandlerTests(unittest.TestCase):
             'git checkout --ours topic',
             'sudo -T 10 git reset --hard',
             'cat <<EOF\nEO\\\nF\ngit reset --hard\nexit\nEOF',
+            "cat <<'EOF' > >(bash)\ngit reset --hard\nEOF\nwait",
+            "NOTE='first\nsecond' git reset --hard",
         )
         allowed = (
             "printf '%s\\n' 'then' git reset --hard",
@@ -273,6 +275,30 @@ class HookHandlerTests(unittest.TestCase):
         output = self.output('pre-tool-use-guard.sh', {'tool_input': {'command':
             "cat <<'EOF'\nordinary data\nEOF\ncat ~/.codex/auth.json"}})
         self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+
+    def test_checkout_ref_allowance_uses_tool_directory(self):
+        seed_checkout_ref(self.fixture.repo, self.fixture.env)
+        other = self.fixture.home / 'other-repository'
+        other.mkdir()
+        subprocess.run(['/usr/bin/git', 'init', '-q', str(other)], env=self.fixture.env,
+                       check=True, capture_output=True, timeout=10)
+        seed_checkout_ref(other, self.fixture.env, branch='main')
+        for name in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
+            for description in ('ordinary request', 'multiline\nrequest', 'field\x1fseparator'):
+                with self.subTest(name=name, description=description):
+                    output = self.output(name, {'tool_input': {
+                        'command': 'git checkout --quiet topic', 'cwd': str(other),
+                        'description': description}})
+                    decision = output['hookSpecificOutput']
+                    actual = decision['decision']['behavior'] if name == 'permission-request-guard.sh' else decision['permissionDecision']
+                    self.assertEqual(actual, 'deny')
+            controlled = self.fixture.home / 'other\nrepository'
+            controlled.mkdir(exist_ok=True)
+            output = self.output(name, {'tool_input': {
+                'command': 'git checkout --quiet topic', 'cwd': str(controlled)}})
+            decision = output['hookSpecificOutput']
+            actual = decision['decision']['behavior'] if name == 'permission-request-guard.sh' else decision['permissionDecision']
+            self.assertEqual(actual, 'deny')
 
     def test_destructive_git_detector_failures_are_denied_by_both_guards(self):
         detector = self.fixture.codex / 'hooks/destructive-git-operation.py'
