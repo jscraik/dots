@@ -332,3 +332,5 @@
 !/tests/test_pending_fixes.py
 !/codex/scripts/tests/test_pr_maintainer_acceptance.py
 !/codex/schemas/pr-readiness.v1.schema.json
+
+!/codex/hooks/destructive-git-operation.py

@@ -9,7 +9,7 @@
         "sourced-library fixture admission",
         "Share token-level destructive Git worktree detection across hook enforcement layers; fail closed on unsupported global-option layouts."
       ],
-      "candidate_sha256": "a4ee0d0f6f0043311264de9cb0cb88934fd1d8bc28864933f3a53f5976d58513"
+      "candidate_sha256": "6fa9fcdce128ab872a5155608ff58f2cf9683aa06a781a850be821076ac6ce81"
     },
     {
       "path": "codex/hooks/lifeos-codex.sh",
@@ -345,6 +345,11 @@
         "Retain pinned local binary and 1Password execution; admit fixture or fixed packaged context and each provider path before execution."
       ],
       "candidate_sha256": "83c374937bbf77514861cf5c3abcf26adec3b1b2f3b6700014bf84fe65c02f77"
+    },
+    {
+      "path": "codex/hooks/destructive-git-operation.py",
+      "origin": "Extracted isolated destructive Git parser from hook-runtime-lib.sh",
+      "candidate_sha256": "43a87c916f94b29a3748dba8d9df962ac9ca3a571b4ce2746164668e73f15e70"
     }
   ],
   "external_boundaries": [
