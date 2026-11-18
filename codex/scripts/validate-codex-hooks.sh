@@ -270,6 +270,8 @@ bash scripts/validate-auto-review-scope.sh
 trace_step "auto-review scope check passed"
 
 hooks_json="$(python3 "$script_dir/core-hook-fixture-manifest.py" "$repo_root/hooks/hooks.json")"
+assert_jq "$hooks_json" '([.. | objects | select(.type? == "command") | .command] | all(startswith("/bin/bash -p ~/.codex/hooks/")))' "core hooks must use the privileged system Bash launcher"
+hooks_json="$(jq 'walk(if type == "object" and .type? == "command" then .command |= ltrimstr("/bin/bash -p ") else . end)' <<<"$hooks_json")"
 assert_jq "$hooks_json" '(.hooks | type) == "object"' "hooks.json must contain a top-level hooks object"
 assert_jq "$hooks_json" '(.hooks | keys | sort) == ["PermissionRequest", "PostCompact", "PostToolUse", "PreCompact", "PreToolUse", "SessionStart", "Stop", "SubagentStart", "SubagentStop", "UserPromptSubmit"]' "hooks.json event keys must match the canonical runtime hook event set"
 assert_jq "$hooks_json" '([.hooks.PreToolUse, .hooks.PermissionRequest, .hooks.PostToolUse, .hooks.SessionStart, .hooks.PreCompact, .hooks.PostCompact, .hooks.SubagentStart, .hooks.SubagentStop, .hooks.UserPromptSubmit, .hooks.Stop] | all((type == "array") and (length > 0)))' "each configured hook event must have at least one hook group"
@@ -313,7 +315,7 @@ trace_step "nested hook orchestration check passed"
 for hook_script in hooks/*.sh; do
   bash -n "$hook_script"
   shebang_line="$(head -n 1 "$hook_script")"
-  if [[ "$shebang_line" != "#!/usr/bin/env bash" ]]; then
+  if [[ "$shebang_line" != "#!/bin/bash -p" && "$shebang_line" != "#!/usr/bin/env bash" ]]; then
     echo "[validate-codex-hooks] hook script must use bash shebang: $hook_script" >&2
     exit 1
   fi

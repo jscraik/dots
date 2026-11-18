@@ -317,7 +317,7 @@
         "Original core assertions retained; canonical publisher core view, disposable event/resource plumbing and isolated synthetic FIFO canary",
         "Reuse the validated Python launcher in the nested missing-Computer-Use home"
       ],
-      "candidate_sha256": "b4fe3bf55d599681a0d7e460f304a43745fa05a36f0e6b8ab6a184f89c61001a"
+      "candidate_sha256": "6ae488341f8d3b1f8b64192ba75a1c02ea21b4f749a8055cfa01fda84f0221e8"
     },
     {
       "path": "codex/README.md",
