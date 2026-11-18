@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,10 @@ with tempfile.TemporaryDirectory(
 ) as directory:
     captured = Path(directory) / "hooks.json"
     captured.write_bytes(snapshot)
+    for artifact in source.parent.glob("braid-*/braid"):
+        target = captured.parent / artifact.relative_to(source.parent)
+        target.parent.mkdir()
+        shutil.copy2(artifact, target)
     result = subprocess.run(
         [
             sys.executable,
