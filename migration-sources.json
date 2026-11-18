@@ -55,7 +55,7 @@
       "source": "requirements/python-document-reading.txt",
       "destination": "requirements/python-document-reading.txt",
       "source_sha256": "d97363d835a8c043d0ff6593b4191587c3f720e219cad59a392c81a54c5d00b9",
-      "candidate_sha256": "d97363d835a8c043d0ff6593b4191587c3f720e219cad59a392c81a54c5d00b9"
+      "candidate_sha256": "791fabf8926245002c81e7c1595e74ad9b180df478351052c928dbf92529a59c"
     }
   ],
   "excluded": [
