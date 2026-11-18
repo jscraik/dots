@@ -115,6 +115,7 @@
 !/tests/fixtures/codex-machine.json
 !/tests/fixtures/policy-bindings.json
 !/tests/fixtures/governance-bindings.json
+!/tests/fixtures/legacy-root-preferences.json
 !/tests/fixtures/projection-map.json
 
 !/AGENTS.md
@@ -334,3 +335,9 @@
 !/tests/test_pending_fixes.py
 !/codex/scripts/tests/test_pr_maintainer_acceptance.py
 !/codex/schemas/pr-readiness.v1.schema.json
+
+!/tests/test_runtime_project_admission.py
+!/tests/test_readiness_repository_scope.py
+!/tests/test_body_managed_input.py
+
+!/tests/test_hook_consent_review.py

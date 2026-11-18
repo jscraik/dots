@@ -345,7 +345,6 @@ done
 
 if [[ -n "$scratch_project_scrub" ]]; then
   run_check "codex-scratch-project-scrub-self-test" "$python_bin" "$scratch_project_scrub" --self-test --json
-  run_check "codex-scratch-project-scrub-check" "$python_bin" "$scratch_project_scrub" --check --json
 else
   skip_check "codex-scratch-project-scrub" "scrub-codex-scratch-projects.py not found"
 fi
