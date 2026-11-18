@@ -442,8 +442,7 @@ def _parse_review_thread_page(
         errors = payload["errors"]
         if not isinstance(errors, list):
             return [], False, None, f"review-thread response page {page_number} was invalid: errors must be an array"
-        if errors:
-            return [], False, None, f"review-thread response page {page_number} contained GraphQL errors"
+        return [], False, None, f"review-thread response page {page_number} contained GraphQL errors"
     data = payload.get("data")
     if not isinstance(data, dict):
         return [], False, None, f"review-thread response page {page_number} was invalid: data must be an object"
