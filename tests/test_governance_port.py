@@ -156,7 +156,7 @@ class GovernancePortTests(unittest.TestCase):
     def test_hook_dependency_paths_cannot_be_workspace_writable(self):
         for value in ('/opt', '/opt/dots-hook-tools',
                       '/opt/dots-hook-tools/' + '0' * 64 + '/bin',
-                      '/usr/bin/python3'):
+                      '/usr/bin/python3', 'opt/dots-hook-tools', '../opt/dots-hook-tools', '.'):
             with self.subTest(value=value):
                 config = tomllib.loads(self.generated['config'])
                 roots = config['permissions'][config['default_permissions']]['workspace_roots']
@@ -167,6 +167,7 @@ class GovernancePortTests(unittest.TestCase):
         config = tomllib.loads(self.generated['config'])
         roots = config['permissions'][config['default_permissions']]['workspace_roots']
         roots['/usr/local'] = True
+        roots['../opt/dots-hook-tools'] = False
         result = self.validate(GEN.toml_document(config))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 

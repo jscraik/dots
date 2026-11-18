@@ -160,15 +160,23 @@ import importlib.util
 import sys
 from pathlib import Path
 
-validator_path = Path(sys.argv[1])
-config_path = Path(sys.argv[2])
-spec = importlib.util.spec_from_file_location("codex_config_validator", validator_path)
-if spec is None or spec.loader is None:
-    print(f"unable to load validator: {validator_path}", file=sys.stderr)
-    raise SystemExit(1)
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-errors = module.validate_allowed_project_local_config(config_path)
+try:
+    validator_path = Path(sys.argv[1]).resolve(strict=True)
+    config_path = Path(sys.argv[2])
+    # Isolated stdin Python omits sibling imports. Admit only this fixed
+    # validator's trusted directory, never the project or inherited PYTHONPATH.
+    sys.path.insert(0, str(validator_path.parent))
+    spec = importlib.util.spec_from_file_location("codex_config_validator", validator_path)
+    if spec is None or spec.loader is None:
+        raise ImportError('validator loader is unavailable')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    errors = module.validate_allowed_project_local_config(config_path)
+    if not isinstance(errors, list) or any(not isinstance(error, str) for error in errors):
+        raise ValueError('invalid validator response')
+except (Exception, SystemExit) as exc:
+    print(f"validator unavailable: {type(exc).__name__}", file=sys.stderr)
+    raise SystemExit(2)
 for error in errors:
     print(error, file=sys.stderr)
 raise SystemExit(1 if errors else 0)
@@ -185,6 +193,7 @@ audit_project() {
   local resolved=""
   local config_display=""
   local project_failed=0
+  local validation_status=0
 
   if is_allowed_project_config "$project_config" && [[ -L "$project_config" ]]; then
     config_display=".codex/config.toml (allowlisted LifeOS exception) symlink"
@@ -198,8 +207,16 @@ audit_project() {
     fi
   elif is_allowed_project_config "$project_config" && [[ -e "$project_config" ]]; then
     config_display=".codex/config.toml (allowlisted LifeOS exception)"
-    if ! validate_allowed_project_config "$project_config"; then
-      remove_project_config "$project_root" "$project_config" "$config_display" || project_failed=1
+    if validate_allowed_project_config "$project_config"; then
+      :
+    else
+      validation_status=$?
+      if [[ "$validation_status" -eq 1 ]]; then
+        remove_project_config "$project_root" "$project_config" "$config_display" || project_failed=1
+      else
+        failures+=("${project_root}: validator unavailable; preserved ${config_display}")
+        project_failed=1
+      fi
     fi
   elif [[ -L "$project_config" ]]; then
     resolved="$("$python_bin" -I -B -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$project_config")"

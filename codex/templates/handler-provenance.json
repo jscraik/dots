@@ -243,7 +243,7 @@
         "private project-config exception requires explicit local input and original validation",
         "fixture admission including positional dev-root"
       ],
-      "candidate_sha256": "5ad6fc22d933bd67b3fb879f11b1789380b392a7b95dca302e45ed6080bf5efa"
+      "candidate_sha256": "2ce87749aead446ce22df48119da0f5e26cbae36b412e5ac049c093a32397c25"
     },
     {
       "path": "codex/scripts/run-auth-backed.sh",

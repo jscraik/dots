@@ -318,7 +318,7 @@
         "Reuse the validated Python launcher in the nested missing-Computer-Use home",
         "Use the imported Path class in the native hook trust probe"
       ],
-      "candidate_sha256": "62b3def2c6ff24c056bbfb2e7269db89f40a3140d5ea8a57efef482493f5d225"
+      "candidate_sha256": "c5a542647078c825908dad5c558e46582f7d225d7619eaba8994b5f98663be9f"
     },
     {
       "path": "codex/README.md",

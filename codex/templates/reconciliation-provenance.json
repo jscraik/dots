@@ -36,7 +36,7 @@
     {
       "path": "README.md",
       "prior_candidate_sha256": "ced157af36e675f8d6c890a5b04a70805e0835432efc957efc85c92f1e98ab01",
-      "candidate_sha256": "07e45b903c66e66f826e6b687bf1363d4b63f66d26ecc8322032d9673c46c6d3",
+      "candidate_sha256": "d3b8cdeeb0cf1a2cf74815d41333de01019d54ac56aca0ef39342f18544e65ca",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Document the native distinction between on-disk hook consent and loaded-thread acceptance, verified by a disposable native regression without a model turn. Document the two additional exact native app metadata names; preserve the existing installation and permission boundaries. Document app-bundled CLI validation and isolated pinned dependency setup."
     },
     {
@@ -186,7 +186,7 @@
     {
       "path": "codex/scripts/validate-codex-config.py",
       "prior_candidate_sha256": "e9cdebab1d97447c1ac3ff1dce5894c7c13ccf095c2a1cc8e44716c103768e61",
-      "candidate_sha256": "bc297de251160a592bab85a2b81113b3ca6706948bc0bd374627034a24508e9c",
+      "candidate_sha256": "85f5f154d2dee6d0a1f715a5982e21f8c4d21bca626dbc3e21f75951bf4b1b22",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks. Reject workspace roots that contain fixed security-hook dependency directories."
     },
     {
@@ -197,7 +197,7 @@
     {
       "path": "tests/test_helper_dependencies.py",
       "prior_candidate_sha256": "f8c74a3d7d96e5791162b6abdf902c1705a78226deb56347f56a2a09096384b9",
-      "candidate_sha256": "dd529f9f732f24f0250b6d3189c0552b41bfcc6a49b18c3e9f3bff9fc01675d1"
+      "candidate_sha256": "4863a18a2beda277d6950752de04fb958d39653cc73955b2148751c866a38d27"
     },
     {
       "path": "tests/test_hook_handlers.py",

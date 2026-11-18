@@ -324,7 +324,11 @@ def validate_hook_dependency_isolation(config: dict[str, object]) -> list[str]:
         if not isinstance(workspace_roots, dict):
             continue
         for value, enabled in workspace_roots.items():
-            if enabled is not True or not isinstance(value, str) or not Path(value).is_absolute():
+            if enabled is not True:
+                continue
+            if not isinstance(value, str) or not Path(value).is_absolute():
+                errors.append(f'permissions.{profile_name}.workspace_roots keys must be absolute '
+                              f'for fixed security-hook dependency path checks: {value}')
                 continue
             writable_root = Path(value).resolve(strict=False)
             if any(path == writable_root or path.is_relative_to(writable_root)

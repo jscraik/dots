@@ -165,6 +165,19 @@ mise-only installations need this admin step before adopting these hook
 launchers. Full installation and Linux CI verification of this candidate are
 pending.
 
+LifeOS retrieval also needs its separately administered Bun runtime and private
+retriever. Before adopting these launchers on a LifeOS machine, provision and
+verify Bun in an administrator-owned directory outside sandbox-writable roots,
+then set `CODEX_LIFEOS_BUN` to that exact absolute executable in the owning app's
+launch environment. Every directory component and the executable must remain
+protected from workspace writes; an absolute path alone does not prove this.
+The adapter passes this executable directly as an argument and does not restore
+mise, Homebrew or inherited PATH discovery. Bun and the private retriever remain
+external to the mandatory Python/jq/gh package. Without an explicitly available
+runtime, optional retrieval returns no context; it does not clear a security
+decision. The retained LifeOS harness covers the explicit executable route and
+the minimal child environment.
+
 `scripts/install-codex.py` provides one local procedure: `prepare`, `apply`,
 `check` and `rollback`. It reuses the existing projector, full policy validator,
 Desktop-setting preservation and atomic config/hook publishers. It installs no

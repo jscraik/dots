@@ -1962,6 +1962,18 @@ if [[ "$lifeos_leak_probe_output" != *"CONTEXT7_API_KEY_PRESENT=true"* || "$life
 fi
 lifeos_probe_home="$lifeos_test_root/home"
 mkdir -p "$lifeos_probe_home/.local/bin"
+lifeos_untrusted_bun_marker="$lifeos_test_root/untrusted-bun-invoked"
+printf '#!/bin/sh\nprintf invoked > %q\n' "$lifeos_untrusted_bun_marker" > "$lifeos_probe_home/.local/bin/bun"
+chmod +x "$lifeos_probe_home/.local/bin/bun"
+lifeos_missing_bun_output="$(
+  printf '%s' '{"hook_event_name":"UserPromptSubmit","cwd":"'"$lifeos_project_root"'","prompt":"Optional runtime unavailable."}' \
+    | HOME="$lifeos_probe_home" CODEX_LIFEOS_DIR="$lifeos_test_root" CODEX_LIFEOS_PROJECT_ROOT="$lifeos_project_root" CODEX_LIFEOS_BUN="" run_fixture_hook hooks/lifeos-codex.sh
+)"
+assert_jq "$lifeos_missing_bun_output" '.continue == true and (has("hookSpecificOutput") | not)' "LifeOS without a protected default Bun should return no context"
+if [[ -e "$lifeos_untrusted_bun_marker" ]]; then
+  echo "[validate-codex-hooks] LifeOS executed writable HOME Bun" >&2
+  exit 1
+fi
 printf '#!/usr/bin/env bash\nexec %q "$@"\n' "$validation_python_executable" > "$lifeos_probe_home/.local/bin/python3"
 chmod +x "$lifeos_probe_home/.local/bin/python3"
 lifeos_probe_path="/usr/local/bin:/usr/bin:/bin"
