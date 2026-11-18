@@ -937,7 +937,9 @@ except ValueError:
                 installer.apply(self.state, digest)
         self.assertEqual(json.loads((self.state / 'result.json').read_text())['status'], 'failed')
         self.assertNotEqual(self.snapshot()['config.toml'], self.before['config.toml'])
-        with mock.patch.dict(os.environ, self.installed_env(), clear=True):
+        with mock.patch.object(sys, 'path', [script_path, *sys.path]), mock.patch.dict(
+                os.environ, self.installed_env(), clear=True), mock.patch.dict(sys.modules):
+            sys.modules.pop('migration_scope', None)
             installer.restore(self.state, digest)
         self.assertEqual(self.snapshot(), self.before)
 
