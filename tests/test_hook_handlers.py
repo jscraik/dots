@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from hook_fixture import HookFixture
+from test_destructive_git_operation import seed_checkout_ref
 
 
 class HookHandlerTests(unittest.TestCase):
@@ -171,6 +172,7 @@ class HookHandlerTests(unittest.TestCase):
         self.assertEqual(result['hookSpecificOutput']['permissionDecision'], 'deny')
 
     def test_destructive_git_global_options_are_denied_by_both_guards(self):
+        seed_checkout_ref(self.fixture.repo, self.fixture.env)
         blocked_commands = (
             'git -C . reset --hard',
             "git -C . reset $'--hard'",
@@ -230,6 +232,43 @@ class HookHandlerTests(unittest.TestCase):
                 with self.subTest(name=name, command=command):
                     output = self.output(name, {'tool_input': {'command': command}})
                     self.assertNotIn('hookSpecificOutput', output)
+
+    def test_reviewed_shell_boundaries_keep_real_guard_allow_and_deny(self):
+        seed_checkout_ref(self.fixture.repo, self.fixture.env)
+        blocked = (
+            '2>/dev/null git reset --hard', 'FOO+=x git reset --hard',
+            "bash -eo pipefail -c 'git reset --hard'",
+            "bash -c 'echo \"$(git reset --hard)\"'",
+            'echo x |& git reset --hard',
+            "GIT_PAGER='git reset --hard' git --paginate log",
+            'git checkout tracked.txt', 'rm  -rf  /',
+            'git >/dev/null reset --hard',
+            'builtin eval "git reset --hard"',
+            "bash <<'EOF'\ncat ~/.codex/auth.json\nEOF",
+            'cat <<EOF\n\\\\$(cat ~/.codex/auth.json)\nEOF',
+            'cat <<"EOF"|/bin/bash\ngit reset --hard\nEOF',
+            'shopt -s expand_aliases\nalias cat=bash\ncat <<"EOF"\ngit reset --hard\nEOF',
+        )
+        allowed = (
+            "printf '%s\\n' 'then' git reset --hard",
+            "printf '%s\\n' 'rm -rf\n/'",
+            "cat <<'EOF'\ndon't run git reset --hard\nEOF",
+            'git checkout topic',
+        )
+        for name in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
+            for command in blocked:
+                with self.subTest(name=name, command=command):
+                    result = self.output(name, {'tool_input': {'command': command}})
+                    key = result['hookSpecificOutput']
+                    actual = key['decision']['behavior'] if name == 'permission-request-guard.sh' else key['permissionDecision']
+                    self.assertEqual(actual, 'deny')
+            for command in allowed:
+                with self.subTest(name=name, command=command):
+                    result = self.output(name, {'tool_input': {'command': command}})
+                    self.assertNotIn('hookSpecificOutput', result)
+        output = self.output('pre-tool-use-guard.sh', {'tool_input': {'command':
+            "cat <<'EOF'\nordinary data\nEOF\ncat ~/.codex/auth.json"}})
+        self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
 
     def test_destructive_git_detector_failures_are_denied_by_both_guards(self):
         detector = self.fixture.codex / 'hooks/destructive-git-operation.py'

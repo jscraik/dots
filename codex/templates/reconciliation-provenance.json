@@ -201,7 +201,7 @@
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "18c0da40bfc8a55789b16d61a474c6821bb3cfc5bf902f6c22370b6e0af0d70e",
+      "candidate_sha256": "a30281522bb15984f756e0e595df1d6482c2dd97f3fe2076c25939044cd19e73",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment. Cover destructive Git global-option forms and legitimate controls across both guard layers."
     },
     {

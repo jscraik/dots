@@ -9,7 +9,7 @@
         "sourced-library fixture admission",
         "Share token-level destructive Git worktree detection across hook enforcement layers; fail closed on unsupported global-option layouts."
       ],
-      "candidate_sha256": "7916d4ac37cc58829da513ccb59fbcbda06563397a6920d26cdbbab25f11a46a"
+      "candidate_sha256": "bd0246b47b85980f1629f7b6f8b891ad11f24b01a7fc40804dbb28183c5c41b9"
     },
     {
       "path": "codex/hooks/lifeos-codex.sh",
@@ -28,7 +28,7 @@
         "fixture scope and event admission before handler actions",
         "Use exact command bytes with the shared token-level destructive Git classifier for approval denials."
       ],
-      "candidate_sha256": "7ee3d0858335944353d0dd4f13bdec4d121d0941f9fd48e523720a3f39c5c630"
+      "candidate_sha256": "1950e0fb4f3487db862f6e40b91b07e66b9520e074b0e95fd282d7344795495b"
     },
     {
       "path": "codex/hooks/post-compact-recorder.sh",
@@ -104,7 +104,7 @@
         "fixture scope and event admission before handler actions",
         "Use the shared token-level destructive Git classifier for pre-tool denials."
       ],
-      "candidate_sha256": "bb0a8b0b03aa7df27081e7c8573274199648fa1e2bf49d5b110db51b0e2a238b"
+      "candidate_sha256": "c11651741ff2354c362d7580b479f234cabd14c5c28728dd9d9fc408421787fe"
     },
     {
       "path": "codex/hooks/session-start.sh",
@@ -350,7 +350,7 @@
     {
       "path": "codex/hooks/destructive-git-operation.py",
       "origin": "Extracted isolated destructive Git parser from hook-runtime-lib.sh",
-      "candidate_sha256": "08cd3e307b95ce8d6115017f416ea470c65a499769796f90fdf5ac208f06d67d"
+      "candidate_sha256": "fd066c5b309e12eed014237e71dca0af749d60f01ff391b4f31ff5e3d0e72883"
     }
   ],
   "external_boundaries": [

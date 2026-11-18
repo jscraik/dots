@@ -334,3 +334,4 @@
 !/codex/schemas/pr-readiness.v1.schema.json
 
 !/codex/hooks/destructive-git-operation.py
+!/tests/test_destructive_git_operation.py

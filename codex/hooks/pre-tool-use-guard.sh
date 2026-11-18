@@ -702,6 +702,11 @@ is_sensitive_edit_target() {
 contains_direct_auth_material_access() {
   local command_text="$1"
   local analysis_result
+  # Heredoc bytes from a known data consumer are not executable shell text.
+  # Unsupported consumers or expansions remain a denial, never an empty scan.
+  if ! command_text="$(python3 -I -S "$hook_dir/destructive-git-operation.py" --prepare-literals "$command_text")"; then
+    return 0
+  fi
   analysis_result="$(python3 - "$command_text" "$HOME" "$_command_cwd" "$codex_repo_root/scripts/pr-reconciliation.py" "$codex_repo_root/scripts/run-auth-backed.sh" <<'PY'
 from __future__ import annotations
 
@@ -968,14 +973,13 @@ elif git_worktree_risk="$(hook_runtime_destructive_git_operation "$raw_command")
     checkout-paths|checkout-destructive)
       block_reason="Blocked destructive git checkout because it can discard local changes. Use a targeted non-destructive approach."
       ;;
+    broad-delete)
+      block_reason="Blocked broad rm -rf target (root/home). Use a scoped path and confirm intent."
+      ;;
     *)
-      block_reason="Blocked Git command with an unsupported global-option layout because destructive intent cannot be ruled out."
+      block_reason="Blocked unsupported shell command syntax because destructive intent cannot be ruled out."
       ;;
   esac
-elif [[ "$command_lc" == *"rm -rf /"* \
-     || "$command_lc" == *"rm -rf ~"* \
-     || "$command_lc" == *"rm -rf ${home_lc}"* ]]; then
-  block_reason="Blocked broad rm -rf target (root/home). Use a scoped path and confirm intent."
 elif [[ "$command_lc" == *"| sh"* || "$command_lc" == *"| bash"* ]]; then
   block_reason="Blocked pipe-to-shell execution. Download and inspect scripts before execution."
 fi

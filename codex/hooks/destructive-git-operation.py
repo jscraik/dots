@@ -1,158 +1,185 @@
 import re
+import os
+import runpy
 import shlex
+import signal
+import subprocess
 import sys
+from pathlib import Path
+
+SHELL = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/pr-reconciliation.py'))
 
 SHELL_PUNCTUATION = ";&|(){}"
-SHELL_SEPARATORS = {";", "&&", "||", "|", "&", "(", ")", "{", "}"}
-COMMAND_PREDECESSORS = SHELL_SEPARATORS | {
-    "!", "do", "elif", "else", "if", "then", "until", "while"
-}
+SHELL_SEPARATORS = {";", "&&", "||", "|", "|&", "&", "(", ")", "{", "}"}
+COMMAND_PREDECESSORS = SHELL_SEPARATORS
 QUOTED_SEPARATOR_PREFIX = "\x1e"
-ESCAPED_SEPARATOR_MARKERS = {
-    character: chr(0xE000 + index)
-    for index, character in enumerate(SHELL_PUNCTUATION)
-}
-MARKER_SEPARATORS = {
-    marker: character for character, marker in ESCAPED_SEPARATOR_MARKERS.items()
-}
-ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=.*")
+ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\+?=.*")
+
+
+def ansi_literal(command, start):
+    """Decode a literal Bash ANSI-C word without evaluating shell input."""
+    result, index = [], start + 2
+    escapes = dict(zip("abefnrtv\\'\"", "\a\b\x1b\f\n\r\t\v\\'\""))
+    while index < len(command):
+        char = command[index]
+        if char == "'":
+            return shlex.quote(''.join(result).split('\0', 1)[0]), index + 1
+        if char != "\\":
+            result.append(char)
+            index += 1
+            continue
+        index += 1
+        if index >= len(command):
+            break
+        char = command[index]
+        if char in escapes:
+            result.append(escapes[char])
+            index += 1
+        elif char in {'x', 'u', 'U'}:
+            count = {'x': 2, 'u': 4, 'U': 8}[char]
+            match = re.match('[0-9a-fA-F]{1,' + str(count) + '}', command[index + 1:])
+            if not match:
+                raise ValueError('Invalid ANSI-C hex escape')
+            result.append(chr(int(match[0], 16)))
+            index += 1 + len(match[0])
+        elif char in '01234567':
+            match = re.match('[0-7]{1,3}', command[index:])
+            result.append(chr(int(match[0], 8)))
+            index += len(match[0])
+        else:
+            raise ValueError('Unsupported ANSI-C escape')
+    raise ValueError('Unclosed ANSI-C quote')
+
+
+def prepare_literals(command):
+    """Remove literal heredoc data before shell quote/substitution analysis."""
+    output, pending, frames = [], [], []
+    quote, word_start, index, simple_start = None, True, 0, 0
+    while index < len(command):
+        char = command[index]
+        if char == '\\' and quote != "'" and index + 1 < len(command):
+            output.append(command[index:index + 2])
+            index += 2
+            word_start = False
+            continue
+        if quote is None and char == '#' and word_start:
+            end = command.find('\n', index)
+            end = len(command) if end < 0 else end
+            output.append(command[index:end])
+            index = end
+            continue
+        if quote is None and command.startswith("$'", index):
+            value, index = ansi_literal(command, index)
+            output.append(value)
+            word_start = False
+            continue
+        if quote != "'" and command.startswith('$((', index) or quote is None and command.startswith('((', index):
+            raise ValueError('Arithmetic shell syntax requires separate inspection')
+        if quote != "'" and command.startswith('$(', index) and not command.startswith('$((', index):
+            frames.append([quote, 1])
+            output.append('$(')
+            quote, word_start, index = None, True, index + 2
+            simple_start = len(output)
+            continue
+        if quote is None and frames and char in '()':
+            frames[-1][1] += 1 if char == '(' else -1
+            if frames[-1][1] == 0:
+                quote = frames.pop()[0]
+            output.append(char)
+            index += 1
+            word_start = False
+            continue
+        if quote is None and command.startswith('<<', index) and not command.startswith('<<<', index):
+            prefix = shell_split(''.join(output[simple_start:]))
+            executable = wrapper_command_index(prefix, 0, len(prefix))
+            if executable >= len(prefix) or prefix[executable].rsplit('/', 1)[-1] not in {'cat', 'tee', 'printf'}:
+                raise ValueError('Heredoc consumer may execute its input')
+            start = index + 2
+            strip_tabs = command[start:start + 1] == '-'
+            start += int(strip_tabs)
+            while start < len(command) and command[start] in ' \t':
+                start += 1
+            end, delimiter_quote, quoted = start, None, False
+            while end < len(command):
+                current = command[end]
+                if current == '\\' and delimiter_quote != "'":
+                    quoted, end = True, end + 2
+                    continue
+                if current in "'\"":
+                    quoted = True
+                    delimiter_quote = None if delimiter_quote == current else current if delimiter_quote is None else delimiter_quote
+                elif delimiter_quote is None and current in ' \t\r\n;&|<>()':
+                    break
+                end += 1
+            values = shlex.split(command[start:end])
+            if len(values) != 1 or not values[0] or delimiter_quote is not None:
+                raise ValueError('Unsupported heredoc delimiter')
+            pending.append((values[0], quoted, strip_tabs))
+            output.append(' ')
+            index = end
+            continue
+        if quote is None and pending and char in '|&':
+            raise ValueError('Heredoc pipeline requires separate inspection')
+        if char in "'\"":
+            quote = None if quote == char else char if quote is None else quote
+        output.append(char)
+        index += 1
+        if char == '\n' and quote is None and pending:
+            for delimiter, quoted, strip_tabs in pending:
+                body = []
+                while index < len(command):
+                    end = command.find('\n', index)
+                    end = len(command) if end < 0 else end + 1
+                    line = command[index:end]
+                    index = end
+                    if (line.lstrip('\t') if strip_tabs else line).rstrip('\n') == delimiter:
+                        break
+                    body.append(line)
+                else:
+                    raise ValueError('Unclosed heredoc')
+                if not quoted and re.search(r'\$\(|`', ''.join(body).replace('\\\n', '')):
+                    raise ValueError('Unquoted heredoc command expansion requires inspection')
+            pending.clear()
+        word_start = quote is None and char in ' \t\r\n;&|<>()'
+        if quote is None and char in '\n;&|':
+            simple_start = len(output)
+    if pending:
+        raise ValueError('Heredoc body is missing')
+    return ''.join(output)
 
 
 def shell_split(command):
-    protected = []
-    quote = None
-    index = 0
-    while index < len(command):
-        character = command[index]
-        if quote is None and character == chr(35) and (index == 0 or command[index - 1].isspace() or command[index - 1] in SHELL_PUNCTUATION):
-            end = command.find("\n", index)
-            index = len(command) if end < 0 else end
-            continue
-        if quote is not None:
-            protected.append(ESCAPED_SEPARATOR_MARKERS.get(character, character))
-            if character == quote:
-                quote = None
-            elif character == "\\" and quote == '"' and index + 1 < len(command):
-                index += 1
-                protected.append(command[index])
-            index += 1
-            continue
-        if character in {"'", '"'}:
-            quote = character
-            protected.append(character)
-            index += 1
-            continue
-        if character == "\\" and index + 1 < len(command):
-            escaped = command[index + 1]
-            if escaped in ESCAPED_SEPARATOR_MARKERS:
-                protected.append(ESCAPED_SEPARATOR_MARKERS[escaped])
-                index += 2
-                continue
-            if escaped == "\n":
-                index += 2
-                continue
-            protected.extend((character, escaped))
+    """Reuse the packaged lexical boundary contract; retain literal markers."""
+    protected = SHELL["protect_quoted_punctuation"](command)
+    protected = re.sub(r'(?<![^\s;&|()])\d+(?=[<>])', '', protected)
+    lexer = shlex.shlex(protected,
+                        posix=True, punctuation_chars=";&|<>(){}")
+    lexer.whitespace = " \t\r"
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    tokens = []
+    for token in lexer:
+        decoded = SHELL["decode_protected_punctuation"](token)
+        if token != decoded and (decoded and all(char in ';&|<>(){}' for char in decoded) or "\ue100" in token):
+            decoded = QUOTED_SEPARATOR_PREFIX + decoded
+        tokens.append(decoded)
+    executable = wrapper_command_index(tokens, 0, len(tokens))
+    if executable < len(tokens) and tokens[executable].rsplit('/', 1)[-1] in {'bash', 'sh', 'zsh', 'dash', 'ksh'} and any(
+            token in {'<', '<<<', '<&'} for token in tokens):
+        raise ValueError('Shell input redirection requires separate inspection')
+    arguments, index = [], 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in {'<', '>', '>>', '>|', '<&', '>&', '&>', '&>>', '<<<'}:
+            if index + 1 >= len(tokens):
+                raise ValueError('Missing redirection target')
             index += 2
             continue
-        if character == "\n":
-            protected.extend((" ", ";", " "))
-        else:
-            protected.append(character)
+        if token and all(char in '<>' for char in token):
+            raise ValueError('Unsupported redirection syntax')
+        arguments.append(token)
         index += 1
-    protected_command = "".join(protected)
-
-    def lex(posix):
-        lexer = shlex.shlex(
-            protected_command,
-            posix=posix,
-            punctuation_chars=SHELL_PUNCTUATION,
-        )
-        lexer.whitespace_split = True
-        lexer.commenters = ""
-        return list(lexer)
-
-    tokens = lex(True)
-    for index, token in enumerate(tokens):
-        if token in MARKER_SEPARATORS:
-            tokens[index] = QUOTED_SEPARATOR_PREFIX + MARKER_SEPARATORS[token]
-            continue
-        for marker, separator in MARKER_SEPARATORS.items():
-            tokens[index] = tokens[index].replace(marker, separator)
-    return tokens
-
-
-def nested_command_payloads(command):
-    payloads = []
-    index = 0
-    single_quote = False
-    double_quote = False
-    while index < len(command):
-        character = command[index]
-        if not single_quote and not double_quote and character == chr(35) and (index == 0 or command[index - 1].isspace() or command[index - 1] in SHELL_PUNCTUATION):
-            end = command.find("\n", index)
-            index = len(command) if end < 0 else end
-            continue
-        if character == "\\" and not single_quote:
-            index += 2
-            continue
-        if character == "'" and not double_quote:
-            single_quote = not single_quote
-            index += 1
-            continue
-        if character == '"' and not single_quote:
-            double_quote = not double_quote
-            index += 1
-            continue
-        if character == "`" and not single_quote:
-            end = index + 1
-            payload = []
-            while end < len(command):
-                if command[end] == "\\" and end + 1 < len(command):
-                    payload.extend((command[end], command[end + 1]))
-                    end += 2
-                    continue
-                if command[end] == "`":
-                    break
-                payload.append(command[end])
-                end += 1
-            if end >= len(command):
-                raise ValueError("unclosed backtick substitution")
-            payloads.append("".join(payload))
-            index = end + 1
-            continue
-        if (
-            character == "$"
-            and not single_quote
-            and index + 1 < len(command)
-            and command[index + 1] == "("
-            and not command.startswith("$((", index)
-        ):
-            end = index + 2
-            depth = 1
-            nested_single_quote = False
-            nested_double_quote = False
-            while end < len(command) and depth:
-                nested_character = command[end]
-                if nested_character == "\\" and not nested_single_quote:
-                    end += 2
-                    continue
-                if nested_character == "'" and not nested_double_quote:
-                    nested_single_quote = not nested_single_quote
-                elif nested_character == '"' and not nested_single_quote:
-                    nested_double_quote = not nested_double_quote
-                elif not nested_single_quote and not nested_double_quote:
-                    if nested_character == "(":
-                        depth += 1
-                    elif nested_character == ")":
-                        depth -= 1
-                end += 1
-            if depth:
-                raise ValueError("unclosed command substitution")
-            payloads.append(command[index + 2:end - 1])
-            index = end
-            continue
-        index += 1
-    return payloads
+    return arguments
 
 
 def shell_payload_index(tokens, start=0):
@@ -169,40 +196,63 @@ def shell_payload_index(tokens, start=0):
             continue
         if not option.startswith("-") or option == "--" or option in SHELL_SEPARATORS:
             break
-        if not option.startswith("--") and "c" in option[1:]:
-            payload = index + 1
-            if payload < len(tokens) and tokens[payload] == "--":
-                payload += 1
-            if payload < len(tokens) and tokens[payload] not in SHELL_SEPARATORS:
-                return payload
-            return None
+        if not option.startswith("--"):
+            cluster = option[1:]
+            values = cluster.count("o") + cluster.count("O")
+            payload = index + 1 + values
+            if payload > len(tokens):
+                raise ValueError("Shell option requires a value")
+            if "c" in cluster:
+                if payload < len(tokens) and tokens[payload] == "--":
+                    payload += 1
+                if payload < len(tokens) and tokens[payload] not in SHELL_SEPARATORS:
+                    return payload
+                raise ValueError("Shell command payload is missing")
+            index += 1 + values
+            continue
         index += 1
     return None
 
 
-def expose_nested_shell_commands(tokens, depth=0):
-    if depth >= 4:
-        raise ValueError("Nested shell inspection limit exceeded")
+def inspect_shell(command, depth=0, budget=None):
+    """Inspect every executed shell/substitution with the same bounded pipeline."""
+    if budget is None:
+        budget = [0]
+    budget[0] += len(command)
+    if depth >= 12 or budget[0] > 262144:
+        raise ValueError("Shell inspection budget exceeded")
+    prepared = prepare_literals(command)
+    if SHELL['declared_functions'](shell_split(prepared)):
+        raise ValueError('Shell function execution requires separate inspection')
+    contexts = SHELL["command_contexts"](prepared)
+    if contexts is None:
+        raise ValueError("Unsupported shell syntax")
     expanded = []
-    index = 0
-    while index < len(tokens):
-        token = tokens[index]
-        expanded.append(token)
-        start = index
-        while start > 0 and tokens[start - 1] not in COMMAND_PREDECESSORS:
-            start -= 1
-        if (token.rsplit("/", 1)[-1] not in {"bash", "sh", "zsh"}
-                or wrapper_command_index(tokens, start, index + 1) != index):
-            index += 1
+    for context, substitutions, marker in contexts:
+        tokens = [token.replace(marker, "${__codex_substitution__}") for token in shell_split(context)]
+        while tokens and tokens[0] in {"!", "if", "while", "until", "then", "do", "else", "elif"}:
+            tokens.pop(0)
+        if not tokens:
             continue
-        command_index = shell_payload_index(tokens, index)
-        if command_index is None:
-            index += 1
-            continue
-        nested = shell_split(tokens[command_index])
+        if ASSIGNMENT.fullmatch(tokens[0]) and any(unsafe_git_environment(token) for token in tokens
+                                                  if ASSIGNMENT.fullmatch(token)):
+            raise ValueError('Sensitive Git environment assignment')
+        executable_index = wrapper_command_index(tokens, 0, len(tokens))
+        if executable_index < len(tokens):
+            executable = tokens[executable_index].rsplit("/", 1)[-1].lower()
+            if executable in {"bash", "sh", "zsh", "dash", "ksh"}:
+                payload = shell_payload_index(tokens, executable_index)
+                if payload is not None:
+                    expanded.extend(inspect_shell(tokens[payload], depth + 1, budget))
+                    expanded.append(";")
+            if executable in {"export", "declare", "typeset", "readonly"} and any(
+                    unsafe_git_environment(token, bare=True) for token in tokens[executable_index + 1:]):
+                raise ValueError("Program-valued Git environment mutation")
+        expanded.extend(tokens)
         expanded.append(";")
-        expanded.extend(expose_nested_shell_commands(nested, depth + 1))
-        index = command_index + 1
+        for payload in substitutions:
+            expanded.extend(inspect_shell(payload, depth + 1, budget))
+            expanded.append(";")
     return expanded
 
 
@@ -211,9 +261,39 @@ def wrapper_command_index(tokens, start, limit):
     while index < limit and ASSIGNMENT.fullmatch(tokens[index]):
         index += 1
     while index < limit:
-        if index >= limit:
-            break
+        if ASSIGNMENT.fullmatch(tokens[index]):
+            index += 1
+            continue
+        if tokens[index].isdigit() and index + 1 < limit and tokens[index + 1] in {">", ">>", "<", ">&", "<&"}:
+            index += 1
+        if tokens[index] in {">", ">>", "<", ">&", "<&"}:
+            if index + 1 >= limit:
+                raise ValueError("Missing redirection target")
+            index += 2
+            continue
         executable = tokens[index].rsplit("/", 1)[-1]
+        if executable in {"eval", "xargs", "source", ".", "trap", "alias", "unalias"}:
+            raise ValueError("Unsupported command-producing wrapper")
+        if executable == "nohup":
+            index += 1
+            if index < limit and tokens[index] == "--":
+                index += 1
+            continue
+        if executable == "nice":
+            index += 1
+            if index < limit and tokens[index] in {"-n", "--adjustment"}:
+                index += 2
+            elif index < limit and (re.fullmatch(r"-[0-9]+", tokens[index]) or tokens[index].startswith("--adjustment=")):
+                index += 1
+            continue
+        if executable in {"timeout", "gtimeout"}:
+            index += 1
+            while index < limit and tokens[index].startswith("-"):
+                index += 2 if tokens[index] in {"-k", "-s", "--kill-after", "--signal"} else 1
+            if index >= limit or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)?[smhd]?", tokens[index]):
+                raise ValueError("Unsupported timeout duration")
+            index += 1
+            continue
         if executable in {"exec", "time"}:
             index += 1
             while index < limit and tokens[index] in {"--", "-p", "-l", "-c"}:
@@ -225,13 +305,19 @@ def wrapper_command_index(tokens, start, limit):
             index += 1
             while index < limit:
                 token = tokens[index]
+                if token.startswith(("-S", "--split-string")):
+                    raise ValueError("Unsupported env split-string payload")
                 if ASSIGNMENT.fullmatch(token):
+                    if unsafe_git_environment(token):
+                        raise ValueError('Sensitive Git environment assignment')
                     index += 1
                     continue
                 if token == "--":
                     index += 1
                     break
-                if token in {"-u", "--unset", "-C", "--chdir"}:
+                if token in {'-C', '--chdir'} or token.startswith('--chdir='):
+                    raise ValueError('Directory-changing wrapper requires separate inspection')
+                if token in {"-u", "--unset"}:
                     index += 2
                     continue
                 if token.startswith("-"):
@@ -248,6 +334,8 @@ def wrapper_command_index(tokens, start, limit):
             }
             while index < limit:
                 token = tokens[index]
+                if token in {'-D', '-R'} or token.startswith(('--chdir', '--chroot')):
+                    raise ValueError('Directory-changing wrapper requires separate inspection')
                 if token == "--":
                     index += 1
                     break
@@ -259,7 +347,7 @@ def wrapper_command_index(tokens, start, limit):
                     continue
                 break
             continue
-        if executable == "command":
+        if executable in {"command", "builtin"}:
             index += 1
             while index < limit and tokens[index] in {"--", "-p"}:
                 index += 1
@@ -268,29 +356,26 @@ def wrapper_command_index(tokens, start, limit):
     return index
 
 
-def is_git_command(tokens, index):
+def is_git_command(tokens, index, start):
     if tokens[index].rsplit("/", 1)[-1].lower() != "git":
         return False
-    start = index
-    while start > 0 and tokens[start - 1] not in COMMAND_PREDECESSORS:
-        start -= 1
     return wrapper_command_index(tokens, start, index + 1) == index
 
 
-def has_dynamic_git_config_environment(tokens, index):
-    start = index
-    while start > 0 and tokens[start - 1] not in COMMAND_PREDECESSORS:
-        start -= 1
+def has_dynamic_git_config_environment(tokens, index, start):
     for token in tokens[start:index]:
-        if not ASSIGNMENT.fullmatch(token):
-            continue
-        name = token.split("=", 1)[0]
-        if name == "GIT_CONFIG_PARAMETERS" or re.fullmatch(
-            r"GIT_CONFIG_(?:COUNT|KEY_[0-9]+|VALUE_[0-9]+)",
-            name,
-        ):
+        if unsafe_git_environment(token):
             return True
     return False
+
+
+def unsafe_git_environment(token, bare=False):
+    if not ASSIGNMENT.fullmatch(token) and not bare:
+        return False
+    name = token.split("=", 1)[0].rstrip("+")
+    return name in {"GIT_CONFIG_PARAMETERS", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_NAMESPACE", "GIT_PAGER", "PAGER", "GIT_EXTERNAL_DIFF",
+                    "GIT_EDITOR", "GIT_SEQUENCE_EDITOR", "GIT_SSH_COMMAND", "GIT_SSH"} or bool(
+        re.fullmatch(r"GIT_CONFIG_(?:COUNT|KEY_[0-9]+|VALUE_[0-9]+)", name))
 
 
 def checkout_force_option(token):
@@ -309,8 +394,8 @@ def unsafe_config_override(value, require_value=False):
         return True
     key = value.split("=", 1)[0].lower()
     return (not key or key.startswith(("alias.", "include.", "includeif.", "credential.", "filter.", "pager."))
-            or key in {"core.pager", "core.editor", "core.sshcommand", "core.fsmonitor", "core.hookspath", "sequence.editor", "diff.external"}
-            or key.startswith("diff.") and key.endswith(".command")
+            or key in {"core.pager", "core.editor", "core.sshcommand", "core.fsmonitor", "core.hookspath", "sequence.editor", "diff.external", "core.askpass", "core.gitproxy", "gpg.program", "gpg.ssh.program"}
+            or key.startswith("diff.") and key.endswith((".command", ".textconv"))
             or key.startswith("merge.") and key.endswith(".driver"))
 
 
@@ -371,29 +456,73 @@ def git_subcommand(tokens, index):
     return "none", None
 
 
+def inspection_timeout(_signum, _frame):
+    raise ValueError("Shell inspection time budget exceeded")
+
+
+def known_checkout_ref(tokens, git_index, subcommand_index, operand):
+    # Never guess a ref in a different directory after shell state changes.
+    if any(token in {'cd', 'chdir', 'pushd', 'popd'} for token in tokens):
+        return False
+    environment = {'PATH': '/usr/bin:/bin', 'HOME': str(Path.home()),
+                   'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': os.devnull,
+                   'GIT_TERMINAL_PROMPT': '0'}
+    try:
+        result = subprocess.run(['/usr/bin/git', '--no-pager', '-c', 'core.fsmonitor=false',
+            *tokens[git_index + 1:subcommand_index], 'rev-parse', '--verify', '--end-of-options',
+            operand + '^{commit}'], env=environment, capture_output=True, text=True,
+            timeout=1, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0 and bool(re.fullmatch(r'[0-9a-f]{40,64}\n?', result.stdout))
+
+
+signal.signal(signal.SIGALRM, inspection_timeout)
+signal.alarm(3)
+if len(sys.argv) > 1 and sys.argv[1] == '--prepare-literals':
+    try:
+        if len(sys.argv[2]) > 1048576:
+            raise ValueError('Shell transport input exceeds inspection budget')
+        print(prepare_literals(sys.argv[2]))
+    except (ValueError, IndexError):
+        raise SystemExit(2)
+    raise SystemExit(0)
+
 try:
     command = sys.argv[1]
+    if len(command) > 1048576:
+        raise ValueError("Shell transport input exceeds inspection budget")
+    command = prepare_literals(command)
     if len(command) > 65536:
         raise ValueError("Shell input exceeds inspection budget")
-    command_tokens = expose_nested_shell_commands(shell_split(command))
-    pending_payloads = nested_command_payloads(command)
-    inspected_bytes = len(command)
-    while pending_payloads:
-        payload = pending_payloads.pop(0)
-        inspected_bytes += len(payload)
-        if inspected_bytes > 262144:
-            raise ValueError("Command substitution inspection budget exceeded")
-        command_tokens.append(";")
-        command_tokens.extend(expose_nested_shell_commands(shell_split(payload)))
-        pending_payloads.extend(nested_command_payloads(payload))
+    command_tokens = inspect_shell(command)
 except (ValueError, IndexError):
     print("unsupported")
     raise SystemExit(0)
 
+segment_start = 0
 for git_index in range(len(command_tokens)):
-    if not is_git_command(command_tokens, git_index):
+    if command_tokens[git_index] in COMMAND_PREDECESSORS:
+        segment_start = git_index + 1
         continue
-    if has_dynamic_git_config_environment(command_tokens, git_index):
+    if command_tokens[git_index].rsplit('/', 1)[-1].lower() == 'rm' and wrapper_command_index(
+            command_tokens, segment_start, git_index + 1) == git_index:
+        arguments = []
+        for token in command_tokens[git_index + 1:]:
+            if token in SHELL_SEPARATORS:
+                break
+            arguments.append(token)
+        recursive = any(token in {'--recursive'} or token.startswith('-') and not token.startswith('--')
+                        and any(char in token[1:] for char in 'rR') for token in arguments)
+        force = any(token == '--force' or token.startswith('-') and not token.startswith('--')
+                    and 'f' in token[1:] for token in arguments)
+        if recursive and force and any(token.startswith(('/', '~')) or token in {'$HOME', '${HOME}'}
+                                       for token in arguments):
+            print('broad-delete')
+            raise SystemExit(0)
+    if not is_git_command(command_tokens, git_index, segment_start):
+        continue
+    if has_dynamic_git_config_environment(command_tokens, git_index, segment_start):
         print("unsupported")
         raise SystemExit(0)
     status, parsed = git_subcommand(command_tokens, git_index)
@@ -403,7 +532,18 @@ for git_index in range(len(command_tokens)):
     if status != "command":
         continue
     subcommand, subcommand_index = parsed
+    if subcommand == "config":
+        arguments = []
+        for token in command_tokens[subcommand_index + 1:]:
+            if token in SHELL_SEPARATORS:
+                break
+            arguments.append(token)
+        if not any(token in {"--get", "--get-all", "--get-regexp", "--list", "-l"} for token in arguments):
+            if any(not token.startswith("-") and unsafe_config_override(token) for token in arguments):
+                print("unsupported")
+                raise SystemExit(0)
     options = True
+    checkout_value = False
     for token in command_tokens[subcommand_index + 1:]:
         if token in SHELL_SEPARATORS:
             break
@@ -415,6 +555,15 @@ for git_index in range(len(command_tokens)):
             continue
         if not options:
             continue
+        if checkout_value:
+            checkout_value = False
+            continue
+        if subcommand == 'checkout' and token in {'-b', '-B', '--orphan'}:
+            checkout_value = True
+            continue
+        if subcommand == "checkout" and token in {".", ".."}:
+            print("checkout-paths")
+            raise SystemExit(0)
         if subcommand in {"checkout", "reset"} and (
             "$" in token or "`" in token or any(marker in token for marker in "*?[")
         ):
@@ -432,5 +581,10 @@ for git_index in range(len(command_tokens)):
         ):
             print("checkout-destructive")
             raise SystemExit(0)
+        if subcommand == 'checkout' and not token.startswith('-') and not known_checkout_ref(
+                command_tokens, git_index, subcommand_index, token):
+            print('checkout-paths')
+            raise SystemExit(0)
 
+signal.alarm(0)
 print("safe")

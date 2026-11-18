@@ -143,14 +143,13 @@ elif git_worktree_risk="$(hook_runtime_destructive_git_operation "$raw_command")
     checkout-paths|checkout-destructive)
       deny_reason="Blocked approval request for destructive git checkout because it can discard local changes."
       ;;
+    broad-delete)
+      deny_reason="Blocked approval request for broad rm -rf on root/home scope."
+      ;;
     *)
-      deny_reason="Blocked approval request for Git command with an unsupported global-option layout because destructive intent cannot be ruled out."
+      deny_reason="Blocked approval request for unsupported shell command syntax because destructive intent cannot be ruled out."
       ;;
   esac
-elif [[ "$command_lc" == *"rm -rf /"* \
-     || "$command_lc" == *"rm -rf ~"* \
-     || "$command_lc" == *"rm -rf ${home_lc}"* ]]; then
-  deny_reason="Blocked approval request for broad rm -rf on root/home scope."
 elif [[ "$command_lc" == *"| sh"* || "$command_lc" == *"| bash"* ]]; then
   deny_reason="Blocked approval request for pipe-to-shell execution. Download and inspect script content first."
 elif [[ "$command_lc" == *"curl "* && "$command_lc" == *"sh -c"* ]]; then
