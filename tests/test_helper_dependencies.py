@@ -581,6 +581,24 @@ class HelperDependencyTests(unittest.TestCase):
         self.assertIn('validator unavailable', unavailable.stderr)
         self.assertEqual(config.read_bytes(), valid)
 
+    def test_nested_hook_home_does_not_reuse_parent_runtime_aliases(self):
+        fixture = self.fixture
+        projected = fixture.project()
+        self.assertEqual(projected.returncode, 0, projected.stdout + projected.stderr)
+        child = fixture.home / "optional-runtime-home"
+        child.mkdir()
+        inherited = fixture.helper(
+            "admit-hook-fixture.py", "{}", extra_env={"HOME": str(child)}
+        )
+        self.assertNotEqual(inherited.returncode, 0)
+        self.assertIn("Mutable fixture resource directories", inherited.stderr)
+        isolated = fixture.helper(
+            "admit-hook-fixture.py", "{}",
+            extra_env={"HOME": str(child), "CODEX_HOME": ""},
+        )
+        self.assertEqual(isolated.returncode, 0, isolated.stdout + isolated.stderr)
+        fixture.assert_preserved(self)
+
     def test_full_hook_harness_and_fast_aggregate(self):
         fixture = self.fixture
         fixture.prepare_governance_inputs()

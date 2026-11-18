@@ -1967,7 +1967,7 @@ printf '#!/bin/sh\nprintf invoked > %q\n' "$lifeos_untrusted_bun_marker" > "$lif
 chmod +x "$lifeos_probe_home/.local/bin/bun"
 lifeos_missing_bun_output="$(
   printf '%s' '{"hook_event_name":"UserPromptSubmit","cwd":"'"$lifeos_project_root"'","prompt":"Optional runtime unavailable."}' \
-    | HOME="$lifeos_probe_home" CODEX_LIFEOS_DIR="$lifeos_test_root" CODEX_LIFEOS_PROJECT_ROOT="$lifeos_project_root" CODEX_LIFEOS_BUN="" run_fixture_hook hooks/lifeos-codex.sh
+    | HOME="$lifeos_probe_home" CODEX_HOME="" CODEX_LIFEOS_DIR="$lifeos_test_root" CODEX_LIFEOS_PROJECT_ROOT="$lifeos_project_root" CODEX_LIFEOS_BUN="" run_fixture_hook hooks/lifeos-codex.sh
 )"
 assert_jq "$lifeos_missing_bun_output" '.continue == true and (has("hookSpecificOutput") | not)' "LifeOS without a protected default Bun should return no context"
 if [[ -e "$lifeos_untrusted_bun_marker" ]]; then
