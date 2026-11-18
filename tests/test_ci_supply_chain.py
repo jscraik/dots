@@ -39,8 +39,12 @@ class CiSupplyChainTests(unittest.TestCase):
             package, version = requirement.split("==", 1)
             hashes = []
             while index < len(lock_lines) and lock_lines[index].lstrip().startswith("--hash="):
-                hashes.append(lock_lines[index].strip().removesuffix("\\").strip())
+                hash_line = lock_lines[index].strip()
                 index += 1
+                continues = index < len(lock_lines) and lock_lines[index].lstrip().startswith("--hash=")
+                self.assertEqual(hash_line.endswith("\\"), continues,
+                                 f"{package} has a detached hash line: {hash_line!r}")
+                hashes.append(hash_line.removesuffix("\\").strip())
             self.assertTrue(hashes, f"{package} is missing hashes")
             self.assertTrue(all(re.fullmatch(r"--hash=sha256:[0-9a-f]{64}", item) for item in hashes))
             packages[package.lower().replace("_", "-")] = version
