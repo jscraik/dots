@@ -81,15 +81,22 @@ class HookHandlerTests(unittest.TestCase):
 
     def test_workspace_tool_roots_cannot_replace_hook_dependencies(self):
         marker = self.fixture.home / 'poisoned-hook-dependency'
-        roots = (self.fixture.home / '.local/bin', self.fixture.home / '.local/share/mise/shims')
+        roots = (self.fixture.home / '.local/bin', self.fixture.home / '.local/share/mise/shims',
+                 self.fixture.home / '.venvs/pyyaml/bin',
+                 self.fixture.home / '.local/share/mise/installs/python/latest/bin')
         poison = '#!/bin/sh\nprintf poisoned >> ' + shlex.quote(str(marker)) + '\nexit 97\n'
         for root in roots:
             root.mkdir(parents=True, exist_ok=True)
-            for name in ('python3', 'jq', 'git', 'gh'):
+            for name in ('python', 'python3', 'jq', 'git', 'gh'):
                 binary = root / name
                 binary.write_text(poison)
                 binary.chmod(0o755)
 
+        for name in ('json', 'tomllib', 'yaml', 'pathlib'):
+            (self.fixture.repo / (name + '.py')).write_text(
+                'import os\nopen(' + repr(str(marker)) + ', "w").write("poisoned")\n'
+                'raise RuntimeError("workspace import must be isolated")\n')
+        self.fixture.env['CODEX_VALIDATION_PYTHON'] = str(self.fixture.home / '.venvs/pyyaml/bin/python')
         self.assertTrue(self.output('pre-tool-use-guard.sh')['continue'])
         self.assertTrue(self.output('session-start.sh', {'source': 'startup'})['continue'])
         readiness = self.output('pr-readiness-guard.sh',

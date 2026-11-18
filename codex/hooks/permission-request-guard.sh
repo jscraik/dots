@@ -82,7 +82,7 @@ canonicalize_edit_target() {
   local target="$1"
   local base_dir="${_command_cwd:-$PWD}"
 
-  python3 - "$base_dir" "$target" <<'PY'
+  python3 -I -S - "$base_dir" "$target" <<'PY'
 import sys
 from pathlib import Path
 

@@ -333,3 +333,9 @@
 !/tests/test_pending_fixes.py
 !/codex/scripts/tests/test_pr_maintainer_acceptance.py
 !/codex/schemas/pr-readiness.v1.schema.json
+!/codex/templates/hook-toolchain-lock.json
+!/codex/scripts/prepare-hook-toolchain.py
+!/tests/test_hook_toolchain.py
+!/codex/scripts/install-hook-toolchain.py
+!/requirements/hook-toolchain.lock
+!/codex/scripts/validate-hook-toolchain.py

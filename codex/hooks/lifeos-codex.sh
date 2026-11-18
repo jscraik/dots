@@ -45,7 +45,7 @@ if [[ -z "$prompt" || -z "$bun_bin" || ! -f "$retriever" || ! "$retriever_timeou
 fi
 
 retrieved="$({
-  LIFEOS_DIR="$lifeos_root" python3 - "$retriever_timeout_seconds" "$bun_bin" "$retriever" "$prompt" <<'PY'
+  LIFEOS_DIR="$lifeos_root" python3 -I -S - "$retriever_timeout_seconds" "$bun_bin" "$retriever" "$prompt" <<'PY'
 import os
 import re
 import subprocess

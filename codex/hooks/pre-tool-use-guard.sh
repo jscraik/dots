@@ -95,7 +95,7 @@ run_block() {
     }'
 }
 tokenize_command() {
-  python3 - "$1" <<'PY'
+  python3 -I -S - "$1" <<'PY'
 import shlex
 import sys
 import re
@@ -666,7 +666,7 @@ is_git_no_verify_bypass=false
 canonicalize_edit_target() {
   local target="$1"
   local base_dir="${_command_cwd:-$PWD}"
-  python3 - "$base_dir" "$target" <<'PY'
+  python3 -I -S - "$base_dir" "$target" <<'PY'
 import sys
 from pathlib import Path
 
@@ -702,7 +702,7 @@ is_sensitive_edit_target() {
 contains_direct_auth_material_access() {
   local command_text="$1"
   local analysis_result
-  analysis_result="$(python3 - "$command_text" "$HOME" "$_command_cwd" "$codex_repo_root/scripts/pr-reconciliation.py" "$codex_repo_root/scripts/run-auth-backed.sh" <<'PY'
+  analysis_result="$(python3 -I -S - "$command_text" "$HOME" "$_command_cwd" "$codex_repo_root/scripts/pr-reconciliation.py" "$codex_repo_root/scripts/run-auth-backed.sh" <<'PY'
 from __future__ import annotations
 
 import fnmatch

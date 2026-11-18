@@ -137,6 +137,34 @@ checked. Rehearsals still reject native metadata paths outside their owned home.
 
 ## First-machine installation candidate
 
+### Protected hook tools prerequisite
+
+Prepare the complete Python, jq and GitHub CLI payload on its native platform
+using the reviewed artifact lock. Supported targets are macOS ARM64 and Linux
+amd64. The protected bootstrap requires `/usr/bin/python3` version 3.9 or newer
+(Command Line Tools Python on macOS). Installation preparation checks this
+route before publishing hooks. Preparation uses disposable storage and installs the hash-locked Python
+validation dependencies inside that payload.
+
+```sh
+python3 -I codex/scripts/prepare-hook-toolchain.py --platform darwin-arm64 --output /tmp/dots-hook-tools
+python3 -I codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-tools --inspect
+```
+
+Review the payload and the printed inventory digest before the separate admin
+step. Supply that exact digest as `REVIEWED_DIGEST`. Provisioning requires
+system Python with isolated mode and publishes a root-owned version under
+`/opt/dots-hook-tools`. `--select` explicitly selects that version for hooks.
+
+```sh
+sudo /usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-tools --reviewed-sha256 REVIEWED_DIGEST --select
+```
+
+Complete this prerequisite before preparing a new Codex installation. Existing
+mise-only installations need this admin step before adopting these hook
+launchers. Full installation and Linux CI verification of this candidate are
+pending.
+
 `scripts/install-codex.py` provides one local procedure: `prepare`, `apply`,
 `check` and `rollback`. It reuses the existing projector, full policy validator,
 Desktop-setting preservation and atomic config/hook publishers. It installs no

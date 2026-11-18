@@ -36,7 +36,7 @@
     {
       "path": "README.md",
       "prior_candidate_sha256": "ced157af36e675f8d6c890a5b04a70805e0835432efc957efc85c92f1e98ab01",
-      "candidate_sha256": "cb365bac431d9009774637865b81fc2e08baeb9a9027e08b1d917c3cc7c925f1",
+      "candidate_sha256": "07e45b903c66e66f826e6b687bf1363d4b63f66d26ecc8322032d9673c46c6d3",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Document the native distinction between on-disk hook consent and loaded-thread acceptance, verified by a disposable native regression without a model turn. Document the two additional exact native app metadata names; preserve the existing installation and permission boundaries. Document app-bundled CLI validation and isolated pinned dependency setup."
     },
     {
@@ -186,7 +186,7 @@
     {
       "path": "codex/scripts/validate-codex-config.py",
       "prior_candidate_sha256": "e9cdebab1d97447c1ac3ff1dce5894c7c13ccf095c2a1cc8e44716c103768e61",
-      "candidate_sha256": "1682a4a238d455a77439b8444eccc5899f730bcf37a43d268b2e101610836ee5",
+      "candidate_sha256": "295dbc7490de70e1b985da090822aaede82835ad8d6ae3f1349b3deffbb9bb57",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks. Reject workspace roots that contain fixed security-hook dependency directories."
     },
     {
@@ -202,7 +202,7 @@
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "bb17498300750611388aaba0594026f583c287d55d9760e55208250d6bb0cca1",
+      "candidate_sha256": "001f2a7505952edd0727589646d7b40e820c27ac2805d85f4e364a727fb30a40",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment. Verify writable tool roots cannot replace hook dependencies."
     },
     {

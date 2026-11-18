@@ -50,6 +50,15 @@ jobs:
           name: Verify public guidance and instruction links
           command: /tmp/dots-validation-venv/bin/python -B scripts/check-public-guidance.py
       - run:
+          name: Provision protected hook toolchain in the disposable executor
+          command: |
+            /tmp/dots-validation-venv/bin/python -I codex/scripts/prepare-hook-toolchain.py --platform linux-amd64 --output /tmp/dots-hook-toolchain
+            reviewed_digest="$(/usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-toolchain --inspect)"
+            sudo /usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-toolchain --reviewed-sha256 "$reviewed_digest" --select
+            /usr/bin/python3 -I -S codex/scripts/validate-hook-toolchain.py
+            sudo apt-get update
+            sudo apt-get install --yes bubblewrap
+      - run:
           name: Test Linux CLI compatibility and disposable-home staging
           no_output_timeout: 15m
           command: |

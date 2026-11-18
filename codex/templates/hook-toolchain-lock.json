@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "version": "20261118-v1",
+  "platforms": {
+    "darwin-arm64": {
+      "python": {
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.12.16%2B20261110-aarch64-apple-darwin-install_only.tar.gz",
+        "sha256": "e956e60bc9465d577ef8062059aa05cd3a2665b4b8678a2ed24e432368330b8f"
+      },
+      "jq": {
+        "url": "https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-macos-arm64",
+        "sha256": "2d75340ba57a4b4b4c8708a21c2dc8e958a48aaa8bba13b27f77f6e4c0eca07e"
+      },
+      "gh": {
+        "url": "https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_macOS_arm64.zip",
+        "sha256": "da922c20d1792e5b2cbf375593d7a658acf034c12c84e007e71c76ef959c337e"
+      }
+    },
+    "linux-amd64": {
+      "python": {
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.12.16%2B20261110-x86_64-unknown-linux-gnu-install_only.tar.gz",
+        "sha256": "c2f87d4b4e8db3abddb0f116c6ccfc503d0cbdbb9ee8faacddad1b679ec12e99"
+      },
+      "jq": {
+        "url": "https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-linux-amd64",
+        "sha256": "b1c22172dd303f3be49e935aa56aa48a8b7a46e0bc838b4997d3bb451495870f"
+      },
+      "gh": {
+        "url": "https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_amd64.tar.gz",
+        "sha256": "bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386"
+      }
+    }
+  }
+}

@@ -365,6 +365,14 @@ def projector(state, *args, lock_fd=None):
 
 
 def assemble(args):
+    trusted_tools = subprocess.run(
+        ['/usr/bin/python3', '-I', '-S', str(ROOT / 'codex/scripts/validate-hook-toolchain.py')],
+        env={'PATH': '/usr/bin:/bin:/usr/sbin:/sbin'},
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    if trusted_tools.returncode:
+        raise ValueError('Provision and select the protected hook toolchain before preparation: '
+                         + trusted_tools.stderr.strip())
     home = SCOPE.target_home(args.home, args.mode)
     state = SCOPE.physical(args.state_dir)
     if (not state.is_relative_to(home) or state == home

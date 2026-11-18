@@ -88,7 +88,7 @@ fi
 
 source "$script_dir/codex-validation-lib.sh"
 python_bin="$(codex_select_validation_python "audit-project-codex-config-overrides")"
-canonical_resolved="$("$python_bin" -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$CANONICAL_CONFIG")"
+canonical_resolved="$("$python_bin" -I -B -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$CANONICAL_CONFIG")"
 
 declare -a git_roots=()
 declare -a failures=()
@@ -155,7 +155,7 @@ is_allowed_project_config() {
 }
 
 validate_allowed_project_config() {
-  "$python_bin" - "$script_dir/validate-codex-config.py" "$1" <<'PY'
+  "$python_bin" -I -B - "$script_dir/validate-codex-config.py" "$1" <<'PY'
 import importlib.util
 import sys
 from pathlib import Path
@@ -202,7 +202,7 @@ audit_project() {
       remove_project_config "$project_root" "$project_config" "$config_display" || project_failed=1
     fi
   elif [[ -L "$project_config" ]]; then
-    resolved="$("$python_bin" -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$project_config")"
+    resolved="$("$python_bin" -I -B -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$project_config")"
     config_display=".codex/config.toml symlink to ${resolved}"
     if [[ "$resolved" == "$canonical_resolved" ]]; then
       config_display=".codex/config.toml symlink to full user config"

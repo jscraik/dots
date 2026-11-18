@@ -18,7 +18,7 @@
       "transformations": [
         "new fixed root-owned hook dependency path bootstrap"
       ],
-      "candidate_sha256": "6bd79fd801f66cecaf350b35fa8009d3ae6695b50e03306d18dda759dae4cf89"
+      "candidate_sha256": "7ffa4c02ba3c2e5245b0ad868dbffd642a6a3b0726fc89e0d4a40ea144ea41ca"
     },
     {
       "path": "codex/hooks/lifeos-codex.sh",
@@ -28,7 +28,7 @@
         "fixture scope and event admission before handler actions",
         "fixed root-owned hook dependency path and absolute Bash launch"
       ],
-      "candidate_sha256": "b62c5f0665b1325650369ac2e1684d1a124fe680663a076f9f3334bf59ed020a"
+      "candidate_sha256": "6cf85c0aa5a26876de06e37a1c986adc74d03b634fff63eac2449f648fa266e5"
     },
     {
       "path": "codex/hooks/permission-request-guard.sh",
@@ -38,7 +38,7 @@
         "fixture scope and event admission before handler actions",
         "fixed root-owned hook dependency path and absolute Bash launch"
       ],
-      "candidate_sha256": "76959a96e585073e074287cf17867179a517ebea3fa0a655588a9c88b5019b9f"
+      "candidate_sha256": "be34f7b8051bc1f28ceeea29b7af46149aad6614b32dee1aec11226924db04f1"
     },
     {
       "path": "codex/hooks/post-compact-recorder.sh",
@@ -120,7 +120,7 @@
         "fixture scope and event admission before handler actions",
         "fixed root-owned hook dependency path and absolute Bash launch"
       ],
-      "candidate_sha256": "affad7ee983f9d6a1c8371ec5923b75a0fec44d961a0c368b9389a47de4864e8"
+      "candidate_sha256": "79d6f96b0efb7b089215903447a76358cf2fa68248e32e58417ae2a30d8959b7"
     },
     {
       "path": "codex/hooks/session-start.sh",
@@ -242,7 +242,7 @@
         "private project-config exception requires explicit local input and original validation",
         "fixture admission including positional dev-root"
       ],
-      "candidate_sha256": "7df66f03c231558cdc3894dfc5f9ae7500b715e2f5e5e499cae7f7017e251ee6"
+      "candidate_sha256": "5ad6fc22d933bd67b3fb879f11b1789380b392a7b95dca302e45ed6080bf5efa"
     },
     {
       "path": "codex/scripts/run-auth-backed.sh",
@@ -311,7 +311,7 @@
       "transformations": [
         "fixture admission for shell runtime dependency"
       ],
-      "candidate_sha256": "6d1411c3c54a635fea15ce1210bb5937ff69d6b8dbba42a4d2c5d2f012eec5f3"
+      "candidate_sha256": "deaa41c6b4cbf3b561065d9b3ad635189497bbd9e04bebd4b8159b6be97be8f7"
     },
     {
       "path": "codex/scripts/codex-validation-python-uv.sh",
@@ -367,6 +367,11 @@
         "Retain pinned local binary and 1Password execution; admit fixture or fixed packaged context and each provider path before execution."
       ],
       "candidate_sha256": "83c374937bbf77514861cf5c3abcf26adec3b1b2f3b6700014bf84fe65c02f77"
+    },
+    {
+      "path": "codex/scripts/validate-hook-toolchain.py",
+      "origin": "Protected hook toolchain admission",
+      "candidate_sha256": "00dd5016dc765291969a9547bdb8dd11591352fc5aafce06576980f25992a6fe"
     }
   ],
   "external_boundaries": [

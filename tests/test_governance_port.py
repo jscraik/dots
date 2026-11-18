@@ -18,6 +18,7 @@ SPEC = importlib.util.spec_from_file_location('generator', ROOT / 'scripts/gener
 GEN = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(GEN)
 DEPENDENCIES = ('scripts/validate-codex-config.py', 'scripts/repair-runtime-config-drift.py',
+                'scripts/validate-hook-toolchain.py',
                 'scripts/migration_scope.py', 'schemas/config.schema.json',
                 'instructions/compact-prompt.md', 'scripts/project-codex-hooks.py',
                 'model-catalogs/oss-local-qwen35.json',
