@@ -64,6 +64,15 @@ class HookHandlerTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertNotIn('synthetic-mcp:', result.stdout)
 
+    def test_documented_syntax_validation_is_admitted(self):
+        scripts = self.fixture.repo / 'scripts'
+        scripts.mkdir(exist_ok=True)
+        (scripts / 'resolve-homebrew-bin.sh').write_text('#!/bin/bash\nexit 0\n')
+        output = self.output('pre-tool-use-dispatch.sh',
+            {'tool_input': {'command': 'bash -n scripts/resolve-homebrew-bin.sh',
+                            'cwd': str(self.fixture.repo)}})
+        self.assertNotEqual(output.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+
     def test_all_shell_syntax_and_manifest_targets(self):
         for directory in ('hooks', 'scripts'):
             for path in self.fixture.codex.joinpath(directory).rglob('*.sh'):

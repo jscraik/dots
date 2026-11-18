@@ -95,7 +95,7 @@
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "1c7f25f9236035f2b1bb331be975ca557bee127f862f4327522fd83d447344e6"
+      "candidate_sha256": "2df2131babe5efdc6b8389ad2d0e77990c07170ded2ad0dbbc1fd958cfa5eaaf"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",
