@@ -213,6 +213,16 @@ class GovernancePortTests(unittest.TestCase):
         result = self.validate(GEN.toml_document(config))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_hook_dependency_unknown_account_is_a_bounded_rejection(self):
+        for surface, access in (('workspace_roots', True), ('filesystem', 'write')):
+            with self.subTest(surface=surface):
+                config = tomllib.loads(self.generated['config'])
+                config['permissions'][config['default_permissions']][surface][
+                    '~dots_nonexistent_account_9a5ed1/path'] = access
+                result = self.validate(GEN.toml_document(config))
+                self.assertEqual(result.returncode, 65, result.stdout + result.stderr)
+                self.assertNotIn('Traceback', result.stdout + result.stderr)
+
     def test_missing_schema_is_unavailable_not_pass(self):
         (self.codex / 'schemas/config.schema.json').unlink()
         result = self.validate(self.generated['config'])

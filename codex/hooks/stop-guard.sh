@@ -1,16 +1,26 @@
 #!/bin/bash -p
 
 set -euo pipefail
+unset PYTHONPATH PYTHONHOME PYTHONSTARTUP PYTHONUSERBASE BASH_ENV ENV
+unset LD_PRELOAD LD_LIBRARY_PATH DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH
 input_json="$(/bin/cat)"
-# Native Stop retries terminate after one block. Use only the isolated system
-# interpreter so retries need neither the toolchain nor admission/receipt access.
-stop_hook_active="$(printf '%s' "$input_json" | /usr/bin/python3 -I -S -c '
-import json, sys
-payload = json.load(sys.stdin)
-if not isinstance(payload, dict):
-    raise ValueError("Stop input must be an object")
-print("true" if payload.get("stop_hook_active") is True else "false")
-')" || exit 2
+# Native Stop retries are a termination signal, not a resource operation.
+# Parse strictly and return before admission, libraries or receipt access.
+stop_hook_active="$(/usr/bin/python3 -I -S -c '
+import json
+import sys
+try:
+    event = json.load(sys.stdin)
+    if type(event) is not dict:
+        raise ValueError("Stop input must be an object")
+except (ValueError, TypeError, RecursionError):
+    print("Security hook blocked: invalid Stop input.", file=sys.stderr)
+    raise SystemExit(2)
+print("true" if event.get("stop_hook_active") is True else "false")
+' <<<"$input_json")" || {
+  printf '%s\n' 'Security hook blocked: Stop input validation failed.' >&2
+  exit 2
+}
 if [[ "$stop_hook_active" == "true" ]]; then
   printf '%s\n' '{"continue":true}'
   exit 0

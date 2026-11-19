@@ -20,7 +20,7 @@
       "transformations": [
         "new fixed root-owned hook dependency path bootstrap"
       ],
-      "candidate_sha256": "7ffa4c02ba3c2e5245b0ad868dbffd642a6a3b0726fc89e0d4a40ea144ea41ca"
+      "candidate_sha256": "740f361366566de5397fedc7371559ab5d30ea48bbb6fd00d5cc4a77cfb42af3"
     },
     {
       "path": "codex/hooks/lifeos-codex.sh",
@@ -41,7 +41,7 @@
         "fixture scope and event admission before handler actions",
         "fixed root-owned hook dependency path and absolute Bash launch"
       ],
-      "candidate_sha256": "be34f7b8051bc1f28ceeea29b7af46149aad6614b32dee1aec11226924db04f1"
+      "candidate_sha256": "0dd3fab29e7864f46def132dc97c8f7ad0e1c487079f96bbcbe53e31fcfeb225"
     },
     {
       "path": "codex/hooks/post-compact-recorder.sh",
@@ -61,7 +61,7 @@
         "fixture scope and event admission before handler actions",
         "fixed root-owned hook dependency path and absolute Bash launch"
       ],
-      "candidate_sha256": "e73689f6d5a2aa458abb8ba01f44cc54771e4d960886ace32bc6ca014596074a"
+      "candidate_sha256": "2e5d46c67a49c8da1f95b94736b7e1fdfd418e20143fb5efa4e707c83e8f5c6c"
     },
     {
       "path": "codex/hooks/pr-readiness-guard.sh",
@@ -72,7 +72,7 @@
         "fixed root-owned hook dependency path and absolute Bash launch",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "f0254abe33ec20bf05a320efce901965ea5b8f6f48ea737e160561655e9cae51"
+      "candidate_sha256": "a52bf4f0fc034c61a5eac3efdb047f6b6def6e264a6c3364979d746a317247f1"
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",
@@ -83,7 +83,7 @@
         "fixed root-owned hook dependency path and absolute Bash launch",
         "Reject shell expansions before literal commit option admission; preserve native approval and signing safeguards"
       ],
-      "candidate_sha256": "8a9719d7841c79eb8fa8cff89c3253b33083586f86e112eaf02ce86fa435cb1c"
+      "candidate_sha256": "6dec4cca10ea5c790a5d5e6e3f42edadebf48cd9b78c3871ecf782711d36d4bf"
     },
     {
       "path": "codex/hooks/pre-compact-guard.sh",
@@ -104,7 +104,7 @@
         "fixed root-owned hook dependency path and absolute Bash launch",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "97ebc8cbe744bb998de4e1e09d4338aa02741b78b2f5b779aaa207ba8477104d"
+      "candidate_sha256": "4c06f1a60d2560dbf18754567f241bc43b68e5286716ba65eed19da8444bc42c"
     },
     {
       "path": "codex/hooks/pre-tool-use-dispatch.sh",
@@ -128,7 +128,7 @@
         "fixed root-owned hook dependency path and absolute Bash launch",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "aaf9eddf273be74cb3d7e158cfea0e4a95abeb71e7b45aad1b45be129c1f11f9"
+      "candidate_sha256": "a963eb71fb18d9d14d01e666a86db779f71bafe48533d3c2f37080321c3a2122"
     },
     {
       "path": "codex/hooks/session-start.sh",
@@ -139,7 +139,7 @@
         "disable repository-selected fsmonitor execution during automatic status observation",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "320b274ca6911757bbc5fe0d0b170c5e4f66da0ee283a4a37eb2bf8c5f38dc0f"
+      "candidate_sha256": "21eb2c7247ab19f3b18e759feecbc7f67c30ff16702bbbb8d2a90b03255bbe1b"
     },
     {
       "path": "codex/hooks/stop-guard.sh",
@@ -149,7 +149,7 @@
         "fixture scope and event admission before handler actions",
         "fixed root-owned hook dependency path and absolute Bash launch"
       ],
-      "candidate_sha256": "1fc8333ea17baa94ef1007076f2ea1a304c14080d789ff1ff418125e3c5388d6"
+      "candidate_sha256": "a66db6ba1daf1bb8edfa5ff80db8033bb081cadc999ef2ff4a22a41e32602d38"
     },
     {
       "path": "codex/hooks/subagent-start.sh",
@@ -179,7 +179,7 @@
         "fixture scope and event admission before handler actions",
         "fixed root-owned hook dependency path and absolute Bash launch"
       ],
-      "candidate_sha256": "fd0167db975514b186a858b9da82988bdc7b2e6b2c2c4b9995af7d6f503fdf2c"
+      "candidate_sha256": "522f2e8c8b33b28469326c431b4d7eb6ac23d2cd43f663da968e3d48e27df6b8"
     },
     {
       "path": "codex/scripts/pr-reconciliation.py",

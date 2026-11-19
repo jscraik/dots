@@ -85,7 +85,7 @@ append_repo_learning_entry() {
       | cksum \
       | awk '{print $1}'
   )"
-  if rg -Fq "auto-key:${key}" "$learnings_file" 2>/dev/null; then
+  if /usr/bin/grep -Fq "auto-key:${key}" "$learnings_file" 2>/dev/null; then
     return 0
   fi
 

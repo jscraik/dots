@@ -84,6 +84,19 @@ class HookHandlerTests(unittest.TestCase):
                         names.add(name)
         self.assertEqual(len(names), 12)
 
+    def test_failure_learning_dedup_survives_minimal_hook_path(self):
+        learning = self.fixture.repo / '.harness/memory/LEARNINGS.md'
+        learning.parent.mkdir(parents=True)
+        checksum = subprocess.run(['/usr/bin/cksum'], input='false|1|synthetic failure\n',
+            text=True, capture_output=True, check=True, timeout=10).stdout.split()[0]
+        previous = f'**2000-01-01 [Codex]:** earlier failure (auto-key:{checksum})\n'
+        learning.write_text(previous)
+        event = {'tool_name': 'Bash', 'cwd': str(self.fixture.repo),
+                 'tool_input': {'command': 'false'},
+                 'tool_response': {'exit_code': 1, 'stdout': 'synthetic failure'}}
+        self.output('post-tool-use-review.sh', event)
+        self.assertEqual(learning.read_text(), previous)
+
     def test_workspace_tool_roots_cannot_replace_hook_dependencies(self):
         marker = self.fixture.home / 'poisoned-hook-dependency'
         roots = (self.fixture.home / '.local/bin', self.fixture.home / '.local/share/mise/shims',

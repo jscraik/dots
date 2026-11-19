@@ -340,31 +340,39 @@ def validate_hook_dependency_isolation(config: dict[str, object]) -> list[str]:
             continue
         for surface in ('workspace_roots', 'filesystem'):
             for value, access in permission_write_entries(profile, surface):
-                writable = access is True if surface == 'workspace_roots' else access == 'write'
-                if not writable:
+                if not (access is True if surface == 'workspace_roots' else access == 'write'):
                     continue
-                path_text = '/' if value == ':root' and surface == 'filesystem' else value
-                if isinstance(path_text, str) and surface == 'filesystem':
+                path_text = value
+                if surface == 'filesystem' and isinstance(value, str):
+                    if value == ':workspace_roots':
+                        continue  # The same profile's roots are checked above.
+                    path_text = {':root': '/', ':slash_tmp': '/tmp',
+                                 ':tmpdir': os.environ.get('TMPDIR', '/tmp')}.get(value, value)
                     if path_text.endswith('/**'):
                         path_text = path_text[:-3] or '/'
-                    path_text = str(Path(path_text).expanduser())
-                if (not isinstance(path_text, str) or not Path(path_text).is_absolute()
-                        or surface == 'filesystem' and any(char in path_text for char in '*?[]{}')):
-                    errors.append(f'permissions.{profile_name}.{surface} keys must be absolute exact paths '
+                    if any(char in path_text for char in '*?[]{}'):
+                        errors.append(f'permissions.{profile_name}.{surface} needs an exact path '
+                                      f'for fixed security-hook dependency path checks: {value}')
+                        continue
+                if not isinstance(path_text, str):
+                    errors.append(f'permissions.{profile_name}.{surface} keys must be absolute '
                                   f'for fixed security-hook dependency path checks: {value}')
                     continue
                 try:
-                    writable_root = Path(path_text).resolve(strict=False)
+                    expanded = Path(path_text).expanduser()
+                    if not expanded.is_absolute():
+                        errors.append(f'permissions.{profile_name}.{surface} keys must be absolute '
+                                      f'for fixed security-hook dependency path checks: {value}')
+                        continue
+                    writable_root = expanded.resolve(strict=False)
                 except (OSError, RuntimeError):
                     errors.append(f'permissions.{profile_name}.{surface} cannot resolve fixed '
                                   f'security-hook dependency path grant: {value}')
                     continue
                 if any(path == writable_root or path.is_relative_to(writable_root)
                        or writable_root.is_relative_to(path) for path in trusted_paths):
-                    errors.append(
-                        f'permissions.{profile_name}.{surface} must not make fixed '
-                        f'security-hook dependency path writable: {value}'
-                    )
+                    errors.append(f'permissions.{profile_name}.{surface} must not make fixed '
+                                  f'security-hook dependency path writable: {value}')
     return errors
 
 def validate_config_maintenance_write_access(config: dict[str, object]) -> list[str]:

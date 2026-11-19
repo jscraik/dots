@@ -1,14 +1,14 @@
 #!/bin/bash -p
 set -euo pipefail
 # shellcheck source=codex/hooks/hook-runtime-path.sh
-. "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh"
+. "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh" || exit 2
 input_json="$(cat)"
 dots_hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 python3 "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit $?
 hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 codex_repo_root="$(cd -P "$hook_dir/.." && pwd -P)"
 # shellcheck source=codex/hooks/hook-runtime-lib.sh
-. "$hook_dir/hook-runtime-lib.sh"
+. "$hook_dir/hook-runtime-lib.sh" || exit 2
 runtime_policy_script="$codex_repo_root/scripts/hook-governance/hook_runtime_policy.py"
 timeout_class="pre_safety_fail_closed"
 if [[ -f "$runtime_policy_script" ]]; then

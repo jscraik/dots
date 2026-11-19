@@ -18,6 +18,41 @@ SPEC.loader.exec_module(PREPARE)
 
 
 class HookToolchainTests(unittest.TestCase):
+    def test_missing_toolchain_blocks_policy_and_stop_retry_terminates(self):
+        with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as directory:
+            root = Path(directory)
+            hooks, scripts = root / 'hooks', root / 'scripts'
+            hooks.mkdir()
+            scripts.mkdir()
+            blocking = ('pre-tool-use-dispatch.sh', 'stop-guard.sh',
+                'pre-tool-use-guard.sh', 'permission-request-guard.sh',
+                'pr-readiness-guard.sh', 'pre-commit-tests.sh',
+                'pre-scaffold-typecheck.sh', 'user-prompt-submit.sh')
+            for name in ('hook-runtime-path.sh', 'subagent-stop.sh', *blocking):
+                shutil.copyfile(ROOT / 'codex/hooks' / name, hooks / name)
+            (scripts / 'validate-hook-toolchain.py').write_text('raise SystemExit("synthetic missing payload")\n')
+            environment = {'PATH': '/usr/bin:/bin', 'HOME': str(root)}
+            for name in blocking:
+                with self.subTest(name=name):
+                    blocked = subprocess.run(['/bin/bash', '-p', str(hooks / name)],
+                        input='{}', env=environment, capture_output=True, text=True, timeout=10, check=False)
+                    self.assertEqual(blocked.returncode, 2, blocked.stdout + blocked.stderr)
+                    self.assertTrue(blocked.stderr.strip(), 'Exit 2 needs a blocking reason')
+            repeated = subprocess.run(['/bin/bash', '-p', str(hooks / 'stop-guard.sh')],
+                input='{"stop_hook_active":true}', env=environment,
+                capture_output=True, text=True, timeout=10, check=False)
+            self.assertEqual(repeated.returncode, 0, repeated.stdout + repeated.stderr)
+            self.assertEqual(json.loads(repeated.stdout), {'continue': True})
+            stopped = subprocess.run(['/bin/bash', '-p', str(hooks / 'subagent-stop.sh')],
+                input='{}', env=environment, capture_output=True, text=True, timeout=10, check=False)
+            self.assertEqual(stopped.returncode, 1, stopped.stdout + stopped.stderr)
+            self.assertTrue(stopped.stderr.strip())
+            nested = subprocess.run(['/bin/bash', '-p', str(hooks / 'stop-guard.sh')],
+                input='{"nested":' + '[' * 1500 + '0' + ']' * 1500 + '}',
+                env=environment, capture_output=True, text=True, timeout=10, check=False)
+            self.assertEqual(nested.returncode, 2, nested.stdout + nested.stderr)
+            self.assertTrue(nested.stderr.strip())
+
     def test_validation_selector_isolates_modules_and_rejects_writable_fallback(self):
         with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as directory:
             home = Path(directory).resolve()
