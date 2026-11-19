@@ -18,6 +18,11 @@ from importlib import import_module  # noqa: E402
 from pathlib import Path  # noqa: E402
 from urllib.parse import urlparse  # noqa: E402
 
+from marketplace_identity import (  # noqa: E402
+    MarketplaceIdentityError,
+    verify_marketplace_revision,
+)
+
 try:
     import tomllib
 except ModuleNotFoundError:
@@ -38,7 +43,6 @@ HOME_PROJECTION_SOURCE_ROOT = Path(os.environ.get('CODEX_CONFIG_SOURCE_ROOT', CA
 HOOKS_CONFIG_PATH = HOME_PROJECTION_SOURCE_ROOT / 'hooks' / 'hooks.json'
 CANONICAL_AGENTS_MANIFEST_PATH = HOME_PROJECTION_SOURCE_ROOT / 'agents' / 'manifest.json'
 CODEX_SESSION_EVIDENCE_PATHS = (local_path_text('@HOME@/.local/share/codex-storage/sessions'), local_path_text('@HOME@/dev/dots/codex/usage-data'), local_path_text('@HOME@/.agents/session-collector'))
-DISALLOWED_PROJECT_PREFIXES = (local_path_text('@HOME@/Documents/Codex/'),)
 BORUMI_GENERATED_CONFIG_PATH = Path(local_path_text('@HOME@/Documents/Borumi AI Workspace/.codex/config.toml'))
 ALLOWED_PROJECT_LOCAL_CONFIG_PATHS = (Path(local_path_text('@HOME@/dev/lifeOS/.codex/config.toml')), BORUMI_GENERATED_CONFIG_PATH)
 ALLOWED_LIFEOS_PROJECT_CONFIG_KEYS = frozenset({'model_verbosity'})
@@ -127,9 +131,8 @@ FORBIDDEN_GLOBAL_PROFILE_NAMES = {'custom'}
 REQUIRED_MCP_TOOL_APPROVALS = {('github', 'add_issue_comment'): 'prompt', ('github', 'create_pull_request'): 'prompt', ('github', 'create_pull_request_review'): 'prompt', ('github', 'get_file_contents'): 'approve', ('github', 'get_pull_request'): 'approve', ('github', 'get_pull_request_comments'): 'approve', ('github', 'get_pull_request_reviews'): 'approve', ('github', 'get_pull_request_status'): 'approve', ('github', 'list_pull_requests'): 'approve', ('github', 'push_files'): 'prompt', ('linear', 'save_comment'): 'approve', ('openaiDeveloperDocs', 'fetch_openai_doc'): 'approve', ('openaiDeveloperDocs', 'search_openai_docs'): 'approve'}
 VALID_REASONING_EFFORTS = {'low', 'medium', 'high', 'xhigh'}
 MODELS_WITHOUT_REASONING_EFFORT = {'CyberCrew/notmythos-8b', 'deepseek-v4-flash:0731-cloud', 'minimax-m2.7:cloud', 'gpt-oss:20b', 'qwen3-coder:30b', 'qwen3.5:9b-mlx', 'qwen3.5:latest'}
-STATIC_ALLOWED_PLUGIN_IDS = {'github@openai-curated', 'cloudflare@openai-curated', 'build-web-apps@openai-curated', 'build-web-data-visualization@openai-curated', 'linear@openai-curated', 'build-ios-apps@openai-curated', 'build-macos-apps@openai-curated', 'circleci@openai-curated', 'coderabbit@agent-skills-local', 'coderabbit@openai-curated', 'codex-security@openai-curated', 'unified-computer-use@openai-bundled', 'record-and-replay@openai-bundled', 'sites@openai-bundled', 'skill-factory@agent-skills-local', 'video-reference-analysis@created-by-me-remote', 'plugin-factory@agent-skills-local', 'harness-engineering@agent-skills-local', 'synaipse-harness@agent-skills-local', 'aidevcon@agent-skills-local', 'atlassian-rovo@openai-curated-remote', 'box@openai-curated-remote', 'figma@openai-curated', 'figma@openai-curated-remote', 'gmail@openai-curated-remote', 'google-calendar@openai-curated-remote', 'google-drive@openai-curated-remote', 'notion@openai-curated-remote', 'sentry@openai-curated', 'sharepoint@openai-curated-remote', 'slack@openai-curated', 'teams@openai-curated-remote', 'gmail@openai-curated', 'openai-developers@openai-curated', 'plugin-eval@openai-curated', 'remotion@openai-curated', 'browser@openai-bundled', 'browser-use@openai-bundled', 'chrome@openai-bundled', 'visualize@openai-bundled', 'documents@openai-primary-runtime', 'pdf@openai-primary-runtime', 'spreadsheets@openai-primary-runtime', 'presentations@openai-primary-runtime', 'template-creator@openai-primary-runtime'}
-PLUGIN_CACHE_ROOT_CANDIDATES = (REPO_ROOT / '.agents' / 'plugins-runtime' / 'cache', REPO_ROOT / 'plugins' / 'cache', REPO_ROOT / 'Plugins' / 'cache')
-PLUGIN_MARKETPLACE_CANDIDATES = (REPO_ROOT / 'plugins' / 'marketplace.json', REPO_ROOT / '.agents' / 'plugins-runtime' / 'marketplace.json')
+STATIC_ALLOWED_PLUGIN_IDS = {'github@openai-curated', 'cloudflare@openai-curated', 'build-web-apps@openai-curated', 'build-web-data-visualization@openai-curated', 'linear@openai-curated', 'build-ios-apps@openai-curated', 'build-macos-apps@openai-curated', 'circleci@openai-curated', 'coderabbit@agent-skills-local', 'coderabbit@openai-curated', 'codex-security@openai-curated', 'unified-computer-use@openai-bundled', 'record-and-replay@openai-bundled', 'sites@openai-bundled', 'skill-factory@agent-skills-local', 'video-reference-analysis@created-by-me-remote', 'plugin-factory@agent-skills-local', 'harness-engineering@agent-skills-local', 'synaipse-harness@agent-skills-local', 'aidevcon@agent-skills-local', 'atlassian-rovo@openai-curated-remote', 'box@openai-curated-remote', 'figma@openai-curated', 'figma@openai-curated-remote', 'gmail@openai-curated-remote', 'google-calendar@openai-curated-remote', 'google-drive@openai-curated-remote', 'notion@openai-curated-remote', 'sentry@openai-curated', 'sharepoint@openai-curated-remote', 'slack@openai-curated', 'teams@openai-curated-remote', 'gmail@openai-curated', 'openai-developers@openai-curated', 'plugin-eval@openai-curated', 'remotion@openai-curated', 'browser@openai-bundled', 'browser-use@openai-bundled', 'chrome@openai-bundled', 'visualize@openai-bundled', 'documents@openai-primary-runtime', 'pdf@openai-primary-runtime', 'spreadsheets@openai-primary-runtime', 'presentations@openai-primary-runtime', 'template-creator@openai-primary-runtime', 'drawio@drawio'}
+CONTENT_BOUND_MARKETPLACE_NAMES = {'agent-skills-local', 'drawio', 'openai-bundled', 'openai-primary-runtime'}
 OPTIONAL_CONFIG_MARKETPLACES = {'openai-curated'}
 ALLOWED_NEVER_PROFILES: set[str] = set()
 ALLOWED_LIVE_WEB_PROFILES = {'docs'}
@@ -665,34 +668,6 @@ def validate_computer_use_mcp_policy(config: dict[str, object]) -> list[str]:
                 errors.append(f'mcp_servers.{server_name} must not alias a Computer Use launcher; the desktop app owns runtime registration')
     return errors
 
-def validate_trusted_project_scope(config: dict[str, object]) -> list[str]:
-    """
-    Reject project entries whose path begins with a disallowed scratch-workspace prefix.
-
-    Parameters:
-        config (dict[str, object]): Parsed Codex configuration mapping top-level keys to values.
-
-    Returns:
-        list[str]: Error messages for each project whose path starts with an entry in `DISALLOWED_PROJECT_PREFIXES`. Returns an empty list if there are no violations or if `projects` is not a mapping.
-    """
-    projects = config.get('projects')
-    if not isinstance(projects, dict):
-        return []
-    errors: list[str] = []
-    for project_path, project_config in projects.items():
-        if not isinstance(project_path, str):
-            continue
-        if not isinstance(project_config, dict):
-            continue
-        candidate_paths = {project_path}
-        try:
-            candidate_paths.add(str(Path(project_path).expanduser().resolve(strict=False)))
-        except OSError:
-            pass
-        if any(path.startswith(DISALLOWED_PROJECT_PREFIXES) for path in candidate_paths):
-            errors.append(f'''projects."{project_path}{local_path_text('" must not persist in config.toml; Codex scratch workspaces under @HOME@/Documents/Codex/ are transient and must stay project-local under tmp/')}''')
-    return errors
-
 def classify_trusted_project_blast_radius(config: dict[str, object]) -> list[str]:
     """Return warning notes for broad or overlapping trusted project roots."""
     projects = config.get('projects')
@@ -855,31 +830,6 @@ def is_https_or_local(url: str) -> bool:
         return True
     return bool(parsed.scheme == 'http' and parsed.hostname in {'127.0.0.1', 'localhost'})
 
-def scan_cache_roots(cache_root_candidates: tuple[Path, ...]) -> tuple[set[str], list[str]]:
-    """
-    Scan plugin cache root directories for marketplace/plugin subdirectories.
-
-    Parameters:
-        cache_root_candidates (tuple[Path, ...]): Candidate cache root directories to scan.
-
-    Returns:
-        allowed (set[str]): Plugin IDs found in the form "<plugin_name>@<marketplace>".
-        sources (list[str]): Paths that were found and scanned.
-    """
-    allowed: set[str] = set()
-    sources: list[str] = []
-    for cache_root in cache_root_candidates:
-        if not cache_root.exists():
-            continue
-        if not cache_root.is_dir():
-            continue
-        sources.append(str(cache_root))
-        for marketplace_dir in sorted(p for p in cache_root.iterdir() if p.is_dir()):
-            for plugin_dir in sorted(p for p in marketplace_dir.iterdir() if p.is_dir()):
-                if has_codex_plugin_marker(plugin_dir):
-                    allowed.add(f'{plugin_dir.name}@{marketplace_dir.name}')
-    return (allowed, sources)
-
 class ValidationResourceError(str):
     """A diagnostic for resources unavailable to the policy validator."""
 
@@ -934,47 +884,6 @@ def parse_marketplace_file(path: Path) -> tuple[set[str], str, list[str]]:
         allowed.add(f'{plugin_name}@{plugin_marketplace}')
     return (allowed, str(path), errors)
 
-def parse_marketplaces(paths: tuple[Path, ...]) -> tuple[set[str], list[str], list[str]]:
-    """
-    Parse marketplace JSON files and extract plugin IDs.
-
-    Parameters:
-        paths (tuple[Path, ...]): Paths to marketplace JSON files.
-
-    Returns:
-        allowed (set[str]): Plugin IDs found in the form "<plugin_name>@<marketplace>".
-        sources (list[str]): Paths that were found and parsed.
-        errors (list[str]): Parsing errors encountered across all marketplace files.
-    """
-    allowed: set[str] = set()
-    sources: list[str] = []
-    errors: list[str] = []
-    for marketplace_path in paths:
-        if not marketplace_path.exists():
-            continue
-        ids, source, parse_errors = parse_marketplace_file(marketplace_path)
-        allowed.update(ids)
-        sources.append(source)
-        errors.extend(parse_errors)
-    return (allowed, sources, errors)
-
-def apply_fallback(allowed: set[str], sources: list[str], static_fallback: set[str]) -> tuple[set[str], list[str]]:
-    """
-    Apply static fallback allowlist when no plugins are discovered.
-
-    Parameters:
-        allowed (set[str]): Plugin IDs discovered so far.
-        sources (list[str]): Sources consulted so far.
-        static_fallback (set[str]): Static fallback allowlist to use when empty.
-
-    Returns:
-        allowed (set[str]): The original set if non-empty, otherwise the static fallback.
-        sources (list[str]): The original sources if allowed was non-empty, otherwise with "static fallback allowlist" appended.
-    """
-    if not allowed:
-        return (set(static_fallback), [*sources, 'static fallback allowlist'])
-    return (allowed, sources)
-
 def has_codex_plugin_marker(plugin_dir: Path) -> bool:
     if (plugin_dir / '.codex-plugin').exists():
         return True
@@ -992,12 +901,22 @@ def validate_marketplace_manifest_paths(marketplace_name: str, source_path: Path
         return (allowed, [f'marketplace {marketplace_name!r} source does not contain a supported manifest: {source_path}'])
     for manifest in existing_manifests:
         manifest_allowed, _source, parse_errors = parse_marketplace_file(manifest)
-        allowed.update(manifest_allowed)
         errors.extend(parse_errors)
+        accepted_manifest_ids: set[str] = set()
+        for plugin_id in manifest_allowed:
+            _plugin_name, separator, plugin_marketplace = plugin_id.rpartition('@')
+            if not separator or plugin_marketplace != marketplace_name:
+                errors.append(f'marketplace {marketplace_name!r} manifest {manifest} declares plugin for a different marketplace: {plugin_id}')
+                continue
+            accepted_manifest_ids.add(plugin_id)
         try:
             payload = json.loads(manifest.read_text(encoding='utf-8'))
         except (OSError, json.JSONDecodeError):
             continue
+        if not isinstance(payload, dict) or payload.get('name') != marketplace_name:
+            errors.append(f'marketplace {marketplace_name!r} manifest name does not match its configured marketplace: {manifest}')
+            continue
+        allowed.update(accepted_manifest_ids)
         entries = payload.get('plugins') if isinstance(payload, dict) else None
         if not isinstance(entries, list):
             continue
@@ -1012,12 +931,16 @@ def validate_marketplace_manifest_paths(marketplace_name: str, source_path: Path
             path = source.get('path')
             if not isinstance(path, str) or not path.strip():
                 continue
-            plugin_path = source_path / path
-            if not plugin_path.exists():
+            relative_path = Path(path)
+            if relative_path.is_absolute() or '..' in relative_path.parts or '.' in relative_path.parts:
+                errors.append(f'marketplace {marketplace_name!r} manifest {manifest} contains an unsafe local plugin path: {path!r}')
+                continue
+            plugin_path = source_path.joinpath(*relative_path.parts)
+            if not plugin_path.is_dir():
                 errors.append(f'marketplace {marketplace_name!r} manifest {manifest} references missing local plugin path: {plugin_path}')
     return (allowed, errors)
 
-def scan_config_marketplace_sources(marketplaces: object) -> tuple[set[str], list[str], list[str]]:
+def scan_config_marketplace_sources(marketplaces: object) -> tuple[set[str], set[str], list[str], list[str]]:
     """
     Discover plugin IDs from configured `[marketplaces.*].source` directories in config.toml.
 
@@ -1026,67 +949,103 @@ def scan_config_marketplace_sources(marketplaces: object) -> tuple[set[str], lis
 
     Returns:
         allowed (set[str]): Plugin IDs found in the form "<plugin_name>@<marketplace>".
-        sources (list[str]): Marketplace source paths that were scanned.
+        configured_names (set[str]): Marketplace names whose local roots passed identity binding.
+        sources (list[str]): Identity-bound marketplace source paths that were scanned.
         errors (list[str]): Validation errors encountered while reading marketplace sources.
     """
     allowed: set[str] = set()
+    configured_names: set[str] = set()
     sources: list[str] = []
     errors: list[str] = []
+    verified_roots: dict[tuple[int, int], str] = {}
     if not isinstance(marketplaces, dict):
-        return (allowed, sources, errors)
+        return (allowed, configured_names, sources, errors)
     for marketplace_name, marketplace in sorted(marketplaces.items()):
         if not isinstance(marketplace_name, str) or not marketplace_name.strip():
             continue
         if not isinstance(marketplace, dict):
             continue
+        if marketplace.get('source_type') != 'local':
+            errors.append(f'marketplace {marketplace_name!r} must use an identity-bound local source')
+            continue
         source = marketplace.get('source')
         if not isinstance(source, str) or not source.strip():
+            errors.append(f'marketplace {marketplace_name!r} must declare a local source path')
             continue
         source_path = Path(source).expanduser()
-        if not source_path.exists():
-            message = f'marketplace {marketplace_name!r} source path is not currently accessible: {source_path}'
+        try:
+            identity = verify_marketplace_revision(source_path, marketplace.get('last_revision'))
+        except MarketplaceIdentityError as exc:
+            errors.append(f'marketplace {marketplace_name!r} source identity rejected: {exc}')
+            continue
+        except OSError as exc:
+            message = f'marketplace {marketplace_name!r} source path is not currently accessible: {source_path} ({exc})'
             if marketplace_name in OPTIONAL_CONFIG_MARKETPLACES:
                 sources.append(f'{source_path} [{marketplace_name}; optional missing]')
             else:
                 errors.append(ValidationResourceError(message))
             continue
-        if not source_path.is_dir():
-            errors.append(f'marketplace {marketplace_name!r} source must be a directory when provided: {source_path}')
+        root_key = (identity.device, identity.inode)
+        if previous_name := verified_roots.get(root_key):
+            errors.append(f'marketplaces {previous_name!r} and {marketplace_name!r} must not share one physical source root')
             continue
-        sources.append(f'{source_path} [{marketplace_name}]')
-        manifest_allowed, manifest_errors = validate_marketplace_manifest_paths(marketplace_name, source_path)
-        allowed.update(manifest_allowed)
-        errors.extend(manifest_errors)
-        for plugin_dir in sorted(p for p in source_path.iterdir() if p.is_dir()):
-            if has_codex_plugin_marker(plugin_dir):
-                allowed.add(f'{plugin_dir.name}@{marketplace_name}')
-        for plugins_dir in (source_path / 'plugins', source_path / '.agents' / 'plugins'):
-            if not plugins_dir.exists() or not plugins_dir.is_dir():
-                continue
-            for plugin_dir in sorted(p for p in plugins_dir.iterdir() if p.is_dir()):
+        verified_roots[root_key] = marketplace_name
+        sources.append(f'{source_path} [{marketplace_name}; {identity.revision}]')
+        try:
+            manifest_allowed, manifest_errors = validate_marketplace_manifest_paths(marketplace_name, source_path)
+            allowed.update(manifest_allowed)
+            errors.extend(manifest_errors)
+            for plugin_dir in sorted(p for p in source_path.iterdir() if p.is_dir()):
                 if has_codex_plugin_marker(plugin_dir):
                     allowed.add(f'{plugin_dir.name}@{marketplace_name}')
-    return (allowed, sources, errors)
+            for plugins_dir in (source_path / 'plugins', source_path / '.agents' / 'plugins'):
+                if not plugins_dir.exists() or not plugins_dir.is_dir():
+                    continue
+                for plugin_dir in sorted(p for p in plugins_dir.iterdir() if p.is_dir()):
+                    if has_codex_plugin_marker(plugin_dir):
+                        allowed.add(f'{plugin_dir.name}@{marketplace_name}')
+        except OSError as exc:
+            errors.append(ValidationResourceError(
+                f'marketplace {marketplace_name!r} source changed or became unreadable during manifest validation: {exc}'
+            ))
+            allowed.difference_update(plugin_id for plugin_id in allowed if plugin_id.endswith(f'@{marketplace_name}'))
+            continue
+        try:
+            if verify_marketplace_revision(source_path, identity.revision) != identity:
+                raise MarketplaceIdentityError('marketplace source path changed physical identity')
+        except (MarketplaceIdentityError, OSError) as exc:
+            errors.append(f'marketplace {marketplace_name!r} source changed during manifest validation: {exc}')
+            allowed.difference_update(plugin_id for plugin_id in allowed if plugin_id.endswith(f'@{marketplace_name}'))
+            continue
+        configured_names.add(marketplace_name)
+    return (allowed, configured_names, sources, errors)
 
 def _discover_allowed_plugin_ids(marketplaces: object) -> tuple[set[str], list[str], list[str]]:
     """
-    Build an allowlist of plugin IDs by scanning local plugin caches and marketplace registry files.
-
-    Scans directories listed in PLUGIN_CACHE_ROOT_CANDIDATES for marketplace/plugin subdirectories and parses JSON files in PLUGIN_MARKETPLACE_CANDIDATES for declared plugins. If no plugin IDs are discovered, falls back to STATIC_ALLOWED_PLUGIN_IDS.
+    Build an allowlist from reviewed IDs and identity-bound configured marketplaces.
 
     Returns:
         allowed (set[str]): Plugin IDs in the form "<plugin_name>@<marketplace>".
-        sources (list[str]): Descriptions of inputs consulted (paths found) or "static fallback allowlist" when the fallback is used.
-        errors (list[str]): Parsing errors encountered during marketplace discovery.
+        sources (list[str]): Descriptions of reviewed and identity-bound inputs consulted.
+        errors (list[str]): Identity or manifest errors encountered during marketplace discovery.
     """
-    cache_ids, cache_sources = scan_cache_roots(PLUGIN_CACHE_ROOT_CANDIDATES)
-    marketplace_ids, marketplace_sources, marketplace_errors = parse_marketplaces(PLUGIN_MARKETPLACE_CANDIDATES)
-    configured_ids, configured_sources, configured_errors = scan_config_marketplace_sources(marketplaces)
-    allowed = cache_ids | marketplace_ids | configured_ids | STATIC_ALLOWED_PLUGIN_IDS
-    sources = cache_sources + marketplace_sources + configured_sources
-    discovery_errors = marketplace_errors + configured_errors
-    final_allowed, final_sources = apply_fallback(allowed, sources, STATIC_ALLOWED_PLUGIN_IDS)
-    return (final_allowed, final_sources, discovery_errors)
+    configured_ids, configured_names, configured_sources, configured_errors = scan_config_marketplace_sources(marketplaces)
+    declared_names = {
+        marketplace_name for marketplace_name, marketplace in marketplaces.items()
+        if isinstance(marketplace_name, str)
+        and marketplace_name.strip()
+        and isinstance(marketplace, dict)
+    } if isinstance(marketplaces, dict) else set()
+    content_bound_names = CONTENT_BOUND_MARKETPLACE_NAMES | declared_names
+    allowed = {
+        plugin_id for plugin_id in STATIC_ALLOWED_PLUGIN_IDS
+        if plugin_id.rpartition('@')[2] not in content_bound_names
+        or (
+            plugin_id.rpartition('@')[2] in configured_names
+            and plugin_id in configured_ids
+        )
+    }
+    return (allowed, ['static reviewed allowlist', *configured_sources], configured_errors)
 
 def plugin_id_is_allowed(plugin_id: str, allowed_plugin_ids: set[str]) -> bool:
     """
@@ -1818,7 +1777,6 @@ def main(raw_config: str | None=None) -> int:
     errors.extend(validate_mcp_network_access(data))
     errors.extend(validate_no_retired_macos_1password_socket(data))
     errors.extend(validate_local_memory_cli_policy(data))
-    errors.extend(validate_trusted_project_scope(data))
     notes.extend(classify_trusted_project_blast_radius(data))
     errors.extend(validate_prompt_customization(data))
     validate_default_auto_review_policy(data, 'root config', errors)

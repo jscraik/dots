@@ -5,6 +5,8 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
+import tomllib
 from pathlib import Path
 
 import test_governance_port as governance
@@ -14,6 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class HookFixture:
     def __init__(self, testcase):
+        # In-process helpers may initialise this cache while fixture TMPDIR is active.
+        testcase.addCleanup(setattr, tempfile, "tempdir", tempfile.tempdir)
         self.base = governance.GovernancePortTests()
         self.base.setUp()
         testcase.addCleanup(self.base.doCleanups)
@@ -40,6 +44,23 @@ class HookFixture:
         python = self.bin / 'python3'
         python.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' "$@"\n')
         python.chmod(0o755)
+        # Run the real jq without a caller-owned runtime-manager shim loading
+        # the disposable HOME's deliberately untrusted projected config.
+        jq = shutil.which('jq')
+        mise = shutil.which('mise')
+        if jq and mise and Path(jq).resolve() == Path(mise).resolve():
+            tools = tomllib.loads((ROOT / 'mise/config.toml').read_text())['tools']
+            resolved = subprocess.run([mise, 'which', 'jq', '--tool', 'jq@' + tools['jq']], cwd=Path.home(),
+                env=os.environ.copy(), text=True, capture_output=True,
+                timeout=20, check=False)
+            jq = resolved.stdout.strip() if resolved.returncode == 0 else None
+        if (not jq or not Path(jq).is_absolute() or not Path(jq).is_file()
+                or not os.access(jq, os.X_OK)
+                or mise and Path(jq).resolve() == Path(mise).resolve()):
+            raise RuntimeError('Hook fixtures require a resolved jq executable')
+        jq_launcher = self.bin / 'jq'
+        jq_launcher.write_text('#!/bin/sh\nexec ' + shlex.quote(jq) + ' "$@"\n')
+        jq_launcher.chmod(0o755)
         # This launcher is test-only. Discovery does not run it. It neither
         # captures real prompts nor supplies production Braid consent.
         (self.bin / 'braid').write_text('#!/bin/sh\nprintf \'{"continue":true}\\n\'\n')

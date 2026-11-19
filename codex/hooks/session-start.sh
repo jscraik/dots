@@ -15,22 +15,20 @@ codex_repo_root="$(cd -P "$hook_dir/.." && pwd -P)"
 . "$hook_dir/hook-runtime-lib.sh"
 project_override_audit_script="$codex_repo_root/scripts/audit-project-codex-config-overrides.sh"
 workflow_priority_gate_script="$codex_repo_root/scripts/workflow-priority-gate.py"
-scratch_project_scrub_script="$codex_repo_root/scripts/scrub-codex-scratch-projects.py"
 computer_use_config_scrub_script="$codex_repo_root/scripts/scrub-computer-use-config.py"
 runtime_config_drift_script="$codex_repo_root/scripts/repair-runtime-config-drift.py"
 project_override_drift=0
+project_override_audit_status="unavailable"
 project_override_excerpt=""
 workflow_gate_status="skipped"
 workflow_gate_summary=""
 workflow_gate_first_action=""
-scratch_project_scrub_status="skipped"
-scratch_project_scrub_summary=""
 computer_use_config_scrub_status="skipped"
 computer_use_config_scrub_summary=""
 runtime_config_drift_status="skipped"
 runtime_config_drift_backup=""
 runtime_config_drift_summary=""
-startup_repair_mode="${CODEX_SESSION_REPAIR_MODE-repair}"
+startup_repair_mode="${CODEX_SESSION_REPAIR_MODE-check}"
 startup_repair_warning=""
 startup_repair_args=("--json")
 case "$startup_repair_mode" in
@@ -42,6 +40,9 @@ case "$startup_repair_mode" in
     ;;
 esac
 dev_root="${CODEX_DEV_ROOT:-${HOME}/dev}"
+if [[ -d "$dev_root" ]] && physical_dev_root="$(cd -P -- "$dev_root" 2>/dev/null && pwd -P)"; then
+  dev_root="$physical_dev_root"
+fi
 audit_cache_dir="${HOME}/.codex/state"
 audit_cache_file="$audit_cache_dir/project-override-audit-cache.tsv"
 audit_cache_ttl_seconds="${CODEX_PROJECT_OVERRIDE_AUDIT_CACHE_TTL_SECONDS:-300}"
@@ -145,23 +146,38 @@ load_project_override_audit_cache() {
   fi
 
   if ! cached_excerpt="$(decode_cache_excerpt "$cached_excerpt_encoded")"; then
-    cached_excerpt="$cached_excerpt_encoded"
+    return 1
+  fi
+
+  # Older hooks cached any execution failure as drift. Only the audit's exact
+  # finding header establishes drift; also bind that evidence to this dev root.
+  if [[ "$cached_drift" == "1" && "$cached_excerpt" != "FAIL: project-level .codex/config.toml drift under ${dev_root}" && "$cached_excerpt" != "FAIL: project-level .codex/config.toml drift under ${dev_root} "* ]]; then
+    return 1
   fi
 
   project_override_drift="$cached_drift"
+  project_override_audit_status="pass"
+  [[ "$cached_drift" == "1" ]] && project_override_audit_status="drift"
   project_override_excerpt="$cached_excerpt"
   return 0
 }
 
 # run_project_override_audit runs the project override audit script and records its outcome.
-# On failure it sets `project_override_drift=1` and `project_override_excerpt` to a short single-line excerpt of the audit output; on success it clears those values. It then persists the timestamp, drift flag and excerpt to the audit cache.
+# An unavailable audit is not a configuration finding and must not be cached
+# as one. The retained audit CLI emits this exact header only for findings.
 run_project_override_audit() {
   local now_ts
   local project_override_output
+  local audit_exit=0
 
   now_ts="$(date +%s 2>/dev/null || printf '0')"
-  if ! project_override_output="$(CODEX_DEV_ROOT="$dev_root" bash "$project_override_audit_script" 2>&1)"; then
-    project_override_drift=1
+  project_override_output="$(CODEX_DEV_ROOT="$dev_root" bash "$project_override_audit_script" 2>&1)" || audit_exit=$?
+  if [[ "$audit_exit" -ne 0 ]]; then
+    project_override_audit_status="unavailable"
+    if [[ "$audit_exit" -eq 1 && "${project_override_output%%$'\n'*}" == "FAIL: project-level .codex/config.toml drift under ${dev_root}" ]]; then
+      project_override_drift=1
+      project_override_audit_status="drift"
+    fi
     project_override_excerpt="$(
       printf '%s\n' "$project_override_output" \
         | head -n 4 \
@@ -172,33 +188,18 @@ run_project_override_audit() {
     project_override_excerpt="${project_override_excerpt//$'\t'/ }"
   else
     project_override_drift=0
+    project_override_audit_status="pass"
     project_override_excerpt=""
   fi
 
-  persist_project_override_audit_cache "$now_ts" "$project_override_drift" "$project_override_excerpt"
+  if [[ "$project_override_audit_status" != "unavailable" ]]; then
+    persist_project_override_audit_cache "$now_ts" "$project_override_drift" "$project_override_excerpt"
+  fi
 }
 
 if [[ -x "$project_override_audit_script" ]]; then
   if ! load_project_override_audit_cache; then
     run_project_override_audit
-  fi
-fi
-
-if [[ -f "$scratch_project_scrub_script" ]]; then
-  scratch_project_scrub_args=("${startup_repair_args[@]}")
-  # This helper owns its default target. Runtime repair overrides must not be
-  # forwarded to its symlink-following writer.
-  scratch_project_scrub_output="$(python3 "$scratch_project_scrub_script" "${scratch_project_scrub_args[@]}" 2>/dev/null || true)"
-  if [[ -n "$scratch_project_scrub_output" ]] && printf '%s' "$scratch_project_scrub_output" | jq -e '.schema_version == "codex-scratch-project-scrub/v1"' >/dev/null 2>&1; then
-    scratch_project_scrub_status="$(printf '%s' "$scratch_project_scrub_output" | jq -r '.status // "unknown"')"
-    scratch_project_scrub_count="$(printf '%s' "$scratch_project_scrub_output" | jq -r '.removed_count // 0')"
-    if [[ "$scratch_project_scrub_status" == "repaired" ]]; then
-      scratch_project_scrub_summary="removed ${scratch_project_scrub_count} transient Codex scratch project table(s) from the helper's configured target"
-    elif [[ "$scratch_project_scrub_status" == "fail" ]]; then
-      scratch_project_scrub_summary="scratch project drift detected; check-only startup did not repair it"
-    fi
-  else
-    scratch_project_scrub_status="unavailable"
   fi
 fi
 
@@ -369,14 +370,6 @@ if [[ -n "$startup_repair_warning" ]]; then
   context_parts+=("$startup_repair_warning")
 fi
 
-if [[ "$scratch_project_scrub_status" == "repaired" && -n "$scratch_project_scrub_summary" ]]; then
-  context_parts+=("Scratch project config scrub repaired drift: ${scratch_project_scrub_summary}. Keep scratch artifacts under project tmp/ and out of global config.toml.")
-elif [[ "$scratch_project_scrub_status" == "fail" ]]; then
-  context_parts+=("$scratch_project_scrub_summary")
-elif [[ "$scratch_project_scrub_status" == "unavailable" ]]; then
-  context_parts+=("Scratch project config scrub could not run; verify codex/scripts/scrub-codex-scratch-projects.py before trusting config.toml scratch cleanup.")
-fi
-
 if [[ "$computer_use_config_scrub_status" == "repaired" && -n "$computer_use_config_scrub_summary" ]]; then
   context_parts+=("Computer Use config scrub repaired drift: ${computer_use_config_scrub_summary}. Do not launch the retired SkyComputerUseClient through notify. Preserve desktop-managed MCP registrations and plugin consent.")
 elif [[ ( "$computer_use_config_scrub_status" == "blocked" || "$computer_use_config_scrub_status" == "fail" ) && -n "$computer_use_config_scrub_summary" ]]; then
@@ -407,6 +400,11 @@ if [[ "$project_override_drift" -eq 1 ]]; then
     system_message="Project Codex config drift detected."
   else
     system_message="${system_message} Project Codex config drift detected."
+  fi
+elif [[ "$project_override_audit_status" == "unavailable" ]]; then
+  context_parts+=("Project config audit unavailable; no project-config drift was established. Diagnose the audit before changing project configuration.")
+  if [[ -n "$project_override_excerpt" ]]; then
+    context_parts+=("Override audit diagnostic: ${project_override_excerpt}")
   fi
 fi
 
@@ -455,7 +453,7 @@ fi
 additional_context="$(printf '%s ' "${context_parts[@]}")"
 additional_context="${additional_context% }"
 
-hook_runtime_write_card "$input_json" "$repo_root" "$git_root" "$repo_name" "$branch_name" "$head_sha" "$dirty_count" "$preflight_status" "$preflight_summary" "$project_override_drift" "$project_override_excerpt" || true
+hook_runtime_write_card "$input_json" "$repo_root" "$git_root" "$repo_name" "$branch_name" "$head_sha" "$dirty_count" "$preflight_status" "$preflight_summary" "$project_override_drift" "$project_override_excerpt" "$project_override_audit_status" || true
 runtime_card_path="$(hook_runtime_card_path_for_input "$input_json")"
 runtime_card_hash="$(hook_runtime_sha256_file "$runtime_card_path")"
 if [[ -n "$runtime_card_hash" ]]; then
