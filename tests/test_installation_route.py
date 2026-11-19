@@ -148,8 +148,8 @@ class InstallationRouteTests(unittest.TestCase):
         sibling.chmod(0o700)
 
         def selected_cli(*args):
-            return subprocess.run([str(interpreter), '-B', str(ROOT / 'scripts/install-codex.py'),
-                *map(str, args)], cwd=ROOT, env=self.env, text=True,
+            return subprocess.run([str(interpreter), '-B', str(self.source_root / 'scripts/install-codex.py'),
+                *map(str, args)], cwd=self.source_root, env=self.env, text=True,
                 capture_output=True, timeout=120, check=False)
 
         self.run_cli = selected_cli
