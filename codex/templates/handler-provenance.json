@@ -259,7 +259,7 @@
         "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "16e14b92b147ef9acbdb678936666cedacec582394a46e315a0c5da13939ea81"
+      "candidate_sha256": "1af21f53e52e4953787e69f1ed989999ead6dfd3e1232594d72bde0c7473e5c9"
     },
     {
       "path": "codex/scripts/pr_repair_ci.py",
