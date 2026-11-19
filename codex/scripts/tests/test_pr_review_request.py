@@ -2746,7 +2746,7 @@ class InspectionTests(unittest.TestCase):
         }
         with (
             patch.object(GATE, "gh_pr", return_value=(pr, None)),
-            patch.object(GATE, "checks_lane", return_value={"status": "pass"}),
+            patch.object(GATE, "checks_lane", return_value={"status": "pass", "evidence": "checks passed"}),
         ):
             error = GATE.recheck_hosted_state(
                 Path.cwd(), "review_inspection", HEAD, expected_pr_url=url
@@ -2756,7 +2756,7 @@ class InspectionTests(unittest.TestCase):
             patch.object(
                 GATE, "gh_pr", return_value=({**pr, "url": url, "number": 7}, None)
             ),
-            patch.object(GATE, "checks_lane", return_value={"status": "pass"}),
+            patch.object(GATE, "checks_lane", return_value={"status": "pass", "evidence": "checks passed"}),
         ):
             self.assertIsNone(
                 GATE.recheck_hosted_state(
@@ -3160,7 +3160,7 @@ class InspectionTests(unittest.TestCase):
         ):
             self.assertIn(mutation, result["details"]["prohibited_mutations"])
 
-    def test_closed_or_changed_head_and_failed_ci_block_inspection(self) -> None:
+    def test_inspection_rejects_changed_identity_but_observes_failed_ci(self) -> None:
         pr = {
             "number": 7,
             "url": "https://github.com/jscraik/configs/pull/7",
@@ -3181,10 +3181,8 @@ class InspectionTests(unittest.TestCase):
                 return_value={"status": "fail", "evidence": "failed CI"},
             ),
         ):
-            self.assertIn(
-                "checks changed",
-                GATE.recheck_hosted_state(Path.cwd(), "review_inspection", HEAD),
-            )
+            self.assertIsNone(GATE.recheck_hosted_state(Path.cwd(), "review_inspection", HEAD))
+            self.assertIn("checks changed", GATE.recheck_hosted_state(Path.cwd(), "update", HEAD))
 
     def test_fixed_request_has_no_arbitrary_body_or_mutation_mode(self) -> None:
         for reviewer in ("codex", "coderabbitai"):

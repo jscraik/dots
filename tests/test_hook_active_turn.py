@@ -102,6 +102,12 @@ class LocalProvider:
 @unittest.skipUnless(os.environ.get('DOTS_CODEX_BIN'), 'DOTS_CODEX_BIN required for active-turn proof')
 class HookActiveTurnTests(unittest.TestCase):
     def test_native_turn_runs_safe_command_and_preserves_hook_denial(self):
+        self.run_native_proof(include_core=False)
+
+    def test_initial_core_hooks_complete_native_turn(self):
+        self.run_native_proof(include_core=True)
+
+    def run_native_proof(self, *, include_core):
         installation = installation_tests.InstallationRouteTests()
         self.addCleanup(installation.doCleanups)
         installation.setUp()
@@ -115,9 +121,13 @@ class HookActiveTurnTests(unittest.TestCase):
         # Use the installed payload's exact dispatcher, without unrelated
         # lifecycle hooks or synthetic Braid. Only disposable HOME is changed.
         manifest = json.loads(fixture.target.read_text())
-        fixture.target.write_text(json.dumps({'hooks': {
-            'PreToolUse': [manifest['hooks']['PreToolUse'][0]],
-        }}))
+        selected = {'PreToolUse': [manifest['hooks']['PreToolUse'][0]]}
+        if include_core:
+            selected['PreToolUse'] = manifest['hooks']['PreToolUse'][:2]
+            selected['SessionStart'] = manifest['hooks']['SessionStart'][:1]
+            selected['PermissionRequest'] = manifest['hooks']['PermissionRequest'][:2]
+        fixture.target.write_text(json.dumps({'hooks': selected}))
+        expected_count = 5 if include_core else 1
         config = fixture.runtime / 'config.toml'
         config.write_text('approval_policy = "never"\nsandbox_mode = "read-only"\n'
                           'check_for_update_on_startup = false\n'
@@ -147,17 +157,17 @@ class HookActiveTurnTests(unittest.TestCase):
         server, _ = start()
         hooks = server.rpc('hooks/list', {'cwds': [str(fixture.repo)]})['data'][0]
         self.assertFalse(hooks['errors'], hooks)
-        self.assertEqual(len(hooks['hooks']), 1)
+        self.assertEqual(len(hooks['hooks']), expected_count)
         hook = hooks['hooks'][0]
         self.assertEqual(hook['trustStatus'], 'untrusted')
         server.rpc('config/value/write', {'filePath': str(config), 'keyPath': 'hooks.state',
-            'value': {hook['key']: {'enabled': True, 'trusted_hash': hook['currentHash']}},
+            'value': {row['key']: {'enabled': True, 'trusted_hash': row['currentHash']} for row in hooks['hooks']},
             'mergeStrategy': 'replace'})
         server.close()
         server, info = start()
         thread_id = server.rpc('thread/start', {'cwd': str(fixture.repo), 'ephemeral': True})['thread']['id']
         loaded = server.rpc('hooks/list', {'threadId': thread_id})['data'][0]['hooks']
-        self.assertEqual(len(loaded), 1)
+        self.assertEqual(len(loaded), expected_count)
         self.assertEqual(loaded[0]['trustStatus'], 'trusted')
         self.assertTrue(loaded[0]['enabled'])
         server.rpc('turn/start', {'threadId': thread_id,
@@ -177,6 +187,15 @@ class HookActiveTurnTests(unittest.TestCase):
                 break
         else:
             self.fail('Native turn did not complete')
+        if include_core:
+            completed = [row['params'] for row in server.notifications if row.get('method') == 'hook/completed']
+            self.assertTrue(completed, server.notifications)
+            outcomes = [(row['run']['eventName'], row['run']['status']) for row in completed]
+            self.assertIn(('sessionStart', 'completed'), outcomes)
+            self.assertIn(('preToolUse', 'completed'), outcomes)
+            self.assertIn(('preToolUse', 'blocked'), outcomes)
+            self.assertFalse(any(status == 'failed' for _, status in outcomes), completed)
+            print('Core hook outcomes: ' + repr(outcomes))
         self.assertFalse(provider.errors, provider.errors)
         self.assertEqual(len(provider.requests), 3, notices)
         def tool_output(request, call_id):
