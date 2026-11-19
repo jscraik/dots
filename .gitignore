@@ -21,6 +21,7 @@
 !/codex/templates/hooks.json
 !/codex/scripts/
 !/codex/scripts/migration_scope.py
+!/codex/scripts/marketplace_identity.py
 !/codex/scripts/validate-codex-config.py
 !/codex/scripts/repair-runtime-config-drift.py
 !/codex/scripts/project-codex-hooks.py
@@ -82,6 +83,7 @@
 !/requirements/
 !/requirements/python-document-reading.txt
 !/requirements/codex-validation.txt
+!/requirements/codex-validation-ci.lock
 !/scripts/
 !/scripts/check-source.py
 !/scripts/resolve-homebrew-bin.sh
@@ -210,6 +212,7 @@
 !/codex/scripts/desktop_compatibility.py
 !/tests/test_desktop_compatibility.py
 !/tests/test_installation_route.py
+!/tests/test_ci_supply_chain.py
 !/tests/test_deployment_temp.py
 !/tests/test_handover_validation.py
 !/codex/README.md
