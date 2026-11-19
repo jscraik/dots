@@ -102,7 +102,9 @@ class HookHandlerTests(unittest.TestCase):
                 'import os\nopen(' + repr(str(marker)) + ', "w").write("poisoned")\n'
                 'raise RuntimeError("workspace import must be isolated")\n')
         self.fixture.env['CODEX_VALIDATION_PYTHON'] = str(self.fixture.home / '.venvs/pyyaml/bin/python')
-        self.assertTrue(self.output('pre-tool-use-guard.sh')['continue'])
+        safe = self.output('pre-tool-use-guard.sh')
+        self.assertNotIn('continue', safe)
+        self.assertNotIn('hookSpecificOutput', safe)
         self.assertTrue(self.output('session-start.sh', {'source': 'startup'})['continue'])
         readiness = self.output('pr-readiness-guard.sh',
                                 {'tool_input': {'command': 'gh pr create --base main'}})

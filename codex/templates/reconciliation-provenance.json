@@ -202,7 +202,7 @@
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "1dc39d1739ec60c55d193551cdd9ad445277fff1d2890c5c02934d88102a62e6",
+      "candidate_sha256": "64af8e54edc9ad5a4854968a550c3846a9e806aa2393e0e0d1cf7041dbb539ae",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment. Verify writable tool roots cannot replace hook dependencies."
     },
     {
