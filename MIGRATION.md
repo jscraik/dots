@@ -42,8 +42,25 @@ The staging script supports disposable temporary homes only. It does not install
 packages, activate runtimes, move credentials, sync sessions, or update the live
 Codex home. Review the staged result before designing a live installation path.
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:adb77a8007c445281a8f248615a9f0fbff6d5be7f6cb5ea7eba3cfb3c905437c -->
+
+## LifeOS hook installation migration
+
+The protected hook bootstrap restricts PATH to its selected toolchain and system
+binaries. Before enabling LifeOS retrieval, set `CODEX_LIFEOS_BUN` to the absolute
+Bun executable path in the environment inherited by Codex. For an Apple Silicon
+Homebrew installation this is normally `/opt/homebrew/bin/bun`; verify the path
+on the target machine. Bun installed through a user runtime manager also needs
+an explicit absolute path. The hook does not discover Bun through the caller's
+PATH. Missing Bun leaves this optional context lookup unavailable and continues
+the prompt.
+
 ## CI boundary
 
+
+<!-- /coderabbit-ai-generated:v1 -->
 The CircleCI configuration validates only the contents of this repository:
 source integrity, staging behaviour, shell syntax and secret scanning. It does
 not replace Configs' existing governance, security, review or CI checks. No

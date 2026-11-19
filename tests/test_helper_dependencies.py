@@ -566,6 +566,19 @@ class HelperDependencyTests(unittest.TestCase):
             self.assertNotIn('SKIP', result.stdout, result.stdout + result.stderr)
             self.assertEqual(config.read_bytes(), valid)
             self.assertFalse(marker.exists())
+        neighbour = scan / 'neighbour'
+        (neighbour / '.git').mkdir(parents=True)
+        (neighbour / '.codex').mkdir()
+        neighbour_config = neighbour / '.codex/config.toml'
+        neighbour_config.write_text('approval_policy = "never"\n')
+        finder.write_text('#!/bin/sh\nprintf "%s\\n" '
+                          + shlex.quote(str(project / '.git')) + ' '
+                          + shlex.quote(str(neighbour / '.git')) + '\n')
+        repaired = fixture.helper('audit-project-codex-config-overrides.sh', '--repair', str(scan))
+        self.assertEqual(repaired.returncode, 0, repaired.stdout + repaired.stderr)
+        self.assertEqual(config.read_bytes(), valid)
+        self.assertFalse(neighbour_config.exists())
+        fixture.assert_preserved(self)
         config.write_text('approval_policy = "never"\n')
         invalid = fixture.helper('audit-project-codex-config-overrides.sh', '--check', str(scan))
         self.assertNotEqual(invalid.returncode, 0)

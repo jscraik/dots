@@ -8,9 +8,10 @@
       "transformations": [
         "sourced-library fixture admission",
         "fixed root-owned hook dependency path and absolute Bash launch",
-        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "check bootstrap failure before Python or retrieval; preserve owner failure posture"
       ],
-      "candidate_sha256": "9d189a3c7bdfb767cf5d3d96e686f26b66aff3c34a7774d141a146eb4b909b33"
+      "candidate_sha256": "4eafc5712a6f1c6e4d85b66c889198fdb99ea89c4818b62bf43bbdbb4fcc6e99"
     },
     {
       "path": "codex/hooks/hook-runtime-path.sh",
@@ -27,9 +28,10 @@
       "source_sha256": "2463f5a7ffa324fa8ad42ea9e4c9d9cfe40ccd331483fc63054a14ac13cd59b2",
       "transformations": [
         "fixture scope and event admission before handler actions",
-        "fixed root-owned hook dependency path and absolute Bash launch"
+        "fixed root-owned hook dependency path and absolute Bash launch",
+        "check bootstrap failure before Python or retrieval; preserve owner failure posture"
       ],
-      "candidate_sha256": "6cf85c0aa5a26876de06e37a1c986adc74d03b634fff63eac2449f648fa266e5"
+      "candidate_sha256": "ba78d066c462bcacb06785ffb4d7a38ba214da141a879d7a85a9e598a2dd3c02"
     },
     {
       "path": "codex/hooks/permission-request-guard.sh",
