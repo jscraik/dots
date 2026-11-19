@@ -130,9 +130,11 @@
       "transformations": [
         "public local path literals",
         "fixture-only CLI and Path I/O admission",
-        "Add fixed packaged-context admission; retain default disposable admission and original checks."
+        "Add fixed packaged-context admission; retain default disposable admission and original checks.",
+        "Admit selected managed-worktree body and template inputs without widening general resource roots; preserve receipt and identity checks.",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "54ec603bcc69bbf95cba210ecda88d5acdb3cde64efad6dbc55f2f171aac0b29"
+      "candidate_sha256": "afba9025a6165b4f57a56f43c443e6a2ab3d03441899efc22ed13a3285a5190b"
     },
     {
       "path": "codex/scripts/pr-review-request.py",
@@ -279,9 +281,10 @@
       "path": "codex/scripts/verify-work.sh",
       "source_sha256": "2592de7e548814facbd17e3376faf88cf9b089b19136f94879a17ad506e9f374",
       "transformations": [
-        "Original check selection and assertions retained; disposable admission and required helper inventory before execution"
+        "Original check selection and assertions retained; disposable admission and required helper inventory before execution",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "c28fa5a37a3be2ee204e5c632c4f5290471f796a88cdca5c89d3cb537c73e603"
+      "candidate_sha256": "63b24f7ec67877edeb222a21d5e401dc006d9a4b435fcfdb8f0949eee07a183b"
     },
     {
       "path": "codex/scripts/codex-preflight.sh",
@@ -315,9 +318,10 @@
       "source_sha256": "30477f08592fb82e111a33b8aafe2c6573a5b51b86fd711b905e10ddd07fa0e8",
       "transformations": [
         "Original core assertions retained; canonical publisher core view, disposable event/resource plumbing and isolated synthetic FIFO canary",
-        "Reuse the validated Python launcher in the nested missing-Computer-Use home"
+        "Reuse the validated Python launcher in the nested missing-Computer-Use home",
+        "Use the imported Path class in the native hook trust probe"
       ],
-      "candidate_sha256": "b4fe3bf55d599681a0d7e460f304a43745fa05a36f0e6b8ab6a184f89c61001a"
+      "candidate_sha256": "d386f80c76887de9752cec5a4b071fcddbc1c1e27d57b44888f600be9810d651"
     },
     {
       "path": "codex/README.md",
@@ -331,9 +335,10 @@
       "path": "codex/hooks/README.md",
       "source_sha256": "ac8b428c26865a5ba69164e65b499d94d6ed2c53c73bacd478016375c14e6be1",
       "transformations": [
-        "public path placeholders; accepted schema/policy content retained"
+        "public path placeholders; accepted schema/policy content retained",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "39163053f4ca56f5c37ba2367898ab550106d739537aa139784acd0269db7c26"
+      "candidate_sha256": "e6406f44786c89f67084a6c3931b7e3b583d0db76483cf7493137c11fba631e9"
     },
     {
       "path": "codex/duplication-policy.json",
@@ -556,9 +561,10 @@
       "path": "codex/scripts/tests/test_pr_review_request.py",
       "source_sha256": "d3b6abfb78691baeb9c128e106701240f9d8d58a9d39714ae4fbbc8617d9c374",
       "transformations": [
-        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+        "accepted regression logic; synthetic local paths and fixture I/O confinement",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "e87b5f8b4e6be7e0c5c768353b4f84e98565595f670e19fb6ef84d190f0bc932"
+      "candidate_sha256": "9e4be6edbb9e88f1b72d38b52b965be909cb0fc2e939fc74f32980fbe04c6cce"
     },
     {
       "path": "codex/scripts/tests/test_pr_post_merge_reconciliation.py",
@@ -733,18 +739,20 @@
         "synthetic fixture resources; original selected checks retained",
         "Add fixed packaged-context admission; retain default disposable admission and original checks.",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
-        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "e35256f37685e934619af6cd23e3071f0043a03e599e872edaa4db1d3ea174df"
+      "candidate_sha256": "c451a84b7e016f6039fc5789378cf6e81e4a5eb1480c9a5e08594e4f87c88101"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
       "origin": "reconciled public source recorded in reconciliation-provenance.json",
       "transformations": [
         "synthetic fixture resources; original selected checks retained",
-        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "73fa14a573ec007defea803f122fbbe181d3bf7a47f06069d8262fd65f120604"
+      "candidate_sha256": "03783c39f6e560d73ef2b3f140808eee272611645ac9a8af53e03ae50b22fe00"
     },
     {
       "path": "codex/scripts/tests/fixtures/coderabbit-completed-source-verdict.txt",
@@ -815,9 +823,10 @@
       "path": "codex/scripts/tests/test_pr_coderabbit_structured.py",
       "origin": "reconciled public source recorded in reconciliation-provenance.json",
       "transformations": [
-        "synthetic fixture resources; original selected checks retained"
+        "synthetic fixture resources; original selected checks retained",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "fd7c06ce229160ba75b0656fceca663d2480e05422ca3355fc8621c9d73cfeec"
+      "candidate_sha256": "5d49886f620943b9ea618da10c9fa7b1ace2515a29a4a29d912ed4647784880e"
     },
     {
       "path": "codex/scripts/tests/test_pr_codex_completion.py",
@@ -835,9 +844,10 @@
       "transformations": [
         "synthetic fixture resources; original selected checks retained",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
-        "Add missing-check and dismissed historical-review scenarios from the coordinated follow-up."
+        "Add missing-check and dismissed historical-review scenarios from the coordinated follow-up.",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "f40d992d8871c69b1fe60635cfcac68ddc8bdcd731ceb349688e6b60223456be"
+      "candidate_sha256": "1d83b892f4da228388d2f92dd8cc4818724c781026ab5816924e13562d21b4ea"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",

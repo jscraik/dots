@@ -587,6 +587,60 @@ class HelperDependencyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         fixture.assert_preserved(self)
 
+    def test_native_hook_probe_checks_trust_in_a_disposable_home(self):
+        fixture = self.fixture
+        fake_server = fixture.bin / "fixture-codex"
+        fake_server.write_text(
+            "#!/usr/bin/env python3\n"
+            "import json, os, sys\n"
+            "for line in sys.stdin:\n"
+            "    message = json.loads(line)\n"
+            "    method = message.get('method')\n"
+            "    if method == 'initialize':\n"
+            "        print(json.dumps({'id': 0, 'result': {}}), flush=True)\n"
+            "    elif method == 'hooks/list':\n"
+            "        status = os.environ.get('DOTS_FAKE_HOOK_TRUST', 'trusted')\n"
+            "        with open(os.environ['DOTS_NATIVE_PROBE_MARKER'], 'a') as marker:\n"
+            "            marker.write(os.environ['CODEX_HOME'] + '\\n')\n"
+            "        hook = {'enabled': True, 'trustStatus': status, "
+            "'eventName': 'PreToolUse'}\n"
+            "        print(json.dumps({'id': 1, 'result': {'data': "
+            "[{'cwd': os.getcwd(), 'hooks': [hook]}]}}), flush=True)\n"
+        )
+        fake_server.chmod(0o755)
+        source = (fixture.codex / "scripts/validate-codex-hooks.sh").read_text()
+        marker = (
+            'CODEX_HOOKS_VALIDATION_CWD="$repo_root" '
+            'CODEX_HOOKS_VALIDATION_CLI="$validation_codex_bin" '
+            '"$python_bin" - <<\'PY\' 2>"$runtime_stderr_file"\n'
+        )
+        self.assertEqual(source.count(marker), 1)
+        program = source.split(marker, 1)[1].split("\nPY\n", 1)[0]
+        evidence = fixture.home / "native-probe-homes.txt"
+        env = fixture.env | {
+            "CODEX_HOOKS_VALIDATION_CWD": str(fixture.codex),
+            "CODEX_HOOKS_VALIDATION_CLI": str(fake_server),
+            "DOTS_NATIVE_PROBE_MARKER": str(evidence),
+        }
+        for trust, expected in (("trusted", 0), ("untrusted", 1)):
+            with self.subTest(trust=trust):
+                result = subprocess.run(
+                    [sys.executable, "-B", "-c", program],
+                    env=env | {"DOTS_FAKE_HOOK_TRUST": trust},
+                    cwd=fixture.codex, capture_output=True, text=True,
+                    timeout=30, check=False,
+                )
+                self.assertEqual(result.returncode, expected, result.stderr)
+                if trust == "untrusted":
+                    self.assertIn("enabled runtime hooks are not trusted", result.stderr)
+        homes = [Path(path) for path in evidence.read_text().splitlines()]
+        self.assertEqual(len(homes), 2)
+        self.assertNotEqual(homes[0], homes[1])
+        for home in homes:
+            self.assertTrue(home.is_relative_to(fixture.home))
+            self.assertFalse(home.exists(), "disposable runtime home should be cleaned up")
+        fixture.assert_preserved(self)
+
     def test_accepted_governance_regressions(self):
         for pattern in (
             "test_arbitrate_hook_results.py",

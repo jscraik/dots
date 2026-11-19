@@ -8,12 +8,11 @@ python3 "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit 
 printf '%s' "$input_json" | jq '
   if .tool_name == "Bash" then
     {
-      continue: true,
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
         additionalContext: "If this command creates or changes a project scaffold, inspect its generated manifest and lockfile afterward and run its actual repository typecheck/test contract. This advisory hook did not run validation."
       }
     }
-  else {continue: true}
+  else {}
   end
 '
