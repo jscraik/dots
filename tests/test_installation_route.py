@@ -1114,7 +1114,7 @@ with installer.renameable_directories(state, staged, target):
         options = self.formatting_review_args(digest)
         arguments = SimpleNamespace(plan_digest=options[4], package_digest=options[6],
                                     expected_config_sha256=options[8], observed_config_sha256=options[10])
-        installer = self.import_installer(ROOT)
+        installer = self.import_installer(self.source_root)
         verify = installer.verified_public_payload
         for path in (config, self.runtime / 'AGENTS.md', self.state / 'plan.json',
                      self.state / 'result.json', prior_state / 'desktop-review.json',
