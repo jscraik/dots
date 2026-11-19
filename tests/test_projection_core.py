@@ -1,8 +1,10 @@
 """Exercise the accepted projector with an explicit synthetic resource allowlist."""
 import importlib.util
 import os
+import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -37,7 +39,8 @@ class ProjectionCoreTests(unittest.TestCase):
                        capture_output=True, timeout=20)
 
     def run_projector(self, *args):
-        return subprocess.run(['bash', str(self.repo / 'scripts/link-configs.sh'),
+        return subprocess.run(['/usr/bin/env', '-u', 'BASH_ENV', '-u', 'ENV', '/bin/bash',
+                               str(self.repo / 'scripts/link-configs.sh'),
                                *args], env=self.env, cwd=self.repo,
                               capture_output=True, text=True, timeout=30, check=False)
 
@@ -56,6 +59,37 @@ class ProjectionCoreTests(unittest.TestCase):
                 self.assertEqual((codex / name).read_text(), 'synthetic sentinel')
         self.assertEqual((codex / 'preview.toml').read_bytes(),
                          (self.repo / 'codex/generated/preview.toml').read_bytes())
+
+    def test_sanitized_launcher_blocks_startup_injection(self):
+        startup = self.home.parent / 'startup.sh'
+        sentinel = self.home.parent / 'injected'
+        startup.write_text(f'touch "{sentinel}"\n')
+        self.env.update(BASH_ENV=str(startup), ENV=str(startup))
+        result = self.run_projector('--repair', '--scope', 'codex',
+                                    '--codex-home', str(self.home / '.codex'))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(sentinel.exists())
+
+    def test_selected_fixture_interpreter_is_checked_before_home_admission(self):
+        self.env.update(DOTS_PROJECTION_FIXTURE='full-policy-v1',
+                        CODEX_VALIDATION_PYTHON='/missing/python')
+        self.env['HOME'] = '/missing/home'
+        result = self.run_projector('--help')
+        self.assertEqual(result.returncode, 78, result.stderr)
+        self.assertIn('absolute executable Python', result.stderr)
+
+    def test_selected_interpreter_with_spaces_runs_admission(self):
+        selected = self.home.parent / 'selected python'
+        selected.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' "$@"\n')
+        selected.chmod(0o700)
+        self.env.update(DOTS_PROJECTION_FIXTURE='full-policy-v1',
+                        CODEX_VALIDATION_PYTHON=str(selected), HOME='/missing/home')
+        result = self.run_projector('--help')
+        self.assertIn('existing disposable HOME', result.stderr)
+        selected.write_text('#!/bin/sh\nexit 1\n')
+        result = self.run_projector('--help')
+        self.assertEqual(result.returncode, 78, result.stderr)
+        self.assertIn('Python 3.9 or later', result.stderr)
 
     def test_missing_source_and_wrong_scope_fail(self):
         target = self.home / '.codex'

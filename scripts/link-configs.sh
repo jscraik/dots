@@ -1,4 +1,7 @@
 #!/bin/bash
+# Standalone entrypoint: /usr/bin/env -u BASH_ENV -u ENV /bin/bash scripts/link-configs.sh
+# A caller may instead supply an allowlisted environment (the packaged installer does).
+# Unsetting below protects children; Bash reads BASH_ENV before this file starts.
 set -euo pipefail
 
 # Projector children use only root-controlled system lookup directories. The
@@ -18,10 +21,16 @@ validate_projector_python() {
     printf 'FAIL  projector requires an absolute executable Python\n' >&2
     exit 78
   fi
+  if ! "$1" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)'; then
+    printf 'FAIL  projector requires Python 3.9 or later\n' >&2
+    exit 78
+  fi
 }
 
 if [[ -f "$dots_package_root/codex/.deployment.json" ]]; then
   PROJECTOR_PYTHON="${CODEX_VALIDATION_PYTHON:-}"
+elif [[ "${DOTS_PROJECTION_FIXTURE:-}" == "full-policy-v1" && -n "${CODEX_VALIDATION_PYTHON:-}" ]]; then
+  PROJECTOR_PYTHON="$CODEX_VALIDATION_PYTHON"
 else
   PROJECTOR_PYTHON="/usr/bin/python3"
 fi
@@ -49,12 +58,6 @@ if os.environ.get('DOTS_PROJECTION_FIXTURE') != 'full-policy-v1':
         if any((Path(parent) / name).is_symlink() for name in dirs + files):
             raise SystemExit('Migration projector refuses symlinks in disposable HOME')
 PYHOME
-  # Full-policy fixtures may retain their explicitly selected validation
-  # interpreter; this route remains confined to the disposable HOME above.
-  if [[ "${DOTS_PROJECTION_FIXTURE:-}" == "full-policy-v1" && -n "${CODEX_VALIDATION_PYTHON:-}" ]]; then
-    PROJECTOR_PYTHON="$CODEX_VALIDATION_PYTHON"
-    validate_projector_python "$PROJECTOR_PYTHON"
-  fi
 fi
 readonly PROJECTOR_PYTHON
 unset DOTS_PROJECTOR_PYTHON
@@ -126,7 +129,7 @@ plan_count=0
 usage() {
   cat <<'USAGE'
 Usage:
-  scripts/link-configs.sh [--check|--repair] [--dry-run] [--scope all|codex] [--codex-home PATH]... [--help]
+  /usr/bin/env -u BASH_ENV -u ENV /bin/bash scripts/link-configs.sh [--check|--repair] [--dry-run] [--scope all|codex] [--codex-home PATH]... [--help]
 
 Modes:
   --check         Validate projection state without modifying files (default)

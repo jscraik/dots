@@ -147,8 +147,29 @@ packages, starts no background service and does not contact a provider or CI.
 
 The projector bootstrap uses the installer's selected Python through the existing
 `CODEX_VALIDATION_PYTHON` contract, including quoted paths containing spaces.
-Standalone callers retain the ordinary `python3` fallback. This selection leaves
-PATH, other tool resolution and persistent runtime-manager trust unchanged.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:cb3654d2c3df54a2c07c62809a85870e0dbea6d5a0bee52afb9eb31f730e263b -->
+
+Full-policy disposable fixtures also select `CODEX_VALIDATION_PYTHON` before
+admission checks. Preview fixtures use `/usr/bin/python3`; the selected absolute
+executable must provide Python 3.9 or later. Full-policy validation additionally
+requires the validation environment described above. Projector children use a
+fixed system PATH.
+
+Standalone projection requires this sanitized launcher (append projection flags):
+
+```sh
+/usr/bin/env -u BASH_ENV -u ENV /bin/bash scripts/link-configs.sh --help
+```
+
+Direct execution or plain `bash scripts/link-configs.sh` with an inherited
+environment is unsupported: Bash can execute `BASH_ENV` before reading the
+script. The in-script unset protects child processes. Callers such as the
+packaged installer may continue invoking Bash with an allowlisted environment
+that excludes shell startup variables.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 Preparation creates a private, read-only policy package and validates it before
 backing up the 20 managed targets. Config, hook manifests, profiles and reusable
