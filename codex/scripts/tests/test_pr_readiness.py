@@ -1924,12 +1924,15 @@ class PrReadinessTests(unittest.TestCase):
 
     def test_review_threads_reads_every_page_beyond_one_hundred_threads(self) -> None:
         first_page = self._review_thread_page(
-            [{"isResolved": index != 99} for index in range(100)],
+            [
+                {"id": f"PRRT_{index}", "isResolved": index != 99}
+                for index in range(100)
+            ],
             has_next_page=True,
             end_cursor="cursor-100",
         )
         second_page = self._review_thread_page(
-            [{"isResolved": False}],
+            [{"id": "PRRT_100", "isResolved": False}],
             has_next_page=False,
             end_cursor="cursor-101",
         )
@@ -1946,6 +1949,9 @@ class PrReadinessTests(unittest.TestCase):
 
         self.assertIsNone(error)
         self.assertEqual(result["unresolved_threads"], 2)
+        self.assertEqual(
+            result["unresolved_thread_ids"], ["PRRT_100", "PRRT_99"]
+        )
         self.assertEqual(result["fetched_threads"], 101)
         self.assertEqual(result["pages"], 2)
         self.assertFalse(result["truncated"])
@@ -1956,7 +1962,10 @@ class PrReadinessTests(unittest.TestCase):
 
     def test_review_threads_stops_after_exactly_one_full_page(self) -> None:
         response = self._review_thread_page(
-            [{"isResolved": True} for _index in range(100)],
+            [
+                {"id": f"PRRT_{index}", "isResolved": True}
+                for index in range(100)
+            ],
             has_next_page=False,
             end_cursor="cursor-100",
         )
@@ -1979,7 +1988,7 @@ class PrReadinessTests(unittest.TestCase):
 
     def test_review_threads_fails_closed_when_a_later_page_request_fails(self) -> None:
         first_page = self._review_thread_page(
-            [{"isResolved": True}],
+            [{"id": "PRRT_one", "isResolved": True}],
             has_next_page=True,
             end_cursor="cursor-1",
         )
@@ -2000,7 +2009,7 @@ class PrReadinessTests(unittest.TestCase):
 
     def test_review_threads_fails_closed_when_next_page_cursor_is_missing(self) -> None:
         response = self._review_thread_page(
-            [{"isResolved": True}],
+            [{"id": "PRRT_one", "isResolved": True}],
             has_next_page=True,
             end_cursor=None,
         )
@@ -2050,6 +2059,136 @@ class PrReadinessTests(unittest.TestCase):
 
         self.assertEqual(result, {})
         self.assertIn("hasNextPage must be boolean", error or "")
+
+    def test_review_thread_page_rejects_even_empty_errors(self) -> None:
+        payload = json.loads(self._review_thread_page([], has_next_page=False, end_cursor=None))
+        self.assertIsNone(MODULE._parse_review_thread_page(json.dumps(payload), 1)[3])
+        for errors in ([], [{"message": "provider error"}]):
+            with self.subTest(errors=errors):
+                payload["errors"] = errors
+                result = MODULE._parse_review_thread_page(json.dumps(payload), 1)
+                self.assertIn("contained GraphQL errors", result[3] or "")
+
+    def test_review_threads_rejects_partial_graphql_errors(self) -> None:
+        payload = json.loads(
+            self._review_thread_page(
+                [{"id": "PRRT_one", "isResolved": False}],
+                has_next_page=False,
+                end_cursor=None,
+            )
+        )
+        payload["errors"] = [{"message": "partial provider response"}]
+
+        with (
+            patch.object(MODULE, "repository_slug", return_value=("jscraik/configs", None)),
+            patch.object(
+                MODULE,
+                "run_command",
+                return_value=MODULE.subprocess.CompletedProcess(
+                    [], 0, json.dumps(payload), ""
+                ),
+            ),
+        ):
+            result, error = MODULE.review_threads(Path.cwd(), 7, "a" * 40)
+
+        self.assertEqual(result, {})
+        self.assertIn("contained GraphQL errors", error or "")
+
+    def test_review_threads_rejects_unknown_thread_identity_or_state(self) -> None:
+        invalid_nodes = (
+            ({"isResolved": False}, "id must be a nonempty string"),
+            ({"id": "", "isResolved": False}, "id must be a nonempty string"),
+            ({"id": 7, "isResolved": False}, "id must be a nonempty string"),
+            ({"id": "x" * 257, "isResolved": False}, "id must be a nonempty string"),
+            ({"id": "PRRT_one"}, "isResolved must be boolean"),
+            ({"id": "PRRT_one", "isResolved": None}, "isResolved must be boolean"),
+            ({"id": "PRRT_one", "isResolved": 0}, "isResolved must be boolean"),
+            ({"id": "PRRT_one", "isResolved": "false"}, "isResolved must be boolean"),
+        )
+        for node, expected in invalid_nodes:
+            response = self._review_thread_page(
+                [node], has_next_page=False, end_cursor=None
+            )
+            with (
+                self.subTest(node=node),
+                patch.object(
+                    MODULE, "repository_slug", return_value=("jscraik/configs", None)
+                ),
+                patch.object(
+                    MODULE,
+                    "run_command",
+                    return_value=MODULE.subprocess.CompletedProcess([], 0, response, ""),
+                ),
+            ):
+                result, error = MODULE.review_threads(Path.cwd(), 7, "a" * 40)
+
+                self.assertEqual(result, {})
+                self.assertIn(expected, error or "")
+
+    def test_review_thread_parser_requires_typed_containers(self) -> None:
+        invalid_payloads = (
+            ([], "response must be an object"),
+            ({"data": []}, "data must be an object"),
+            ({"data": {"repository": []}}, "repository must be an object"),
+            (
+                {"data": {"repository": {"pullRequest": []}}},
+                "pullRequest must be an object",
+            ),
+            (
+                {
+                    "data": {
+                        "repository": {"pullRequest": {"reviewThreads": []}}
+                    }
+                },
+                "reviewThreads must be an object",
+            ),
+        )
+        for payload, expected in invalid_payloads:
+            with self.subTest(expected=expected):
+                nodes, has_next, cursor, error = MODULE._parse_review_thread_page(
+                    json.dumps(payload), 1
+                )
+
+                self.assertEqual(nodes, [])
+                self.assertFalse(has_next)
+                self.assertIsNone(cursor)
+                self.assertIn(expected, error or "")
+
+    def test_receipt_rechecks_reject_partial_review_thread_responses(self) -> None:
+        head = "a" * 40
+        pr = {
+            "headRefOid": head,
+            "number": 7,
+            "reviewDecision": "APPROVED",
+            "reviews": [
+                {
+                    "state": "APPROVED",
+                    "commit_id": head,
+                    "user": {"login": "reviewer", "type": "User"},
+                }
+            ],
+        }
+        for phase in ("update", "review_reconciliation"):
+            target = "PRRT_one" if phase == "review_reconciliation" else None
+            payload = json.loads(self._review_thread_page(
+                [{"id": "PRRT_one", "isResolved": phase == "update"}],
+                has_next_page=False, end_cursor=None))
+            for errors in (None, [], [{"message": "partial provider response"}]):
+                response = dict(payload)
+                if errors is not None:
+                    response["errors"] = errors
+                with (
+                    self.subTest(phase=phase, errors=errors),
+                    patch.object(MODULE, "gh_pr", return_value=(pr, None)),
+                    patch.object(MODULE, "phase_checks_lane", return_value={"status": "pass", "evidence": "checks pass"}),
+                    patch.object(MODULE, "repository_slug", return_value=("jscraik/configs", None)),
+                    patch.object(MODULE, "run_command", return_value=MODULE.subprocess.CompletedProcess([], 0, json.dumps(response), "")),
+                ):
+                    error = MODULE.recheck_hosted_state(Path.cwd(), phase, head, expected_thread_id=target)
+                    if errors is None:
+                        self.assertIsNone(error)
+                    else:
+                        self.assertIn("contained GraphQL errors", error or "")
 
     def test_schema_declares_phase_bound_reconciliation_authority(self) -> None:
         schema_path = MODULE_PATH.parents[1] / "schemas" / "pr-readiness.v1.schema.json"

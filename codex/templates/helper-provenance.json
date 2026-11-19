@@ -730,7 +730,7 @@
       ],
       "source_sha256": "218b9f4398ef58a8604855a5ff82456b80cd33204b27b950146dede8002acb7a",
       "source_path": "codex/scripts/tests/runtime_config_fixture.py",
-      "candidate_sha256": "24fbeb1785cba7887609dfca88f249fba6ad133fe426c3525187fa8f1f6672da"
+      "candidate_sha256": "81db724a5e7e9ec0f59d0f0d17639885dbb64e346509f02d9fd8d690a68be2e9"
     },
     {
       "path": "codex/scripts/pr-readiness.py",
@@ -742,7 +742,7 @@
         "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "a255e37769ee1f3124b5390957c59dc20660d10c9d471f0234633c50da7d72b7"
+      "candidate_sha256": "16e14b92b147ef9acbdb678936666cedacec582394a46e315a0c5da13939ea81"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
@@ -847,7 +847,7 @@
         "Add missing-check and dismissed historical-review scenarios from the coordinated follow-up.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "8a44c20d4df78ada35f985d6d8edd6ae60f30adb7bf71414b293b5cd07a18995"
+      "candidate_sha256": "bcc15c997ab9a5e44b1760250629d8094be43db2697c8b7347bc9e3b073e04c0"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",
