@@ -4,7 +4,11 @@ import os
 import sys
 import tempfile
 import unittest
+import contextlib
+import io
+import runpy
 from pathlib import Path
+from unittest import mock
 
 
 DETECTOR = Path(__file__).resolve().parents[1] / 'codex/hooks/destructive-git-operation.py'
@@ -131,6 +135,8 @@ class DestructiveGitOperationTests(unittest.TestCase):
             'OPTS="never -C /other-repository"; git -c color.ui=$OPTS checkout topic',
             'git -ccolor.ui=$OPTS status',
             'git -C $OPTS status',
+            'coproc git reset --hard; wait',
+            'coproc task { git reset --hard; }; wait',
         )
         for command in commands:
             with self.subTest(command=command):
@@ -181,6 +187,34 @@ class DestructiveGitOperationTests(unittest.TestCase):
         self.assertEqual(self.classify('printf %s ' + 'rm ' * 15000), 'safe')
         self.assertEqual(self.classify("cat <<'EOF'\n" + 'x' * 70000 + '\nEOF'), 'safe')
 
+    def test_opaque_data_cannot_become_a_file_backed_shell_payload(self):
+        commands = (
+            "cat > /tmp/payload <<'EOF'\ngit reset --hard\nEOF\nbash /tmp/payload",
+            "cat <<< 'git reset --hard' > /tmp/payload; sh /tmp/payload",
+            "printf '%s\\n' 'git reset --hard' > /tmp/payload; bash /tmp/payload",
+            "printf '%s\\n' 'git reset --hard' | tee /tmp/payload; bash /tmp/payload",
+            "cat > /tmp/payload <<'EOF'\ngit reset --hard\nEOF\nbash -c 'sh /tmp/payload'",
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertNotEqual(self.classify(command), 'safe')
+        for command in ('bash scripts/verify-work.sh --fast',
+                        'bash -n scripts/verify-work.sh',
+                        "printf '%s' '>'; bash scripts/verify-work.sh",
+                        "cat > notes.md <<'EOF'\nliteral data\nEOF"):
+            with self.subTest(command=command):
+                self.assertEqual(self.classify(command), 'safe')
+
+    def test_here_strings_keep_literal_data_and_inspect_expansions(self):
+        for command in ('cat <<< "hello"', "cat <<< 'git reset --hard'",
+                        'cat <<< "hello"; git checkout topic'):
+            with self.subTest(command=command):
+                self.assertEqual(self.classify(command), 'safe')
+        for command in ('cat <<< "$(git reset --hard)"',
+                        'bash <<< "git reset --hard"'):
+            with self.subTest(command=command):
+                self.assertNotEqual(self.classify(command), 'safe')
+
     def test_checkout_ref_is_verified_in_requested_directory(self):
         other = self.repository / 'other'
         other.mkdir()
@@ -199,3 +233,43 @@ class DestructiveGitOperationTests(unittest.TestCase):
         self.assertEqual(self.classify('git checkout remote-topic'), 'checkout-unresolved')
         self.assertEqual(self.classify('git checkout --track origin/remote-topic'), 'safe')
         self.assertNotEqual(self.classify('git checkout --no-guess remote-topic'), 'safe')
+
+    def test_old_git_verifies_local_refs_without_enabling_lazy_fetch(self):
+        real_run, calls = subprocess.run, []
+
+        def legacy_run(arguments, **kwargs):
+            calls.append((arguments, kwargs))
+            if '--no-lazy-fetch' in arguments:
+                return subprocess.CompletedProcess(arguments, 129, '', 'unknown option: --no-lazy-fetch\n')
+            return real_run(arguments, **kwargs)
+
+        def classify():
+            output = io.StringIO()
+            with mock.patch.object(sys, 'argv', [str(DETECTOR), 'git checkout topic', str(self.repository)]), \
+                    mock.patch.object(subprocess, 'run', side_effect=legacy_run), \
+                    mock.patch('signal.alarm'), mock.patch('signal.signal'), \
+                    contextlib.redirect_stdout(output):
+                try:
+                    runpy.run_path(str(DETECTOR))
+                except SystemExit as stopped:
+                    self.assertEqual(stopped.code, 0)
+            return output.getvalue().strip()
+
+        self.assertEqual(classify(), 'safe')
+        probes = [(arguments, kwargs) for arguments, kwargs in calls if 'rev-parse' in arguments]
+        self.assertEqual(len(probes), 1)
+        self.assertEqual(probes[0][1]['env']['GIT_ALLOW_PROTOCOL'], '')
+        self.assertEqual(probes[0][1]['env']['GIT_NO_LAZY_FETCH'], '1')
+        for key, value in (('remote.origin.promisor', 'true'),
+                           ('remote.origin.partialclonefilter', 'blob:none'),
+                           ('extensions.partialClone', 'origin')):
+            with self.subTest(key=key):
+                real_run(['/usr/bin/git', '-C', str(self.repository), 'config', key, value],
+                         env=self.environment, check=True, capture_output=True, timeout=10)
+                calls.clear()
+                try:
+                    self.assertEqual(classify(), 'checkout-unresolved')
+                    self.assertFalse(any('rev-parse' in arguments for arguments, _kwargs in calls))
+                finally:
+                    real_run(['/usr/bin/git', '-C', str(self.repository), 'config', '--unset', key],
+                             env=self.environment, check=True, capture_output=True, timeout=10)

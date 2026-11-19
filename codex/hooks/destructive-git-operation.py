@@ -51,7 +51,7 @@ def ansi_literal(command, start):
     raise ValueError('Unclosed ANSI-C quote')
 
 
-def prepare_literals(command):
+def prepare_literals(command, opaque_transport=None):
     """Remove literal heredoc data before shell quote/substitution analysis."""
     output, pending, frames = [], [], []
     quote, word_start, index, simple_start = None, True, 0, 0
@@ -91,7 +91,16 @@ def prepare_literals(command):
             index += 1
             word_start = False
             continue
-        if quote is None and command.startswith('<<', index) and not command.startswith('<<<', index):
+        if quote is None and command.startswith('<<<', index):
+            if opaque_transport is not None:
+                opaque_transport[0] = True
+            output.append('<<<')
+            index += 3
+            word_start = True
+            continue
+        if quote is None and command.startswith('<<', index):
+            if opaque_transport is not None:
+                opaque_transport[0] = True
             prefix = shell_split(''.join(output[simple_start:]))
             executable = wrapper_command_index(prefix, 0, len(prefix))
             if executable >= len(prefix) or prefix[executable].rsplit('/', 1)[-1] not in {'cat', 'tee', 'printf'}:
@@ -157,7 +166,7 @@ def prepare_literals(command):
     return ''.join(output)
 
 
-def shell_split(command):
+def shell_split(command, keep_redirections=False):
     """Reuse the packaged lexical boundary contract; retain literal markers."""
     protected = SHELL["protect_quoted_punctuation"](command)
     protected = re.sub(r'(?<![^\s;&|()])\d+(?=[<>])', '', protected)
@@ -172,6 +181,8 @@ def shell_split(command):
         if token != decoded and (decoded and all(char in ';&|<>(){}' for char in decoded) or "\ue100" in token):
             decoded = QUOTED_SEPARATOR_PREFIX + decoded
         tokens.append(decoded)
+    if keep_redirections:
+        return tokens
     executable = wrapper_command_index(tokens, 0, len(tokens))
     if executable < len(tokens) and tokens[executable].rsplit('/', 1)[-1] in {'bash', 'sh', 'zsh', 'dash', 'ksh'} and any(
             token in {'<', '<<<', '<&'} for token in tokens):
@@ -223,14 +234,19 @@ def shell_payload_index(tokens, start=0):
     return None
 
 
-def inspect_shell(command, depth=0, budget=None):
+def inspect_shell(command, depth=0, budget=None, opaque_transport=None):
     """Inspect every executed shell/substitution with the same bounded pipeline."""
     if budget is None:
         budget = [0]
-    budget[0] += len(command)
+    if opaque_transport is None:
+        opaque_transport = [False]
+    prepared = prepare_literals(command, opaque_transport)
+    budget[0] += len(prepared)
     if depth >= 12 or budget[0] > 262144:
         raise ValueError("Shell inspection budget exceeded")
-    prepared = prepare_literals(command)
+    if any(token in {'>', '>>', '>|', '&>', '&>>', '<<<'}
+           for token in shell_split(prepared, keep_redirections=True)):
+        opaque_transport[0] = True
     lexical_tokens = shell_split(prepared)
     if SHELL['declared_functions'](lexical_tokens):
         raise ValueError('Shell function execution requires separate inspection')
@@ -258,18 +274,22 @@ def inspect_shell(command, depth=0, budget=None):
             if any(char in tokens[executable_index] for char in '$`*?[{~'):
                 raise ValueError('Dynamic executable requires separate inspection')
             executable = tokens[executable_index].rsplit("/", 1)[-1].lower()
+            if executable == 'tee':
+                opaque_transport[0] = True
             if executable in {"bash", "sh", "zsh", "dash", "ksh"}:
                 payload = shell_payload_index(tokens, executable_index)
                 if payload is not None:
-                    expanded.extend(inspect_shell(tokens[payload], depth + 1, budget))
+                    expanded.extend(inspect_shell(tokens[payload], depth + 1, budget, opaque_transport))
                     expanded.append(";")
+                elif opaque_transport[0]:
+                    raise ValueError('File-backed shell after opaque data transport requires separate inspection')
             if executable in {"export", "declare", "typeset", "readonly"} and any(
                     unsafe_git_environment(token, bare=True) for token in tokens[executable_index + 1:]):
                 raise ValueError("Program-valued Git environment mutation")
         expanded.extend(tokens)
         expanded.append(";")
         for payload in substitutions:
-            expanded.extend(inspect_shell(payload, depth + 1, budget))
+            expanded.extend(inspect_shell(payload, depth + 1, budget, opaque_transport))
             expanded.append(";")
     return expanded
 
@@ -290,7 +310,7 @@ def wrapper_command_index(tokens, start, limit):
             index += 2
             continue
         executable = tokens[index].rsplit("/", 1)[-1].lower()
-        if executable in {"eval", "xargs", "source", ".", "trap", "alias", "unalias"}:
+        if executable in {"eval", "xargs", "source", ".", "trap", "alias", "unalias", "coproc"}:
             raise ValueError("Unsupported command-producing wrapper")
         if executable == "nohup":
             index += 1
@@ -547,12 +567,15 @@ def known_checkout_ref(tokens, git_index, subcommand_index, operand, positions):
             return False
     environment = {'PATH': '/usr/bin:/bin', 'HOME': str(Path.home()),
                    'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': os.devnull,
-                   'GIT_TERMINAL_PROMPT': '0', 'GIT_NO_LAZY_FETCH': '1'}
+                   'GIT_TERMINAL_PROMPT': '0', 'GIT_NO_LAZY_FETCH': '1',
+                   'GIT_ALLOW_PROTOCOL': ''}
     # Presentation configuration cannot affect ref identity. In particular,
     # config-env values are unavailable in this deliberately restricted env.
     arguments, index = [], git_index + 1
     while index < subcommand_index:
         token = tokens[index]
+        if token.startswith('--exec-path='):
+            return False
         if token in {'-c', '--config-env'}:
             if tokens[index + 1].split('=', 1)[0].lower() != 'color.ui':
                 arguments.extend(tokens[index:index + 2])
@@ -565,8 +588,22 @@ def known_checkout_ref(tokens, git_index, subcommand_index, operand, positions):
         arguments.append(token)
         index += 1
     try:
-        result = subprocess.run(['/usr/bin/git', '--no-pager', '--no-lazy-fetch', '-c', 'core.fsmonitor=false',
-            *arguments, 'rev-parse', '--verify', '--end-of-options',
+        capability = subprocess.run(['/usr/bin/git', '--no-lazy-fetch', '--version'],
+            env=environment, capture_output=True, text=True, cwd='/', timeout=1, check=False)
+        no_lazy_fetch = ['--no-lazy-fetch'] if capability.returncode == 0 else []
+        if not no_lazy_fetch and not (capability.returncode in {128, 129}
+                and capability.stderr.startswith('unknown option: --no-lazy-fetch')):
+            return False
+        prefix = ['/usr/bin/git', '--no-pager', *no_lazy_fetch, '-c', 'core.fsmonitor=false', *arguments]
+        if not no_lazy_fetch:
+            # Older Git has no lazy-fetch suppression option. Only prove refs
+            # in ordinary repositories; deny all transport protocols as well.
+            config = subprocess.run([*prefix, 'config', '--get-regexp',
+                r'^(extensions\.partialclone|remote\..*\.(promisor|partialclonefilter))$'],
+                env=environment, capture_output=True, text=True, cwd=command_cwd, timeout=1, check=False)
+            if config.returncode != 1 or config.stdout:
+                return False
+        result = subprocess.run([*prefix, 'rev-parse', '--verify', '--end-of-options',
             operand + '^{commit}'], env=environment, capture_output=True, text=True,
             cwd=command_cwd, timeout=1, check=False)
     except (OSError, subprocess.TimeoutExpired):
@@ -592,8 +629,7 @@ try:
         raise ValueError('Requested working directory must be absolute')
     if len(command) > 1048576:
         raise ValueError("Shell transport input exceeds inspection budget")
-    command = prepare_literals(command)
-    if len(command) > 65536:
+    if len(prepare_literals(command)) > 65536:
         raise ValueError("Shell input exceeds inspection budget")
     command_tokens = inspect_shell(command)
 except (ValueError, IndexError):

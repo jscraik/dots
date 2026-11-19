@@ -287,6 +287,25 @@ class HookHandlerTests(unittest.TestCase):
             "cat <<'EOF'\nordinary data\nEOF\ncat ~/.codex/auth.json"}})
         self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
 
+    def test_opaque_shell_transport_and_here_strings_reach_both_guards(self):
+        blocked = (
+            "cat > /tmp/payload <<'EOF'\ngit reset --hard\nEOF\nbash /tmp/payload",
+            "printf '%s\\n' 'git reset --hard' > /tmp/payload; bash /tmp/payload",
+            'coproc git reset --hard; wait',
+            'cat <<< "$(git reset --hard)"',
+        )
+        allowed = ('cat <<< "hello"', "cat <<< 'git reset --hard'",
+                   "cat > notes.md <<'EOF'\nordinary data\nEOF")
+        for name in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
+            for command in blocked:
+                with self.subTest(name=name, command=command):
+                    output = self.output(name, {'tool_input': {'command': command}})['hookSpecificOutput']
+                    actual = output['decision']['behavior'] if name == 'permission-request-guard.sh' else output['permissionDecision']
+                    self.assertEqual(actual, 'deny')
+            for command in allowed:
+                with self.subTest(name=name, command=command):
+                    self.assertNotIn('hookSpecificOutput', self.output(name, {'tool_input': {'command': command}}))
+
     def test_checkout_ref_allowance_uses_tool_directory(self):
         seed_checkout_ref(self.fixture.repo, self.fixture.env)
         other = self.fixture.home / 'other-repository'
