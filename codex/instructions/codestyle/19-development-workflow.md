@@ -89,6 +89,6 @@ Agents MUST NOT silently expand into broad rewrites. If the evidence supports on
 
 ## Enforcement
 
-- Use the shared Configs validation contract in [CODESTYLE.md](../CODESTYLE.md#enforcement-model); a passing aggregate covers its unchanged components.
+- Use the active repository contract routed by [CODESTYLE.md](../CODESTYLE.md#enforcement-model); a passing aggregate covers its unchanged components.
 - Use exact command evidence format:
   - `Command: <exact command> -> pass|fail|blocked (<reason>)`

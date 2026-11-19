@@ -101,6 +101,13 @@ def render(bindings_path):
     bindings = read_json(bindings_path)
     if not isinstance(bindings, dict):
         raise TypeError('Bindings must be an object')
+    projects = bindings.pop('additional_trusted_projects', [])
+    if (not isinstance(projects, list) or any(not isinstance(path, str) or not path
+            or '\x00' in path or Path(path).anchor != '/'
+            or str(Path(path)) != path or Path(path).parent == Path(path)
+            or '..' in Path(path).parts for path in projects)
+            or len(projects) != len(set(projects))):
+        raise ValueError('Additional trusted projects must be unique absolute paths')
     bundle = read_json(ROOT / 'codex/templates/policy-bundle.json')
     if set(bundle) != set(NAMES):
         raise ValueError('Incomplete policy/profile bundle')
@@ -110,6 +117,11 @@ def render(bindings_path):
         data = substitute(bundle[name], bindings, used)
         if not isinstance(data, dict):
             raise TypeError('Policy must be a table')
+        if name == 'config':
+            for path in projects:
+                if path in data['projects']:
+                    raise ValueError('Additional project duplicates an existing trust binding')
+                data['projects'][path] = {'trust_level': 'trusted'}
         output = toml_document(data)
         if tomllib.loads(output) != data:
             raise ValueError('TOML round-trip mismatch')
