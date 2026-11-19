@@ -293,8 +293,18 @@ class HookHandlerTests(unittest.TestCase):
             "printf '%s\\n' 'git reset --hard' > /tmp/payload; bash /tmp/payload",
             'coproc git reset --hard; wait',
             'cat <<< "$(git reset --hard)"',
+            'find . -maxdepth 0 -exec git reset --hard \\;',
+            'find . -maxdepth 0 -exec rm -rf / \\;',
+            'fd --exec git reset --hard',
+            'op=-exec; find . "$op" git reset --hard \\;',
+            'busybox find . -exec git reset --hard \\;',
+            'find . -* git reset --hard \\;',
         )
         allowed = ('cat <<< "hello"', "cat <<< 'git reset --hard'",
+                   'find . -maxdepth 0 -type d', 'fd --type f notes',
+                   'fd -- -x', 'fd -e=xlsx pattern', 'find . -name -exec',
+                   "fd 'foo$'", r"find . -regex '.*\.py$'",
+                   r'fd "\*"', r'find . -name "\["',
                    "cat > notes.md <<'EOF'\nordinary data\nEOF")
         for name in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
             for command in blocked:

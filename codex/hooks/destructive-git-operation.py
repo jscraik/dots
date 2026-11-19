@@ -234,6 +234,74 @@ def shell_payload_index(tokens, start=0):
     return None
 
 
+def protect_search_literals(command):
+    """Retain quoted/escaped expansion glyphs for search-operand admission."""
+    markers = dict(zip('$`*?[]{}', (chr(value) for value in range(0xE200, 0xE208))))
+    if any(marker in command for marker in markers.values()):
+        raise ValueError('Reserved search-analysis marker in command')
+    output, quote, index = [], None, 0
+    while index < len(command):
+        char = command[index]
+        if char == '\\' and quote != "'" and index + 1 < len(command):
+            following = command[index + 1]
+            if following in markers:
+                # Double quotes suppress globbing even when a backslash is
+                # retained literally before the glob character by the shell.
+                prefix = '\\' if quote == '"' and following not in '$`' else ''
+                output.append(prefix + markers[following])
+            else:
+                output.append(command[index:index + 2])
+            index += 2
+            continue
+        if char in "'\"":
+            quote = None if quote == char else char if quote is None else quote
+        if char in markers and (quote == "'" or quote == '"' and char not in '$`'):
+            output.append(markers[char])
+        else:
+            output.append(char)
+        index += 1
+    return ''.join(output)
+
+
+def inspect_search_arguments(executable, operands):
+    """Keep search option values distinct from command-producing options."""
+    if executable not in {'find', 'gfind', 'fd', 'fdfind'}:
+        return
+    fd_search = executable in {'fd', 'fdfind'}
+    value_options = ({'--extension', '--exclude', '--type', '--max-depth', '--min-depth',
+        '--exact-depth', '--threads', '--color', '--size', '--changed-within', '--changed-before',
+        '--ignore-file', '--max-results', '--batch-size', '--base-directory', '--path-separator',
+        '--search-path', '--and', '-e', '-E', '-t', '-d', '-j', '-c', '-S'} if fd_search else {
+        '-name', '-iname', '-path', '-ipath', '-wholename', '-iwholename', '-regex', '-iregex',
+        '-type', '-xtype', '-maxdepth', '-mindepth', '-newer', '-anewer', '-cnewer', '-newermt',
+        '-mtime', '-mmin', '-ctime', '-cmin', '-atime', '-amin', '-size', '-user', '-group',
+        '-uid', '-gid', '-perm', '-links', '-inum', '-samefile', '-fstype', '-lname', '-ilname'})
+    consume_value = False
+    for token in operands:
+        if fd_search and not consume_value and token == '--':
+            return
+        if any(char in token for char in '$`*?[]{}'):
+            raise ValueError('Expandable search operands require separate inspection')
+        if consume_value:
+            consume_value = False
+            continue
+        if not fd_search:
+            if token in {'-exec', '-execdir', '-ok', '-okdir'}:
+                raise ValueError('Search utility command execution requires separate inspection')
+        elif token.startswith('--'):
+            if token.split('=', 1)[0] in {'--exec', '--exec-batch'}:
+                raise ValueError('Search utility command execution requires separate inspection')
+        elif token.startswith('-'):
+            for index, option in enumerate(token[1:], 1):
+                if option in 'xX':
+                    raise ValueError('Search utility command execution requires separate inspection')
+                if '-' + option in value_options:
+                    consume_value = index == len(token) - 1
+                    break
+            continue
+        consume_value = token in value_options
+
+
 def inspect_shell(command, depth=0, budget=None, opaque_transport=None):
     """Inspect every executed shell/substitution with the same bounded pipeline."""
     if budget is None:
@@ -262,8 +330,10 @@ def inspect_shell(command, depth=0, budget=None, opaque_transport=None):
     expanded = []
     for context, substitutions, marker in contexts:
         tokens = [token.replace(marker, "${__codex_substitution__}") for token in shell_split(context)]
+        control_prefix = 0
         while tokens and tokens[0] in {"!", "if", "while", "until", "then", "do", "else", "elif"}:
             tokens.pop(0)
+            control_prefix += 1
         if not tokens:
             continue
         if ASSIGNMENT.fullmatch(tokens[0]) and any(unsafe_git_environment(token) for token in tokens
@@ -274,6 +344,10 @@ def inspect_shell(command, depth=0, budget=None, opaque_transport=None):
             if any(char in tokens[executable_index] for char in '$`*?[{~'):
                 raise ValueError('Dynamic executable requires separate inspection')
             executable = tokens[executable_index].rsplit("/", 1)[-1].lower()
+            if executable in {'find', 'gfind', 'fd', 'fdfind'}:
+                search_tokens = [token.replace(marker, "${__codex_substitution__}")
+                                 for token in shell_split(protect_search_literals(context))]
+                inspect_search_arguments(executable, search_tokens[control_prefix + executable_index + 1:])
             if executable == 'tee':
                 opaque_transport[0] = True
             if executable in {"bash", "sh", "zsh", "dash", "ksh"}:
@@ -310,6 +384,11 @@ def wrapper_command_index(tokens, start, limit):
             index += 2
             continue
         executable = tokens[index].rsplit("/", 1)[-1].lower()
+        if executable in {'busybox', 'toybox'}:
+            index += 1
+            if index >= limit or tokens[index].startswith('-'):
+                raise ValueError('Multicall utility needs a literal applet')
+            continue
         if executable in {"eval", "xargs", "source", ".", "trap", "alias", "unalias", "coproc"}:
             raise ValueError("Unsupported command-producing wrapper")
         if executable == "nohup":

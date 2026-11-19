@@ -137,6 +137,18 @@ class DestructiveGitOperationTests(unittest.TestCase):
             'git -C $OPTS status',
             'coproc git reset --hard; wait',
             'coproc task { git reset --hard; }; wait',
+            'find . -maxdepth 0 -exec git reset --hard \\;',
+            'find . -execdir git reset --hard +',
+            'find . -ok rm -rf / \\;',
+            'fd --exec git reset --hard',
+            'fd -X git reset --hard',
+            'op=-exec; find . "$op" git reset --hard \\;',
+            'find . "$(printf %s -exec)" git reset --hard \\;',
+            'op=--exec; fd "$op" git reset --hard',
+            'busybox find . -exec git reset --hard \\;',
+            'toybox find . -exec git reset --hard \\;',
+            'find . -* git reset --hard \\;',
+            'fd * git reset --hard',
         )
         for command in commands:
             with self.subTest(command=command):
@@ -176,6 +188,21 @@ class DestructiveGitOperationTests(unittest.TestCase):
             'exec -a git printf x',
             'exec -a rm printf x',
             'exec -a cd printf x; git checkout topic',
+            'find . -maxdepth 0 -type d',
+            'fd --type f notes',
+            'fd -- -x',
+            'fd -e=xlsx pattern',
+            'fd -exlsx pattern',
+            'fd -e xlsx pattern',
+            'find . -name -exec',
+            'busybox find . -type f',
+            "fd 'foo$'",
+            r"find . -regex '.*\.py$'",
+            'fd "*.py"',
+            r'fd foo\$',
+            r'fd "\*"',
+            r'find . -name "\["',
+            r'fd "\?\[\]\{\}"',
         )
         for command in commands:
             with self.subTest(command=command):
