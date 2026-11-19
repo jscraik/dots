@@ -114,9 +114,10 @@
       "source_sha256": "58d7e2b49cb9dc1ede2dab9b1326de67dbcc536fe2833d6fc6f0e061cf271220",
       "transformations": [
         "fixture scope and event admission before handler actions",
+        "disable repository-selected fsmonitor execution during automatic status observation",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "000e1479bdbee101894a6c590a6c654983b52b9e3228cb4682c19fdc02b3524c"
+      "candidate_sha256": "320b274ca6911757bbc5fe0d0b170c5e4f66da0ee283a4a37eb2bf8c5f38dc0f"
     },
     {
       "path": "codex/hooks/stop-guard.sh",
