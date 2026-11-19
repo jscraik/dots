@@ -201,7 +201,7 @@
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "1ee7130445a76bf6d54a2c2b35f8ea7c75bcc5969fbef4f56cc3e7e2d09c488e",
+      "candidate_sha256": "40dda95f7da075e202d43a83e46003f72e778ba8e09bf26edf5d77b4c7a74323",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment. Add automatic SessionStart fsmonitor non-execution and dirty-state regression coverage."
     },
     {
