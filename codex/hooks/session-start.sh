@@ -306,7 +306,8 @@ if git -C "$cwd" rev-parse --show-toplevel >/dev/null 2>&1; then
   repo_name="$(basename "$repo_root")"
   branch_name="$(git -C "$git_root" symbolic-ref --quiet --short HEAD 2>/dev/null || git -C "$git_root" rev-parse --short HEAD 2>/dev/null || true)"
   head_sha="$(git -C "$git_root" rev-parse HEAD 2>/dev/null || true)"
-  dirty_count="$(git -C "$git_root" status --porcelain=v1 -- "$repo_root" 2>/dev/null | wc -l | tr -d '[:space:]')"
+  # Automatic observation must not execute helpers selected by repository-local config.
+  dirty_count="$(git -c core.fsmonitor=false -C "$git_root" status --porcelain=v1 -- "$repo_root" 2>/dev/null | wc -l | tr -d '[:space:]')"
   dirty_count="${dirty_count:-0}"
 
   printf -v preflight_command 'bash %q --mode optional' "$repo_root/scripts/codex-preflight.sh"
