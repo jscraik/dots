@@ -18,6 +18,10 @@ from importlib import import_module  # noqa: E402
 from pathlib import Path  # noqa: E402
 from urllib.parse import urlparse  # noqa: E402
 
+from desktop_compatibility import (  # noqa: E402
+    DESKTOP_OWNED_COMPUTER_USE_PLUGIN_IDS,
+    computer_use_plugin_preservation_errors,
+)
 from marketplace_identity import (  # noqa: E402
     MarketplaceIdentityError,
     verify_marketplace_revision,

@@ -29,6 +29,7 @@ MARKETPLACE_REVISION_BINDINGS = {
     'drawio': 'value_0181',
 }
 DEPENDENCIES = ('scripts/validate-codex-config.py', 'scripts/repair-runtime-config-drift.py',
+                'scripts/desktop_compatibility.py',
                 'scripts/migration_scope.py', 'scripts/marketplace_identity.py',
                 'schemas/config.schema.json',
                 'instructions/compact-prompt.md', 'scripts/project-codex-hooks.py',
