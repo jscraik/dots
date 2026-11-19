@@ -718,9 +718,10 @@
       "origin": "dots migration implementation",
       "transformations": [
         "Consume the publisher-validated original-core view from one captured snapshot",
-        "Add fixed packaged-context admission; retain default disposable admission and original checks."
+        "Add fixed packaged-context admission; retain default disposable admission and original checks.",
+        "Validate unshared sealed sources without following symlinks; capture stable bytes within the Braid size bound before validating the captured manifest."
       ],
-      "candidate_sha256": "49b82d23ff4ade7bb75dbb42d080a66a348b26fda7208018de398283c08d6155"
+      "candidate_sha256": "7f4c55b5bb794088058c2d2551a3f66d649034a5cc0c3df58014cc5b6230a65d"
     },
     {
       "path": "codex/scripts/tests/runtime_config_fixture.py",
