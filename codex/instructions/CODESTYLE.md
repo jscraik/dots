@@ -1,124 +1,101 @@
 # CODESTYLE.md
 
-> Public library port. Read [migration scope](migration-scope.md) before using
-> retained Configs commands or installation recipes. Source-specific
-> checks remain Configs requirements; this candidate grants no activation.
-
-
 ## Purpose
 
-This file is the codestyle front door for the `codex/` subtree.
-Use it to locate the right standards module quickly.
-
-For Codex-only work, this scoped pack owns standards and replaces the parent
-codestyle body. Read task-selected modules, not both complete packs. Use parent
-standards for non-Codex paths when a change crosses that boundary.
-
-Detailed standards are split under [codestyle/README.md](./codestyle/README.md).
-
-## Table of Contents
-
-- [Baselines](#baselines)
-- [Toolchain configuration](#toolchain-configuration)
-- [Engineering judgement coverage](#engineering-judgement-coverage)
-- [Command scope](#command-scope)
-- [Codestyle modules](#codestyle-modules)
-- [Enforcement model](#enforcement-model)
-- [How to use this pack](#how-to-use-this-pack)
+This is the standards front door for dots and its portable Codex guidance.
+Dots owns its current process. Imported Configs recipes are historical source
+references, not additional prerequisites for work in dots or another project.
+Use the active repository's executable commands; this file grants no deployment
+or live installation authority.
 
 ## Baselines
 
-- JS/TS toolchain: Node >= 24, pnpm 10, Biome, Node syntax checks, TypeScript where present, and Vitest/Node test runners where configured.
-- Docs: markdownlint for broad Markdown linting; Vale only when `.vale.ini` is present.
-- Python: Ruff, Pyright, pytest.
-- Rust: rustfmt, Clippy, cargo test.
-- Shell: Bash and Zsh scripts with explicit invocation contracts.
-- Config/data: JSON, YAML, TOML, plist/XML, KDL, `.env` files, lockfiles, and generated manifests.
-- Diagrams/assets: Mermaid (`.mmd` and fenced diagrams), static HTML, SVG/PNG/WebP assets, signatures, and checksums.
-- Security/policy: Semgrep, policy guards, supply-chain tooling.
-- Node baseline: `>=24.0.0`, from the parent `package.json` (Configs dependency: `../../package.json`). Keep this project contract rather than copying a generic upstream “current” or LTS label; the runtime manager may install a newer compatible release.
-- TypeScript baseline: >= 5.9 (when TS is used).
-- Rust baseline: 2024 edition (rustc >= 1.85).
-- Security advisories override baselines: patch immediately when a baseline dependency has a published fix.
+- Prefer the smallest coherent change that satisfies the named outcome.
+- Keep boundaries explicit: validate external data, preserve error states,
+  isolate side effects and make replacement/recovery safe.
+- Match existing language and framework conventions. Choose abstractions for
+  demonstrated responsibilities or repeated variation, not to satisfy a pattern.
+- Use strong types where they prevent concrete mistakes. Do not add dependencies,
+  wrappers, schemas or classes solely to satisfy a style preference.
+- Use comments to explain intent and constraints. A TODO is not itself a release
+  defect; unfinished required behaviour, fabricated results and misleading
+  completion claims are.
+- Review correctness, security, maintainability and real behaviour. Leave
+  deterministic formatting and mechanical checks to the configured tools.
 
 ## Toolchain configuration
 
-- `../../.mise.toml` (Configs dependency: `../../.mise.toml`) is the canonical runtime and managed-CLI pin surface for this repository.
-- Parent `package.json` (Configs dependency: `../../package.json`), its `packageManager` field, and `../../pnpm-lock.yaml` (Configs dependency: `../../pnpm-lock.yaml`) are the canonical package-manager and dependency-lock surfaces.
-- `../../biome.json` (Configs dependency: `../../biome.json`) is the canonical Biome formatter, assist, and style-lint configuration; use it through `pnpm lint`.
-- When managed runtimes or CLIs change, keep the runtime config, package contract, environment checks, and operator instructions aligned. Do not update a prose baseline without reconciling the executable contract.
+[Workstation pins](../../mise/config.toml) and their
+[lock](../../mise/mise.lock) own workstation versions. Dots validation uses
+Python 3.12 or newer and the existing dependencies in
+[requirements/codex-validation.txt](../../requirements/codex-validation.txt).
+The [CI definition](../../.circleci/config.yml) owns its Linux tool versions.
+
+There is no dots package.json, pnpm aggregate, Biome configuration or configured
+Pyright gate. Do not run imported package commands or claim those gates exist.
+For another repository, read its own manifest, lockfile and configured checks.
+A newer upstream release alone is not a reason to change a working pin; update
+when compatibility, support or a relevant fix requires it, with focused proof.
 
 ## Engineering judgement coverage
 
-- Treat language, configuration, architecture, testing, security, observability, CI/CD, accessibility, and AI-agent safety as review vocabulary tied to executable gates.
-- Eliminate untrusted or dynamic data at a declared boundary: parsers, schemas, API adapters, DTOs, configuration loaders, CLI argument parsing, storage decoders, migration importers, and test fixtures. Do not use generic shape probes to move unvalidated data further into application logic.
-- Follow the language modules for domain types and boundary validation:
-  [Python](./codestyle/07-python.md), [TypeScript](./codestyle/08-typescript.md)
-  and [Swift](./codestyle/12-swift.md). Use stronger types for concrete misuse
-  risks or invariants; ordinary primitives and typed records remain appropriate
-  with explicit constraints. Preserve schema ownership and external identifier
-  formats, and do not add dependencies solely for type-style preferences.
-- When feedback or a defect reveals a transferable principle, search the relevant sibling implementations and tests before closeout. Fix the shared pattern where justified, or record why nearby cases intentionally differ.
+Use the task-selected language module for useful conventions, subject to this
+front door and the active repository contract. Imported references to Configs
+package gates, source paths and source-only skills do not create dots gates.
+A module's MUST is scoped to its named technology and configured consumer.
+
+When a convention is unconfigured or inapplicable, record that fact if it matters;
+do not invent a waiver ticket or install a tool to satisfy copied prose.
+A deliberate exception to a real safety or release control still needs its
+owning authority, rationale and appropriate proof.
 
 ## Command scope
 
-- `parent repo root` means the Git root for this repository.
-- `codex subtree root` means the `codex/` directory inside the parent repo root.
-- Package-manager commands (`pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm run test:deep`) run from the parent repo root.
-- Codex-subtree scripts run from the codex subtree root unless explicitly written with a `codex/` prefix.
-- Equivalent path forms are acceptable only when the working directory is explicit in validation evidence:
-  - `Command: (cwd=<parent repo root>) bash codex/scripts/verify-work.sh --fast -> pass (...)`
-  - `Command: (cwd=<codex subtree root>) bash scripts/verify-work.sh --fast -> pass (...)`
+Run dots commands from the dots repository root. The
+[local validation contract](../../README.md#local-checks) is the command authority.
+Use an already provisioned validation environment. If a runtime manager refuses
+an untrusted checkout, diagnose the trust boundary; do not label it a code failure
+or alter machine trust without authority.
+
+Imported Codex helpers may require a disposable fixture. Use their owning tests;
+file presence does not make a helper an unrestricted live command.
 
 ## Codestyle modules
 
-- [codestyle/01-foundations.md](./codestyle/01-foundations.md)
-- [codestyle/02-javascript-ui.md](./codestyle/02-javascript-ui.md)
-- [codestyle/03-rust-tauri.md](./codestyle/03-rust-tauri.md)
-- [codestyle/04-docs-config-and-release.md](./codestyle/04-docs-config-and-release.md)
-- [codestyle/05-quality-security-ops.md](./codestyle/05-quality-security-ops.md)
-- [codestyle/06-appendices-and-project-overrides.md](./codestyle/06-appendices-and-project-overrides.md)
-- [codestyle/07-python.md](./codestyle/07-python.md)
-- [codestyle/08-typescript.md](./codestyle/08-typescript.md)
-- [codestyle/09-web.md](./codestyle/09-web.md)
-- [codestyle/10-shell-bash-zsh.md](./codestyle/10-shell-bash-zsh.md)
-- [codestyle/11-package-managers-pnpm-npm.md](./codestyle/11-package-managers-pnpm-npm.md)
-- [codestyle/12-swift.md](./codestyle/12-swift.md)
-- [codestyle/13-git-workflow.md](./codestyle/13-git-workflow.md)
-- [codestyle/14-patterns.md](./codestyle/14-patterns.md)
-- [codestyle/15-performance.md](./codestyle/15-performance.md)
-- [codestyle/16-security.md](./codestyle/16-security.md)
-- [codestyle/17-testing.md](./codestyle/17-testing.md)
-- [codestyle/18-code-review.md](./codestyle/18-code-review.md)
-- [codestyle/19-development-workflow.md](./codestyle/19-development-workflow.md)
-- [codestyle/20-go.md](./codestyle/20-go.md)
-- [codestyle/21-artifact-formats.md](./codestyle/21-artifact-formats.md)
+The [module index](codestyle/README.md) routes language-specific references.
+Read only what the task needs. Common routes:
+
+- [Foundations](codestyle/01-foundations.md)
+- [Python](codestyle/07-python.md) and [shell](codestyle/10-shell-bash-zsh.md)
+- [Security](codestyle/16-security.md)
+- [Testing](codestyle/17-testing.md)
+- [Development workflow](codestyle/19-development-workflow.md)
 
 ## Enforcement model
 
-- Rules in this pack use RFC2119 language (`MUST`, `MUST NOT`, `SHOULD`) and are normative unless an explicit waiver exists.
-- Waivers MUST include: rule ID or section, reason, tracking ticket, and expiry or ADR reference.
-- Validation evidence MUST use exact command text and explicit outcomes:
-  - `Command: <exact command> -> pass|fail|blocked (<reason>)`
-- Contract checks for this repository (run from repository root):
-  - Commands are expected from the active instruction scope and MUST record `cwd` when scope could be ambiguous.
-  - From the parent repo root, use `bash codex/scripts/...` or `./codex/scripts/...` for codex-subtree validators.
-  - From the codex subtree root, use `bash scripts/...` for codex-subtree validators.
-  - `pnpm lint` (parent repo root)
-  - `pnpm typecheck` (parent repo root)
-  - `pnpm test` (parent repo root)
-  - `bash scripts/verify-work.sh --fast` (codex subtree root) or `bash codex/scripts/verify-work.sh --fast` (parent repo root)
-  - Workflow trigger: `$validation-contract-check` when validation commands,
-    gate selection, preflight contracts, or their documented behavior change.
-    Prose-only corrections do not select it merely by living in this subtree.
-  - Run the instruction-routing validator through the pinned Python runtime:
-    `bash codex/scripts/codex-validation-python-uv.sh codex/scripts/validate-instruction-routing.py`
-    (parent repo root). It supplies `markdown-it-py==4.2.0`; bare system Python
-    is not the dependency-managed entrypoint.
+Run the narrowest proving check first, then the required affected checks.
+The dots baseline is:
+
+- `python3 -B -m unittest discover -s tests -v`
+- `ruff check --no-cache .`
+- `python3 -B scripts/check-source.py`
+- `python3 -B scripts/check-public-guidance.py`
+- `bash -n scripts/resolve-homebrew-bin.sh`
+- `gitleaks dir --no-banner --redact --log-level error .`
+
+Select `bash scripts/test-app-codex.sh` for Desktop runtime proof. Direct unittest
+runs without an explicit CLI skip native cases; report that limit. Linux CI and
+Desktop proof are different lanes. Focused tests are useful during development;
+they do not replace the full suite when claiming the complete validation lane.
+
+For guidance-only edits, source/link checks and review normally suffice; run
+behaviour tests when executable guidance or a gate contract changes. A passing
+aggregate covers its unchanged components. Repeat only after relevant changes
+or an unresolved failure. Use `Command: <exact command> -> pass|fail|blocked
+(<reason>)`, with cwd when ambiguous.
 
 ## How to use this pack
 
-1. Start at this file.
-2. Open only the module that matches the task surface.
-3. Keep project-specific override content in `06-appendices-and-project-overrides.md`.
-4. When changing standards, update the module first, then confirm this index still matches.
+Start here, select the needed module, and use the active project's check contract.
+Update the owning passage when it conflicts with implementation. Keep history in
+provenance and task records rather than adding another mandatory instruction layer.

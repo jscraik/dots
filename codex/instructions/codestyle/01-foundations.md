@@ -1,9 +1,8 @@
 # Foundations and Baseline Standards
 
-> Public library port. Read [migration scope](../migration-scope.md) before using
-> retained Configs commands or installation recipes. Source-specific
-> checks remain Configs requirements; this candidate grants no activation.
-
+These portable principles are scoped by the [CODESTYLE front door](../CODESTYLE.md).
+The active repository's supported interfaces and executable contracts take precedence
+over a generic implementation preference.
 
 ## Table of Contents
 
@@ -15,76 +14,59 @@
 
 ## 0. Gold Production Standards (Hard Prohibitions)
 
-**ABSOLUTE PROHIBITION** — It is a policy violation to ship or describe anything as “production-ready”, “complete”, “operational”, or “fully implemented” if any of the following exist anywhere in a **production code path**:
+Do not present fabricated data, synthetic telemetry, unimplemented required
+behaviour or unverified delivery as real or complete. Release acceptance concerns
+the promised behaviour and supported production paths.
 
-- Fabricated data/entropy: `Math.random()` (or equivalent) used to fabricate data without injected seed
-- Hard-coded mock responses in production paths
-- `TODO`/`FIXME`/`HACK` comments in production paths
-- Placeholder stubs (“will be wired later”, “not implemented”, etc.)
-- Disabled features signaling gaps (`console.warn("not implemented")`, dead flags)
-- Fake metrics or synthetic telemetry presented as real
+A TODO comment, staged feature flag or intentionally disabled integration is not
+automatically a release blocker. Assess whether it prevents an acceptance criterion,
+exposes a security problem or misrepresents capability. Record genuine limitations.
 
-**Production code path** = any code that:
-
-- ships in release artifacts,
-- executes in deployed services/CLIs/apps,
-- is reachable in release builds (even behind runtime flags).
+Use deterministic clocks, IDs and randomness where reproducibility matters.
+Use appropriate system randomness for security-sensitive values; never replace it
+with a seeded test generator in production. Inject substitutes in tests.
 
 ### Identity and Truthfulness
 
-- Apps/binaries/services MUST include **service identity** in outputs, error messages, and logs (`service:"<service_name>"`).
-- Shared libraries SHOULD avoid hard-coded identity; prefer injected structured fields.
-- Status claims in UIs/logs/docs MUST be evidence-backed by code and passing checks.
+Use the application's existing logging and error conventions. Include service or
+operation identity where it helps consumers distinguish sources; do not force a
+JSON service field into every CLI, human error message or library.
 
 ### Detection
 
-- Pattern guards/AST-Grep/Semgrep/CI checks fail on violations.
-- Exceptions require an ADR and a time-boxed waiver (see Appendix B).
-
----
+Use configured linters and behavioural checks for objective invariants.
+Do not claim a pattern guard enforces a rule until its maintained entrypoint is
+verified. Qualitative decisions require review, not a keyword ban.
 
 ## Domain primitives and schema ownership
 
-- Validate untrusted input before domain logic uses it. Preserve the owning
-  schema, external identifier format and wire contract; derive types from an
-  existing schema instead of manually duplicating its contract.
-- Use branded identifiers or validating value types when they prevent a concrete
-  mix-up or enforce a domain invariant. Ordinary primitives and typed records
-  are appropriate when explicit constraints and units make their use clear.
-- Validate ranges, finiteness and other required invariants at the boundary,
-  regardless of the chosen representation. Static annotations and casts do not
-  perform runtime validation. Do not add a dependency solely for a type-style rule.
+Validate untrusted input at its owning boundary. Preserve wire formats and schema
+ownership. Use a branded identifier or validating value type for a concrete invariant
+or mix-up risk; ordinary primitives and typed records are appropriate otherwise.
+Annotations alone do not validate runtime data. Do not add a dependency just for style.
 
 ## 1. General Principles
 
-- **Functional-first**: prefer pure, composable functions.
-- **Classes**: only when required by a framework or to encapsulate unavoidable state.
-- **Functions**: SHOULD be <= 40 LOC; split if readability suffers.
-- **Exports**: named exports only; no `export default`.
-  - Exception: framework conventions that require default exports (e.g., certain Next.js special files).
-- **Determinism**: no ambient randomness/time in core logic; inject seeds/clocks/IDs.
-- **Errors**: never swallow errors; add context and route to logging layer.
-- **Cancellation**: long-running work MUST accept cancellation (AbortSignal in JS/TS; cancellation tokens/channels in Rust).
-
----
+- Keep responsibilities cohesive and side effects explicit.
+- Prefer simple functions; use classes when they improve a real domain model,
+  lifecycle or state boundary.
+- Split functions when doing so improves understanding or independent testing,
+  not to meet an arbitrary line count.
+- Follow the package's established exports and framework conventions.
+- Preserve errors with useful context; handle expected absence explicitly.
+- Bound long-running operations and support cancellation where callers need it.
+- Change shared mechanisms only after checking their actual consumers.
 
 ## 2. Task Orchestration (Repo-Defined)
 
-- Use the repo’s task runner and “smart” wrappers when provided.
-- If the repo uses an affected-only execution strategy, apply it where possible.
-- Heavy targets SHOULD be serialized where the repo defines resource discipline.
-
----
+Use the repository's maintained task runner. Apply affected-test selection where
+the repository supports it and retain required broader checks. Follow measured
+resource constraints; no generic role ceremony or extra orchestration framework
+is needed for a small local change.
 
 ## 3. Node.js Standards
 
-- Packages MUST target the repo baseline Node version (pinned).
-- JS/TS packages MUST use ESM (`"type": "module"`); avoid CJS unless a pack explicitly permits it.
-- Prefer Node standard capabilities where appropriate (test runner for small libs is allowed).
-- JSON imports MUST use import attributes where runtime requires it:
-
-  ```ts
-  import data from "./foo.json" with { type: "json" };
-  ```
-
----
+Use the repository's runtime, module format and package-manager lock. Prefer ESM
+for new packages when supported; do not migrate working CommonJS merely to satisfy
+portable guidance. Use runtime-supported JSON import syntax. Built-in test runners
+are suitable where they meet the project's needs.

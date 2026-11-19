@@ -96,9 +96,9 @@ class HandoverValidationTests(unittest.TestCase):
                 self.assertEqual(output['permissionDecisionReason'],
                                  f'Required policy handler failed: {handler.name} ({detail})')
                 self.assertNotIn(private, result.stdout + result.stderr)
-        handler.write_text('#!/bin/bash\nprintf \'%s\' \'{"continue":true}\'\n')
+        handler.write_text('#!/bin/bash\nprintf \'%s\' \'{}\'\n')
         result = self.fixture.run('pre-tool-use-dispatch.sh', {'tool_input': {'command': 'git remote -v'}})
-        self.assertEqual(json.loads(result.stdout), {'continue': True})
+        self.assertEqual(json.loads(result.stdout), {})
         handler.write_text('#!/bin/bash\nprintf \'%s\' \'{"hookSpecificOutput":{"permissionDecision":"deny","permissionDecisionReason":"fixture policy denial"}}\'\n')
         result = self.fixture.run('pre-tool-use-dispatch.sh', {'tool_input': {'command': 'git remote -v'}})
         self.assertEqual(json.loads(result.stdout)['hookSpecificOutput']['permissionDecisionReason'],

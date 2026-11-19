@@ -1,4 +1,4 @@
-"""Remove transient Codex scratch workspaces from the global config.toml."""
+"""Remove explicitly selected retired project entries; never infer retirement from location."""
 
 from __future__ import annotations
 
@@ -16,7 +16,6 @@ from typing import Any  # noqa: E402
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG_PATH = SCRIPT_DIR.parent / "config.toml"
-DEFAULT_SCRATCH_PREFIXES = (str(Path.home() / 'Documents/Codex') + '/',)
 PROJECT_TABLE_RE = re.compile(r'^\[projects\."(?P<path>.*)"\]\s*$')
 TABLE_RE = re.compile(r"^\[")
 
@@ -126,7 +125,7 @@ def run_self_test() -> dict[str, Any]:
         "[mcp_servers.example]\n",
         'command = "/bin/true"\n',
     ]
-    offenders = scratch_blocks(sample, DEFAULT_SCRATCH_PREFIXES)
+    offenders = scratch_blocks(sample, (str(Path.home() / 'Documents/Codex') + '/',))
     cleaned = remove_blocks(sample, offenders)
     expected = [
         'model = "gpt-5"\n',
@@ -182,7 +181,9 @@ def main() -> int:
     if args.check and args.repair:
         raise SystemExit("choose only one of --check or --repair")
 
-    prefixes = tuple(args.prefixes or DEFAULT_SCRATCH_PREFIXES)
+    if not args.prefixes or any(not prefix.strip() for prefix in args.prefixes):
+        raise SystemExit('Project cleanup requires an explicitly selected --prefix; workspace location does not imply retirement')
+    prefixes = tuple(args.prefixes)
     result = scrub_config(args.config, repair=args.repair, prefixes=prefixes)
     emit(result, as_json=args.json)
     return 0 if result["status"] in {"pass", "repaired"} else 1
