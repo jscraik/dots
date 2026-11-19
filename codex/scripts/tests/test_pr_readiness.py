@@ -22,6 +22,35 @@ SPEC.loader.exec_module(MODULE)
 
 
 class PrReadinessTests(unittest.TestCase):
+    def test_ordinary_source_requires_one_independent_review(self) -> None:
+        from pr_review_risk import committed_review_requirement
+
+        for path in ('src/widget.py', 'src/components/Button.tsx', 'tests/test_widget.py',
+                     'scripts/format.py', 'src/theme/tokens.json', 'docs/guide.md'):
+            with self.subTest(path=path):
+                result = committed_review_requirement([
+                    {'path': path, 'old_mode': '100644', 'new_mode': '100644'}])
+                self.assertEqual(result['required_bot_review_count'], 1)
+        for path in ('src/auth/login.py', '.github/workflows/check.yml',
+                     'codex/scripts/pr-readiness.py', 'migrations/001.sql',
+                     'scripts/deploy.sh', 'package-lock.json', 'unknown.blob',
+                     'requirements/codex-validation.txt', 'mise/config.toml',
+                     'codex/config.toml', 'codex/requirements.toml', 'codex/projection-map.json',
+                     'codex/scripts/admit-hook-fixture.py', 'codex/scripts/migration_scope.py',
+                     'codex/templates/handler-provenance.json', 'tools/mise/config.toml',
+                     '.coderabbit.yaml', 'Package.swift', 'composer.json', 'setup.py', 'build.gradle.kts'):
+            with self.subTest(path=path):
+                result = committed_review_requirement([
+                    {'path': path, 'old_mode': '100644', 'new_mode': '100644'}])
+                self.assertEqual(result['required_bot_review_count'], 2)
+        for before, after in (('100644', '100755'), ('120000', '100644'), ('160000', '000000')):
+            result = committed_review_requirement([
+                {'path': 'src/widget.py', 'old_mode': before, 'new_mode': after}])
+            self.assertEqual(result['required_bot_review_count'], 2)
+        self.assertEqual(committed_review_requirement([
+            {'path': 'scripts/format.sh', 'old_mode': '100755', 'new_mode': '100755'}
+        ])['required_bot_review_count'], 1)
+
     def test_modern_coderabbit_completion_keeps_identity_and_gap_checks(self) -> None:
         head, base = "a" * 40, "b" * 40
         slug = "jscraik/configs"
@@ -2447,6 +2476,40 @@ class PrReadinessTests(unittest.TestCase):
         self.assertEqual(result["status"], "pass")
         self.assertEqual(result["details"]["review_mode"], "bot_quorum")
 
+    def test_reviews_lane_keeps_verified_completion_before_blank_native_approval(self) -> None:
+        head = "a" * 40
+        completion = {"id": 42, "user": {"login": "coderabbitai[bot]"},
+                      "commit_id": head, "state": "COMMENTED", "source": "coderabbit_completion",
+                      "body": f"No findings for {head}.",
+                      "created_at": "2026-11-17T12:51:46Z", "updated_at": "2026-11-17T12:51:46Z",
+                      "completion_evidence": {"completed_at": "2026-11-17T12:51:46Z"}}
+        approval = {"state": "APPROVED", "commit": {"oid": head},
+                    "author": {"login": "coderabbitai"}, "submittedAt": "2026-11-17T12:51:52Z", "body": ""}
+        peer = {"state": "COMMENTED", "commit": {"oid": head},
+                "author": {"login": "chatgpt-codex-connector"}, "submittedAt": "2026-11-17T12:49:42Z",
+                "body": f"No findings for {head}."}
+        pr = {"number": 7, "reviewDecision": "APPROVED", "reviews": [approval, peer]}
+        with (patch.object(MODULE, "review_threads", return_value=({"unresolved_threads": 0, "truncated": False}, None)),
+              patch.object(MODULE, "review_comments", return_value=([], None)),
+              patch.object(MODULE, "issue_comments", return_value=([], None)),
+              patch.object(MODULE, "codex_completion_review", return_value=(None, None)),
+              patch.object(MODULE, "coderabbit_completion_review", return_value=(completion, None)) as verified):
+            result = MODULE.reviews_lane(Path.cwd(), pr, head)
+            self.assertEqual(result["status"], "pass", result)
+            self.assertEqual(completion["created_at"], "2026-11-17T12:51:46Z")
+            for mutation in ({"state": "CHANGES_REQUESTED"}, {"body": "Unknown review narrative"},
+                             {"body": "Potential issue: unsafe workflow"}):
+                with self.subTest(mutation=mutation):
+                    changed = {**pr, "reviews": [{**approval, **mutation}, peer]}
+                    self.assertNotEqual(MODULE.reviews_lane(Path.cwd(), changed, head)["status"], "pass")
+            verified.return_value = (None, None)
+            self.assertNotEqual(MODULE.reviews_lane(Path.cwd(), pr, head)["status"], "pass")
+            for mutation in ({"commit_id": "b" * 40}, {"id": None},
+                             {"body": "Potential issue: unsafe workflow"}):
+                with self.subTest(completion_mutation=mutation):
+                    verified.return_value = ({**completion, **mutation}, None)
+                    self.assertNotEqual(MODULE.reviews_lane(Path.cwd(), pr, head)["status"], "pass")
+
     def test_reviews_lane_rejects_blank_bot_approval(self) -> None:
         head = "a" * 40
         pr = {
@@ -3077,7 +3140,7 @@ class PrReadinessTests(unittest.TestCase):
         pr = {"number": 7, "baseRefOid": "b" * 40, "reviewDecision": "", "reviews": [
             {"state": "COMMENTED", "commit": {"oid": head}, "author": {"login": "coderabbitai"},
              "body": f"No findings for {head}."}]}
-        for path, expected in (("guide.md", "pass"), ("scripts/repair.py", "fail")):
+        for path, expected in (("guide.md", "pass"), ("scripts/format.py", "pass"), ("scripts/pr-readiness.py", "fail")):
             with (self.subTest(path=path),
                   patch.object(MODULE, "review_threads", return_value=({"unresolved_threads": 0}, None)),
                   patch.object(MODULE, "review_comments", return_value=([], None)),
@@ -3406,8 +3469,12 @@ class PrReadinessTests(unittest.TestCase):
                     self.assertEqual(result["details"]["ci_status"], "blocked")
         for rollup in ([], [{"name": "test", "conclusion": "FAILURE", "status": "COMPLETED"}],
                        [{"name": "test", "status": "MYSTERY"}], [None]):
-            for phase in ("review_inspection", "review_reconciliation", "update"):
+            inspection = MODULE.phase_checks_lane({**pr, "statusCheckRollup": rollup}, head, "review_inspection")
+            self.assertEqual(inspection["status"], "pass")
+            self.assertFalse(inspection["details"]["acceptance_claims_proven"])
+            for phase in ("review_reconciliation", "update"):
                 self.assertNotEqual(MODULE.phase_checks_lane({**pr, "statusCheckRollup": rollup}, head, phase)["status"], "pass")
+        self.assertEqual(MODULE.phase_checks_lane(pr, "b" * 40, "review_inspection")["status"], "blocked")
 
     def test_review_receipt_consumption_allows_pending_ci_but_rechecks_identity(self) -> None:
         head = "a" * 40
@@ -3423,7 +3490,11 @@ class PrReadinessTests(unittest.TestCase):
                                 [{"name": "test", "status": "MYSTERY"}],
                                 original + [{"name": "other", "status": "MYSTERY"}], []):
                     pr["statusCheckRollup"] = changed
-                    self.assertIn("hosted checks changed", MODULE.recheck_hosted_state(Path.cwd(), phase, head))
+                    outcome = MODULE.recheck_hosted_state(Path.cwd(), phase, head)
+                    if phase == "review_inspection":
+                        self.assertIsNone(outcome)
+                    else:
+                        self.assertIn("hosted checks changed", outcome)
                 pr["statusCheckRollup"] = original
                 self.assertIn("head changed", MODULE.recheck_hosted_state(Path.cwd(), phase, "b" * 40))
                 self.assertIn("target review thread", MODULE.recheck_hosted_state(Path.cwd(), "review_reconciliation", head, expected_thread_id="other"))
@@ -3693,7 +3764,7 @@ class TesslReviewTests(unittest.TestCase):
         with (patch.dict(sys.modules, {"pr_repair_endorsement": endorsement, "pr_review_risk": pr_review_risk,
                                             "pr_review_clearance": pr_review_clearance}),
               patch.object(MODULE, "repository_slug", return_value=("o/r", None)),
-              patch.object(MODULE, "changed_file_records", return_value=[{"path": "scripts/repair.py", "old_mode": "100644", "new_mode": "100644"}]),
+              patch.object(MODULE, "changed_file_records", return_value=[{"path": "scripts/pr-readiness.py", "old_mode": "100644", "new_mode": "100644"}]),
               patch.object(MODULE, "git", side_effect=lambda root, *args: head if args[-1].endswith("^{commit}") else "c" * 40)):
             result = MODULE.repair_endorsement_lane(Path.cwd(), pr, head, reviews, [], [], require_protected_run=False)
             endorsement.verify_endorsements.assert_not_called()
