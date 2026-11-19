@@ -666,20 +666,24 @@
       "openai-bundled": {
         "@local:value_0075": "@local:value_0076",
         "source_type": "local",
-        "source": "@local:value_0077"
+        "source": "@local:value_0077",
+        "last_revision": "@local:value_0178"
       },
       "agent-skills-local": {
         "@local:value_0075": "@local:value_0078",
         "source_type": "local",
-        "source": "@local:value_0079"
+        "source": "@local:value_0079",
+        "last_revision": "@local:value_0179"
       },
       "openai-primary-runtime": {
         "source_type": "local",
-        "source": "@local:value_0081"
+        "source": "@local:value_0081",
+        "last_revision": "@local:value_0180"
       },
       "drawio": {
         "source_type": "local",
-        "source": "@local:value_0143"
+        "source": "@local:value_0143",
+        "last_revision": "@local:value_0181"
       }
     },
     "desktop": {

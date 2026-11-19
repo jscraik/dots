@@ -124,7 +124,6 @@
     "value_0077",
     "value_0078",
     "value_0079",
-    "value_0080",
     "value_0081",
     "value_0124",
     "value_0125",
@@ -145,9 +144,17 @@
     "value_0140",
     "value_0141",
     "value_0142",
-    "value_0143"
+    "value_0143",
+    "value_0174",
+    "value_0175",
+    "value_0176",
+    "value_0177",
+    "value_0178",
+    "value_0179",
+    "value_0180",
+    "value_0181"
   ],
-  "classification": "Machine paths, private endpoint and app identities, and personal Desktop state are local string bindings. Persisted hook consent is excluded. All other parsed values are retained.",
+  "classification": "Machine paths, private endpoint and app identities, consent hashes, local marketplace tree revisions and personal Desktop state are local string bindings. All other parsed values are retained.",
   "local_policy_reconciliation": {
     "source_status": "12 November read-only working-tree snapshot; not an accepted commit",
     "config_sha256": "e41aa85006721ff037edcf3c939840d9395d5fa6f65dba33ffc7b8479b5f9fca",
