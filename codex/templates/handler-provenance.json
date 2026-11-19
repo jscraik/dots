@@ -6,9 +6,10 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "0a614a1764c7a5c97ebd568bb81f98407c99f97908bd4231f0008ca1b1bce671",
       "transformations": [
-        "sourced-library fixture admission"
+        "sourced-library fixture admission",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "e7a976b6ad1501604b04c0c2936321c03f5a2d6668b5bd7def06d59a4d6c6429"
+      "candidate_sha256": "d5465b25d9f6545dd219c8b638b6caace7d47f8742734a65ab229d3ae962a3db"
     },
     {
       "path": "codex/hooks/lifeos-codex.sh",
@@ -52,9 +53,10 @@
       "source_sha256": "f29647371bf978add9878e93a039dccb839e47f8d23723978d3bae13081d4fbb",
       "transformations": [
         "fixture scope and event admission before handler actions",
-        "Reject command-local GH_REPO and GH_HOST assignments before protected PR readiness receipt validation."
+        "Reject command-local GH_REPO and GH_HOST assignments before protected PR readiness receipt validation.",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "cc90cf1d4b963935161ebfbf65fee88a2bc5355e5f5bb3924c224e905edbda58"
+      "candidate_sha256": "193fd13bfbe257c8ddb995cb0dd2817b1a43860304cdcd03a887ffff4484eb7a"
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",
@@ -64,7 +66,7 @@
         "fixture scope and event admission before handler actions",
         "Reject shell expansions before literal commit option admission; preserve native approval and signing safeguards"
       ],
-      "candidate_sha256": "35abad05fbdab305a7c9cb9b364093a0a64c75ed4ef8f679d4397dfb5e2f6302"
+      "candidate_sha256": "f3af43de082e451a28eb1f8b9a93e196b015cdaeca3678a73874c215d29d5371"
     },
     {
       "path": "codex/hooks/pre-compact-guard.sh",
@@ -80,9 +82,10 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "0d338de918f55ded0d7f349d58d785537e482ce447d4b7587d371857128c172b",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "d546ed1c17493e15259c91d72a2759d8d633d2059341721fe23a5f7c514466a5"
+      "candidate_sha256": "a4b3172dcf61f289941ec1608634b9c13e7f990b9f1433fb0b92b296612cdf7b"
     },
     {
       "path": "codex/hooks/pre-tool-use-dispatch.sh",
@@ -90,9 +93,10 @@
       "source_sha256": "cd15702f68b9628eff7f0897e94cb05604cad83616381aa3b7ba69dd73ffcecb",
       "transformations": [
         "fixture scope and event admission before handler actions",
-        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "7e04548226a18b2984e29f297af7c239807fdf86035101b93d5bd6569cc2fa30"
+      "candidate_sha256": "1c7f25f9236035f2b1bb331be975ca557bee127f862f4327522fd83d447344e6"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",
@@ -100,18 +104,20 @@
       "source_sha256": "cc1270d301f4334bc6ef9432c6c76989a947bbc6a102a408f6a2b06db1658e94",
       "transformations": [
         "canonical auth wrapper identity is derived from the ported helper",
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "11c5938e71c8a32bef9551c84bbbccf560ed87f94dc46801b409557856468214"
+      "candidate_sha256": "a090361b0bc6a4ce2820d5ff61133e5fb942543a20d956ffd32c1b1f23f95e48"
     },
     {
       "path": "codex/hooks/session-start.sh",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "58d7e2b49cb9dc1ede2dab9b1326de67dbcc536fe2833d6fc6f0e061cf271220",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "d1adeca1078bca43e1c61bcd06ec3d4773afdbf3b236db8f24b663edea547458"
+      "candidate_sha256": "000e1479bdbee101894a6c590a6c654983b52b9e3228cb4682c19fdc02b3524c"
     },
     {
       "path": "codex/hooks/stop-guard.sh",
@@ -120,7 +126,7 @@
       "transformations": [
         "fixture scope and event admission before handler actions"
       ],
-      "candidate_sha256": "690e2470c7385c11c2f7cec1371ead2acdaeee472bcf31593717533b6c6fca5c"
+      "candidate_sha256": "7ec029a4e2472e2daa41b8b1466855e73ade7cf5513e0f9868b4fde96b7493e1"
     },
     {
       "path": "codex/hooks/subagent-start.sh",
@@ -193,9 +199,10 @@
         "home-relative scratch prefix and synthetic self-test paths",
         "Add fixed packaged-context admission; retain default disposable admission and original checks.",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
-        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "840a1ca3b1f58c9688e22fb8be61ad88c2d77e6ceb970d2240a8a3420cdfca58"
+      "candidate_sha256": "0879d6d1210cbcca7296679c7d949f2a90866a197ab2d809fda7d6941f9eb6c7"
     },
     {
       "path": "codex/scripts/scrub-computer-use-config.py",
@@ -249,9 +256,10 @@
         "Load the trusted sibling support for the isolated offline parser without changing review policy",
         "Add fixed packaged-context admission; retain default disposable admission and original checks.",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
-        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "e35256f37685e934619af6cd23e3071f0043a03e599e872edaa4db1d3ea174df"
+      "candidate_sha256": "c451a84b7e016f6039fc5789378cf6e81e4a5eb1480c9a5e08594e4f87c88101"
     },
     {
       "path": "codex/scripts/pr_repair_ci.py",
@@ -278,8 +286,10 @@
       "path": "codex/scripts/pr_review_risk.py",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "5baefe5d97ef259ea472cea6f9b581bd1a1d36f199e206b6ad713ccbf577bac3",
-      "transformations": [],
-      "candidate_sha256": "5baefe5d97ef259ea472cea6f9b581bd1a1d36f199e206b6ad713ccbf577bac3"
+      "transformations": [
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
+      ],
+      "candidate_sha256": "3178fd2a57839085a3c45332c15d426701cae6cb1f3c647c82745b951ec153df"
     },
     {
       "path": "codex/scripts/codex-validation-lib.sh",
@@ -333,8 +343,8 @@
       "path": "codex/scripts/deployment_scope.py",
       "source_revision": null,
       "source_sha256": null,
-      "transformation": "New fixed private-package identity and resource adapter; fixture defaults retained.; Add fixed packaged-context admission; retain default disposable admission and original checks. Classify only the two unused native app metadata fields separately in machine mode; retain resource/output and rehearsal checks. Attach fixed stage and field diagnostics to existing admission rejections without changing guards or exception behaviour. Extend only the machine-mode unused metadata set with CODEX_APP_RUNTIME_CLI_PATH and CODEX_MCP_NODE_PATH after names-only native-parent replay; retain direct resource/output checks, strict rehearsals and unknown-name denials.",
-      "candidate_sha256": "17296bc05a841676f0881a5d51b7a125b23cf1deb8f77b9f950cf7372653f962"
+      "transformation": "New fixed private-package identity and resource adapter; fixture defaults retained.; Add fixed packaged-context admission; retain default disposable admission and original checks. Classify only the two unused native app metadata fields separately in machine mode; retain resource/output and rehearsal checks. Attach fixed stage and field diagnostics to existing admission rejections without changing guards or exception behaviour. Extend only the machine-mode unused metadata set with CODEX_APP_RUNTIME_CLI_PATH and CODEX_MCP_NODE_PATH after names-only native-parent replay; retain direct resource/output checks, strict rehearsals and unknown-name denials. Admit only event working directories of verified managed Git worktrees linked to trusted project roots; retain all other resource and output checks. Reject session stores as event working directories while preserving transcript admission.",
+      "candidate_sha256": "85f3332f1a21d6f06d345cc87584fdb4a52a7c73621adadc3f8b2bb26d9963ab"
     },
     {
       "path": "codex/scripts/aikido-mcp.sh",

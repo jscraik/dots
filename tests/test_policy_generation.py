@@ -52,6 +52,29 @@ class PolicyGenerationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.render()
 
+    def test_additional_trust_is_explicit_and_leaves_other_policy_unchanged(self):
+        before = self.render()
+        self.bindings['additional_trusted_projects'] = []
+        self.assertEqual(self.render(), before)
+        self.bindings['additional_trusted_projects'] = ['/synthetic/new-workspace']
+        after = self.render()
+        parsed = tomllib.loads(after['config'])
+        self.assertEqual(parsed['projects'].pop('/synthetic/new-workspace'), {'trust_level': 'trusted'})
+        self.assertEqual(parsed, tomllib.loads(before['config']))
+        self.assertEqual({k: v for k, v in after.items() if k != 'config'},
+                         {k: v for k, v in before.items() if k != 'config'})
+
+    def test_additional_trust_rejects_ambiguous_or_policy_shaped_inputs(self):
+        existing = next(iter(tomllib.loads(self.render()['config'])['projects']))
+        for value in ('/synthetic/new', {'/synthetic/new': {'trust_level': 'trusted'}},
+                      [None], ['relative'], ['/'], ['//'], ['///'], ['/.'],
+                      ['/synthetic/../private'], ['/synthetic//new'], ['/synthetic/new/'],
+                      ['//synthetic/new'], ['/' + existing],
+                      ['/synthetic/new', '/synthetic/new'], [existing], [existing + '/.']):
+            self.bindings['additional_trusted_projects'] = value
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.render()
+
     def test_drawio_registration_keeps_its_local_source_as_data(self):
         root = tomllib.loads(self.render()['config'])
         self.assertEqual(root['plugins']['drawio@drawio'], {'enabled': True})

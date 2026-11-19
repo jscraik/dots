@@ -171,6 +171,47 @@ def require_policy_output(path):
     return require_fixture_path(path) if module is None else module.require_path(path, output=True)
 
 
+def require_policy_repository_path(repository, path, *, output=False):
+    module = deployment_module()
+    if module is None:
+        require_fixture_path(repository)
+        return require_fixture_path(path)
+    return module.require_repository_path(repository, path, output=output)
+
+
+def policy_repository_read(repository, path):
+    module = deployment_module()
+    if module is None:
+        return require_fixture_path(path).read_bytes()
+    return module.repository_read(repository, path)
+
+
+def policy_repository_receipt(repository, fallback):
+    module = deployment_module()
+    return fallback if module is None else module.repository_receipt(repository, fallback)
+
+
+def policy_repository_identity(repository):
+    module = deployment_module()
+    return None if module is None else module.repository_identity(repository)
+
+
+def require_policy_repository_identity(repository, expected):
+    module = deployment_module()
+    if module is not None:
+        module.require_repository_identity(repository, expected)
+
+
+def write_policy_repository_receipt(repository, path, raw, expected_identity=None):
+    module = deployment_module()
+    if module is None:
+        require_fixture_path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+        return
+    module.write_repository_receipt(repository, path, raw, expected_identity)
+
+
 def require_policy_environment():
     module = deployment_module()
     return require_auth_free_environment() if module is None else module.require_environment()

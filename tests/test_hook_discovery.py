@@ -22,6 +22,7 @@ class AppServer:
             cwd=fixture.repo, env=fixture.env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, text=True)
         self.lines, self.errors = queue.Queue(), []
+        self.notifications = []
         self.number = 0
         self.stdout_thread = threading.Thread(target=self.responses, daemon=True)
         self.stderr_thread = threading.Thread(target=self.read, args=(self.process.stderr, self.errors.append), daemon=True)
@@ -34,7 +35,12 @@ class AppServer:
             receive(line)
 
     def responses(self):
-        self.read(self.process.stdout, self.lines.put)
+        def receive(line):
+            message = json.loads(line)
+            if "method" in message:
+                self.notifications.append(message)
+            self.lines.put(line)
+        self.read(self.process.stdout, receive)
         self.lines.put(None)
 
     def rpc(self, method, params):
