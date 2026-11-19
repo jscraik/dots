@@ -78,7 +78,6 @@
   "value_0077": "@HOME@/.codex/.tmp/bundled-marketplaces/openai-bundled",
   "value_0078": "2026-01-01T00:00:00Z",
   "value_0079": "@HOME@/dev/agent-skills/Plugins/cache/agent-skills-local",
-  "value_0080": "2026-01-01T00:00:00Z",
   "value_0081": "@HOME@/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime",
   "value_0124": "synthetic-value_0124",
   "value_0125": "synthetic-value_0125",
@@ -99,5 +98,9 @@
   "value_0140": "@HOME@/.local/share/mise/installs/npm-agentation-mcp/latest/bin/agentation-mcp",
   "value_0141": "@HOME@/.codex/mcp-tools/chrome-devtools-mcp/node_modules/.bin/chrome-devtools-mcp",
   "value_0142": "@HOME@/dev/dots/codex/model-catalogs/oss-inspect-gemma4-12b-mlx.json",
-  "value_0143": "@HOME@/marketplaces/drawio"
+  "value_0143": "@HOME@/marketplaces/drawio",
+  "value_0174": "@HOME@/projects/value_0174",
+  "value_0175": "@HOME@/projects/value_0175",
+  "value_0176": "@HOME@/projects/value_0176",
+  "value_0177": "@HOME@/projects/value_0177"
 }

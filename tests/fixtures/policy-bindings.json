@@ -78,7 +78,6 @@
   "value_0077": "/synthetic/local/value_0077",
   "value_0078": "/synthetic/local/value_0078",
   "value_0079": "/synthetic/local/value_0079",
-  "value_0080": "/synthetic/local/value_0080",
   "value_0081": "/synthetic/local/value_0081",
   "value_0124": "/synthetic/local/value_0124",
   "value_0125": "/synthetic/local/value_0125",
@@ -99,5 +98,9 @@
   "value_0140": "/synthetic/local/value_0140",
   "value_0141": "/synthetic/local/value_0141",
   "value_0142": "/synthetic/local/value_0142",
-  "value_0143": "/synthetic/value_0143"
+  "value_0143": "/synthetic/value_0143",
+  "value_0174": "/synthetic/local/value_0174",
+  "value_0175": "/synthetic/local/value_0175",
+  "value_0176": "/synthetic/local/value_0176",
+  "value_0177": "/synthetic/local/value_0177"
 }

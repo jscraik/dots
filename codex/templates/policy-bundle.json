@@ -15,7 +15,7 @@
     "allow_login_shell": false,
     "suppress_unstable_features_warning": true,
     "tool_output_token_limit": 10000,
-    "model_reasoning_effort": "low",
+    "model_reasoning_effort": "high",
     "experimental_compact_prompt_file": "@local:value_0002",
     "developer_instructions": "Follow discovered AGENTS.md files and the target repository's commands and delivery contracts. Load deeper references only when relevant to the active task.\n\nIdentify the requested outcome, bounded scope, and evidence needed for completion. For reviews and diagnoses, investigate and report findings; implement when authorized. Continue authorized work through verification without stopping at a plan or partial fix. Resolve reversible choices independently. Ask one concise question only when a missing decision changes scope, risk, or authority.\n\nCarry forward authorization already granted for the same scope. Do not infer authority for external mutations or adjacent work. Ask before destructive actions, dependency changes, or secret handling unless explicitly authorized. Never bypass permissions, hooks, signing, or delivery gates. When blocked by a rule or approval rejection, name the affected action and exact reason.\n\nPrefer the smallest effective change. Preserve user changes, dirty checkouts, and active writers. Investigate encountered failures enough to determine whether they block the requested outcome; do not adopt unrelated failures as new work.\n\nUse current evidence for facts that may have changed. Run the narrowest meaningful behavioral check, then required broader checks. Repeat verification only after relevant changes, failures, or evidence becoming stale. Keep local validation, live runtime, hosted checks, reviews, and delivery status distinct.\n\nWhen blocked, try materially different, safe alternatives within the authorized scope. Do not repeat unchanged probes or expand scope to bypass a blocker. Continue independent work, then state what remains blocked and the smallest action needed to proceed.\n\nAfter compaction, resume from the handoff's objective, authorization, completed work, and blockers. Verify only drift-prone facts needed next. Incorporate new steering without dropping unfinished obligations unless Jamie cancels or replaces them.\n\nLead with the outcome or material blocker. Use concise, warm, plain prose. Report what changed, what verification proves, and any remaining limitation. Stop when the requested acceptance criteria are met; defer optional improvements.\n",
     "project_root_markers": [
@@ -384,6 +384,18 @@
       },
       "@local:value_0067": {
         "trust_level": "trusted"
+      },
+      "@local:value_0174": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0175": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0176": {
+        "trust_level": "trusted"
+      },
+      "@local:value_0177": {
+        "trust_level": "trusted"
       }
     },
     "mcp_servers": {
@@ -662,7 +674,6 @@
         "source": "@local:value_0079"
       },
       "openai-primary-runtime": {
-        "@local:value_0075": "@local:value_0080",
         "source_type": "local",
         "source": "@local:value_0081"
       },
@@ -673,7 +684,7 @@
     },
     "desktop": {
       "appearanceTheme": "dark",
-      "appearanceDarkCodeThemeId": "absolutely",
+      "appearanceDarkCodeThemeId": "codex",
       "sansFontSize": 16,
       "codeFontSize": 13,
       "usePointerCursors": true,
@@ -715,28 +726,13 @@
         "xhigh"
       ],
       "browser-download-prompt-enabled": true,
-      "appearanceDarkChromeTheme": {
-        "accent": "#cc7d5e",
-        "contrast": 50,
-        "ink": "#f9f9f7",
-        "opaqueWindows": false,
-        "surface": "#2d2d2b",
-        "fonts": {
-          "code": "\"Jetbrains Mono\"",
-          "ui": "Inter"
-        },
-        "semanticColors": {
-          "diffAdded": "#00c853",
-          "diffRemoved": "#ff5f38",
-          "skill": "#cc7d5e"
-        }
-      },
       "open-in-target-preferences": {
         "global": "systemDefault",
         "perPath": {
           "@local:value_0045": "fileManager"
         }
-      }
+      },
+      "autoArchiveAfterDays": 1
     }
   },
   "docs": {

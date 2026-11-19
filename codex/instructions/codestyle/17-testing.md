@@ -27,9 +27,10 @@
 
 ## TDD default workflow
 
-1. Write a failing test (RED).
-2. Implement the smallest change to pass (GREEN).
-3. Refactor safely while keeping tests green (REFACTOR).
+For a behavioural regression, reproduce the failure before the fix when feasible,
+then keep that case as regression protection. TDD is a useful technique, not a
+requirement to manufacture failing tests for prose, formatting or a refactor
+already covered by meaningful tests. Choose proof proportional to the change.
 
 ## Test quality standards
 
@@ -45,7 +46,12 @@
 ## Coverage and gates
 
 - Apply coverage thresholds only when the repository defines and measures them; prefer tests that prove the relevant failure boundary over an invented percentage.
-- Use the shared Configs validation contract in [CODESTYLE.md](../CODESTYLE.md#enforcement-model); a passing aggregate covers its unchanged components.
+- Use the active repository contract routed by [CODESTYLE.md](../CODESTYLE.md#enforcement-model); a passing aggregate covers its unchanged components.
+- Evaluate agent workflows with representative successful tasks as well as
+  intentional denials. Record false blocks, missed denials, completion quality
+  and relevant cost or latency. Fixture/schema validation is not a behavioural
+  eval. Use deterministic checks for objective criteria and calibrated human
+  judgement for qualitative outcomes; no universal score threshold is implied.
 
 ## Enforcement
 
