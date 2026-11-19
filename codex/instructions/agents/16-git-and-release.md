@@ -57,10 +57,11 @@ baseline; its safeguards apply only to the selected authorized workflow.
   claims, require the `--phase update` receipt. The projected
   `pr-readiness-guard.sh` rejects raw PR creation when
   that receipt is missing, stale, or bound to another HEAD.
-- Pending current-head CI permits review-inspection requests and evidence-backed
-  thread reconciliation; those receipts record CI as pending and prove no
-  acceptance or merge readiness. Failed, missing or unknown check evidence
-  still blocks these phases. Update receipts and merge readiness continue to
+- Review inspection can proceed with pending, failed, missing or unknown CI;
+  its receipt records the observed CI outcome and proves no acceptance or merge
+  readiness. Current published identity and HEAD remain mandatory. Evidence-backed
+  thread reconciliation permits pending CI but still blocks failed, missing or
+  unknown check evidence. Update receipts and merge readiness continue to
   require all current-head checks and final review gates to pass. Receipt
   consumption rechecks hosted identity, CI state and target-thread eligibility.
 - An explicitly authorised independent review request or verdict clarification
@@ -177,6 +178,15 @@ baseline; its safeguards apply only to the selected authorized workflow.
   from the complete committed diff. Ordinary changes require CodeRabbit
   (`coderabbitai`) or Codex (`chatgpt-codex-connector`); high-risk changes require
   both. Zero unresolved threads and passing required checks remain mandatory.
+  Ordinary includes application source, tests, formatting helpers and routine
+  configuration. Security/authentication, governance and review gates, CI and
+  runner privileges, releases/deployment, migrations, dependency manifests,
+  new executable permissions, symlinks/submodules and unclassified files require
+  two independent reviews. A stable executable formatting helper is ordinary;
+  a filename such as design `tokens.json` is not an authentication boundary.
+  The implementation author cannot supply either independent review. A second
+  human maintainer is not required. Content review can still identify consequential
+  risk that a path-based classifier cannot infer.
   Without verified repair evidence, only those exact identities and
   current-head `APPROVED` or `COMMENTED` submissions/comments carrying explicit
   no-findings text bound to the full or abbreviated HEAD SHA count. Bare or
@@ -184,7 +194,11 @@ baseline; its safeguards apply only to the selected authorized workflow.
   responses, stale, unknown, human, or `CHANGES_REQUESTED` reviews do not
   satisfy the bot quorum. A current-head human `APPROVED` review remains valid
   through the strict human-approval path.
-- Native completion needs no duplicate clearance; validate Codex state using the
+- Native completion needs no duplicate clearance. A later empty current-head CodeRabbit approval
+  must not replace an already verified current-head native completion with an
+  empty verdict. Keep the original completion timestamp and all later-finding
+  checks; an empty approval alone remains insufficient.
+  Validate Codex state using the
   [reply-parsing contract](./16a-review-reply-parsing.md). CodeRabbit automatic evidence
   supports metadata-only and structured summaries: require the automatic envelope,
   no-actionable outcome, repository/run identity,
@@ -220,8 +234,12 @@ baseline; its safeguards apply only to the selected authorized workflow.
   this run's unique pending revision. Match both start and completion within five
   seconds, retaining the earlier immutable completion time. Summary and Check Run
   UUIDs identify separate provider records and are not presumed equal. Reject
-  truncated/deleted history, changed sources, ambiguous matches and terminal edits
-  that reuse the same run identity. In-progress summaries can retain an older
+  truncated/deleted history, changed sources and ambiguous matches. A contiguous
+  same-run refresh may add or remove only the validated approval-policy metadata;
+  all other review text must remain byte-identical and clearance retains the
+  original terminal revision's time. Native UI pending metadata may say the
+  commit is unavailable only when the official App check independently binds
+  the exact repository, PR, head and base. In-progress summaries can retain an older
   no-actionable statement and cannot supply completion. Re-read native sources.
   Canonical hosted PR URLs may identify repositories if local lookup fails. Re-read the
   complete repository/PR/head/review/comment/finding snapshot before normalising completion.
