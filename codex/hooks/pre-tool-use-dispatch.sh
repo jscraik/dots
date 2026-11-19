@@ -2,7 +2,7 @@
 
 set -euo pipefail
 # shellcheck source=codex/hooks/hook-runtime-path.sh
-. "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh"
+. "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh" || exit 2
 
 input_json="$(cat)"
 dots_hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

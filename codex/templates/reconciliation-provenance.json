@@ -53,7 +53,7 @@
     {
       "path": "codex/hooks/pre-tool-use-dispatch.sh",
       "prior_candidate_sha256": "410160a1e4cf544151c390af3e2f56548926d42cd13cfa942dd7efd87c75c515",
-      "candidate_sha256": "50b45fea32b5c1b6939bad7bcfe02950dc37255857a8af017f9f528395280bd4",
+      "candidate_sha256": "896f0e59f5592f8963d082350aef459cc0b347902cdb2d46ff8001f9547fb19d",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Use the fixed root-owned hook dependency path and absolute Bash launch.",
       "additional_source": {
         "revision": "283db198d281e239524da23563bd3390fa9910c9",
@@ -186,7 +186,7 @@
     {
       "path": "codex/scripts/validate-codex-config.py",
       "prior_candidate_sha256": "e9cdebab1d97447c1ac3ff1dce5894c7c13ccf095c2a1cc8e44716c103768e61",
-      "candidate_sha256": "5a3942265aa1743964008a19049c16a9bb96b91a18ec18a5020cbdcf9c10f905",
+      "candidate_sha256": "acf72aac051ed64c44fab27d7b1baee4d5ae95a1e0d0471cbf735c2c30c10de0",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
     },
     {

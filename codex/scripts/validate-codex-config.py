@@ -313,6 +313,21 @@ def validate_tool_cache_write_access(config: dict[str, object]) -> list[str]:
             errors.append(f'permissions.{selected_name}.workspace_roots must include {required_path} for mise/npm/uv/corepack/SwiftPM/Tessl runtime writes')
     return errors
 
+def permission_write_entries(profile: dict[str, object], surface: str) -> list[tuple[object, object]]:
+    """Flatten direct and nested filesystem grants for write-policy checks."""
+    roots = profile.get(surface)
+    if not isinstance(roots, dict):
+        return []
+    entries = []
+    for base, access in roots.items():
+        if surface == 'filesystem' and isinstance(base, str) and isinstance(access, dict):
+            entries.extend((base if subpath == '.' else str(Path(base) / subpath), mode)
+                           for subpath, mode in access.items() if isinstance(subpath, str))
+        else:
+            entries.append((base, access))
+    return entries
+
+
 def validate_hook_dependency_isolation(config: dict[str, object]) -> list[str]:
     """Keep every fixed hook dependency directory outside sandbox-writable roots."""
     permissions = config.get('permissions')
@@ -323,23 +338,33 @@ def validate_hook_dependency_isolation(config: dict[str, object]) -> list[str]:
     for profile_name, profile in sorted(permissions.items()):
         if not isinstance(profile, dict):
             continue
-        workspace_roots = profile.get('workspace_roots')
-        if not isinstance(workspace_roots, dict):
-            continue
-        for value, enabled in workspace_roots.items():
-            if enabled is not True:
-                continue
-            if not isinstance(value, str) or not Path(value).is_absolute():
-                errors.append(f'permissions.{profile_name}.workspace_roots keys must be absolute '
-                              f'for fixed security-hook dependency path checks: {value}')
-                continue
-            writable_root = Path(value).resolve(strict=False)
-            if any(path == writable_root or path.is_relative_to(writable_root)
-                   or writable_root.is_relative_to(path) for path in trusted_paths):
-                errors.append(
-                    f'permissions.{profile_name}.workspace_roots must not make fixed '
-                    f'security-hook dependency path writable: {value}'
-                )
+        for surface in ('workspace_roots', 'filesystem'):
+            for value, access in permission_write_entries(profile, surface):
+                writable = access is True if surface == 'workspace_roots' else access == 'write'
+                if not writable:
+                    continue
+                path_text = '/' if value == ':root' and surface == 'filesystem' else value
+                if isinstance(path_text, str) and surface == 'filesystem':
+                    if path_text.endswith('/**'):
+                        path_text = path_text[:-3] or '/'
+                    path_text = str(Path(path_text).expanduser())
+                if (not isinstance(path_text, str) or not Path(path_text).is_absolute()
+                        or surface == 'filesystem' and any(char in path_text for char in '*?[]{}')):
+                    errors.append(f'permissions.{profile_name}.{surface} keys must be absolute exact paths '
+                                  f'for fixed security-hook dependency path checks: {value}')
+                    continue
+                try:
+                    writable_root = Path(path_text).resolve(strict=False)
+                except (OSError, RuntimeError):
+                    errors.append(f'permissions.{profile_name}.{surface} cannot resolve fixed '
+                                  f'security-hook dependency path grant: {value}')
+                    continue
+                if any(path == writable_root or path.is_relative_to(writable_root)
+                       or writable_root.is_relative_to(path) for path in trusted_paths):
+                    errors.append(
+                        f'permissions.{profile_name}.{surface} must not make fixed '
+                        f'security-hook dependency path writable: {value}'
+                    )
     return errors
 
 def validate_config_maintenance_write_access(config: dict[str, object]) -> list[str]:
@@ -353,18 +378,7 @@ def validate_config_maintenance_write_access(config: dict[str, object]) -> list[
         if not isinstance(profile, dict):
             continue
         for surface in ('workspace_roots', 'filesystem'):
-            roots = profile.get(surface)
-            if not isinstance(roots, dict):
-                continue
-            entries = list(roots.items())
-            if surface == 'filesystem':
-                entries = []
-                for base, access in roots.items():
-                    if isinstance(base, str) and isinstance(access, dict):
-                        entries.extend(((base if subpath == '.' else str(Path(base) / subpath), mode) for subpath, mode in access.items() if isinstance(subpath, str)))
-                    else:
-                        entries.append((base, access))
-            for root, access in entries:
+            for root, access in permission_write_entries(profile, surface):
                 writable = access is True if surface == 'workspace_roots' else access == 'write'
                 if not isinstance(root, str) or not writable:
                     continue

@@ -1,6 +1,7 @@
 """Exercise toolchain archive containment without privileged installation."""
 import importlib.util
 import io
+import json
 import os
 import shutil
 import subprocess
@@ -9,7 +10,6 @@ import tarfile
 import tempfile
 import unittest
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("hook_toolchain_prepare", ROOT / "codex/scripts/prepare-hook-toolchain.py")
@@ -59,6 +59,55 @@ class HookToolchainTests(unittest.TestCase):
             self.assertNotEqual(missing.returncode, 0)
             self.assertIn("no Python", missing.stderr)
             self.assertFalse(marker.exists())
+
+    def test_bootstrap_failure_blocks_first_events_but_stop_retry_terminates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            hooks = root / 'hooks'
+            scripts = root / 'scripts'
+            hooks.mkdir()
+            scripts.mkdir()
+            for name in ('stop-guard.sh', 'pre-tool-use-dispatch.sh', 'hook-runtime-path.sh'):
+                shutil.copyfile(ROOT / 'codex/hooks' / name, hooks / name)
+            (scripts / 'validate-hook-toolchain.py').write_text('raise SystemExit(1)\n')
+            marker = root / 'unexpected-guard-access'
+            (scripts / 'admit-hook-fixture.py').write_text(
+                f'open({str(marker)!r}, "w").write("called")\n')
+            for hook in ('stop-guard.sh', 'pre-tool-use-dispatch.sh'):
+                for command in ('git status --short', 'git commit --no-verify -m bad'):
+                    with self.subTest(hook=hook, command=command):
+                        result = subprocess.run(['/bin/bash', str(hooks / hook)],
+                            input=json.dumps({'tool_name': 'Bash', 'tool_input': {'command': command}}),
+                            text=True, capture_output=True, check=False, timeout=10)
+                        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            result = subprocess.run(['/bin/bash', str(hooks / 'stop-guard.sh')],
+                input='{"stop_hook_active":true}', text=True, capture_output=True,
+                check=False, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(json.loads(result.stdout), {'continue': True})
+            self.assertFalse(marker.exists())
+
+    def test_stop_blocks_when_library_bootstrap_revalidation_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            hooks, scripts, binary = (root / name for name in ('hooks', 'scripts', 'bin'))
+            for path in (hooks, scripts, binary):
+                path.mkdir()
+            for name in ('stop-guard.sh', 'hook-runtime-lib.sh', 'hook-runtime-path.sh'):
+                shutil.copyfile(ROOT / 'codex/hooks' / name, hooks / name)
+            (binary / 'python3').symlink_to(sys.executable)
+            (scripts / 'admit-hook-fixture.py').write_text('')
+            marker = root / 'validated-once'
+            (scripts / 'validate-hook-toolchain.py').write_text(
+                'from pathlib import Path\n'
+                f'marker = Path({str(marker)!r})\n'
+                'if marker.exists(): raise SystemExit(1)\n'
+                'marker.touch()\n'
+                f'print({str(binary)!r})\n')
+            result = subprocess.run(['/bin/bash', str(hooks / 'stop-guard.sh')],
+                input='{}', text=True, capture_output=True, check=False, timeout=10)
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertTrue(marker.exists())
 
     def archive(self, directory, members):
         archive = directory / "payload.tar"

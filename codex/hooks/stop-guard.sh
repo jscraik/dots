@@ -1,22 +1,28 @@
 #!/bin/bash -p
 
 set -euo pipefail
-# shellcheck source=codex/hooks/hook-runtime-path.sh
-. "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh"
-
-input_json="$(cat)"
-# Native Stop retries are a termination signal, not a resource operation.
-# Parse strictly and return before admission, libraries or receipt access.
-stop_hook_active="$(printf '%s' "$input_json" | jq -r 'if type != "object" then error("Stop input must be an object") else .stop_hook_active == true end')"
+input_json="$(/bin/cat)"
+# Native Stop retries terminate after one block. Use only the isolated system
+# interpreter so retries need neither the toolchain nor admission/receipt access.
+stop_hook_active="$(printf '%s' "$input_json" | /usr/bin/python3 -I -S -c '
+import json, sys
+payload = json.load(sys.stdin)
+if not isinstance(payload, dict):
+    raise ValueError("Stop input must be an object")
+print("true" if payload.get("stop_hook_active") is True else "false")
+')" || exit 2
 if [[ "$stop_hook_active" == "true" ]]; then
-  jq -n '{continue: true}'
+  printf '%s\n' '{"continue":true}'
   exit 0
 fi
+# shellcheck source=codex/hooks/hook-runtime-path.sh
+. "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh" || exit 2
+
 dots_hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 python3 "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit $?
 hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=codex/hooks/hook-runtime-lib.sh
-. "$hook_dir/hook-runtime-lib.sh"
+. "$hook_dir/hook-runtime-lib.sh" || exit 2
 last_message="$(printf '%s' "$input_json" | jq -r '.last_assistant_message // ""')"
 
 normalized_message="$(printf '%s' "$last_message" | tr '[:upper:]' '[:lower:]')"

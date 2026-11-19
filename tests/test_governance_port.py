@@ -194,6 +194,25 @@ class GovernancePortTests(unittest.TestCase):
         result = self.validate(GEN.toml_document(config))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_hook_dependency_paths_cannot_be_filesystem_writable(self):
+        for grant in ({'/opt': 'write'}, {'/opt/dots-hook-tools': 'write'},
+                      {'/opt/dots-hook-tools/current/bin': 'write'},
+                      {'/opt': {'dots-hook-tools': 'write'}},
+                      {'/opt/dots-hook-tools': {'.': 'write'}},
+                      {'/opt/dots-hook-tools/**': 'write'}, {':root': 'write'},
+                      {'/usr/bin/python3': 'write'}):
+            with self.subTest(grant=grant):
+                config = tomllib.loads(self.generated['config'])
+                config['permissions'][config['default_permissions']]['filesystem'].update(grant)
+                result = self.validate(GEN.toml_document(config))
+                self.assertEqual(result.returncode, 65, result.stdout + result.stderr)
+                self.assertIn('fixed security-hook dependency path', result.stdout)
+        config = tomllib.loads(self.generated['config'])
+        config['permissions'][config['default_permissions']]['filesystem'].update({
+            '/opt/dots-hook-tools': {'.': 'read'}, '/usr/local': 'write'})
+        result = self.validate(GEN.toml_document(config))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_missing_schema_is_unavailable_not_pass(self):
         (self.codex / 'schemas/config.schema.json').unlink()
         result = self.validate(self.generated['config'])

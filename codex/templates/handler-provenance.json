@@ -10,7 +10,7 @@
         "fixed root-owned hook dependency path and absolute Bash launch",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "9d189a3c7bdfb767cf5d3d96e686f26b66aff3c34a7774d141a146eb4b909b33"
+      "candidate_sha256": "57d9c6c0b62f2cb80b85ef394e48029c837e7a5651eedf4c1457e6d021b1ef16"
     },
     {
       "path": "codex/hooks/hook-runtime-path.sh",
@@ -114,7 +114,7 @@
         "fixed root-owned hook dependency path and absolute Bash launch",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "50b45fea32b5c1b6939bad7bcfe02950dc37255857a8af017f9f528395280bd4"
+      "candidate_sha256": "896f0e59f5592f8963d082350aef459cc0b347902cdb2d46ff8001f9547fb19d"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",
@@ -147,7 +147,7 @@
         "fixture scope and event admission before handler actions",
         "fixed root-owned hook dependency path and absolute Bash launch"
       ],
-      "candidate_sha256": "c44ac47d6d7838f9d266bbe2269f3426b7c20bece9ccfee383e15029e3c8b591"
+      "candidate_sha256": "1fc8333ea17baa94ef1007076f2ea1a304c14080d789ff1ff418125e3c5388d6"
     },
     {
       "path": "codex/hooks/subagent-start.sh",
