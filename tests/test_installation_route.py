@@ -247,6 +247,7 @@ class InstallationRouteTests(unittest.TestCase):
         recipe = json.loads((ROOT / 'tests/fixtures/governance-bindings.json').read_text())
         values = {key: value.replace('@HOME@', str(self.home)).replace(
             str(self.home / 'dev/dots'), str(self.payload)) for key, value in recipe.items()}
+        values.update(self.fixture.base.marketplace_revisions)
         values['value_0007'] = str(self.runtime / 'usage-data')
         self.bindings = self.home / 'private-bindings.json'
         self.bindings.write_text(json.dumps(values))

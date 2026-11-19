@@ -94,17 +94,11 @@ def create_runtime_checkout(repo: Path, source_root: Path) -> None:
         ):
             raise ValueError("Nested fixture project leaves its disposable HOME")
         output(project).mkdir(parents=True, exist_ok=True)
+    original_config = tomllib.loads(resource(source_root / "codex/config.toml").read_text())
     for name, marketplace in parsed.get("marketplaces", {}).items():
         registry = repo / "fixture-marketplaces" / name
-        registry.mkdir(parents=True)
-        entries = [
-            {"name": plugin.rsplit("@", 1)[0]}
-            for plugin in parsed.get("plugins", {})
-            if plugin.endswith("@" + name)
-        ]
-        (registry / "marketplace.json").write_text(
-            json.dumps({"name": name, "plugins": entries})
-        )
+        source = resource(Path(original_config["marketplaces"][name]["source"]))
+        shutil.copytree(source, registry, symlinks=True)
         canonical = canonical.replace(marketplace["source"], str(registry))
     config.write_text(canonical)
     environment = os.environ | {
