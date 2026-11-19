@@ -24,12 +24,12 @@ Preserve these copies before temporary-file cleanup when settings are needed.
 
 This starter pack tracks the current Codex hooks contract documented at:
 
-- <https://developers.openai.com/codex/hooks/>
+- <https://learn.chatgpt.com/docs/hooks>
 
-Last refreshed against OpenAI docs plus local `openai/codex` source commit
-`951efd339` on 2026-05-25; the runtime smoke path is now split from
-static hook validation because app-server startup can be blocked by local
-PATH or sandbox state before hook discovery runs.
+Contract checked against official OpenAI documentation on 2026-11-17.
+Installed-version behaviour still needs the dots native runtime tests; a docs
+refresh alone proves no runtime result. Static and native validation remain
+separate because startup may fail before hook discovery.
 
 Codex discovers hooks from a `hooks.json` file in each active config-layer
 folder. In practice, that means the user config folder `~/.codex/` and any
@@ -52,7 +52,8 @@ port permits only disposable fixtures; it does not authorise installation.
 Do not duplicate the same `hooks.json` into multiple active config layers unless
 you intentionally want the hooks to run more than once.
 
-Hooks are behind a feature flag in `config.toml`:
+Current documentation enables hooks by default. Explicit settings remain useful
+for the versions and plugin behaviour tested by this repository:
 
 ```toml
 [features]
@@ -107,28 +108,29 @@ plugin-owned hook declarations unloaded even when the plugin itself is enabled.
 
 ## Startup maintenance boundary
 
-Configs owns the three configuration-maintenance calls in `session-start.sh`.
-Their existing default is `CODEX_SESSION_REPAIR_MODE=repair`. Set
-`CODEX_SESSION_REPAIR_MODE=check` in the hook process environment to disable
-these configuration writes without disabling permission or completion hooks.
+Dots owns the two configuration-maintenance calls in `session-start.sh`.
+The default is `CODEX_SESSION_REPAIR_MODE=check`: opening a session does not
+authorise rewriting settings or another workspace's trust registration. Select
+`CODEX_SESSION_REPAIR_MODE=repair` only for an explicitly authorised repair.
 An invalid value selects check-only and emits a diagnostic. Check-only still
 allows the separately configured audit cache, runtime-card, and telemetry writes;
 it is not a whole-session read-only permission profile.
 
 The authorized write set is limited to each existing helper's contract:
 
-- `scrub-codex-scratch-projects.py`: remove transient scratch project tables
-  under its configured prefixes, not project directories or their contents.
 - `scrub-computer-use-config.py`: remove the retired top-level client notifier,
   not desktop-owned MCP registrations or plugin consent.
 - `repair-runtime-config-drift.py`: validate the canonical source and restore
   runtime policy agreement while retaining Desktop-owned Computer Use plugin
   consent, preserving the previous bytes in a private backup.
 
+Startup does not remove project trust based on workspace location. The manual
+`scrub-codex-scratch-projects.py` helper requires an explicitly selected `--prefix`
+and cleanup authority; it is not a startup maintenance or default validation gate.
+
 The startup hook sends runtime drift repair to `${CODEX_HOME:-$HOME/.codex}/config.toml`
 unless `CODEX_RUNTIME_CONFIG_DRIFT_PATH` explicitly selects another target.
-The other helpers retain their own default targets. The runtime-drift override is not forwarded to the scratch scrubber, whose
-writer follows symlinks. The Computer Use and runtime-drift path
+The Computer Use helper retains its own default target. Its and the runtime-drift path
 overrides select write targets in repair mode; they are not diagnostic-only.
 The Computer Use scrubber resolves symlinks and may rewrite their target, while
 the runtime-drift helper rejects symlink targets. Set these overrides only to
@@ -417,7 +419,12 @@ bypass.
 
 ## Released behavior
 
-These are dependable in the current released implementation:
+These event-specific fields are documented in the current hook contract:
+
+- `PreToolUse` and `PermissionRequest` do not support top-level `continue`,
+  `stopReason` or `suppressOutput`. They mark the hook failed and let the tool
+  proceed. Return `{}` for a neutral result, or supported event-specific
+  context. Never use `permissionDecision: "allow"` merely to avoid a false block.
 
 - `continue`: good for `SessionStart`, `UserPromptSubmit`, and `Stop`
 - `stopReason`: dependable when you intentionally want the hook to stop
@@ -435,9 +442,9 @@ These are dependable in the current released implementation:
   original tool result after command execution; this starter pack currently
   continues by default and injects concise corrective context
 
-Operational behavior last refreshed against the 2026-05-25 local
-`~/dev/codex` checkout at commit `951efd339`; keep this list in sync with the
-live source and `bash codex/scripts/validate-codex-hooks.sh` evidence:
+The following retained implementation details need installed-version evidence
+when changed; they are not a substitute for the official contract or the dots
+native test wrapper:
 
 - matching hooks from multiple `hooks.json` files all run
 - managed hooks can also load from `requirements.toml` when `[hooks]` declares
@@ -541,9 +548,11 @@ the current released runtime:
 
 - `type: "prompt"`: parsed, then skipped
 - `type: "agent"`: parsed, then skipped
-- `"async": true`: parsed, then skipped
-- `suppressOutput`: parsed by event handlers, but not meaningfully applied in
-  the current runtime path
+- `"async": true`: supported for command hooks in current documentation, but
+  cannot block or modify the triggering operation. This pack keeps policy gates
+  synchronous; the retained validator's prohibition is a pack constraint.
+- `suppressOutput`: unsupported for `PreToolUse` and `PermissionRequest`;
+  unsupported output must not be mistaken for a successful policy decision
 - `updatedMCPToolOutput`: parsed for `PostToolUse`, but currently fails open
   rather than replacing MCP tool output
 

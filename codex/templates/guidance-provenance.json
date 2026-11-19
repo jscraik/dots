@@ -58,14 +58,14 @@
     {
       "path": "codex/instructions/CODESTYLE.md",
       "source_sha256": "c113b126300ffab926aa48b65689c1bbe5214fabb3aef2c1dbb2b737743316a3",
-      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [
         "../../.mise.toml",
         "../../biome.json",
         "../../package.json",
         "../../pnpm-lock.yaml"
       ],
-      "candidate_sha256": "4e574cc49bce2487f3898744a9937ecd13a4e422adc4baf1c80858d46b1f8321"
+      "candidate_sha256": "faeba77bba4985782e73d0e2c1ff607410bc4801a6139111e9223eb6bf8ea441"
     },
     {
       "path": "codex/instructions/FORJAMIE-template.md",
@@ -84,9 +84,9 @@
     {
       "path": "codex/instructions/README.md",
       "source_sha256": "18be875d667e852204ddae427df97c8c14bbead291573be8b78ba71065be82e5",
-      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "7c966a32d6b4f4926f563dedef408bce651b14f6e98d61a2b3c45a6088fbfcab"
+      "candidate_sha256": "9c91cfb37baf99c701e9919b410f49692ab28d29400697d96ea8819cf9b8fe88"
     },
     {
       "path": "codex/instructions/USER_PROFILE.detail.md",
@@ -142,9 +142,9 @@
     {
       "path": "codex/instructions/agents/04-validation.md",
       "source_sha256": "52c77daee8643e82b6b8d49fe75a3bfd7f5ffc96a82e4c93b5fe552395a24fd6",
-      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "5f4ebdff7f36f4724641d5383ee97c2332c0afd780815ba08f2ae09e645eb493"
+      "candidate_sha256": "79b9152308ce85163b0cd87e8eccdbe20a783c5763931c5b081a3d83dd79494d"
     },
     {
       "path": "codex/instructions/agents/05-contradictions-and-cleanup.md",
@@ -191,9 +191,9 @@
     {
       "path": "codex/instructions/agents/10-agent-testing-gates.md",
       "source_sha256": "31189d0b77220092c6d3cd2a0216377d906dc085c4bb1db2acccd616eb8dcf4c",
-      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "ecec60e406250a74d299a42e2f08fab3cfe232cb8e87a0de4bbbfd51a7db6cb4"
+      "candidate_sha256": "4c8dfe93a20ff4a54693173f2c6efaedef7792bf6ebdfa7d342d96449d21f4f0"
     },
     {
       "path": "codex/instructions/agents/15-parallel-sessions.md",
@@ -205,16 +205,16 @@
     {
       "path": "codex/instructions/agents/16-git-and-release.md",
       "source_sha256": "dfd4f91164e826bd903b05a2e90d2d83767a8df26a532525089e3498c2e23d94",
-      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "2422617f3a4f848d59a1de110eab8d39518aea064615df212a44298d2e641a99"
+      "candidate_sha256": "fbbe0be01b2b56e215cfa98ac39340ae58e5be7a1572b98f7624807d8ed67d4e"
     },
     {
       "path": "codex/instructions/agents/16a-review-reply-parsing.md",
       "source_sha256": "6a70ee53b038854a08a07dec9284f60f7c71d9f63373b1f2ff0cb304a69e8f70",
-      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "6be30d2a20b3763592b94fe7ffa73a6e88f1f4b1fd5d6afaffa1c1e64f440f14"
+      "candidate_sha256": "d5ba85a049f28b3d2160512fead9e3f0c27ebb7cabc4f0c7f8589443f9431ea4"
     },
     {
       "path": "codex/instructions/agents/17-external-integrations.md",
@@ -256,9 +256,9 @@
     {
       "path": "codex/instructions/codestyle/01-foundations.md",
       "source_sha256": "a27fcf48da3081597c3b924d1b4e96d19fd2f0e455fe2ac7518835808ab9245c",
-      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "efc31817b9439c40d784f4922a2869d4e779d65d9432bb638793e1454529183f"
+      "candidate_sha256": "b726f21cd2ac4d22d548b8f310abe79aa2cb93b4b1bb96ba068c3e0a1e59c27a"
     },
     {
       "path": "codex/instructions/codestyle/02-javascript-ui.md",
@@ -284,9 +284,9 @@
     {
       "path": "codex/instructions/codestyle/05-quality-security-ops.md",
       "source_sha256": "c87ec9c5849863c464bffc41453066b295d1e12f2d859a8cf636ee84fc4e45e1",
-      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "4c1b8df60d4b583ed5b38e607b8fa51a15375e080fc7fb933a782df1e6e08e6a"
+      "candidate_sha256": "9503238a8f464608c125cc87f02ae3971bad4affc663f73ccacf2e0fd01b62b8"
     },
     {
       "path": "codex/instructions/codestyle/06-appendices-and-project-overrides.md",
@@ -340,9 +340,9 @@
     {
       "path": "codex/instructions/codestyle/13-git-workflow.md",
       "source_sha256": "f14e9344e58347f8ebfcd2bbbe80deefc22843a90a1ae8a0eda657d5d2534923",
-      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "60d947b2a49d27de4b28e03c7c64cd061cf0a1789c05c625a817453c7ba0a204"
+      "candidate_sha256": "060e3721850b43d4391bdd21df9311eb494f6a2525b51ed1b983de4e9da10b03"
     },
     {
       "path": "codex/instructions/codestyle/14-patterns.md",
@@ -368,9 +368,9 @@
     {
       "path": "codex/instructions/codestyle/17-testing.md",
       "source_sha256": "b595de290aca200068c9f22c1dc23d46d22610430a3ffba6b8cbaefece69b731",
-      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "3171fbce03fcc210f57eb29d26628e71cff2d52bd6575fcb5ffb161edc91e9a9"
+      "candidate_sha256": "ff73ca96447d8626d3605ff963e45eaf8f80ea592c6064c7a340e7d27abecf6c"
     },
     {
       "path": "codex/instructions/codestyle/18-code-review.md",
@@ -382,9 +382,9 @@
     {
       "path": "codex/instructions/codestyle/19-development-workflow.md",
       "source_sha256": "ac7d1d6a8d463378b4c8a3e6aa19e1ad163370d0a381ac2d7a57e4a689ecc658",
-      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "2c6db6fbb2b7312ff251a398d48bb4f997989f239cf19c07a8931a858e5c4a83"
+      "candidate_sha256": "0783e16f6504fe77edd1815f38a31bddfc58b49fdcdeee2c435e8d57c70046ae"
     },
     {
       "path": "codex/instructions/codestyle/20-go.md",
@@ -592,8 +592,8 @@
     {
       "path": "AGENTS.md",
       "origin": "local migration adaptation",
-      "decision": "Explicit public scope, serialization and proving checks; no new live authority",
-      "candidate_sha256": "e61a8178f59dd69af16fe5e1cfd299486e3e8a568de45bb4c617d90dcfeed9cf",
+      "decision": "Explicit public scope, serialization and proving checks; no new live authority; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+      "candidate_sha256": "f4f30f8c1d5238f7ab9cd2f0603996aa6d944b33a16262bed1f81f945ebd7ab4",
       "transformation": "State installation authority separately from each machine's verified active or rollback state."
     },
     {
