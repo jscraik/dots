@@ -27,6 +27,8 @@ class PolicyGenerationTests(unittest.TestCase):
 
     def test_all_profiles_preserve_policy_and_isolation(self):
         result = self.render()
+        provenance = GEN.read_json(ROOT / 'codex/templates/policy-provenance.json')
+        self.assertEqual(set(provenance['local_string_bindings']), set(self.bindings))
         self.assertEqual(set(result), set(GEN.NAMES))
         root = tomllib.loads(result['config'])
         self.assertEqual(root['approval_policy'], 'on-request')
@@ -80,6 +82,7 @@ class PolicyGenerationTests(unittest.TestCase):
         self.assertEqual(root['plugins']['drawio@drawio'], {'enabled': True})
         self.assertEqual(root['marketplaces']['drawio']['source_type'], 'local')
         self.assertTrue(root['marketplaces']['drawio']['source'].startswith('/synthetic/'))
+        self.assertRegex(root['marketplaces']['drawio']['last_revision'], r'^sha256:[0-9a-f]{64}$')
         self.assertEqual(root['approval_policy'], 'on-request')
         self.assertEqual(root['approvals_reviewer'], 'auto_review')
 
