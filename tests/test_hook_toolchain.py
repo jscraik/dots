@@ -109,6 +109,36 @@ class HookToolchainTests(unittest.TestCase):
             self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
             self.assertTrue(marker.exists())
 
+    def test_launchers_stop_before_python_when_bootstrap_fails(self):
+        with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as directory:
+            home = Path(directory)
+            hooks = home / 'hooks'
+            scripts = home / 'scripts'
+            hooks.mkdir()
+            scripts.mkdir()
+            (hooks / 'hook-runtime-path.sh').write_text('return 7\n')
+            marker = home / 'python-invoked'
+            (scripts / 'admit-hook-fixture.py').write_text(
+                f'open({str(marker)!r}, "w").write("unexpected")\n')
+            for name in ('lifeos-codex.sh', 'hook-runtime-lib.sh', 'post-tool-use-review.sh'):
+                shutil.copyfile(ROOT / 'codex/hooks' / name, hooks / name)
+                command = ['/bin/bash', '-p', str(hooks / name)]
+                if name == 'hook-runtime-lib.sh':
+                    command = ['/bin/bash', '-p', '-c', '. "$1"', 'fixture', str(hooks / name)]
+                result = subprocess.run(command, input='{}', cwd=home,
+                                        env={'HOME': str(home), 'PATH': '/usr/bin:/bin'},
+                                        capture_output=True, text=True, timeout=10, check=False)
+                if name == 'lifeos-codex.sh':
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    output = json.loads(result.stdout)
+                    self.assertTrue(output['continue'])
+                    self.assertIn('unavailable', output['systemMessage'])
+                else:
+                    self.assertEqual(result.returncode, 7, result.stdout + result.stderr)
+                if name != 'post-tool-use-review.sh':
+                    self.assertIn('bootstrap failed (status 7)', result.stderr)
+                self.assertFalse(marker.exists())
+
     def archive(self, directory, members):
         archive = directory / "payload.tar"
         with tarfile.open(archive, "w") as stream:

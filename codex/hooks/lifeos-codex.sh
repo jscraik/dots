@@ -2,7 +2,14 @@
 
 set -uo pipefail
 # shellcheck source=codex/hooks/hook-runtime-path.sh
-. "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh"
+if . "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh"; then
+  :
+else
+  bootstrap_status=$?
+  printf 'LifeOS context unavailable: hook runtime bootstrap failed (status %s)\n' "$bootstrap_status" >&2
+  printf '%s\n' '{"continue":true,"systemMessage":"LifeOS context unavailable: hook runtime bootstrap failed"}'
+  exit 0
+fi
 
 # Read-only, fail-open DATA/LifeOS context adapter for Codex UserPromptSubmit.
 # The installed LifeOS owner remains external to Configs; this hook only routes
@@ -12,7 +19,10 @@ dots_hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 python3 "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit $?
 hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=codex/hooks/hook-runtime-lib.sh
-. "$hook_dir/hook-runtime-lib.sh"
+if ! . "$hook_dir/hook-runtime-lib.sh"; then
+  printf '%s\n' '{"continue":true,"systemMessage":"LifeOS context unavailable: hook runtime library failed"}'
+  exit 0
+fi
 lifeos_root="${CODEX_LIFEOS_DIR:-${LIFEOS_DIR:-$HOME/.codex/LIFEOS}}"
 retriever="${CODEX_LIFEOS_RETRIEVER:-$lifeos_root/TOOLS/MemoryRetriever.ts}"
 bun_bin="${CODEX_LIFEOS_BUN:-$(command -v bun 2>/dev/null || true)}"

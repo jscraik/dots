@@ -1,7 +1,13 @@
 #!/bin/bash -p
 
 # shellcheck source=codex/hooks/hook-runtime-path.sh
-. "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh" || return $?
+if . "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh"; then
+  :
+else
+  bootstrap_status=$?
+  printf 'Hook runtime unavailable: bootstrap failed (status %s)\n' "$bootstrap_status" >&2
+  return "$bootstrap_status" 2>/dev/null || exit "$bootstrap_status"
+fi
 
 dots_lib_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 python3 "$dots_lib_dir/../scripts/admit-hook-fixture.py" '{}' || return $?
