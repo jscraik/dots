@@ -187,10 +187,10 @@ def lane(status: str, evidence: str, **details: Any) -> dict[str, Any]:
     return result
 
 
-def load_review_waiver(path: Path, pr_number: int, head_sha: str) -> tuple[dict[str, Any] | None, str | None]:
+def load_review_waiver(path: Path, pr_number: int, head_sha: str, repository: Path | None = None) -> tuple[dict[str, Any] | None, str | None]:
     """Load and bind an explicit operator waiver to one PR head."""
     try:
-        raw = path.read_bytes()
+        raw = _scope.policy_repository_read(repository or Path.cwd(), path)
         payload = json.loads(raw)
     except (OSError, json.JSONDecodeError) as exc:
         return None, f"review waiver could not be read: {exc}"
@@ -229,13 +229,13 @@ def load_review_waiver(path: Path, pr_number: int, head_sha: str) -> tuple[dict[
     }, None
 
 
-def validate_review_waiver_record(record: dict[str, Any], pr_number: int, head_sha: str) -> tuple[dict[str, Any] | None, str | None]:
+def validate_review_waiver_record(record: dict[str, Any], pr_number: int, head_sha: str, repository: Path | None = None) -> tuple[dict[str, Any] | None, str | None]:
     """Re-read a receipt-bound waiver so the file cannot be swapped later."""
     path_value = record.get("path")
     digest = record.get("sha256")
     if not isinstance(path_value, str) or not isinstance(digest, str):
         return None, "receipt-bound review waiver is missing path or digest"
-    waiver, error = load_review_waiver(Path(path_value), pr_number, head_sha)
+    waiver, error = load_review_waiver(Path(path_value), pr_number, head_sha, repository)
     if error or waiver is None:
         return None, error or "review waiver could not be loaded"
     if waiver["sha256"] != digest:
@@ -281,7 +281,7 @@ def remote_sha(root: Path, remote: str, ref: str) -> str | None:
 
 def parse_scope(path: Path, root: Path) -> tuple[list[str], str]:
     try:
-        raw = path.read_text(encoding="utf-8")
+        raw = _scope.policy_repository_read(root, path).decode("utf-8")
     except OSError as exc:
         return [], f"scope file could not be read: {exc}"
     entries: list[str]
@@ -642,15 +642,22 @@ def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
 
 
 def phase_checks_lane(pr: dict[str, Any], head_sha: str, phase: str) -> dict[str, Any]:
-    """Pending CI may admit review work, never final delivery readiness."""
+    """Inspection observes CI failures; mutation and readiness retain their gates."""
     checks = checks_lane(pr, head_sha)
+    if phase == "review_inspection":
+        if pr.get("headRefOid") != head_sha or not re.fullmatch(r"[0-9a-f]{40}", head_sha):
+            return lane("blocked", "review inspection requires the current hosted head", head_sha=head_sha)
+        return lane("pass", "inspection only; CI outcome is observed, not accepted",
+                    head_sha=head_sha, ci_status=checks["status"],
+                    ci_evidence=checks["evidence"], ci_details=checks.get("details", {}),
+                    acceptance_claims_proven=False)
     details = checks.get("details", {})
     rollup = pr.get("statusCheckRollup")
     known_states = isinstance(rollup, list) and bool(rollup) and all(
         isinstance(item, dict) and _check_lifecycle(item) in PENDING_CHECKS | SUCCESS_CHECKS | FAILED_CHECKS
         for item in rollup
     )
-    if (phase in {"review_inspection", "review_reconciliation"}
+    if (phase == "review_reconciliation"
             and checks["status"] == "blocked" and details.get("pending")
             and details.get("failures") == [] and known_states):
         return lane("pass", "review actions only; required CI is still pending",
@@ -1697,8 +1704,10 @@ def _coderabbit_recent_layout(recent: str, slug: str, head: str, branch: str) ->
         "- **Source mode**: Auto\n- **Repository**: Unavailable\n- **Branch**: Unavailable\n"
         "- **File**: No configuration file from this repository applied\n- **Commit**: Unavailable\n"
         "- **Layers**: Organization UI; Enforced overrides: Organization")
-    if recent.count(organization) == 1 and "- **Configuration used**:" not in recent:
-        recent = recent.replace(organization, "- **Configuration used**: Organization UI")
+    repository_ui = organization.replace("- **Layers**: Organization UI;", "- **Layers**: Repository UI (base), Organization UI (inherited);")
+    for configuration in (organization, repository_ui):
+        if recent.count(configuration) == 1 and "- **Configuration used**:" not in recent:
+            recent = recent.replace(configuration, "- **Configuration used**: Organization UI")
     if "- **Source mode**:" in recent:
         if not isinstance(branch, str) or not branch or any(c in branch for c in "\r\n<>[]"):
             return None
@@ -3217,6 +3226,18 @@ def reviews_lane(root: Path, pr: dict[str, Any], head_sha: str, review_waiver: d
         latest_comment_timestamp = _comment_timestamp(latest_comment) if latest_comment else ""
         if review is None:
             selected = latest_comment
+        elif (login == "coderabbitai" and rabbit_completion is not None
+              and latest_comment is not None
+              and type(rabbit_completion.get("id")) is int and rabbit_completion["id"] > 0
+              and latest_comment.get("id") == rabbit_completion.get("id")
+              and _review_sha(rabbit_completion) == head_sha
+              and _bot_review_is_acceptable(rabbit_completion, head_sha)
+              and _review_sha(review) == head_sha
+              and review.get("state") == "APPROVED" and _review_body(review) == ""):
+            # A blank native approval adds no finding and cannot replace a
+            # verified completion with an empty verdict. Keep the original
+            # clearance time; all later concerns still pass through below.
+            selected = latest_comment
         elif latest_comment is not None:
             review_timestamp = _review_timestamp(review)
             comment_is_blocked = _bot_review_has_blocked_response(str(latest_comment.get("body") or ""), login=_review_login(latest_comment))
@@ -3376,7 +3397,7 @@ def default_receipt(root: Path, git_dir: str) -> Path:
     path = Path(git_dir)
     if not path.is_absolute():
         path = (root / path).resolve()
-    return path / "pr-readiness.v1.json"
+    return _scope.policy_repository_receipt(root, path / "pr-readiness.v1.json")
 
 
 def build_result(args: argparse.Namespace) -> dict[str, Any]:
@@ -3496,7 +3517,7 @@ def build_result(args: argparse.Namespace) -> dict[str, Any]:
         review_waiver_error = "a review waiver applies only to the update phase"
     elif args.phase == "update" and pr is not None and args.review_waiver_file:
         review_waiver, review_waiver_error = load_review_waiver(
-            args.review_waiver_file.expanduser().resolve(), int(pr["number"]), head_sha
+            args.review_waiver_file.expanduser().absolute(), int(pr["number"]), head_sha, root
         )
     if args.phase == "create" or pr is None:
         result["lanes"]["reviews"] = lane("not_applicable", "reviews are evaluated after a PR exists")
@@ -3547,7 +3568,7 @@ def recheck_hosted_state(
         return "hosted PR head changed after the receipt was written"
     review_waiver = None
     if review_waiver_record is not None:
-        review_waiver, waiver_error = validate_review_waiver_record(review_waiver_record, int(pr["number"]), head_sha)
+        review_waiver, waiver_error = validate_review_waiver_record(review_waiver_record, int(pr["number"]), head_sha, root)
         if waiver_error:
             return waiver_error
     checks = phase_checks_lane(pr, head_sha, phase)
@@ -3610,7 +3631,7 @@ def validate_command_target(
 
 def validate_receipt(path: Path, args: argparse.Namespace) -> tuple[dict[str, Any], str | None]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(_scope.policy_repository_read(args.repo_root or Path.cwd(), path))
     except (OSError, json.JSONDecodeError) as exc:
         return {}, f"receipt could not be read: {exc}"
     if not isinstance(payload, dict) or payload.get("schema_version") != SCHEMA_VERSION:
@@ -3716,12 +3737,20 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    require_policy_path(args.repo_root or Path.cwd())
-    for candidate in (args.scope_file, args.review_waiver_file, args.receipt):
-        if candidate is not None:
-            require_policy_path(candidate)
+    repository = args.repo_root or Path.cwd()
     try:
-        root = resolve_root(args.repo_root)
+        repository = resolve_root(repository)
+        _scope.require_policy_repository_path(repository, repository)
+        repository_identity = _scope.policy_repository_identity(repository)
+        for candidate in (args.scope_file, args.review_waiver_file, args.receipt):
+            if candidate is not None:
+                _scope.require_policy_repository_path(repository, candidate)
+    except (OSError, ValueError, CommandFailure):
+        print(json.dumps({"schema_version": SCHEMA_VERSION, "status": "blocked",
+                          "phase": args.phase, "error": "Readiness resource admission failed"}))
+        return 2
+    try:
+        root = repository
         if args.export_review_clearance:
             if args.phase != "update" or args.write_receipt or args.check_receipt or args.review_waiver_file:
                 raise CommandFailure(["--export-review-clearance"], "template export is update-only and cannot consume evidence or write a receipt")
@@ -3770,6 +3799,7 @@ def main() -> int:
             _branch, _head, _base, git_dir, _common = current_worktree(root)
             path = args.receipt or default_receipt(root, git_dir)
             payload, error = validate_receipt(path, args)
+            _scope.require_policy_repository_identity(repository, repository_identity)
             if error:
                 result = add_service_identity({"schema_version": SCHEMA_VERSION, "status": "blocked", "phase": args.phase, "error": error, "receipt": str(path)})
                 print(json.dumps(result, indent=2, sort_keys=True))
@@ -3777,11 +3807,14 @@ def main() -> int:
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
         result = build_result(args)
+        _scope.require_policy_repository_identity(repository, repository_identity)
         if args.write_receipt:
             path = args.receipt or Path(result["receipt"]["path"])
-            require_policy_output(path)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            _scope.require_policy_repository_path(repository, path, output=True)
+            _scope.require_policy_repository_identity(repository, repository_identity)
+            _scope.write_policy_repository_receipt(
+                repository, path, (json.dumps(result, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+                repository_identity)
             result["receipt"]["path"] = str(path)
         result = add_service_identity(result)
         print(json.dumps(result, indent=2, sort_keys=True))
@@ -3789,6 +3822,10 @@ def main() -> int:
     except CommandFailure as exc:
         result = add_service_identity({"schema_version": SCHEMA_VERSION, "status": "blocked", "phase": args.phase, "error": exc.reason, "command": " ".join(exc.command)})
         print(json.dumps(result, indent=2, sort_keys=True))
+        return 2
+    except (OSError, ValueError):
+        print(json.dumps({"schema_version": SCHEMA_VERSION, "status": "blocked",
+                          "phase": args.phase, "error": "Readiness resource changed or is unavailable"}))
         return 2
 
 

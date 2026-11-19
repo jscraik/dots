@@ -12,6 +12,10 @@ from pathlib import Path
 
 
 PATHS = (
+    ('model',),
+    ('model_reasoning_effort',),
+    ('desktop', 'git-commit-instructions'), ('desktop', 'git-pr-instructions'),
+    ('desktop', 'daybreak-enabled'),
     ('desktop', 'selected-avatar-id'),
     ('marketplaces', 'openai-bundled', 'last_updated'),
     ('mcp_servers', 'node_repl'), ('notify',),
@@ -111,6 +115,25 @@ def delta(installed: str, observed: str) -> list:
             validate_desktop_change(path, new)
             changes.append({'path': list(path), 'before': old, 'after': new})
             put(reduced, path, old)
+    old_states = before.get('hooks', {}).get('state', {})
+    new_states = after.get('hooks', {}).get('state', {})
+    if type(old_states) is not dict or type(new_states) is not dict or old_states.keys() != new_states.keys():
+        raise ValueError('Hook consent identities changed')
+    for identity, old in old_states.items():
+        new = new_states[identity]
+        if equal(old, new):
+            continue
+        if (type(old) is not dict or type(new) is not dict
+                or type(old.get('enabled')) is not bool or type(new.get('enabled')) is not bool
+                or type(old.get('trusted_hash')) is not str
+                or not re.fullmatch('sha256:[0-9a-f]{64}', old['trusted_hash'])
+                or not equal({k: v for k, v in old.items() if k != 'enabled'},
+                             {k: v for k, v in new.items() if k != 'enabled'})):
+            raise ValueError('Only existing trusted hook enabled booleans may be reviewed')
+        path = ('hooks', 'state', identity, 'enabled')
+        old_value, new_value = get(before, path), get(after, path)
+        changes.append({'path': list(path), 'before': old_value, 'after': new_value})
+        put(reduced, path, old_value)
     # Empty parent tables are semantic TOML state too. Do not erase arbitrary
     # tables to manufacture policy agreement after deleting a known leaf.
     for parent in ('plugins', 'mcp_servers', 'marketplaces', 'desktop'):
@@ -126,6 +149,17 @@ def validate_desktop_change(path: tuple, new: dict) -> None:
     if not new['present']:
         return
     value = new['value']
+    if path in {('model',), ('model_reasoning_effort',)} and (type(value) is not str or not value.strip()
+            or len(value) > 256 or any(ord(char) < 32 for char in value)):
+        raise ValueError('Selected model or reasoning effort must be a bounded nonempty identifier')
+    if path in {('desktop', 'git-commit-instructions'), ('desktop', 'git-pr-instructions')} and type(value) is not str:
+        raise ValueError('Git instructions must be text')
+    if path == ('desktop', 'daybreak-enabled') and (
+            type(value) is not dict or set(value) != {'accountId', 'userId', 'enabled'}
+            or type(value['enabled']) is not bool
+            or any(type(value[key]) is not str or not value[key].strip()
+                   or len(value[key]) > 256 for key in ('accountId', 'userId'))):
+        raise ValueError('Daybreak preference requires account, user and enabled fields')
     if path == ('desktop', 'codex-micro-layout'):
         flag = value.get('separateMicrophoneKeys') if type(value) is dict else None
         expected = micro_layout()
@@ -303,6 +337,23 @@ def repair_candidate(installed: str, observed: str) -> dict:
             'desktop_changes': desktop_changes, 'canonical_restorations': restorations}
 
 
+def reviewed_rollback(original: str, installed: str, changes: list) -> str:
+    """A toggle must also bind an unchanged trusted identity in the rollback home."""
+    before, current = tomllib.loads(original), tomllib.loads(installed)
+    for row in changes:
+        path = tuple(row['path'])
+        if path[:2] != ('hooks', 'state'):
+            continue
+        old = get(before, path[:3])
+        selected = get(current, path[:3])
+        if (not old['present'] or not selected['present']
+                or type(old['value']) is not dict or type(selected['value']) is not dict
+                or not equal({k: v for k, v in old['value'].items() if k != 'enabled'},
+                             {k: v for k, v in selected['value'].items() if k != 'enabled'})):
+            raise ValueError('Hook toggle has no unchanged trusted rollback identity')
+    return overlay(original, changes)
+
+
 def overlay(original: str, changes: list) -> str:
     """Render through the existing generator and prove a lossless TOML roundtrip."""
     spec = importlib.util.spec_from_file_location(
@@ -363,6 +414,6 @@ def load(path: Path, digest: str, *, state: Path, plan_digest: str,
             or sha(data['original'].encode()) != plan['before']['config.toml']['sha256']
             or sha(backup_raw) != plan['before']['config.toml']['sha256']
             or not equal(delta(data['installed'], data['observed']), data['changes'])
-            or overlay(data['original'], data['changes']) != data['rollback']):
+            or reviewed_rollback(data['original'], data['installed'], data['changes']) != data['rollback']):
         raise ValueError('Desktop review disagrees with the verified installation')
     return data

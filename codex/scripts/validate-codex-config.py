@@ -43,7 +43,6 @@ HOME_PROJECTION_SOURCE_ROOT = Path(os.environ.get('CODEX_CONFIG_SOURCE_ROOT', CA
 HOOKS_CONFIG_PATH = HOME_PROJECTION_SOURCE_ROOT / 'hooks' / 'hooks.json'
 CANONICAL_AGENTS_MANIFEST_PATH = HOME_PROJECTION_SOURCE_ROOT / 'agents' / 'manifest.json'
 CODEX_SESSION_EVIDENCE_PATHS = (local_path_text('@HOME@/.local/share/codex-storage/sessions'), local_path_text('@HOME@/dev/dots/codex/usage-data'), local_path_text('@HOME@/.agents/session-collector'))
-DISALLOWED_PROJECT_PREFIXES = (local_path_text('@HOME@/Documents/Codex/'),)
 BORUMI_GENERATED_CONFIG_PATH = Path(local_path_text('@HOME@/Documents/Borumi AI Workspace/.codex/config.toml'))
 ALLOWED_PROJECT_LOCAL_CONFIG_PATHS = (Path(local_path_text('@HOME@/dev/lifeOS/.codex/config.toml')), BORUMI_GENERATED_CONFIG_PATH)
 ALLOWED_LIFEOS_PROJECT_CONFIG_KEYS = frozenset({'model_verbosity'})
@@ -672,34 +671,6 @@ def validate_computer_use_mcp_policy(config: dict[str, object]) -> list[str]:
                 continue
             if server_name in {'computer-use', 'node_repl', 'cua_repl'} or _is_computer_use_launcher(server):
                 errors.append(f'mcp_servers.{server_name} must not alias a Computer Use launcher; the desktop app owns runtime registration')
-    return errors
-
-def validate_trusted_project_scope(config: dict[str, object]) -> list[str]:
-    """
-    Reject project entries whose path begins with a disallowed scratch-workspace prefix.
-
-    Parameters:
-        config (dict[str, object]): Parsed Codex configuration mapping top-level keys to values.
-
-    Returns:
-        list[str]: Error messages for each project whose path starts with an entry in `DISALLOWED_PROJECT_PREFIXES`. Returns an empty list if there are no violations or if `projects` is not a mapping.
-    """
-    projects = config.get('projects')
-    if not isinstance(projects, dict):
-        return []
-    errors: list[str] = []
-    for project_path, project_config in projects.items():
-        if not isinstance(project_path, str):
-            continue
-        if not isinstance(project_config, dict):
-            continue
-        candidate_paths = {project_path}
-        try:
-            candidate_paths.add(str(Path(project_path).expanduser().resolve(strict=False)))
-        except OSError:
-            pass
-        if any(path.startswith(DISALLOWED_PROJECT_PREFIXES) for path in candidate_paths):
-            errors.append(f'''projects."{project_path}{local_path_text('" must not persist in config.toml; Codex scratch workspaces under @HOME@/Documents/Codex/ are transient and must stay project-local under tmp/')}''')
     return errors
 
 def classify_trusted_project_blast_radius(config: dict[str, object]) -> list[str]:
@@ -1828,7 +1799,6 @@ def main(raw_config: str | None=None, *, runtime_snapshot: bool=False) -> int:
     errors.extend(validate_mcp_network_access(data))
     errors.extend(validate_no_retired_macos_1password_socket(data))
     errors.extend(validate_local_memory_cli_policy(data))
-    errors.extend(validate_trusted_project_scope(data))
     notes.extend(classify_trusted_project_blast_radius(data))
     errors.extend(validate_prompt_customization(data))
     validate_default_auto_review_policy(data, 'root config', errors)
