@@ -17,8 +17,20 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location('generator', ROOT / 'scripts/generate-codex-policy.py')
 GEN = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(GEN)
+IDENTITY_SPEC = importlib.util.spec_from_file_location(
+    'marketplace_identity', ROOT / 'codex/scripts/marketplace_identity.py')
+IDENTITY = importlib.util.module_from_spec(IDENTITY_SPEC)
+sys.modules[IDENTITY_SPEC.name] = IDENTITY
+IDENTITY_SPEC.loader.exec_module(IDENTITY)
+MARKETPLACE_REVISION_BINDINGS = {
+    'openai-bundled': 'value_0178',
+    'agent-skills-local': 'value_0179',
+    'openai-primary-runtime': 'value_0180',
+    'drawio': 'value_0181',
+}
 DEPENDENCIES = ('scripts/validate-codex-config.py', 'scripts/repair-runtime-config-drift.py',
-                'scripts/migration_scope.py', 'schemas/config.schema.json',
+                'scripts/migration_scope.py', 'scripts/marketplace_identity.py',
+                'schemas/config.schema.json',
                 'instructions/compact-prompt.md', 'scripts/project-codex-hooks.py',
                 'model-catalogs/oss-local-qwen35.json',
                 'model-catalogs/oss-inspect-gemma4-12b-mlx.json',
@@ -53,7 +65,7 @@ class GovernancePortTests(unittest.TestCase):
             if not project.is_absolute() or not project.is_relative_to(self.home):
                 raise ValueError('Fixture project leaves its disposable home')
             project.mkdir(parents=True, exist_ok=True)
-        # Test-only registry contents exercise discovery; no installed cache is copied.
+        # Test-only manifests exercise source binding; no installed cache is copied.
         for name, marketplace in self.root['marketplaces'].items():
             location = Path(marketplace['source'])
             location.mkdir(parents=True, exist_ok=True)
@@ -65,6 +77,18 @@ class GovernancePortTests(unittest.TestCase):
             if market in self.root['marketplaces']:
                 marker = Path(self.root['marketplaces'][market]['source']) / name / '.codex-plugin'
                 marker.mkdir(parents=True, exist_ok=True)
+        self.marketplace_revisions = {
+            binding: IDENTITY.marketplace_tree_revision(
+                Path(self.root['marketplaces'][marketplace]['source']))
+            for marketplace, binding in MARKETPLACE_REVISION_BINDINGS.items()
+        }
+        bindings.update(self.marketplace_revisions)
+        binding_file.write_text(json.dumps(bindings))
+        self.generated = GEN.render(binding_file)
+        for name, text in self.generated.items():
+            filename = 'config.toml' if name == 'config' else name + '.config.toml'
+            (self.codex / filename).write_text(text)
+        self.root = tomllib.loads(self.generated['config'])
         self.env = {'PATH': os.environ['PATH'], 'HOME': str(self.home),
                     'DOTS_TEST_HOME': str(self.home), 'GIT_CONFIG_GLOBAL': os.devnull,
                     'GIT_CONFIG_NOSYSTEM': '1', 'PYTHONDONTWRITEBYTECODE': '1'}
@@ -179,6 +203,43 @@ class GovernancePortTests(unittest.TestCase):
         registry = Path(self.root['marketplaces']['agent-skills-local']['source']) / 'marketplace.json'
         registry.unlink()
         self.assertNotEqual(self.validate(self.generated['config']).returncode, 0)
+
+    def test_marketplace_content_is_bound_to_its_revision(self):
+        source = Path(self.root['marketplaces']['drawio']['source'])
+        (source / 'drawio/payload.py').write_text('print("replacement")\n')
+        result = self.validate(self.generated['config'])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('content does not match last_revision', result.stdout + result.stderr)
+
+    def test_marketplace_symlink_is_rejected_before_authorization(self):
+        source = Path(self.root['marketplaces']['drawio']['source'])
+        outside = self.home / 'replacement.py'
+        outside.write_text('print("replacement")\n')
+        (source / 'drawio/payload.py').symlink_to(outside)
+        result = self.validate(self.generated['config'])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('marketplace tree contains a symlink', result.stdout + result.stderr)
+
+    def test_marketplace_revision_cannot_bind_a_different_marketplace_name(self):
+        source = Path(self.root['marketplaces']['drawio']['source'])
+        manifest = source / 'marketplace.json'
+        payload = json.loads(manifest.read_text())
+        payload['name'] = 'replacement-marketplace'
+        manifest.write_text(json.dumps(payload))
+        data = tomllib.loads(self.generated['config'])
+        data['marketplaces']['drawio']['last_revision'] = IDENTITY.marketplace_tree_revision(source)
+        result = self.validate(GEN.toml_document(data))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('manifest name does not match its configured marketplace', result.stdout)
+
+    def test_cache_directory_name_cannot_mint_plugin_authority(self):
+        marker = self.codex / 'Plugins/cache/untrusted/evil/.codex-plugin'
+        marker.mkdir(parents=True)
+        data = tomllib.loads(self.generated['config'])
+        data['plugins']['evil@untrusted'] = {'enabled': True}
+        result = self.validate(GEN.toml_document(data))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("plugin 'evil@untrusted' is not in allowed plugin IDs", result.stdout)
 
     def test_disabled_computer_use_transport_rejects_enabled_or_executable_variants(self):
         profile_path = self.codex / 'oss-cloud.config.toml'

@@ -266,6 +266,39 @@ class HookHandlerTests(unittest.TestCase):
         self.assertNotIn('could not run', context)
         self.assertTrue(list((self.fixture.runtime / 'usage-data/runtime-cards').rglob('*.json')))
 
+    def test_session_start_ignores_repository_fsmonitor_and_reports_dirty_state(self):
+        tracked = self.fixture.repo / 'tracked.txt'
+        tracked.write_text('before\n')
+        subprocess.run(['git', 'add', tracked.name], env=self.fixture.env, cwd=self.fixture.repo,
+                       capture_output=True, text=True, timeout=10, check=True)
+        # Seed inert fixture objects; this status test must not request signing
+        # or run commit hooks to manufacture its tracked-file baseline.
+        tree = subprocess.run(['/usr/bin/git', 'write-tree'], env=self.fixture.env,
+                              cwd=self.fixture.repo, capture_output=True, text=True,
+                              timeout=10, check=True).stdout.strip()
+        content = (f'tree {tree}\nauthor Fixture <fixture@example.invalid> 1 +0000\n'
+                   'committer Fixture <fixture@example.invalid> 1 +0000\n\nFixture\n')
+        commit = subprocess.run(['/usr/bin/git', 'hash-object', '-t', 'commit', '-w', '--stdin'],
+                                input=content, env=self.fixture.env, cwd=self.fixture.repo,
+                                capture_output=True, text=True, timeout=10, check=True).stdout.strip()
+        subprocess.run(['/usr/bin/git', 'update-ref', 'HEAD', commit], env=self.fixture.env,
+                       cwd=self.fixture.repo, capture_output=True, text=True, timeout=10, check=True)
+        tracked.write_text('after\n')
+        sentinel = self.fixture.home / 'fsmonitor-invoked'
+        helper = self.fixture.home / 'fsmonitor-sentinel.sh'
+        helper.write_text('#!/bin/sh\n: > "$DOTS_FSMONITOR_SENTINEL"\nexit 1\n')
+        helper.chmod(0o755)
+        subprocess.run(['git', 'config', '--local', 'core.fsmonitor', str(helper)],
+                       env=self.fixture.env, cwd=self.fixture.repo, capture_output=True,
+                       text=True, timeout=10, check=True)
+
+        output = self.output('session-start.sh', {'source': 'startup'},
+                             {'DOTS_FSMONITOR_SENTINEL': str(sentinel)})
+
+        self.assertTrue(output['continue'])
+        self.assertIn('Dirty worktree detected', output['systemMessage'])
+        self.assertFalse(sentinel.exists())
+
     def test_session_start_distinguishes_audit_failure_from_confirmed_drift(self):
         audit = self.fixture.codex / 'scripts/audit-project-codex-config-overrides.sh'
         cache = self.fixture.runtime / 'state/project-override-audit-cache.tsv'

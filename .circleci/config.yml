@@ -3,7 +3,7 @@ version: 2.1
 jobs:
   validate:
     docker:
-      - image: cimg/python:3.12.8
+      - image: cimg/python:3.12.8@sha256:6c162c73ea0c4af3d63fa3a7725991af19d86c0a10235109d927950539bca05d
     resource_class: small
     steps:
       - checkout
@@ -13,9 +13,8 @@ jobs:
       - run:
           name: Install declared validation dependencies
           command: |
-            ruff_requirement="$(python3 -c 'import tomllib; from pathlib import Path; print("ruff==" + tomllib.loads(Path("mise/config.toml").read_text())["tools"]["ruff"])')"
             python3 -m venv /tmp/dots-validation-venv
-            /tmp/dots-validation-venv/bin/python -m pip install --disable-pip-version-check -r requirements/codex-validation.txt "$ruff_requirement"
+            /tmp/dots-validation-venv/bin/python -m pip install --disable-pip-version-check --require-hashes -r requirements/codex-validation-ci.lock
       - run:
           name: Check Python style
           command: /tmp/dots-validation-venv/bin/ruff check --no-cache .
