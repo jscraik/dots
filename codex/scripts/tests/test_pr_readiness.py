@@ -2240,6 +2240,54 @@ class PrReadinessTests(unittest.TestCase):
         failed = MODULE.checks_lane(pr, "a" * 40)
         self.assertEqual(failed["status"], "fail")
 
+    def test_update_checks_require_explicit_success(self) -> None:
+        head = "a" * 40
+        for lifecycle in (
+            {"status": "COMPLETED", "conclusion": "NEUTRAL"},
+            {"status": "COMPLETED", "conclusion": "SKIPPED"},
+            {"status": "COMPLETED"},
+        ):
+            check = {"name": "test", **lifecycle}
+            stale_success = {
+                "name": "test",
+                "conclusion": "SUCCESS",
+                "completedAt": "2026-08-01T19:05:47Z",
+            }
+            for rollup in ([check], [stale_success, check]):
+                with self.subTest(lifecycle=lifecycle, duplicate=len(rollup) == 2):
+                    result = MODULE.phase_checks_lane(
+                        {"statusCheckRollup": rollup},
+                        head,
+                        "update",
+                    )
+                    self.assertEqual(result["status"], "blocked")
+                    self.assertEqual(result["details"]["pending"], ["test"])
+
+        for lifecycle in (
+            {"state": "SUCCESS"},
+            {"status": "COMPLETED", "conclusion": "SUCCESS"},
+            {"conclusion": "SUCCESSFUL"},
+        ):
+            with self.subTest(lifecycle=lifecycle):
+                result = MODULE.phase_checks_lane(
+                    {"statusCheckRollup": [{"name": "test", **lifecycle}]},
+                    head,
+                    "update",
+                )
+                self.assertEqual(result["status"], "pass")
+
+        failed = MODULE.phase_checks_lane(
+            {
+                "statusCheckRollup": [
+                    {"name": "test", "status": "COMPLETED", "conclusion": "FAILURE"}
+                ]
+            },
+            head,
+            "update",
+        )
+        self.assertEqual(failed["status"], "fail")
+        self.assertEqual(failed["details"]["failures"], ["test"])
+
     def test_checks_lane_uses_newest_duplicate_context(self) -> None:
         head = "a" * 40
         pr = {

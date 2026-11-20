@@ -1,15 +1,18 @@
 """Exercise migrated helpers, missing-input denial and isolation with accepted tests."""
 
+import hashlib
+import io
 import json
 import os
 import pwd
-import shlex
+import runpy
 import subprocess
 import sys
 import tempfile
 import tomllib
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from helper_fixture import HelperFixture
 
@@ -425,6 +428,76 @@ class HelperDependencyTests(unittest.TestCase):
         result = fixture.helper("core-hook-fixture-manifest.py", str(source))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Complete hook manifest validation failed", result.stderr)
+        fixture.assert_preserved(self)
+
+    def test_core_capture_rejects_invalid_sources_and_bounds_growth(self):
+        fixture = self.fixture
+        environment = mock.patch.dict(os.environ, fixture.env)
+        environment.start()
+        self.addCleanup(environment.stop)
+        with mock.patch.object(
+            sys, "path", [str(fixture.codex / "scripts"), *sys.path]
+        ):
+            adapter = runpy.run_path(str(fixture.codex / "scripts/core-hook-fixture-manifest.py"))
+        capture = adapter["capture_artifact"]
+        publisher = adapter["publisher"]
+        raw = b"synthetic executable"
+        digest = hashlib.sha256(raw).hexdigest()
+        artifact = fixture.home / ("braid-" + digest) / "braid"
+        artifact.parent.mkdir()
+        artifact.write_bytes(raw)
+        artifact.chmod(0o500)
+        target = fixture.home / "capture" / "braid"
+        capture(artifact, target)
+        publisher.validate_braid_copy(target, digest)
+        target.unlink()
+        target.parent.rmdir()
+        for kind in ("symlink", "hardlink", "oversize", "growth"):
+            with self.subTest(kind=kind):
+                if kind == "symlink":
+                    saved = artifact.with_name("saved")
+                    artifact.rename(saved)
+                    artifact.symlink_to(saved)
+                    context = mock.patch.object(publisher, "MAX_BRAID_BYTES", 32)
+                elif kind == "hardlink":
+                    os.link(artifact, artifact.with_name("alias"))
+                    context = mock.patch.object(publisher, "MAX_BRAID_BYTES", 32)
+                elif kind == "oversize":
+                    context = mock.patch.object(publisher, "MAX_BRAID_BYTES", len(raw) - 1)
+                else:
+                    # Grow only the capture read after source validation succeeds.
+                    original_validate = publisher.validate_braid_copy
+                    def validate_then_grow(*args, original_validate=original_validate):
+                        original_validate(*args)
+                        artifact.chmod(0o700)
+                        artifact.write_bytes(b"x" * 33)
+                        artifact.chmod(0o500)
+                    context = mock.patch.object(publisher, "validate_braid_copy", validate_then_grow)
+                with context, self.assertRaises((OSError, ValueError)):
+                    capture(artifact, target)
+                self.assertFalse(target.parent.exists())
+                if kind == "symlink":
+                    artifact.unlink()
+                    saved.rename(artifact)
+                elif kind == "hardlink":
+                    artifact.with_name("alias").unlink()
+        # Simulate a source growing after fstat: the bounded read must fail
+        # before creating a destination, even if its metadata appears stable.
+        artifact.chmod(0o700)
+        artifact.write_bytes(raw)
+        artifact.chmod(0o500)
+        with mock.patch.object(publisher, "MAX_BRAID_BYTES", 32):
+            original_fdopen = os.fdopen
+            calls = 0
+            def growing_stream(*args, **kwargs):
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    return original_fdopen(*args, **kwargs)
+                return io.BytesIO(b"x" * 33)
+            with mock.patch.object(os, "fdopen", growing_stream), self.assertRaises(ValueError):
+                capture(artifact, target)
+        self.assertFalse(target.parent.exists())
         fixture.assert_preserved(self)
 
     def test_auth_helpers_work_with_isolated_system_python_without_source_shadowing(

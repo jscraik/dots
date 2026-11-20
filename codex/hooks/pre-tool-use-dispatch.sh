@@ -75,6 +75,7 @@ shell_operators = {"&&", "||", ";", "|", "&", "(", ")", "{", "}", "\n"}
 shell_punctuation = frozenset(";&|(){}\n")
 control_boundaries = {"then", "do", "else", "elif"}
 assignment = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\+?=")
+command_construction_launchers = frozenset({"xargs"})
 
 
 def tokenize(command_text):
@@ -476,6 +477,10 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
         route["unsafe"] |= bool(substitutions) and marker in segment[index]
         tail = [token.lower() for token in segment[index + 1 :]]
         operands = segment[index + 1:]
+        # The child arguments can come from stdin or files, so the command text
+        # cannot prove which protected route the launcher will eventually run.
+        if executable in command_construction_launchers:
+            route["unsafe"] = True
         if posix_mode and executable in {":", "break", "continue", ".", "eval", "exec", "exit", "export", "readonly", "return", "set", "shift", "trap", "unset"} and not any(basename(token) in {"command", "builtin", "env"} for token in segment[:index] if not assignment.match(token)):
             retain_home(scoped_home)
         if executable == "set":

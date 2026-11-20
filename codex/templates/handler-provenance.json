@@ -113,10 +113,10 @@
       "transformations": [
         "fixture scope and event admission before handler actions",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
-        "fixed root-owned hook dependency path and absolute Bash launch",
+        "Deny xargs command construction before protected child routing; retain direct-command behavior.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "896f0e59f5592f8963d082350aef459cc0b347902cdb2d46ff8001f9547fb19d"
+      "candidate_sha256": "74101d051b9ae95d3e8e33470513d16b7b9e19014d93c93b82d76d5320839696"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",
@@ -285,7 +285,7 @@
         "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "16e14b92b147ef9acbdb678936666cedacec582394a46e315a0c5da13939ea81"
+      "candidate_sha256": "1af21f53e52e4953787e69f1ed989999ead6dfd3e1232594d72bde0c7473e5c9"
     },
     {
       "path": "codex/scripts/pr_repair_ci.py",

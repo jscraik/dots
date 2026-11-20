@@ -405,8 +405,8 @@ def validate_config_maintenance_write_access(config: dict[str, object]) -> list[
                     errors.append(f'permissions.{profile_name}.{surface} must not grant {root} globally; use task-scoped access')
     return errors
 
-def validate_auth_environment_fifo_access(config: dict[str, object]) -> list[str]:
-    """Require exact read access to the auth FIFO, not a directory workspace root."""
+def validate_auth_environment_fifo_isolation(config: dict[str, object]) -> list[str]:
+    """Keep the auth FIFO inaccessible to ordinary networked workloads."""
     errors: list[str] = []
     permissions = config.get('permissions')
     if not isinstance(permissions, dict):
@@ -415,8 +415,10 @@ def validate_auth_environment_fifo_access(config: dict[str, object]) -> list[str
         profile = permissions.get(profile_name)
         filesystem = profile.get('filesystem') if isinstance(profile, dict) else None
         roots = profile.get('workspace_roots') if isinstance(profile, dict) else None
-        if not isinstance(filesystem, dict) or filesystem.get(AUTH_ENV_FIFO_PATH) != 'read' or (isinstance(roots, dict) and AUTH_ENV_FIFO_PATH in roots):
-            errors.append(f'permissions.{profile_name}.filesystem must grant read-only access to {AUTH_ENV_FIFO_PATH}, without a FIFO workspace root')
+        if not isinstance(filesystem, dict) or filesystem.get(AUTH_ENV_FIFO_PATH) != 'deny':
+            errors.append(f'permissions.{profile_name}.filesystem must deny access to {AUTH_ENV_FIFO_PATH}')
+        if isinstance(roots, dict) and AUTH_ENV_FIFO_PATH in roots:
+            errors.append(f'permissions.{profile_name}.workspace_roots must not include {AUTH_ENV_FIFO_PATH}')
     return errors
 
 def validate_browser_runtime_policy(config: dict[str, object]) -> list[str]:
@@ -1827,7 +1829,7 @@ def main(raw_config: str | None=None) -> int:
     errors.extend(validate_tool_cache_write_access(data))
     errors.extend(validate_hook_dependency_isolation(data))
     errors.extend(validate_config_maintenance_write_access(data))
-    errors.extend(validate_auth_environment_fifo_access(data))
+    errors.extend(validate_auth_environment_fifo_isolation(data))
     errors.extend(validate_browser_runtime_policy(data))
     errors.extend(validate_unified_computer_use_runtime_policy(data))
     errors.extend(validate_mcp_network_access(data))

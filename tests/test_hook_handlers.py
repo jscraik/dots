@@ -213,6 +213,19 @@ class HookHandlerTests(unittest.TestCase):
         result = self.output('pre-tool-use-dispatch.sh', event)
         self.assertEqual(result['hookSpecificOutput']['permissionDecision'], 'deny')
 
+    def test_xargs_cannot_hide_protected_child_arguments(self):
+        commands = (
+            "printf '%s\\n' 'pr merge 7' | xargs gh",
+            '/usr/bin/xargs -a gh-api.args gh api',
+            'xargs -0 git push',
+            'env xargs -a destructive.args git reset',
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
+                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+                self.assertIn('indirect', output['hookSpecificOutput']['permissionDecisionReason'])
+
     def test_permission_and_edit_guards_protect_auth_material(self):
         event = {'tool_name': 'Write', 'tool_input': {'file_path': str(self.fixture.runtime / 'auth.json')}}
         for name in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
