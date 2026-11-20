@@ -1,5 +1,6 @@
 """Installed Codex loading the complete projected policy, without model turns."""
 import json
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -75,39 +76,34 @@ class ProjectedPolicyRuntimeTests(unittest.TestCase):
         self.assertFalse(entry['errors'], entry)
         self.assertEqual(len(entry['hooks']), 29)
         self.assertTrue(all(hook['sourcePath'] == str(fixture.target) for hook in entry['hooks']))
+        self.assertTrue(all(hook['trustStatus'] == 'untrusted' for hook in entry['hooks']))
+        self.assertNotIn('hooks', tomllib.loads((fixture.codex / 'config.toml').read_text()))
         print('Full projected policy loaded with 29 hooks: ' + info.get('userAgent', 'unknown'))
-
-        states = {hook['key']: {'enabled': True, 'trusted_hash': hook['currentHash']} for hook in entry['hooks']}
-        # Consent is canonical-owned in this migration. Capture fresh fixture
-        # hashes into the fixture source, then project; never add a runtime-only
-        # exception or reuse the original machine's consent.
-        response = server.rpc('config/value/write', {'filePath': str(fixture.runtime / 'config.toml'),
-            'keyPath': 'hooks.state', 'value': states, 'mergeStrategy': 'replace'})
-        self.assertEqual(response['status'], 'ok')
+        installed = (fixture.runtime / 'config.toml').read_text()
+        states = {hook['key']: {'enabled': True, 'trusted_hash': hook['currentHash']}
+                  for hook in entry['hooks']}
+        response = server.rpc('config/value/write', {
+            'filePath': str(fixture.runtime / 'config.toml'), 'keyPath': 'hooks.state',
+            'value': states, 'mergeStrategy': 'replace'})
+        self.assertEqual(response['status'], 'ok', response)
+        observed = (fixture.runtime / 'config.toml').read_bytes()
         server.close()
         self.clear_native_launchers(fixture)
-        # The API intentionally writes only user config. Reconstruct this
-        # fixture's canonical input from its existing policy plus ONLY the
-        # explicitly selected native hashes, never the entire runtime file.
-        import test_governance_port as governance
-        canonical = tomllib.loads((fixture.codex / 'config.toml').read_text())
-        canonical['hooks']['state'] = states
-        (fixture.codex / 'config.toml').write_text(governance.GEN.toml_document(canonical))
-        result = fixture.project()
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        result = fixture.script('validate-codex-config.py')
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        consented = AppServer(fixture, strict_config=True, enable_hooks=False)
-        self.addCleanup(consented.close)
-        consented.rpc('initialize', {'clientInfo': {'name': 'dots-full-policy-proof', 'version': '1.0.0'},
-                                    'capabilities': {'experimentalApi': True}})
-        result = consented.rpc('hooks/list', {'cwds': [str(fixture.repo)]})
-        self.assertTrue(all(hook['trustStatus'] == 'trusted' for hook in result['data'][0]['hooks']))
-        self.assertEqual(len(result['data'][0]['hooks']), 29)
-        consented.close()
-        self.clear_native_launchers(fixture)
-        result = fixture.project('--check')
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for mode in ('--check', '--repair'):
+            result = fixture.project(mode)
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual((fixture.runtime / 'config.toml').read_bytes(), observed)
+        spec = importlib.util.spec_from_file_location('native_consent_review',
+            Path(__file__).resolve().parents[1] / 'codex/scripts/desktop_compatibility.py')
+        adapter = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(adapter)
+        try:
+            changes = adapter.delta(installed, observed.decode(), hook_source=str(fixture.target))
+        except ValueError as exc:
+            self.fail(f'Native fixture consent was rejected: {exc}; states={states!r}')
+        self.assertEqual([row['path'] for row in changes], [['hooks', 'state']])
+        self.assertEqual(changes[0]['after']['value'], states)
+        print('Native-discovered consent preserved by ordinary projection and bound to explicit review')
 
     def test_all_standalone_profiles_load_through_native_metadata_route(self):
         fixture = PolicyFixture(self)

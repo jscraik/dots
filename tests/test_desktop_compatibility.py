@@ -13,6 +13,37 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class DesktopCompatibilityTests(unittest.TestCase):
+    def test_native_consent_requires_exact_installation_bound_explicit_review(self):
+        adapter, installed, _ = self.seven_fixture()
+        source = '/fixture/.codex/hooks.json'
+        key = 'user:' + source + ':pre_tool_use:0:0'
+        states = {key: {'enabled': True, 'trusted_hash': 'sha256:' + 'a' * 64}}
+        observed = adapter.overlay(installed, [{'path': ['hooks', 'state'],
+            'after': {'present': True, 'value': states}}])
+        self.assertRaises(ValueError, adapter.delta, installed, observed)
+        changes = adapter.delta(installed, observed, hook_source=source)
+        self.assertEqual([row['path'] for row in changes], [['hooks', 'state']])
+        # Native CLI generations use both the exact source prefix and user:.
+        adapter.delta(installed, observed.replace('user:' + source, source), hook_source=source)
+        self.assertTrue(adapter.requires_preservation(tomllib.loads(observed)))
+        bad_states = [
+            {key.replace('/fixture/', '/other/'): states[key]},
+            {key: dict(states[key], enabled=1)},
+            {key: dict(states[key], extra=True)},
+            {key: dict(states[key], trusted_hash='invalid')},
+            {key.replace('pre_tool_use', 'unknown'): states[key]},
+        ]
+        for value in bad_states:
+            invalid = adapter.overlay(installed, [{'path': ['hooks', 'state'],
+                'after': {'present': True, 'value': value}}])
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                adapter.delta(installed, invalid, hook_source=source)
+        # A reviewed fresh-consent route cannot replace previously trusted hashes.
+        replacement = observed.replace('a' * 64, 'b' * 64)
+        self.assertRaises(ValueError, adapter.delta, observed, replacement, hook_source=source)
+        self.assertRaises(ValueError, adapter.delta, installed,
+            observed.replace('on-request', 'never'), hook_source=source)
+
     def paired_fixture(self):
         adapter, installed, observed = self.seven_fixture()
         source = '/fixture/.codex/hooks.json'
@@ -210,7 +241,7 @@ class DesktopCompatibilityTests(unittest.TestCase):
             backup.write_text(original)
             plan = {'home': str(state / 'home'), 'package_digest': 'a' * 64,
                     'expected': {'config.toml': {'sha256': adapter.sha(original.encode())}},
-                    'before': {'config.toml': {'sha256': adapter.sha(original.encode())}}}
+                    'before': {'config.toml': {'kind': 'file', 'sha256': adapter.sha(original.encode())}}}
             record = dict(schema_version=1, state_dir=str(state), home=plan['home'],
                 package_digest=plan['package_digest'], plan_digest='b' * 64,
                 installed=original, observed=observed, original=original,

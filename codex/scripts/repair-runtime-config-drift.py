@@ -173,6 +173,8 @@ def _canonical_with_desktop_plugins(canonical_text: str, runtime_text: str) -> t
     canonical, canonical_error = _loads_toml(canonical_text)
     if runtime is None or canonical is None:
         return (None, runtime_error or canonical_error or 'invalid TOML')
+    if isinstance(runtime.get('hooks'), dict) and 'state' in runtime['hooks']:
+        return (None, 'native hook consent requires an explicit installation-bound preservation review')
     if _invalid_presentation(runtime) or _invalid_presentation(canonical):
         return (None, 'invalid Desktop presentation preference')
     canonical_text, preference_error = _with_desktop_presentation(canonical_text, runtime)
@@ -1367,6 +1369,12 @@ def main(argv: list[str] | None=None) -> int:
         except (OSError, ValueError, KeyError, TypeError) as exc:
             _emit(_payload(status='blocked', path=config_path, reason='desktop_update_invalid', error=str(exc)), args.json)
             return 1
+    runtime, _ = _loads_toml(original)
+    if args.repair and isinstance(runtime, dict) and isinstance(runtime.get('hooks'), dict) and 'state' in runtime['hooks']:
+        _emit(_payload(status='blocked', path=config_path,
+            reason='native_hook_consent_preservation_required',
+            error='Review native hook consent through the installation-bound proposal before repair; no config was changed'), args.json)
+        return 1
     drift = detect_drift(original, expected_auto_review_policy=expected_auto_review_policy, expected_signing_agent_socket=expected_signing_agent_socket, expected_circle_no_telemetry=expected_circle_no_telemetry, expected_control_settings=expected_control_settings)
     if args.repair and deployment_module() is not None:
         runtime, _ = _loads_toml(original)

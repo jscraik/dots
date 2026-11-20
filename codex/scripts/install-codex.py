@@ -432,7 +432,7 @@ def effective_previous_review():
         rows = copy.deepcopy(review['changes'])
         for row in rows:
             path = row['path']
-            if path[:2] == ['hooks', 'state']:
+            if path[:2] == ['hooks', 'state'] and len(path) >= 3:
                 path[2] = rebase_hook_identity(path[2], old_prefix, new_prefix)
         review = dict(review, canonical=rebase_reviewed_hook_keys(review['canonical'], review),
                       observed=rebase_reviewed_hook_keys(review['observed'], review), changes=rows)
@@ -452,9 +452,17 @@ def effective_previous_review():
             changes[path] = {'path': list(path), 'before': compat.get(previous, path), 'after': value}
         old_states = previous.get('hooks', {}).get('state', {})
         new_states = observed.get('hooks', {}).get('state', {})
-        if old_states.keys() != new_states.keys():
+        if not old_states and new_states:
+            compat.validate_native_consent(new_states, str(Path(review['home']) / '.codex/hooks.json'))
+            changes = {path: row for path, row in changes.items() if path[:2] != ('hooks', 'state')}
+            changes[('hooks', 'state')] = {'path': ['hooks', 'state'],
+                'before': compat.get(previous, ('hooks', 'state')),
+                'after': compat.get(observed, ('hooks', 'state'))}
+        elif old_states.keys() != new_states.keys():
             raise ValueError('Reviewed hook identities changed')
         for identity, value in new_states.items():
+            if ('hooks', 'state') in changes:
+                break
             old = old_states[identity]
             if 'enabled' not in value:
                 continue
@@ -474,10 +482,26 @@ def effective_previous_review():
 def update_desktop_text(canonical, original):
     import tomllib
     repair = module('update_policy', ROOT / 'codex/scripts/repair-runtime-config-drift.py')
-    merged, error = repair._canonical_with_desktop_plugins(canonical, original)
+    review = effective_previous_review()
+    validation_original = original
+    state_path = ('hooks', 'state')
+    if review and any(tuple(row['path'][:2]) == state_path for row in review['changes']):
+        compat = module('native_consent_update', ROOT / 'codex/scripts/desktop_compatibility.py')
+        approved = tomllib.loads(review['observed'])
+        observed = tomllib.loads(rebase_reviewed_hook_keys(original, review))
+        actual = compat.get(observed, state_path)
+        if not actual['present'] or type(actual['value']) is not dict:
+            raise ValueError('Native hook consent disappeared after its pinned review')
+        preserved = preserve_hook_disables(approved, observed)
+        if not compat.equal(compat.get(preserved, state_path), actual):
+            raise ValueError('Native hook consent changed after its pinned review')
+        # The canonical renderer rejects all runtime consent. Pass it a copy
+        # without verified state, then restore the reviewed rows below.
+        validation_original = compat.overlay(original,
+            [{'path': list(state_path), 'after': {'present': False}}])
+    merged, error = repair._canonical_with_desktop_plugins(canonical, validation_original)
     if merged is None:
         raise ValueError('Unsupported Desktop state: ' + str(error))
-    review = effective_previous_review()
     if review:
         compat = module('update_desktop', ROOT / 'codex/scripts/desktop_compatibility.py')
         parsed = tomllib.loads(canonical)
@@ -485,7 +509,7 @@ def update_desktop_text(canonical, original):
             path = tuple(row['path'])
             if path[:1] == ('plugins',) and path[1] in repair.DESKTOP_OWNED_PLUGIN_IDS:
                 continue
-            if path[:2] == ('hooks', 'state'):
+            if path[:2] == ('hooks', 'state') and len(path) >= 3:
                 previous = tomllib.loads(review['canonical'])
                 old = previous.get('hooks', {}).get('state', {}).get(path[2])
                 new = parsed.get('hooks', {}).get('state', {}).get(path[2])
@@ -570,6 +594,8 @@ def normalized_desktop_update(original, canonical):
         # Repair must preserve the same pinned revocations as installation.
         # Derive them from the transition, never from mutable runtime flags.
         selected = tomllib.loads(update_desktop_text(canonical, transition['observed_config']))
+        changes = [dict(row, after=compat.get(selected, ('hooks', 'state')))
+                   if row['path'] == ['hooks', 'state'] else row for row in changes]
         for path in TRANSITION_PRESERVED_PATHS:
             changes.append({'path': list(path), 'after': compat.get(selected, path)})
         for identity, value in selected.get('hooks', {}).get('state', {}).items():
@@ -583,7 +609,11 @@ def normalized_desktop_update(original, canonical):
         if not compat.equal(compat.get(observed, path), row['after']):
             raise ValueError('Approved Desktop registration changed after update')
         normalizers.append({'path': row['path'], 'after': compat.get(policy, path)})
-    return compat.overlay(original, normalizers), changes
+    normalized = compat.overlay(original, normalizers)
+    if ('hooks' not in policy and tomllib.loads(normalized).get('hooks') == {}
+            and any(row['path'] == ['hooks', 'state'] for row in changes)):
+        normalized = compat.overlay(normalized, [{'path': ['hooks'], 'after': {'present': False}}])
+    return normalized, changes
 
 
 def verify_previous(home, descriptor=None):
@@ -1125,22 +1155,30 @@ def prepare_desktop_review(state, digest, *, before_write=None):
     plan = load_plan(state, digest)
     result = load_result(state, plan)
     runtime = Path(plan['home']) / '.codex'
-    if result['status'] != 'applied' or plan['before']['config.toml']['kind'] != 'file':
-        raise ValueError('Desktop review requires an applied installation with a regular backup')
+    original_record = plan['before']['config.toml']
+    if result['status'] != 'applied' or original_record['kind'] not in {'file', 'absent'}:
+        raise ValueError('Desktop review requires an applied installation with a file or absent baseline')
     current = {name: describe(runtime / name) for name in plan['before']}
     if (any(semantic(current[name]) != semantic(record) for name, record in result['after'].items()
             if name != 'config.toml') or current['config.toml']['kind'] != 'file'
             or current['config.toml']['mode'] != result['after']['config.toml']['mode']):
         raise ValueError('Desktop review cannot accept other managed changes')
-    original = SCOPE.read_regular(state / 'backups/config.toml').decode()
+    backup = state / 'backups/config.toml'
+    if original_record['kind'] == 'absent':
+        if os.path.lexists(backup):
+            raise ValueError('Absent config baseline must not have a backup')
+        original = ''
+    else:
+        original = SCOPE.read_regular(backup).decode()
     installed = update_desktop_text(
-        SCOPE.read_regular(ROOT / 'codex/config.toml').decode(), original)
+        SCOPE.read_regular(ROOT / 'codex/config.toml').decode(),
+        original if original_record['kind'] == 'file' else SCOPE.read_regular(ROOT / 'codex/config.toml').decode())
     compat = module('desktop_review', ROOT / 'codex/scripts/desktop_compatibility.py')
     if (compat.sha(installed.encode()) != plan['expected']['config.toml']['sha256']
-            or compat.sha(original.encode()) != plan['before']['config.toml']['sha256']):
+            or original_record['kind'] == 'file' and compat.sha(original.encode()) != original_record['sha256']):
         raise ValueError('Desktop review baseline or backup changed')
     observed = SCOPE.read_regular(runtime / 'config.toml').decode()
-    changes = compat.delta(installed, observed)
+    changes = compat.delta(installed, observed, hook_source=str(runtime / 'hooks.json'))
     proposal = {'schema_version': 1, 'state_dir': str(state), 'home': plan['home'],
         'package_digest': plan['package_digest'], 'plan_digest': digest,
         'installed': installed, 'observed': observed, 'original': original,
@@ -1284,6 +1322,7 @@ def restore_selected(state, digest, review_digest=None):
             result_path = state / ('desktop-' + review_digest + '-result.json')
             before = dict(plan['before'])
             before['config.toml'] = dict(before['config.toml'],
+                kind='file', mode=before['config.toml'].get('mode', result['after']['config.toml']['mode']),
                 sha256=hashlib.sha256(review['rollback'].encode()).hexdigest(),
                 size=len(review['rollback'].encode()))
             after = dict(result['after'])

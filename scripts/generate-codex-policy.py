@@ -57,6 +57,13 @@ def substitute(value, bindings, used):
     raise ValueError('Unsupported policy value')
 
 
+def reject_persisted_hook_trust(data: dict) -> None:
+    """Hook trust must come from native discovery and an explicit consent event."""
+    hooks = data.get('hooks')
+    if isinstance(hooks, dict) and 'state' in hooks:
+        raise ValueError('Generated policy cannot carry persisted hook trust state')
+
+
 def toml_value(value):
     if isinstance(value, str):
         return json.dumps(value, ensure_ascii=False)
@@ -117,6 +124,7 @@ def render(bindings_path):
         data = substitute(bundle[name], bindings, used)
         if not isinstance(data, dict):
             raise TypeError('Policy must be a table')
+        reject_persisted_hook_trust(data)
         if name == 'config':
             for path in projects:
                 if path in data['projects']:

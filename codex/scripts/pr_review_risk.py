@@ -33,6 +33,7 @@ HIGH_RISK_WORDS = HIGH_RISK_COMPONENTS | frozenset({
     "secret", "secrets", "credential", "credentials",
     "workflow", "signing", "cryptography", "identity", "privilege", "privileges",
     "release", "publish", "deployment", "runner",
+    "oauth", "oauth2", "login", "password", "jwt",
     "claude", "gemini",
 })
 ORDINARY_PATTERNS = (
@@ -74,9 +75,11 @@ def committed_review_requirement(records: object) -> dict[str, object]:
             raise ValueError("committed path has invalid file modes")
         lowered = path.casefold()
         components = lowered.split("/")
-        separated = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", path)
-        separated = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", separated)
-        words = set(re.split(r"[^a-z0-9]+", separated.casefold()))
+        separated = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", path)
+        # Keep mixed-case words such as OAuth2 alongside acronym splits
+        # that expose protected terms in names such as APIAuth.
+        acronym_split = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", separated)
+        words = set(re.split(r"[^a-z0-9]+", f"{separated} {acronym_split}".casefold()))
         protected = bool(set(components) & HIGH_RISK_COMPONENTS) or components[-1] in HIGH_RISK_NAMES
         protected = protected or any(lowered == suffix or lowered.endswith("/" + suffix)
                                      for suffix in HIGH_RISK_PATH_SUFFIXES)
