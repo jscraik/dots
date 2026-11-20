@@ -104,8 +104,10 @@ not global write roots for Configs and Agent-Skills. The
 validator rejects enclosing parent roots and symlink aliases across permission
 profiles. Global filesystem writes require exact paths, optionally ending in
 `/**`; other wildcard write grants are rejected without expanding them.
-Read and deny patterns remain permitted. The authentication FIFO has exact read access rather than being
-declared a workspace directory.
+Read and deny patterns remain permitted. Both networked profiles explicitly deny
+the authentication FIFO. The two fixed-output canaries retain exact command-policy
+exceptions; any credential-bearing child requires normal outside-sandbox approval,
+so ordinary workspace code cannot open the FIFO.
 Session evidence access is independent of project trust; confirmed non-project
 trust entries and the duplicate Agent-Skills spelling are removed. Existing
 Git repositories and Desktop-owned scratch-task entries are preserved.
@@ -260,8 +262,9 @@ profile failure.
 The cloud profile uses `OLLAMA_API_KEY` through the custom `ollama-cloud`
 provider configured with Ollama's cloud endpoint. The built-in `ollama` provider
 is reserved for the local endpoint and must not be overridden; never put that
-secret in a TOML file. Inside Codex, inject it through the checked-in wrapper
-and the 1Password Desktop-owned `${HOME}/.codex/.env` FIFO:
+secret in a TOML file. Inside Codex, use the checked-in wrapper and normal
+outside-sandbox approval for the credential-bearing child; the ordinary
+networked profiles deny the 1Password Desktop-owned `${HOME}/.codex/.env` FIFO:
 
 ```sh
 bash ${CODEX_POLICY_SOURCE}/scripts/run-auth-backed.sh \
@@ -278,10 +281,11 @@ canonical path is a non-symlink FIFO owned by the current user with no
 group/other access, then lets stable `op` expose values only to the child. Do
 not replace it with `env`, direct `op run`, a sourced file, shell-exported key,
 or copied secret. Run credential-bearing FIFO stages sequentially through fresh
-wrapper invocations; concurrent reads are unsupported. Prove the agent route
-with `--env-file ${HOME}/.codex/.env --canary OLLAMA_API_KEY`, which prints only
-a fixed result. Keep `--require-environment` as an explicit host beta-XPC route,
-not a Codex sandbox bypass. The `oss-local-code`,
+wrapper invocations; concurrent reads are unsupported. Prove the route with the
+exact auto-allowed `--env-file ${HOME}/.codex/.env --canary OLLAMA_API_KEY`
+command, which prints only a fixed result and accepts no child command. Keep
+`--require-environment` as an explicit host beta-XPC route, not a Codex sandbox
+bypass. The `oss-local-code`,
 `oss-local-fallback`, and `docs` compatibility profiles remain projected
 and are validated as explicit readonly lanes; they are not selected by the
 primary OSS workflow above.
