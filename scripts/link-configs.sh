@@ -21,7 +21,7 @@ validate_projector_python() {
     printf 'FAIL  projector requires an absolute executable Python\n' >&2
     exit 78
   fi
-  if ! "$1" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)'; then
+  if ! "$1" -I -S -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)'; then
     printf 'FAIL  projector requires Python 3.9 or later\n' >&2
     exit 78
   fi
@@ -41,7 +41,7 @@ if [[ -f "$dots_package_root/codex/.deployment.json" ]]; then
   "$PROJECTOR_PYTHON" "$dots_package_root/codex/scripts/deployment_scope.py"
   DEPLOYMENT_STATE="$("$PROJECTOR_PYTHON" "$dots_package_root/codex/scripts/deployment_scope.py" --state-dir)"
 else
-"$PROJECTOR_PYTHON" - "$HOME" <<'PYHOME'
+"$PROJECTOR_PYTHON" -I -S - "$HOME" <<'PYHOME'
 import os
 from pathlib import Path
 import pwd
