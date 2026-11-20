@@ -43,6 +43,22 @@ class InstallationRouteTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'native hook consent requires'):
                 installer.update_desktop_text(canonical, observed)
 
+    def test_update_renderer_preserves_reviewed_leaf_hook_toggle(self):
+        installer = self.import_installer(ROOT)
+        compat = installer.module('renderer_test_compat', ROOT / 'codex/scripts/desktop_compatibility.py')
+        canonical = '[hooks.state.known]\nenabled = false\ntrusted_hash = "sha256:' + 'a' * 64 + '"\n'
+        observed = canonical.replace('enabled = false', 'enabled = true')
+        review = {'canonical': canonical, 'observed': observed,
+                  'state_dir': str(self.state), 'changes': compat.delta(canonical, observed)}
+        scope = installer.module('renderer_test_scope', ROOT / 'codex/scripts/migration_scope.py')
+        with (mock.patch.object(installer, 'effective_previous_review', return_value=review),
+              mock.patch.dict(sys.modules, {'migration_scope': scope}),
+              mock.patch.dict(os.environ, self.fixture.env, clear=True)):
+            updated = installer.update_desktop_text(canonical, observed)
+            self.assertEqual(tomllib.loads(updated), tomllib.loads(observed))
+            with self.assertRaises(ValueError):
+                installer.update_desktop_text(canonical, observed.replace('a' * 64, 'b' * 64))
+
     def test_standalone_live_usage_swap_refuses_before_any_state_change(self):
         installer = self.import_installer(ROOT)
         args = SimpleNamespace(mode='machine', operation='repair-usage-directory')
@@ -1488,6 +1504,7 @@ with installer.renameable_directories(state, staged, target):
         config.write_text(GEN.toml_document(selected))
         self.assertNotEqual(self.operation('check', digest).returncode, 0)
         proposal = self.success(self.operation('prepare-desktop-review', digest))
+        self.assertEqual(proposal['changed_paths'], [['hooks', 'state', identity, 'enabled']])
         pin = proposal['review_sha256']
         self.assertNotEqual(self.operation('check', digest).returncode, 0)
         self.success(self.run_cli('check', '--state-dir', self.state,

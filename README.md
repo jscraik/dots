@@ -292,10 +292,19 @@ only `trust_level = "trusted"`. The exact runtime comparison still rejects
 unselected project registrations and any change to existing trust. With no list,
 all generated policy remains byte-for-byte unchanged.
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:ace8d96a672cc207d19a867e439c04f7cd4abd5c316da51599d1997225313da1 -->
+
 Operator hook revocations from a pinned previous installation are preserved
 through preparation, application and repair readback. An initial installation
-with unbound native hook state stops without changing it; use the explicit
-installation-bound consent review route rather than importing those trust hashes.
+with unbound `hooks.state` stops without changing it. Resolve that state
+independently before installation. Then prepare and apply the installation,
+grant fresh native hook consent for the installed hooks, and run
+`prepare-desktop-review`. That command requires an applied installation and
+cannot resolve unbound consent beforehand.
+
+<!-- /coderabbit-ai-generated:v1 -->
 Existing `enabled = false` flags do not authorise changed trust
 hashes or new identities. If every recorded hook was disabled, replacement
 identities also remain disabled. A transition never grants hook consent.

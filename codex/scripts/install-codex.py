@@ -484,19 +484,21 @@ def update_desktop_text(canonical, original):
     repair = module('update_policy', ROOT / 'codex/scripts/repair-runtime-config-drift.py')
     review = effective_previous_review()
     validation_original = original
-    if review:
+    state_path = ('hooks', 'state')
+    if review and any(tuple(row['path'][:2]) == state_path for row in review['changes']):
         compat = module('native_consent_update', ROOT / 'codex/scripts/desktop_compatibility.py')
-        for row in review['changes']:
-            if row['path'] == ['hooks', 'state']:
-                actual = compat.get(tomllib.loads(original), ('hooks', 'state'))
-                if not actual['present'] or type(actual['value']) is not dict:
-                    raise ValueError('Native hook consent disappeared after its pinned review')
-                preserved = preserve_hook_disables({'hooks': {'state': row['after']['value']}},
-                                                   {'hooks': {'state': actual.get('value')}})
-                if not compat.equal(compat.get(preserved, ('hooks', 'state')), actual):
-                    raise ValueError('Native hook consent changed after its pinned review')
-                validation_original = compat.overlay(validation_original,
-                    [{'path': ['hooks', 'state'], 'after': row['before']}])
+        approved = tomllib.loads(review['observed'])
+        observed = tomllib.loads(rebase_reviewed_hook_keys(original, review))
+        actual = compat.get(observed, state_path)
+        if not actual['present'] or type(actual['value']) is not dict:
+            raise ValueError('Native hook consent disappeared after its pinned review')
+        preserved = preserve_hook_disables(approved, observed)
+        if not compat.equal(compat.get(preserved, state_path), actual):
+            raise ValueError('Native hook consent changed after its pinned review')
+        # The canonical renderer rejects all runtime consent. Pass it a copy
+        # without verified state, then restore the reviewed rows below.
+        validation_original = compat.overlay(original,
+            [{'path': list(state_path), 'after': {'present': False}}])
     merged, error = repair._canonical_with_desktop_plugins(canonical, validation_original)
     if merged is None:
         raise ValueError('Unsupported Desktop state: ' + str(error))

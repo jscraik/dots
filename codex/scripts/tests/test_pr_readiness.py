@@ -31,7 +31,7 @@ class PrReadinessTests(unittest.TestCase):
                 result = committed_review_requirement([
                     {'path': path, 'old_mode': '100644', 'new_mode': '100644'}])
                 self.assertEqual(result['required_bot_review_count'], 1)
-        for path in ('src/auth/login.py', 'src/oauth.py', 'src/oauth2.py',
+        for path in ('src/auth/login.py', 'src/oauth.py', 'src/oauth2.py', 'src/OAuth2Provider.ts',
                      'src/login.py', 'src/password.py', 'src/jwt.py',
                      '.github/workflows/check.yml',
                      'codex/scripts/pr-readiness.py', 'migrations/001.sql',
