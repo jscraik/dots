@@ -55,7 +55,7 @@
       "source_revision": null,
       "source_sha256": null,
       "transformation": "New local prepare/apply/check/rollback procedure reusing existing validators and publishers.; Add fixed packaged-context admission; retain default disposable admission and original checks. Apply inode-journalled temporary rename modes on Linux as well as macOS.",
-      "candidate_sha256": "af5a15395cbe87a173f4e8ad418fc19adb71df0ec8ebfade1647fc0d701292b8"
+      "candidate_sha256": "808892438d7683c073cc6ec6a26b0e1044143c63955f40c1eab14a822202ce0b"
     }
   ],
   "fixture_kind": "full-policy-v1",
