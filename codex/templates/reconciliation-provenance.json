@@ -63,7 +63,7 @@
     {
       "path": "codex/instructions/agents/16-git-and-release.md",
       "prior_candidate_sha256": "6831a23a8697fba882b6561d7e528f0842f4aeded557ddac580ff3b0283f5068",
-      "candidate_sha256": "fbbe0be01b2b56e215cfa98ac39340ae58e5be7a1572b98f7624807d8ed67d4e"
+      "candidate_sha256": "901f24b490c14d9fa5661ed6fb1e09290a4fc36f43cfce65251fbb098487357c"
     },
     {
       "path": "codex/instructions/agents/16a-review-reply-parsing.md",
@@ -101,7 +101,7 @@
     {
       "path": "codex/scripts/pr-review-request.py",
       "prior_candidate_sha256": "fa6e0acb662715f177204c584a96ce13e2ae71bd571dafeef4a3cb3878a35e19",
-      "candidate_sha256": "4d9c25c84201431336607c284df38711db5852a5fc733c041b765223966df4d7"
+      "candidate_sha256": "4aea32c620651d36ba44fa18e3d04850b3a107fc822cc3f591ed4cbde263b840"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
@@ -180,7 +180,7 @@
     {
       "path": "codex/scripts/tests/test_pr_review_request.py",
       "prior_candidate_sha256": "b2ee06b9e74579d2b0211e73fb9063d0ed491ca39e648fc01962ed2420a99e18",
-      "candidate_sha256": "9e4be6edbb9e88f1b72d38b52b965be909cb0fc2e939fc74f32980fbe04c6cce"
+      "candidate_sha256": "c39892a178ebae7050e258552d31c6615d60dded8563dc669b71c0ec2984fc96"
     },
     {
       "path": "codex/scripts/validate-codex-config.py",
@@ -196,7 +196,7 @@
     {
       "path": "tests/test_helper_dependencies.py",
       "prior_candidate_sha256": "f8c74a3d7d96e5791162b6abdf902c1705a78226deb56347f56a2a09096384b9",
-      "candidate_sha256": "81ee1793167a1fb380fb416d18cd133f862f771e7df4feb88c66f6f0918d1fa3"
+      "candidate_sha256": "1f374ba32bc2a213708d16f9cc0d8eb5681a547d5d9a8540813b46c9e09deed0"
     },
     {
       "path": "tests/test_hook_handlers.py",

@@ -94,7 +94,89 @@ def clarification_sources(entries: list[dict], source: str, head: str) -> list[d
     ]
 
 
-def retry_sources(entries: list[dict], source: str, head: str) -> list[dict]:
+def request_bound_quota_source(
+    entries: list[dict], source: str, head: str, actor: dict | None
+) -> list[dict]:
+    """Bind a SHA-less quota notification to one immediate unedited request.
+
+    This temporal association admits another inspection request only. It is
+    neither cryptographic provider linkage nor review clearance.
+    """
+    if actor is None:
+        return []
+    prefix, separator, suffix = source.partition("#issuecomment-")
+    if not separator or not suffix.isdigit():
+        return []
+    selected = [item for item in entries if item.get("html_url") == source]
+    if len(selected) != 1:
+        return []
+    notification = selected[0]
+    user = notification.get("user")
+    if (
+        not isinstance(user, dict)
+        or user.get("id") != 136622811
+        or type(user.get("id")) is not int
+        or user.get("login") != "coderabbitai[bot]"
+        or user.get("type") != "Bot"
+    ):
+        return []
+    body = GATE._review_body(notification)
+    quota = (
+        r"<!-- coderabbit-ai-generated:v1 -->\n\n"
+        r"<!-- This is an auto-generated reply by CodeRabbit -->\n"
+        r"<!-- CodeRabbit review command invocation: v2:[0-9a-f]{64} -->\n"
+        r"<details>\n<summary>Action not completed</summary>\n<dl>\n<dd>\n<br>\n\n"
+        r"Review rate limited\.\n\n---\n\n"
+        r"Your included review limit is currently reached under our "
+        r"\[Fair Usage Limits Policy\]\(https://docs\.coderabbit\.ai/management/rate-limits#fair-usage-limits-policy\)\. "
+        r"Your current included review allowance is based on your included PR review attempts over the past 7 days\. "
+        r"This review may still proceed through usage-based billing if eligible\. "
+        r"Your next included review will be available in (?P<minutes>[0-9]{1,5}) minutes?\.\n\n"
+        r"</dd>\n</dl>\n</details>\n?"
+    )
+    quota_match = re.fullmatch(quota, body)
+    if quota_match is None:
+        return []
+    cooldown_minutes = int(quota_match["minutes"])
+    if cooldown_minutes > 10080:
+        return []
+    response_time = GATE._codex_event_time(notification.get("created_at"))
+    if (
+        response_time is None
+        or GATE._codex_event_time(notification.get("updated_at")) != response_time
+        or datetime.now(UTC) - response_time
+        < timedelta(minutes=max(60, cooldown_minutes))
+    ):
+        return []
+    # Any competing invocation in the bounded window makes correlation unknown.
+    invocations = []
+    for item in entries:
+        created = GATE._codex_event_time(item.get("created_at"))
+        if created is None:
+            return []
+        if response_time - timedelta(seconds=60) <= created <= response_time:
+            if GATE._codex_event_time(item.get("updated_at")) != created:
+                return []
+            if "@coderabbitai" in GATE._review_body(item).casefold():
+                invocations.append(item)
+    requests = unedited_actor_requests(
+        invocations,
+        actor,
+        prefix + "#issuecomment-",
+        {request_body("coderabbitai", head, False)},
+    )
+    if len(invocations) != 1 or len(requests) != 1:
+        return []
+    request = requests[0]
+    if GATE._codex_event_time(request["created_at"]) >= response_time:
+        return []
+    # Include both records in the existing pre-mutation source comparison.
+    return [{**notification, "retry_request_binding": request}]
+
+
+def retry_sources(
+    entries: list[dict], source: str, head: str, actor: dict | None = None
+) -> list[dict]:
     """Admit a delayed retry only for an authenticated failed current-head review."""
     admitted = []
     for entry in clarification_sources(entries, source, head):
@@ -128,7 +210,28 @@ def retry_sources(entries: list[dict], source: str, head: str) -> list[dict]:
         ) - response_time < timedelta(hours=1):
             continue
         admitted.append(entry)
-    return admitted
+    return admitted or request_bound_quota_source(entries, source, head, actor)
+
+
+def selected_sources(
+    root: Path, entries: list[dict], source: str, head: str, clarify: bool
+) -> list[dict]:
+    if clarify:
+        return clarification_sources(entries, source, head)
+    selected = retry_sources(entries, source, head)
+    if selected:
+        return selected
+    if not any(
+        item.get("html_url") == source
+        and GATE._review_body(item).startswith(
+            "<!-- coderabbit-ai-generated:v1 -->\n\n"
+            "<!-- This is an auto-generated reply by CodeRabbit -->\n"
+            "<!-- CodeRabbit review command invocation: v2:"
+        )
+        for item in entries
+    ):
+        return []
+    return retry_sources(entries, source, head, authenticated_actor(root))
 
 
 def authenticated_actor(root: Path) -> dict:
@@ -740,9 +843,7 @@ def execute(args: argparse.Namespace) -> dict:
         entries, error = GATE.issue_comments(root, args.pr)
         if error:
             raise ValueError(error)
-        admitted = (clarification_sources if args.clarify else retry_sources)(
-            entries, source, head
-        )
+        admitted = selected_sources(root, entries, source, head, args.clarify)
         if args.reviewer != "coderabbitai" or len(admitted) != 1:
             raise ValueError(
                 "retry requires one authenticated, elapsed CodeRabbit rate-limit source"
@@ -780,9 +881,7 @@ def execute(args: argparse.Namespace) -> dict:
         if refreshed_concern != concern:
             raise ValueError("reinspection concern changed before mutation")
     if args.clarify or retry_source:
-        refreshed = (clarification_sources if args.clarify else retry_sources)(
-            entries, source, head
-        )
+        refreshed = selected_sources(root, entries, source, head, args.clarify)
         if (
             len(refreshed) != 1
             or json.dumps(refreshed[0], sort_keys=True) != source_snapshot
