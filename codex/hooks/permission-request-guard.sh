@@ -21,10 +21,10 @@ parsed_fields="$(
       (if (.tool_input? | type) == "object" then .tool_input.description else null end)
       // "";
     def tool_cwd:
-      ((if (.tool_input? | type) == "object" then .tool_input.cwd else null end) | select(. != ""))
-      // ((if (.tool_input? | type) == "object" then .tool_input.workdir else null end) | select(. != ""))
-      // (.cwd | select(. != ""))
-      // "";
+      ([if (.tool_input? | type) == "object" then .tool_input.cwd, .tool_input.workdir else null end, .cwd]
+      | map(select(. != null and . != "")) | if length > 0 then .[0] else "" end)
+      | if type != "string" then "__codex_invalid_cwd__"
+        elif test("[\\x00-\\x1f\\x7f]") then "__codex_invalid_cwd__" else . end;
     def edit_payload:
       (if (.tool_input? | type) == "object" then
         [
@@ -58,17 +58,19 @@ parsed_fields="$(
       | join("\u001e");
     [
       (.tool_name // ""),
-      (tool_command | gsub("[\\r\\n\\t]+"; " ")),
-      tool_description,
+      (tool_command | @base64),
+      (tool_description | @base64),
       tool_cwd,
       (.permission_mode // "default"),
       edit_payload
     ] | join("\u001f")
   '
 )"
-IFS=$'\x1f' read -r tool_name raw_command raw_description _command_cwd permission_mode edit_targets <<<"$parsed_fields"
+IFS=$'\x1f' read -r tool_name encoded_command encoded_description _command_cwd permission_mode edit_targets <<<"$parsed_fields"
+raw_command="$(printf '%s' "$encoded_command" | jq -Rr '@base64d')"
+raw_description="$(printf '%s' "$encoded_description" | jq -Rr '@base64d')"
 
-command_lc="$(printf '%s' "$raw_command" | tr '[:upper:]' '[:lower:]')"
+command_lc="$(printf '%s' "$raw_command" | tr '\r\n\t' '   ' | tr '[:upper:]' '[:lower:]')"
 description_lc="$(printf '%s' "$raw_description" | tr '[:upper:]' '[:lower:]')"
 home_canon="$HOME"
 if [[ -d "$HOME" ]]; then
@@ -77,6 +79,7 @@ fi
 home_lc="$(printf '%s' "$home_canon" | tr '[:upper:]' '[:lower:]')"
 
 deny_reason=""
+git_worktree_risk=""
 
 canonicalize_edit_target() {
   local target="$1"
@@ -119,7 +122,9 @@ is_sensitive_edit_target() {
     || "$canonical_lc" == "/private/etc" ]]
 }
 
-if [[ "$tool_name" == "apply_patch" || "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
+if [[ "$_command_cwd" == "__codex_invalid_cwd__" ]]; then
+  deny_reason="Blocked approval request for uninspectable working directory transport."
+elif [[ "$tool_name" == "apply_patch" || "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
   if [[ -z "$edit_targets" ]]; then
     deny_reason="Blocked approval request for edit tool without inspectable path target."
   else
@@ -134,14 +139,24 @@ if [[ "$tool_name" == "apply_patch" || "$tool_name" == "Edit" || "$tool_name" ==
 elif [[ "$tool_name" != "Bash" ]]; then
   printf '{}\n'
   exit 0
-elif [[ "$command_lc" == *"git reset --hard"* ]]; then
-  deny_reason="Blocked approval request for git reset --hard due to destructive reset risk."
-elif [[ "$command_lc" == *"git checkout --"* ]]; then
-  deny_reason="Blocked approval request for git checkout -- because it can discard local changes."
-elif [[ "$command_lc" == *"rm -rf /"* \
-     || "$command_lc" == *"rm -rf ~"* \
-     || "$command_lc" == *"rm -rf ${home_lc}"* ]]; then
-  deny_reason="Blocked approval request for broad rm -rf on root/home scope."
+elif git_worktree_risk="$(hook_runtime_destructive_git_operation "$raw_command" "${_command_cwd:-$PWD}")"; then
+  case "$git_worktree_risk" in
+    reset-hard)
+      deny_reason="Blocked approval request for git reset --hard due to destructive reset risk."
+      ;;
+    checkout-paths|checkout-destructive)
+      deny_reason="Blocked approval request for destructive git checkout because it can discard local changes."
+      ;;
+    checkout-unresolved)
+      deny_reason="Cannot prove the checkout operand is a local revision. For a remote branch, use an explicit git checkout --track origin/branch operand; implicit branch guessing is unsupported."
+      ;;
+    broad-delete)
+      deny_reason="Blocked approval request for broad rm -rf on root/home scope."
+      ;;
+    *)
+      deny_reason="Blocked approval request for unsupported shell command syntax because destructive intent cannot be ruled out."
+      ;;
+  esac
 elif [[ "$command_lc" == *"| sh"* || "$command_lc" == *"| bash"* ]]; then
   deny_reason="Blocked approval request for pipe-to-shell execution. Download and inspect script content first."
 elif [[ "$command_lc" == *"curl "* && "$command_lc" == *"sh -c"* ]]; then

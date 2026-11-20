@@ -23,10 +23,10 @@ parsed_fields="$(printf '%s' "$input_json" | jq -r '
     // .command
     // "";
   def tool_cwd:
-    ((if (.tool_input? | type) == "object" then .tool_input.cwd else null end) | select(. != ""))
-    // ((if (.tool_input? | type) == "object" then .tool_input.workdir else null end) | select(. != ""))
-    // (.cwd | select(. != ""))
-    // "";
+    ([if (.tool_input? | type) == "object" then .tool_input.cwd, .tool_input.workdir else null end, .cwd]
+    | map(select(. != null and . != "")) | if length > 0 then .[0] else "" end)
+    | if type != "string" then "__codex_invalid_cwd__"
+      elif test("[\\x00-\\x1f\\x7f]") then "__codex_invalid_cwd__" else . end;
   def edit_payload:
     (if (.tool_input? | type) == "object" then
       [
@@ -62,6 +62,7 @@ parsed_fields="$(printf '%s' "$input_json" | jq -r '
 ')"
 IFS=$'\x1f' read -r tool_name encoded_command _command_cwd permission_mode session_id turn_id edit_targets <<<"$parsed_fields"
 raw_command="$(printf '%s' "$encoded_command" | jq -Rr '@base64d')"
+git_worktree_risk=""
 run_ok() {
   jq -n '{}'
 }
@@ -702,7 +703,12 @@ is_sensitive_edit_target() {
 contains_direct_auth_material_access() {
   local command_text="$1"
   local analysis_result
-  analysis_result="$(python3 -I -S - "$command_text" "$HOME" "$_command_cwd" "$codex_repo_root/scripts/pr-reconciliation.py" "$codex_repo_root/scripts/run-auth-backed.sh" <<'PY'
+  # Heredoc bytes from a known data consumer are not executable shell text.
+  # Unsupported consumers or expansions remain a denial, never an empty scan.
+  if ! command_text="$(python3 -I -S "$hook_dir/destructive-git-operation.py" --prepare-literals "$command_text")"; then
+    return 0
+  fi
+  analysis_result="$(python3 - "$command_text" "$HOME" "$_command_cwd" "$codex_repo_root/scripts/pr-reconciliation.py" "$codex_repo_root/scripts/run-auth-backed.sh" <<'PY'
 from __future__ import annotations
 
 import fnmatch
@@ -935,7 +941,9 @@ PY
 )" || return 0
   [[ "$analysis_result" != "no-auth-material-access" ]]
 }
-if [[ "$tool_name" == "apply_patch" || "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
+if [[ "$_command_cwd" == "__codex_invalid_cwd__" ]]; then
+  block_reason="Blocked uninspectable working directory transport."
+elif [[ "$tool_name" == "apply_patch" || "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
   if [[ -z "$edit_targets" ]]; then
     block_reason="Blocked edit tool without inspectable path target."
   else
@@ -960,14 +968,24 @@ elif contains_forbidden_publish_or_review_action "$command_lc"; then
 elif contains_destructive_branch_option "$command_lc" \
   || contains_destructive_update_ref "$command_lc"; then
   block_reason="Blocked local branch deletion or rename. Re-run only with explicit scoped intent and approval."
-elif [[ "$command_lc" == *"git reset --hard"* ]]; then
-  block_reason="Blocked potentially destructive git reset --hard. Re-run with explicit scoped intent and confirmation."
-elif [[ "$command_lc" == *"git checkout --"* ]]; then
-  block_reason="Blocked git checkout -- because it can discard local changes. Use a targeted non-destructive approach."
-elif [[ "$command_lc" == *"rm -rf /"* \
-     || "$command_lc" == *"rm -rf ~"* \
-     || "$command_lc" == *"rm -rf ${home_lc}"* ]]; then
-  block_reason="Blocked broad rm -rf target (root/home). Use a scoped path and confirm intent."
+elif git_worktree_risk="$(hook_runtime_destructive_git_operation "$raw_command" "${_command_cwd:-$PWD}")"; then
+  case "$git_worktree_risk" in
+    reset-hard)
+      block_reason="Blocked potentially destructive git reset --hard. Re-run with explicit scoped intent and confirmation."
+      ;;
+    checkout-paths|checkout-destructive)
+      block_reason="Blocked destructive git checkout because it can discard local changes. Use a targeted non-destructive approach."
+      ;;
+    checkout-unresolved)
+      block_reason="Cannot prove the checkout operand is a local revision. For a remote branch, use an explicit git checkout --track origin/branch operand; implicit branch guessing is unsupported."
+      ;;
+    broad-delete)
+      block_reason="Blocked broad rm -rf target (root/home). Use a scoped path and confirm intent."
+      ;;
+    *)
+      block_reason="Blocked unsupported shell command syntax because destructive intent cannot be ruled out."
+      ;;
+  esac
 elif [[ "$command_lc" == *"| sh"* || "$command_lc" == *"| bash"* ]]; then
   block_reason="Blocked pipe-to-shell execution. Download and inspect scripts before execution."
 fi

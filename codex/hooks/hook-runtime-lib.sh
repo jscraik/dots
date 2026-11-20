@@ -12,8 +12,8 @@ fi
 dots_lib_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 python3 "$dots_lib_dir/../scripts/admit-hook-fixture.py" '{}' || return $?
 
-# Shared helpers for Codex hook receipts. This file is sourced by hook scripts;
-# keep it dependency-light and fail-open for telemetry writes.
+# Shared helpers for Codex hook safety and receipts. This file is sourced by
+# hook scripts; keep it dependency-light and fail-open only for telemetry writes.
 
 : "${HOOK_RUNTIME_INVOCATION_SUFFIX:=$(date -u '+%Y%m%dT%H%M%SZ' 2>/dev/null || printf 'unknown-time')-$$-${RANDOM:-0}}"
 
@@ -116,6 +116,23 @@ for phrases, message in zip(groups, messages):
         print(message)
         raise SystemExit(0)
 PY
+}
+
+hook_runtime_destructive_git_operation() {
+  local result
+  local status=0
+
+  result=$(python3 -I -S "$dots_lib_dir/destructive-git-operation.py" "$1" "${2:-$PWD}") || status=$?
+
+  if [[ "$status" -ne 0 ]]; then
+    result="unsupported"
+  fi
+  case "$result" in
+    safe) return 1 ;;
+    reset-hard|checkout-destructive|checkout-paths|checkout-unresolved|broad-delete|unsupported) ;;
+    *) result="unsupported" ;;
+  esac
+  printf '%s\n' "$result"
 }
 
 hook_runtime_otel_enabled() {
