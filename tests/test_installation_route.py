@@ -1,4 +1,5 @@
 """Rehearse the real installation entrypoint without live or provider state."""
+import hashlib
 import importlib.util
 import json
 import os
@@ -283,6 +284,40 @@ class InstallationRouteTests(unittest.TestCase):
         return self.run_cli('prepare', '--home', self.home, '--state-dir', self.state,
             '--bindings', self.bindings, '--braid-bin', self.fixture.bin / 'braid', '--mode', 'rehearsal',
             '--source-revision', self.source_revision)
+
+    def test_prepare_content_addresses_braid_in_managed_hook_store(self):
+        external = self.fixture.bin / 'braid'
+        original = external.read_bytes()
+        digest = hashlib.sha256(original).hexdigest()
+        prepared = self.success(self.prepare())
+        relative = Path('braid-' + digest) / 'braid'
+        packaged = self.payload / 'codex/hooks' / relative
+        runtime = self.runtime / 'hooks' / relative
+        manifest = json.loads((self.payload / 'codex/hooks/hooks.json').read_text())
+        commands = [hook['command'] for groups in manifest['hooks'].values()
+                    for group in groups for hook in group['hooks']
+                    if Path(shlex.split(hook['command'])[0]).name == 'braid']
+        self.assertTrue(commands)
+        self.assertEqual({shlex.split(command)[0] for command in commands}, {str(runtime)})
+        self.assertEqual(packaged.read_bytes(), original)
+        self.assertEqual(packaged.stat().st_mode & 0o777, 0o500)
+        external.write_text('#!/bin/sh\nexit 99\n')
+        self.assertEqual(packaged.read_bytes(), original)
+        self.success(self.operation('apply', prepared['plan_digest']))
+        self.assertEqual(runtime.read_bytes(), original)
+        self.assertEqual(runtime.stat().st_mode & 0o777, 0o500)
+
+    def test_prepare_rejects_nonexecutable_original_braid(self):
+        external = self.fixture.bin / 'braid'
+        before = external.read_bytes()
+        external.chmod(0o600)
+        runtime_before = self.snapshot()
+        rejected = self.prepare()
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn('original Braid input must be executable', rejected.stdout + rejected.stderr)
+        self.assertEqual(external.read_bytes(), before)
+        self.assertEqual(external.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(self.snapshot(), runtime_before)
 
     def operation(self, operation, digest):
         return self.run_cli(operation, '--state-dir', self.state, '--plan-digest', digest)

@@ -54,8 +54,8 @@
       "path": "codex/scripts/install-codex.py",
       "source_revision": null,
       "source_sha256": null,
-      "transformation": "New local prepare/apply/check/rollback procedure reusing existing validators and publishers.; Add fixed packaged-context admission; retain default disposable admission and original checks. Apply inode-journalled temporary rename modes on Linux as well as macOS. Bind preparation to an explicitly named clean HEAD and materialize the package from its immutable Git tree.",
-      "candidate_sha256": "0bb8f00be92c7277af8a299e8c8b4bfb20983f595ffa9e3ffd7d11a6edce1582"
+      "transformation": "New local prepare/apply/check/rollback procedure reusing existing validators and publishers.; Add fixed packaged-context admission; retain default disposable admission and original checks. Apply inode-journalled temporary rename modes on Linux as well as macOS.",
+      "candidate_sha256": "808892438d7683c073cc6ec6a26b0e1044143c63955f40c1eab14a822202ce0b"
     }
   ],
   "fixture_kind": "full-policy-v1",
