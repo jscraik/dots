@@ -337,6 +337,8 @@
 !/codex/scripts/tests/test_pr_maintainer_acceptance.py
 !/codex/schemas/pr-readiness.v1.schema.json
 
+!/codex/hooks/destructive-git-operation.py
+!/tests/test_destructive_git_operation.py
 !/tests/test_runtime_project_admission.py
 !/tests/test_readiness_repository_scope.py
 !/tests/test_body_managed_input.py

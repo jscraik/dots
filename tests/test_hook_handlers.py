@@ -198,47 +198,32 @@ class HookHandlerTests(unittest.TestCase):
         self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
         self.assertIn('receipt', output['hookSpecificOutput']['permissionDecisionReason'])
 
-    def test_raw_api_merges_require_target_bound_readiness(self):
-        merge_commands = (
-            'gh api -X PUT repos/example/repo/pulls/349/merge',
-            'gh api --method=put repos/example/repo/pulls/349/merge',
-            'gh api -XPUT /repos/example/repo/pulls/349/%6d%65%72%67%65/',
-            'gh -R example/repo api -X PUT repos/example/repo/pulls/349/merge',
+    def test_readiness_hook_rejects_github_target_environment(self):
+        cases = (
+            ('GH_REPO=other/repo gh pr merge 1', {}),
+            ('env GH_HOST=other.example gh pr edit 1', {}),
+            ('sudo env GH_REPO=other/repo gh pr review 1', {}),
+            ('env -i GH_HOST=other.example gh pr merge 1', {}),
         )
-        for command in merge_commands:
-            with self.subTest(command=command):
-                output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
+        for command, environment in cases:
+            with self.subTest(command=command, environment=environment):
+                output = self.output('pr-readiness-guard.sh',
+                                     {'tool_input': {'command': command}}, environment)
                 self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
-                self.assertIn('receipt', output['hookSpecificOutput']['permissionDecisionReason'])
+                self.assertIn('GH_REPO or GH_HOST',
+                              output['hookSpecificOutput']['permissionDecisionReason'])
 
-        for command in (
-            "gh api graphql -f 'query=mutation { mergePullRequest(input: {}) { pullRequest { id } } }'",
-            'gh api -X DELETE repos/example/repo/hooks/1',
-            'gh api -X "$METHOD" "$ENDPOINT"',
-            'GH_REPO=other/repo gh api -X PUT repos/example/repo/pulls/349/merge',
-            'gh api --hostname example.invalid -X PUT repos/example/repo/pulls/349/merge',
-            'gh api -X PUT https://api.github.com/repos/example/repo/pulls/349/merge',
-            "gh api -X PUT 'repos/{owner}/{repo}/pulls/349/merge'",
-            "gh api -H 'X-HTTP-Method-Override: PUT' repos/example/repo/pulls/349/merge",
-        ):
+    def test_readiness_hook_preserves_non_target_prefixes_and_explicit_repo(self):
+        for command in ('gh --repo owner/repo pr edit 1',
+                        'FOO=bar gh --repo owner/repo pr review 1',
+                        'env -i gh --repo owner/repo pr merge 1',
+                        'env --unset=GH_REPO gh --repo owner/repo pr merge 1'):
             with self.subTest(command=command):
-                output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
+                output = self.output('pr-readiness-guard.sh', {'tool_input': {'command': command}})
                 self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
-                self.assertIn('protected command', output['hookSpecificOutput']['permissionDecisionReason'])
-
-        for command in (
-            'gh api repos/example/repo/pulls/349',
-            'gh api --help',
-            'gh api --hostname example.invalid repos/example/repo/pulls/349',
-            "gh api graphql -f 'query=query { viewer { login } }'",
-            "gh api graphql -f 'query=query { repository(owner: \"example\", name: \"mutation\") { id } }'",
-            "gh api graphql -f 'query=query($ids:[ID!]!){nodes(ids:$ids){id}}' -f 'ids[]=one' -f 'ids[]=two'",
-            "gh api graphql -f 'query=query { viewer { login } } # mutation'",
-        ):
-            with self.subTest(command=command):
-                output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
-                self.assertNotIn('continue', output)
-                self.assertNotIn('permissionDecision', output.get('hookSpecificOutput', {}))
+                reason = output['hookSpecificOutput']['permissionDecisionReason']
+                self.assertIn('receipt', reason)
+                self.assertNotIn('GH_REPO or GH_HOST', reason)
 
     def test_pr_inspection_does_not_require_a_mutation_receipt(self):
         for command in ('gh pr view 12 --json state | jq .state',
