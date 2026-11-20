@@ -149,6 +149,16 @@ class DestructiveGitOperationTests(unittest.TestCase):
             'toybox find . -exec git reset --hard \\;',
             'find . -* git reset --hard \\;',
             'fd * git reset --hard',
+            'git checkout --quiet{,} --force topic',
+            "cat <<$'EOF'\nEOF\ngit reset --hard\nexit\n$EOF",
+            "bash -c -e 'git reset --hard'",
+            "bash +B -c 'git reset --hard'",
+            "bash +O extglob -c 'git reset --hard'",
+            'nice -n0 git reset --hard',
+            'nice -- git reset --hard',
+            'caffeinate git reset --hard',
+            'caffeinate -d -t1 git reset --hard',
+            "unreviewed-launcher --payload 'git reset --hard'",
         )
         for command in commands:
             with self.subTest(command=command):
@@ -203,6 +213,11 @@ class DestructiveGitOperationTests(unittest.TestCase):
             r'fd "\*"',
             r'find . -name "\["',
             r'fd "\?\[\]\{\}"',
+            "cat <<$'EOF'\ngit reset --hard\nEOF",
+            "printf '%s' '--quiet{,}'",
+            "bash +B -c 'printf hello'",
+            'nice -n0 git status --short',
+            'caffeinate -d git status --short',
         )
         for command in commands:
             with self.subTest(command=command):

@@ -8,7 +8,6 @@ import unittest
 from pathlib import Path
 
 from hook_fixture import HookFixture
-from test_destructive_git_operation import seed_checkout_ref
 
 
 class HookHandlerTests(unittest.TestCase):

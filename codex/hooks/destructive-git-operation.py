@@ -70,6 +70,10 @@ def prepare_literals(command, opaque_transport=None):
             output.append(command[index:end])
             index = end
             continue
+        if quote is None and char == '{':
+            close = command.find('}', index + 1)
+            if close >= 0 and (',' in command[index + 1:close] or '..' in command[index + 1:close]):
+                raise ValueError('Brace expansion requires separate inspection')
         if quote is None and command.startswith("$'", index):
             value, index = ansi_literal(command, index)
             output.append(value)
@@ -122,7 +126,14 @@ def prepare_literals(command, opaque_transport=None):
                 elif delimiter_quote is None and current in ' \t\r\n;&|<>()':
                     break
                 end += 1
-            values = shlex.split(command[start:end])
+            delimiter_word = command[start:end]
+            if delimiter_word.startswith("$'"):
+                delimiter_word, consumed = ansi_literal(delimiter_word, 0)
+                if consumed != end - start:
+                    raise ValueError('Mixed ANSI-C heredoc delimiter requires separate inspection')
+            elif "$'" in delimiter_word and not delimiter_word.startswith(("'", '"')):
+                raise ValueError('Mixed ANSI-C heredoc delimiter requires separate inspection')
+            values = shlex.split(delimiter_word)
             if len(values) != 1 or not values[0] or delimiter_quote is not None:
                 raise ValueError('Unsupported heredoc delimiter')
             pending.append((values[0], quoted, strip_tabs))
@@ -204,33 +215,38 @@ def shell_split(command, keep_redirections=False):
 
 def shell_payload_index(tokens, start=0):
     index = start + 1
+    command_string = False
     while index < len(tokens):
         option = tokens[index]
-        if option in {"-o", "-O", "--rcfile", "--init-file"}:
+        if option == '--':
+            index += 1
+            break
+        if option in {"-o", "-O", "+o", "+O", "--rcfile", "--init-file"}:
             if index + 1 >= len(tokens):
                 raise ValueError("Shell option requires a value")
             index += 2
             continue
-        if option.startswith(("-o", "-O")) and len(option) > 2:
+        if option.startswith(("-o", "-O", "+o", "+O")) and len(option) > 2:
             index += 1
             continue
-        if not option.startswith("-") or option == "--" or option in SHELL_SEPARATORS:
+        if not option.startswith(("-", "+")) or option in SHELL_SEPARATORS:
             break
         if not option.startswith("--"):
             cluster = option[1:]
             values = cluster.count("o") + cluster.count("O")
-            payload = index + 1 + values
-            if payload > len(tokens):
+            if index + 1 + values > len(tokens):
                 raise ValueError("Shell option requires a value")
-            if "c" in cluster:
-                if payload < len(tokens) and tokens[payload] == "--":
-                    payload += 1
-                if payload < len(tokens) and tokens[payload] not in SHELL_SEPARATORS:
-                    return payload
-                raise ValueError("Shell command payload is missing")
+            command_string = command_string or option.startswith('-') and 'c' in cluster
             index += 1 + values
             continue
+        if option not in {'--noprofile', '--norc', '--posix', '--restricted', '--verbose',
+                          '--login', '--debugger', '--noediting', '--dump-po-strings', '--dump-strings'}:
+            raise ValueError('Unknown shell invocation option requires separate inspection')
         index += 1
+    if command_string:
+        if index < len(tokens) and tokens[index] not in SHELL_SEPARATORS:
+            return index
+        raise ValueError("Shell command payload is missing")
     return None
 
 
@@ -355,8 +371,15 @@ def inspect_shell(command, depth=0, budget=None, opaque_transport=None):
                 if payload is not None:
                     expanded.extend(inspect_shell(tokens[payload], depth + 1, budget, opaque_transport))
                     expanded.append(";")
-                elif opaque_transport[0]:
+                elif opaque_transport[0] or any(re.search(r'(?i)(?:^|[\s/;|&()])git(?:\s|$)', value)
+                                                for value in tokens[executable_index + 1:]):
                     raise ValueError('File-backed shell after opaque data transport requires separate inspection')
+            if executable not in {'git', 'printf', 'echo', 'cat', ':', 'true', 'false', 'test', '[',
+                    'find', 'gfind', 'fd', 'fdfind', 'bash', 'sh', 'zsh', 'dash', 'ksh',
+                    'export', 'declare', 'typeset', 'readonly'} and any(
+                    re.search(r'(?i)(?:^|[\s/;|&()])git(?:\s|$)', value)
+                    for value in tokens[executable_index + 1:]):
+                raise ValueError('Unparsed utility with embedded Git command requires separate inspection')
             if executable in {"export", "declare", "typeset", "readonly"} and any(
                     unsafe_git_environment(token, bare=True) for token in tokens[executable_index + 1:]):
                 raise ValueError("Program-valued Git environment mutation")
@@ -398,10 +421,39 @@ def wrapper_command_index(tokens, start, limit):
             continue
         if executable == "nice":
             index += 1
-            if index < limit and tokens[index] in {"-n", "--adjustment"}:
-                index += 2
-            elif index < limit and (re.fullmatch(r"-[0-9]+", tokens[index]) or tokens[index].startswith("--adjustment=")):
+            while index < limit and tokens[index].startswith('-'):
+                token = tokens[index]
+                if token == '--':
+                    index += 1
+                    break
+                if token in {'-n', '--adjustment'}:
+                    if index + 1 >= limit or not re.fullmatch(r'[+-]?[0-9]+', tokens[index + 1]):
+                        raise ValueError('Unsupported nice adjustment')
+                    index += 2
+                elif re.fullmatch(r'(?:-n|--adjustment=)[+-]?[0-9]+|-[0-9]+', token):
+                    index += 1
+                else:
+                    raise ValueError('Unsupported nice option')
+            continue
+        if executable == 'caffeinate':
+            index += 1
+            while index < limit and tokens[index].startswith('-'):
+                token = tokens[index]
                 index += 1
+                if token == '--':
+                    break
+                for offset, option in enumerate(token[1:], 1):
+                    if option in 'dimsu':
+                        continue
+                    if option not in 'tw':
+                        raise ValueError('Unsupported caffeinate option')
+                    if offset == len(token) - 1:
+                        if index >= limit or not tokens[index].isdigit():
+                            raise ValueError('Missing caffeinate option value')
+                        index += 1
+                    elif not token[offset + 1:].isdigit():
+                        raise ValueError('Unsupported caffeinate option value')
+                    break
             continue
         if executable in {"timeout", "gtimeout"}:
             index += 1
