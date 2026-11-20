@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
-  "integration_adaptation": "Five isolated OSS cua_repl entries add command=/usr/bin/false while remaining disabled and not required. All other parsed policy matches accepted source with the original private bindings.",
+  "integration_adaptation": "Five isolated OSS cua_repl entries add command=/usr/bin/false while remaining disabled and not required. The networked permission profiles replace the accepted auth FIFO read grant with an exact deny; fixed-output canary command rules remain separate. All other parsed policy matches accepted source with the original private bindings.",
   "files": [
     {
       "name": "config",
