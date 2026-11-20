@@ -329,7 +329,7 @@
       "transformations": [
         "public path placeholders; accepted schema/policy content retained"
       ],
-      "candidate_sha256": "96d4dd98121274c2f820ef6a8e66b7ef7852d4c5f51be329679b9a537c34f5cb"
+      "candidate_sha256": "2b4caa0a44fd1f0ed7140223bc54a0cbfd833bb0b8ca6a52d66ebf6fe7f46ac6"
     },
     {
       "path": "codex/hooks/README.md",

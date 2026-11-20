@@ -160,14 +160,15 @@ fixed system PATH.
 Standalone projection requires this sanitized launcher (append projection flags):
 
 ```sh
-/usr/bin/env -u BASH_ENV -u ENV /bin/bash scripts/link-configs.sh --help
+/bin/bash -p scripts/link-configs.sh --help
 ```
 
-Direct execution or plain `bash scripts/link-configs.sh` with an inherited
-environment is unsupported: Bash can execute `BASH_ENV` before reading the
-script. The in-script unset protects child processes. Callers such as the
-packaged installer may continue invoking Bash with an allowlisted environment
-that excludes shell startup variables.
+Privileged Bash startup ignores `BASH_ENV`, `ENV` and exported shell functions
+before reading the script. The executable script uses the same protected
+shebang. Plain `bash scripts/link-configs.sh` with an inherited environment is
+unsupported. The in-script unset protects child processes. The packaged
+installer supplies an allowlisted environment; installed audit and repair
+wrappers use the protected launcher and pass their selected absolute Python.
 
 <!-- /coderabbit-ai-generated:v1 -->
 

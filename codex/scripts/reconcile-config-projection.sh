@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
 
 if [[ -z "${BASH_VERSION:-}" ]]; then
   printf '❌ reconcile-config-projection.sh requires bash. Run: bash scripts/reconcile-config-projection.sh [options]\n' >&2
@@ -92,7 +92,9 @@ if [[ "$codex_home_count" -eq 0 ]]; then
   codex_home_count=1
 fi
 
-cmd=(bash "${REPO_ROOT}/scripts/link-configs.sh" "--${mode}" --scope "$scope")
+validation_python="$(codex_select_toml_python "config-projection-reconciler")"
+validation_python="$(command -v "$validation_python")"
+cmd=(/bin/bash -p "${REPO_ROOT}/scripts/link-configs.sh" "--${mode}" --scope "$scope")
 if [[ "$dry_run" == true ]]; then
   cmd+=(--dry-run)
 fi
@@ -101,7 +103,7 @@ for home in "${codex_homes[@]}"; do
 done
 
 echo "Running projection reconcile from ${REPO_ROOT}: ${cmd[*]}"
-"${cmd[@]}"
+CODEX_VALIDATION_PYTHON="$validation_python" "${cmd[@]}"
 
 runtime_config_repair="${SCRIPT_DIR}/repair-runtime-config-drift.py"
 if [[ ! -f "$runtime_config_repair" ]]; then
@@ -109,7 +111,6 @@ if [[ ! -f "$runtime_config_repair" ]]; then
   exit 1
 fi
 
-validation_python="$(codex_select_toml_python "config-projection-reconciler")"
 runtime_config_failed=0
 for home in "${codex_homes[@]}"; do
   runtime_config_path="${home}/config.toml"

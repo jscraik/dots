@@ -39,7 +39,7 @@ class ProjectionCoreTests(unittest.TestCase):
                        capture_output=True, timeout=20)
 
     def run_projector(self, *args):
-        return subprocess.run(['/usr/bin/env', '-u', 'BASH_ENV', '-u', 'ENV', '/bin/bash',
+        return subprocess.run(['/bin/bash', '-p',
                                str(self.repo / 'scripts/link-configs.sh'),
                                *args], env=self.env, cwd=self.repo,
                               capture_output=True, text=True, timeout=30, check=False)
@@ -77,6 +77,14 @@ class ProjectionCoreTests(unittest.TestCase):
         result = self.run_projector('--help')
         self.assertEqual(result.returncode, 78, result.stderr)
         self.assertIn('absolute executable Python', result.stderr)
+
+    def test_sanitized_launcher_ignores_exported_functions(self):
+        marker = self.home.parent / 'exported-function-ran'
+        self.env['BASH_FUNC_dirname%%'] = (
+            '() { /usr/bin/touch "' + str(marker) + '"; /usr/bin/dirname "$@"; }')
+        result = self.run_projector('--help')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(marker.exists())
 
     def test_selected_interpreter_with_spaces_runs_admission(self):
         selected = self.home.parent / 'selected python'

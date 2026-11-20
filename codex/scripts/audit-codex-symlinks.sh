@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
 
 if [[ -z "${BASH_VERSION:-}" ]]; then
   printf '❌ audit-codex-symlinks.sh requires bash. Run: bash scripts/audit-codex-symlinks.sh [options]\n' >&2
@@ -18,6 +18,8 @@ python3 "$dots_script_dir/admit-hook-fixture.py" '{}' || exit $?
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 POLICY_ROOT="$(python3 "$SCRIPT_DIR/migration_scope.py" --source-root)"
 REPO_ROOT="$(dirname "$POLICY_ROOT")"
+# shellcheck source=codex/scripts/codex-validation-lib.sh
+. "${SCRIPT_DIR}/codex-validation-lib.sh"
 
 declare -a codex_homes=()
 legacy_skills_canon=""
@@ -91,7 +93,9 @@ if [[ ${#codex_homes[@]} -eq 0 ]]; then
   append_home_unique "${HOME}/.codex"
 fi
 
-cmd=(bash "${REPO_ROOT}/scripts/link-configs.sh" --check --scope codex)
+validation_python="$(codex_select_toml_python "codex-symlink-auditor")"
+validation_python="$(command -v "$validation_python")"
+cmd=(/bin/bash -p "${REPO_ROOT}/scripts/link-configs.sh" --check --scope codex)
 for home in "${codex_homes[@]}"; do
   cmd+=(--codex-home "$home")
 done
@@ -101,7 +105,7 @@ if [[ -n "$legacy_skills_canon" ]]; then
   echo "warning: SKILLS_CANON is retired and ignored; standalone skills are not projected" >&2
 fi
 if [[ -n "$legacy_plugins_canon" ]]; then
-  PLUGINS_CANON="$legacy_plugins_canon" "${cmd[@]}"
+  CODEX_VALIDATION_PYTHON="$validation_python" PLUGINS_CANON="$legacy_plugins_canon" "${cmd[@]}"
 else
-  "${cmd[@]}"
+  CODEX_VALIDATION_PYTHON="$validation_python" "${cmd[@]}"
 fi

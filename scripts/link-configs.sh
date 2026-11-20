@@ -1,5 +1,5 @@
-#!/bin/bash
-# Standalone entrypoint: /usr/bin/env -u BASH_ENV -u ENV /bin/bash scripts/link-configs.sh
+#!/bin/bash -p
+# Standalone entrypoint: /bin/bash -p scripts/link-configs.sh
 # A caller may instead supply an allowlisted environment (the packaged installer does).
 # Unsetting below protects children; Bash reads BASH_ENV before this file starts.
 set -euo pipefail
@@ -129,7 +129,7 @@ plan_count=0
 usage() {
   cat <<'USAGE'
 Usage:
-  /usr/bin/env -u BASH_ENV -u ENV /bin/bash scripts/link-configs.sh [--check|--repair] [--dry-run] [--scope all|codex] [--codex-home PATH]... [--help]
+  /bin/bash -p scripts/link-configs.sh [--check|--repair] [--dry-run] [--scope all|codex] [--codex-home PATH]... [--help]
 
 Modes:
   --check         Validate projection state without modifying files (default)

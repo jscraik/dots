@@ -802,11 +802,12 @@ with installer.renameable_directories(state, staged, target):
         self.success(self.operation('apply', digest))
         environment = self.installed_env()
         environment.pop('CODEX_CONFIG_SOURCE_ROOT', None)
+        environment.pop('CODEX_VALIDATION_PYTHON', None)
         commands = [
             [sys.executable, '-B', str(self.runtime / 'scripts/validate-codex-config.py')],
             [sys.executable, '-B', str(self.runtime / 'scripts/validate-execpolicy-rules.py'), '--static-only'],
-            ['bash', str(self.runtime / 'scripts/audit-codex-symlinks.sh')],
-            ['bash', str(self.runtime / 'scripts/reconcile-config-projection.sh'), '--check', '--scope', 'codex'],
+            ['/bin/bash', '-p', str(self.runtime / 'scripts/audit-codex-symlinks.sh')],
+            ['/bin/bash', '-p', str(self.runtime / 'scripts/reconcile-config-projection.sh'), '--check', '--scope', 'codex'],
         ]
         for command in commands:
             with self.subTest(command=command):
@@ -1286,13 +1287,16 @@ with installer.renameable_directories(state, staged, target):
                 os.utime(path, ns=(metadata.st_atime_ns, metadata.st_mtime_ns))
         # Fail at the existing real projector boundary, then retry the prepared
         # transition with its partially published config and managed resources.
-        shadow = self.fixture.bin / 'bash'
-        shadow.write_text('#!/bin/sh\nexit 75\n')
-        shadow.chmod(0o700)
-        self.assertNotEqual(self.operation('apply', digest).returncode, 0)
+        installer = self.import_installer(self.payload)
+        script_path = str(self.payload / 'codex/scripts')
+        with mock.patch.object(sys, 'path', [script_path, *sys.path]), mock.patch.dict(
+                os.environ, self.installed_env(), clear=True), mock.patch.dict(sys.modules), mock.patch.object(
+                installer, 'projector', side_effect=ValueError('synthetic projector refusal')):
+            sys.modules.pop('migration_scope', None)
+            with self.assertRaisesRegex(ValueError, 'synthetic projector refusal'):
+                installer.apply(self.state, digest)
         self.assertEqual(json.loads((self.state / 'result.json').read_text())['status'], 'failed')
         self.assertNotEqual(self.snapshot(), before)
-        shadow.unlink()
         self.success(self.operation('apply', digest))
         self.success(self.operation('check', digest))
         actual = tomllib.loads(config.read_text())
