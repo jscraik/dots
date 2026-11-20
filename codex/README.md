@@ -416,7 +416,7 @@ The old daemon entrypoint is a no-op so an older installed job cannot restart it
 /bin/bash -p "${DOTS_CHECKOUT}/scripts/link-configs.sh" --check
 
 # Verify ~/.codex symlinks point at this repo
-bash ${CODEX_POLICY_SOURCE}/scripts/audit-codex-symlinks.sh
+/bin/bash -p ${CODEX_POLICY_SOURCE}/scripts/audit-codex-symlinks.sh
 
 # Verify that live schedules are isolated from the repository
 python3 - <<'PY'

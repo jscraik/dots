@@ -1,13 +1,13 @@
 #!/bin/bash -p
 
 if [[ -z "${BASH_VERSION:-}" ]]; then
-  printf '❌ reconcile-config-projection.sh requires bash. Run: bash scripts/reconcile-config-projection.sh [options]\n' >&2
+  printf '❌ reconcile-config-projection.sh requires bash. Run: /bin/bash -p scripts/reconcile-config-projection.sh [options]\n' >&2
   # shellcheck disable=SC2317
   return 2 2>/dev/null || exit 2
 fi
 
 if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
-  printf '❌ reconcile-config-projection.sh is CLI-only; do not source it. Run: bash scripts/reconcile-config-projection.sh [options]\n' >&2
+  printf '❌ reconcile-config-projection.sh is CLI-only; do not source it. Run: /bin/bash -p scripts/reconcile-config-projection.sh [options]\n' >&2
   return 2
 fi
 
@@ -24,7 +24,7 @@ REPO_ROOT="$(dirname "$POLICY_ROOT")"
 usage() {
   cat <<'USAGE'
 Usage:
-  bash codex/scripts/reconcile-config-projection.sh [--check|--repair] [--dry-run] [--scope all|codex] [--codex-home PATH]...
+  /bin/bash -p codex/scripts/reconcile-config-projection.sh [--check|--repair] [--dry-run] [--scope all|codex] [--codex-home PATH]...
 
 Defaults:
   --repair --scope all

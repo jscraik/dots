@@ -6,14 +6,14 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "f1d04051212667d750fdae7f0d150abcd51b564d4a61910b287b87535123e169",
       "transformation": "explicit disposable-home admission; original checks retained",
-      "candidate_sha256": "a3ee33138ba920e47a9c7980a010c88e24fa88a2a1867152c88f22d272e86c58"
+      "candidate_sha256": "0500206bf8418e8c996e1043c906e480b29ce3900a05db8b9a289fc1412d5701"
     },
     {
       "path": "codex/scripts/audit-codex-symlinks.sh",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "728e2c2c5795707ca642c5d95b253ee85a361e5458f812399f5a6f1b7d1aa03f",
       "transformation": "explicit disposable-home admission; original checks retained",
-      "candidate_sha256": "ae81e18ef9f12b3506ba28eca7975eedb5411ee2b957e7dfae4cc2d804c646b3"
+      "candidate_sha256": "f915499da1d74f14bdb1b6de49a59203328b41fa9e00a19f45e4779d8f72b22b"
     },
     {
       "path": "codex/scripts/check-runtime-config-path.sh",

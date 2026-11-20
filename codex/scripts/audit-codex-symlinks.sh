@@ -1,13 +1,13 @@
 #!/bin/bash -p
 
 if [[ -z "${BASH_VERSION:-}" ]]; then
-  printf '❌ audit-codex-symlinks.sh requires bash. Run: bash scripts/audit-codex-symlinks.sh [options]\n' >&2
+  printf '❌ audit-codex-symlinks.sh requires bash. Run: /bin/bash -p scripts/audit-codex-symlinks.sh [options]\n' >&2
   # shellcheck disable=SC2317
   return 2 2>/dev/null || exit 2
 fi
 
 if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
-  printf '❌ audit-codex-symlinks.sh is CLI-only; do not source it. Run: bash scripts/audit-codex-symlinks.sh [options]\n' >&2
+  printf '❌ audit-codex-symlinks.sh is CLI-only; do not source it. Run: /bin/bash -p scripts/audit-codex-symlinks.sh [options]\n' >&2
   return 2
 fi
 
@@ -28,7 +28,7 @@ legacy_plugins_canon=""
 usage() {
   cat <<'USAGE'
 Usage:
-  bash codex/scripts/audit-codex-symlinks.sh [--codex-home PATH]...
+  /bin/bash -p codex/scripts/audit-codex-symlinks.sh [--codex-home PATH]...
 
 Options:
   --codex-home PATH  Codex home to audit (repeatable). Defaults to ~/.codex
