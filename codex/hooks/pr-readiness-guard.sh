@@ -61,8 +61,11 @@ except ValueError:
 
 reject_compound(tokens)
 assignment = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=.*")
+target_environment = {"GH_HOST", "GH_REPO"}
+target_environment_override = False
 for _ in range(4):
     while tokens and assignment.fullmatch(tokens[0]):
+        target_environment_override |= tokens[0].partition("=")[0] in target_environment
         tokens.pop(0)
     if not tokens or tokens[0].rsplit("/", 1)[-1] not in {"env", "sudo"}:
         break
@@ -226,6 +229,8 @@ elif index < len(tokens) and tokens[index] == "api":
     if "graphql" in api_tokens and file_backed:
         action = "unsupported_command"
 
+if target_environment_override and action in {"create", "update", "review_reconciliation"}:
+    action = "target_environment_override"
 
 print("\x1f".join((action, repo, pr_number, thread_id, base_ref, head_ref)))
 PY
@@ -251,6 +256,13 @@ fi
 
 if [[ "$readiness_phase" == "target_conflict" ]]; then
   jq -n --arg reason "PR mutation is blocked because --repo and the pull-request URL name different repositories." '
+    {hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}
+  '
+  exit 0
+fi
+
+if [[ "$readiness_phase" == "target_environment_override" ]]; then
+  jq -n --arg reason "Protected PR command is blocked because GH_REPO or GH_HOST would override the repository or host bound to readiness evidence." '
     {hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}
   '
   exit 0
