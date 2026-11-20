@@ -161,7 +161,7 @@
           "@local:value_0040": true
         },
         "filesystem": {
-          "@local:value_0041": "read"
+          "@local:value_0041": "deny"
         },
         "network": {
           "enabled": true,
@@ -224,7 +224,7 @@
           "@local:value_0038": true
         },
         "filesystem": {
-          "@local:value_0041": "read"
+          "@local:value_0041": "deny"
         },
         "network": {
           "enabled": true,

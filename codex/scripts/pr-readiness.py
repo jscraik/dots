@@ -80,7 +80,7 @@ SHA_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 SCOPE_DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 DEFAULT_TIMEOUT = 15
 REPLY_TIMEOUT = 30
-SUCCESS_CHECKS = {"success", "successful", "neutral", "skipped", "completed"}
+SUCCESS_CHECKS = {"success", "successful"}
 PENDING_CHECKS = {"queued", "pending", "in_progress", "requested", "waiting", "expected"}
 FAILED_CHECKS = {"failure", "failed", "error", "cancelled", "timed_out", "startup_failure", "action_required"}
 BOT_REVIEWERS = {
@@ -610,8 +610,8 @@ def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
     # after metadata repair therefore appears beside the failed predecessor
     # run, even though both refer to the same commit. Evaluate one current
     # context per name. Prefer the newest reported timestamp, but keep a
-    # timestamp-less queued/running duplicate ahead of an older completion so
-    # a pending rerun cannot be mistaken for a stale success. Timestamp-less
+    # timestamp-less non-success duplicate ahead of an older completion so an
+    # unproved rerun cannot be mistaken for a stale success. Timestamp-less
     # failures are handled the same way unless a later timestamped success in
     # the API order supersedes them.
     latest: dict[tuple[str, ...], tuple[int, int, str, int, dict[str, Any]]] = {}
@@ -633,11 +633,13 @@ def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
                 and lifecycle in FAILED_CHECKS
                 and not later_timestamped_success
             )
-            # A queued/running duplicate without timestamps is safer than an
-            # old completed duplicate: it must not be hidden by a stale
-            # success. The same applies to a timestamp-less failure until a
-            # later timestamped success supersedes it.
-            pending_without_timestamp = int(lifecycle in PENDING_CHECKS or not lifecycle) if not timestamp else 0
+            # A non-success duplicate without timestamps is safer than an old
+            # completed duplicate: it must not be hidden by a stale success.
+            # The same applies to a timestamp-less failure until a later
+            # timestamped success supersedes it.
+            pending_without_timestamp = int(
+                not timestamp and lifecycle not in SUCCESS_CHECKS | FAILED_CHECKS
+            )
             rank = (timestampless_failure, pending_without_timestamp, timestamp, index)
             previous = latest.get(identity)
             if previous is None or rank >= previous[:4]:
