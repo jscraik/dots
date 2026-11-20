@@ -179,6 +179,19 @@ class HookHandlerTests(unittest.TestCase):
         result = self.output('pre-tool-use-dispatch.sh', event)
         self.assertEqual(result['hookSpecificOutput']['permissionDecision'], 'deny')
 
+    def test_xargs_cannot_hide_protected_child_arguments(self):
+        commands = (
+            "printf '%s\\n' 'pr merge 7' | xargs gh",
+            '/usr/bin/xargs -a gh-api.args gh api',
+            'xargs -0 git push',
+            'env xargs -a destructive.args git reset',
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
+                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+                self.assertIn('indirect', output['hookSpecificOutput']['permissionDecisionReason'])
+
     def test_permission_and_edit_guards_protect_auth_material(self):
         event = {'tool_name': 'Write', 'tool_input': {'file_path': str(self.fixture.runtime / 'auth.json')}}
         for name in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
@@ -193,6 +206,33 @@ class HookHandlerTests(unittest.TestCase):
         output = self.output('pr-readiness-guard.sh', {'tool_input': {'command': 'gh pr create --base main'}})
         self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
         self.assertIn('receipt', output['hookSpecificOutput']['permissionDecisionReason'])
+
+    def test_readiness_hook_rejects_github_target_environment(self):
+        cases = (
+            ('GH_REPO=other/repo gh pr merge 1', {}),
+            ('env GH_HOST=other.example gh pr edit 1', {}),
+            ('sudo env GH_REPO=other/repo gh pr review 1', {}),
+            ('env -i GH_HOST=other.example gh pr merge 1', {}),
+        )
+        for command, environment in cases:
+            with self.subTest(command=command, environment=environment):
+                output = self.output('pr-readiness-guard.sh',
+                                     {'tool_input': {'command': command}}, environment)
+                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+                self.assertIn('GH_REPO or GH_HOST',
+                              output['hookSpecificOutput']['permissionDecisionReason'])
+
+    def test_readiness_hook_preserves_non_target_prefixes_and_explicit_repo(self):
+        for command in ('gh --repo owner/repo pr edit 1',
+                        'FOO=bar gh --repo owner/repo pr review 1',
+                        'env -i gh --repo owner/repo pr merge 1',
+                        'env --unset=GH_REPO gh --repo owner/repo pr merge 1'):
+            with self.subTest(command=command):
+                output = self.output('pr-readiness-guard.sh', {'tool_input': {'command': command}})
+                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+                reason = output['hookSpecificOutput']['permissionDecisionReason']
+                self.assertIn('receipt', reason)
+                self.assertNotIn('GH_REPO or GH_HOST', reason)
 
     def test_pr_inspection_does_not_require_a_mutation_receipt(self):
         for command in ('gh pr view 12 --json state | jq .state',

@@ -3,7 +3,7 @@
     "source": "codex/scripts/validate-codex-config.py",
     "revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
     "source_sha256": "ec26e7acc1463967cc8d2895b252d76f9835ea9b0c733071bb433165c164834f",
-    "transformation": "AST-preserving private path substitution; disposable-scope import; Configs default renamed dots. Hook layout requires a byte-matched regular copy with distinct source/runtime inodes. The existing disabled cua_repl inert-transport exception applies to all isolated OSS profiles; enabled/required variants and other commands remain rejected. Other checks retained."
+    "transformation": "AST-preserving private path substitution; disposable-scope import; Configs default renamed dots. Hook layout requires a byte-matched regular copy with distinct source/runtime inodes. The existing disabled cua_repl inert-transport exception applies to all isolated OSS profiles; enabled/required variants and other commands remain rejected. Networked profiles must explicitly deny the auth FIFO instead of granting profile-wide reads. Other checks retained."
   },
   {
     "source": "codex/scripts/repair-runtime-config-drift.py",
