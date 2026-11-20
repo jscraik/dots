@@ -23,12 +23,15 @@ import tomllib  # noqa: E402
 from fnmatch import fnmatchcase  # noqa: E402
 from pathlib import Path  # noqa: E402
 
-from desktop_compatibility import (  # noqa: E402
-    DESKTOP_OWNED_COMPUTER_USE_PLUGIN_IDS,
-    computer_use_plugin_preservation_errors,
-)
-
 SCRIPT_DIR = Path(__file__).resolve().parent
+_DESKTOP_SPEC = importlib.util.spec_from_file_location('repair_desktop_compatibility',
+    require_policy_path(SCRIPT_DIR / 'desktop_compatibility.py'))
+if _DESKTOP_SPEC is None or _DESKTOP_SPEC.loader is None:
+    raise RuntimeError('Desktop compatibility helper is unavailable')
+_DESKTOP_COMPATIBILITY = importlib.util.module_from_spec(_DESKTOP_SPEC)
+_DESKTOP_SPEC.loader.exec_module(_DESKTOP_COMPATIBILITY)
+DESKTOP_OWNED_COMPUTER_USE_PLUGIN_IDS = _DESKTOP_COMPATIBILITY.DESKTOP_OWNED_COMPUTER_USE_PLUGIN_IDS
+computer_use_plugin_preservation_errors = _DESKTOP_COMPATIBILITY.computer_use_plugin_preservation_errors
 CONFIG_PATH = (deployment_module().ROOT / 'codex' if deployment_module() is not None else SCRIPT_DIR.parent) / 'config.toml'
 SCHEMA_VERSION = 'runtime-config-drift-repair/v1'
 SERVICE = 'runtime-config-drift-repair'
