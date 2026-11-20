@@ -329,7 +329,7 @@
       "transformations": [
         "public path placeholders; accepted schema/policy content retained"
       ],
-      "candidate_sha256": "96d4dd98121274c2f820ef6a8e66b7ef7852d4c5f51be329679b9a537c34f5cb"
+      "candidate_sha256": "8076151e6be0744fdf56ebc72ed9741fdc41782ab6eef4f4dc66d7083e8246bd"
     },
     {
       "path": "codex/hooks/README.md",
@@ -338,7 +338,7 @@
         "public path placeholders; accepted schema/policy content retained",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "e6406f44786c89f67084a6c3931b7e3b583d0db76483cf7493137c11fba631e9"
+      "candidate_sha256": "0875fada62bd61a45bbe15f0d2feb28d6bd2404a09ed7f0f8c99e37411e502d7"
     },
     {
       "path": "codex/duplication-policy.json",
@@ -742,7 +742,7 @@
         "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "16e14b92b147ef9acbdb678936666cedacec582394a46e315a0c5da13939ea81"
+      "candidate_sha256": "1af21f53e52e4953787e69f1ed989999ead6dfd3e1232594d72bde0c7473e5c9"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
@@ -847,7 +847,7 @@
         "Add missing-check and dismissed historical-review scenarios from the coordinated follow-up.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "bcc15c997ab9a5e44b1760250629d8094be43db2697c8b7347bc9e3b073e04c0"
+      "candidate_sha256": "62a39be40d5ceee6791a3ba988d452fdc83e197870b29f2eac767bc7a2c4909f"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",

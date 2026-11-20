@@ -176,6 +176,21 @@ class GovernancePortTests(unittest.TestCase):
             result = self.validate(self.generated['config'].replace(old, new))
             self.assertEqual(result.returncode, 65, result.stdout + result.stderr)
 
+    def test_networked_profiles_deny_auth_fifo(self):
+        fifo = str(self.home / '.codex/.env')
+        for profile_name in ('workspace-net', 'readonly-net'):
+            with self.subTest(profile=profile_name):
+                profile = self.root['permissions'][profile_name]
+                self.assertEqual(profile['filesystem'][fifo], 'deny')
+                weakened = tomllib.loads(self.generated['config'])
+                weakened['permissions'][profile_name]['filesystem'][fifo] = 'read'
+                result = self.validate(GEN.toml_document(weakened))
+                self.assertEqual(result.returncode, 65, result.stdout + result.stderr)
+                self.assertIn(
+                    f'permissions.{profile_name}.filesystem must deny access to {fifo}',
+                    result.stdout,
+                )
+
     def test_missing_schema_is_unavailable_not_pass(self):
         (self.codex / 'schemas/config.schema.json').unlink()
         result = self.validate(self.generated['config'])
