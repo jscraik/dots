@@ -199,6 +199,33 @@ class HookHandlerTests(unittest.TestCase):
         self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
         self.assertIn('receipt', output['hookSpecificOutput']['permissionDecisionReason'])
 
+    def test_readiness_hook_rejects_github_target_environment(self):
+        cases = (
+            ('GH_REPO=other/repo gh pr merge 1', {}),
+            ('env GH_HOST=other.example gh pr edit 1', {}),
+            ('sudo env GH_REPO=other/repo gh pr review 1', {}),
+            ('env -i GH_HOST=other.example gh pr merge 1', {}),
+        )
+        for command, environment in cases:
+            with self.subTest(command=command, environment=environment):
+                output = self.output('pr-readiness-guard.sh',
+                                     {'tool_input': {'command': command}}, environment)
+                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+                self.assertIn('GH_REPO or GH_HOST',
+                              output['hookSpecificOutput']['permissionDecisionReason'])
+
+    def test_readiness_hook_preserves_non_target_prefixes_and_explicit_repo(self):
+        for command in ('gh --repo owner/repo pr edit 1',
+                        'FOO=bar gh --repo owner/repo pr review 1',
+                        'env -i gh --repo owner/repo pr merge 1',
+                        'env --unset=GH_REPO gh --repo owner/repo pr merge 1'):
+            with self.subTest(command=command):
+                output = self.output('pr-readiness-guard.sh', {'tool_input': {'command': command}})
+                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+                reason = output['hookSpecificOutput']['permissionDecisionReason']
+                self.assertIn('receipt', reason)
+                self.assertNotIn('GH_REPO or GH_HOST', reason)
+
     def test_raw_api_merges_require_target_bound_readiness(self):
         merge_commands = (
             'gh api -X PUT repos/example/repo/pulls/349/merge',
