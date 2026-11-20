@@ -34,10 +34,16 @@ class InstallationRouteTests(unittest.TestCase):
                 installer.preserve_hook_disables(baseline, {'hooks': {'state': state}})
 
     def test_update_renderer_keeps_existing_hooks_disabled(self):
-        installer = self.import_installer(ROOT)
+        shutil.copy2(ROOT / 'codex/scripts/install-codex.py',
+                     self.fixture.repo / 'codex/scripts/install-codex.py')
+        shutil.copy2(ROOT / 'scripts/generate-codex-policy.py',
+                     self.fixture.repo / 'scripts/generate-codex-policy.py')
+        shutil.copy2(ROOT / 'scripts/stage-home.py',
+                     self.fixture.repo / 'scripts/stage-home.py')
+        installer = self.import_installer(self.fixture.repo)
         canonical = '[hooks.state.known]\ntrusted_hash = "bound"\n'
         observed = canonical + 'enabled = false\n'
-        scope = installer.module('renderer_test_scope', ROOT / 'codex/scripts/migration_scope.py')
+        scope = installer.module('renderer_test_scope', self.fixture.repo / 'codex/scripts/migration_scope.py')
         with (mock.patch.object(installer, 'effective_previous_review', return_value=None),
               mock.patch.dict(sys.modules, {'migration_scope': scope}),
               mock.patch.dict(os.environ, self.fixture.env, clear=True)):
