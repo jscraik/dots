@@ -201,8 +201,8 @@
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "636ea94fd9ebe5b0d5b38eb6f118f202c4846e4a3d9272c3574f3f6a1e3609db",
-      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment. Add automatic SessionStart fsmonitor non-execution and dirty-state regression coverage."
+      "candidate_sha256": "0892eb9befa6770af1f275ebc3b43311e41a16a994a0e9895090f48ad4ec3fe5",
+      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment. Add automatic SessionStart fsmonitor non-execution and dirty-state regression coverage. Cover API field and comment parsing and bind REST merges to the receipt target."
     },
     {
       "path": "tests/test_pending_fixes.py",

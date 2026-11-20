@@ -54,9 +54,10 @@
       "transformations": [
         "fixture scope and event admission before handler actions",
         "Classify raw GitHub API methods and normalized endpoints; bind canonical REST merges to update receipts and fail closed on uninspectable writes.",
-        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Recognize empty API arrays and both GraphQL comment line terminators."
       ],
-      "candidate_sha256": "c477785a65075cf19898500d806d8d33f299983ba47a9b3481b21ed71053c383"
+      "candidate_sha256": "3acf74627bf868a1ee43e4f882e031f7afecdea9ae18b0699461425576d77a90"
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",
