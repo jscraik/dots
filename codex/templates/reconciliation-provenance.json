@@ -42,7 +42,7 @@
     {
       "path": "codex/hooks/README.md",
       "prior_candidate_sha256": "70d11c516963bd86c8e082f0fda7101cabdcf55e424d26f2b7954fb958abd3aa",
-      "candidate_sha256": "e6406f44786c89f67084a6c3931b7e3b583d0db76483cf7493137c11fba631e9"
+      "candidate_sha256": "0875fada62bd61a45bbe15f0d2feb28d6bd2404a09ed7f0f8c99e37411e502d7"
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",
@@ -185,7 +185,7 @@
     {
       "path": "codex/scripts/validate-codex-config.py",
       "prior_candidate_sha256": "e9cdebab1d97447c1ac3ff1dce5894c7c13ccf095c2a1cc8e44716c103768e61",
-      "candidate_sha256": "5a3942265aa1743964008a19049c16a9bb96b91a18ec18a5020cbdcf9c10f905",
+      "candidate_sha256": "dbe8ecf98ef21f1413742e005469d122602dc153b09eddb1197893a09d515fc9",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
     },
     {

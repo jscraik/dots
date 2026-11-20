@@ -61,6 +61,11 @@ bash ${CODEX_POLICY_SOURCE}/scripts/run-auth-backed.sh \
   --canary OLLAMA_API_KEY
 ```
 
+Both networked permission profiles explicitly deny the FIFO. The two exact
+fixed-output canary commands are the only auto-allowed FIFO routes; any
+credential-bearing child requires normal outside-sandbox approval. Ordinary
+workspace children therefore cannot open the credential channel directly.
+
 The canary prints only a fixed pass/fail result. When a child needs a secret,
 require its name without exposing its value and keep the injected material in
 that one short-lived process:
