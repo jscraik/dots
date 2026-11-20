@@ -70,6 +70,7 @@ for _ in range(4):
     while tokens and assignment.fullmatch(tokens[0]):
         target_override |= tokens[0].partition("=")[0] in target_environment
         target_environment_override |= tokens[0].partition("=")[0] in target_environment
+        target_override |= target_environment_override
         tokens.pop(0)
     if not tokens or tokens[0].rsplit("/", 1)[-1] not in {"env", "sudo"}:
         break
@@ -324,7 +325,7 @@ elif index < len(tokens) and tokens[index] == "api":
             fields[name] = value
             if value.startswith("@") and (option in {"-F", "--field"} or option.startswith(("-F", "--field="))):
                 file_backed = True
-        elif field is not None:
+        elif field is not None and not field.endswith("[]"):
             ambiguous_api = True
     method = explicit_method.upper() if explicit_method else "POST" if body_supplied else "GET"
     if not re.fullmatch(r"[A-Z]+", method):
@@ -332,7 +333,7 @@ elif index < len(tokens) and tokens[index] == "api":
     query = fields.get("query", "")
     if endpoint.casefold() == "graphql":
         # Ignore GraphQL comments and string values when classifying operations.
-        query_code = re.sub(r'"""(?:[^"\\]|\\.|"(?!""))*"""|"(?:[^"\\]|\\.)*"|#[^\n]*', ' ', query)
+        query_code = re.sub(r'"""(?:[^"\\]|\\.|"(?!""))*"""|"(?:[^"\\]|\\.)*"|#[^\r\n]*', ' ', query)
         if "resolveReviewThread" in query_code or "addPullRequestReviewThreadReply" in query_code:
             action = "review_reconciliation"
             thread_id = reconciliation_thread(tokens)

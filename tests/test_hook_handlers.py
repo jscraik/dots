@@ -1,4 +1,5 @@
 """Real handler decisions and local-state isolation; no tool command execution."""
+import hashlib
 import json
 import os
 import subprocess
@@ -198,48 +199,6 @@ class HookHandlerTests(unittest.TestCase):
         self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
         self.assertIn('receipt', output['hookSpecificOutput']['permissionDecisionReason'])
 
-    def test_raw_api_merges_require_target_bound_readiness(self):
-        merge_commands = (
-            'gh api -X PUT repos/example/repo/pulls/349/merge',
-            'gh api --method=put repos/example/repo/pulls/349/merge',
-            'gh api -XPUT /repos/example/repo/pulls/349/%6d%65%72%67%65/',
-            'gh -R example/repo api -X PUT repos/example/repo/pulls/349/merge',
-        )
-        for command in merge_commands:
-            with self.subTest(command=command):
-                output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
-                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
-                self.assertIn('receipt', output['hookSpecificOutput']['permissionDecisionReason'])
-
-        for command in (
-            "gh api graphql -f 'query=mutation { mergePullRequest(input: {}) { pullRequest { id } } }'",
-            'gh api -X DELETE repos/example/repo/hooks/1',
-            'gh api -X "$METHOD" "$ENDPOINT"',
-            'GH_REPO=other/repo gh api -X PUT repos/example/repo/pulls/349/merge',
-            'gh api --hostname example.invalid -X PUT repos/example/repo/pulls/349/merge',
-            'gh api -X PUT https://api.github.com/repos/example/repo/pulls/349/merge',
-            "gh api -X PUT 'repos/{owner}/{repo}/pulls/349/merge'",
-            "gh api -H 'X-HTTP-Method-Override: PUT' repos/example/repo/pulls/349/merge",
-        ):
-            with self.subTest(command=command):
-                output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
-                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
-                self.assertIn('protected command', output['hookSpecificOutput']['permissionDecisionReason'])
-
-        for command in (
-            'gh api repos/example/repo/pulls/349',
-            'gh api --help',
-            'gh api --hostname example.invalid repos/example/repo/pulls/349',
-            "gh api graphql -f 'query=query { viewer { login } }'",
-            "gh api graphql -f 'query=query { repository(owner: \"example\", name: \"mutation\") { id } }'",
-            "gh api graphql -f 'query=query($ids:[ID!]!){nodes(ids:$ids){id}}' -f 'ids[]=one' -f 'ids[]=two'",
-            "gh api graphql -f 'query=query { viewer { login } } # mutation'",
-        ):
-            with self.subTest(command=command):
-                output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
-                self.assertNotIn('continue', output)
-                self.assertNotIn('permissionDecision', output.get('hookSpecificOutput', {}))
-
     def test_readiness_hook_rejects_github_target_environment(self):
         cases = (
             ('GH_REPO=other/repo gh pr merge 1', {}),
@@ -266,6 +225,98 @@ class HookHandlerTests(unittest.TestCase):
                 reason = output['hookSpecificOutput']['permissionDecisionReason']
                 self.assertIn('receipt', reason)
                 self.assertNotIn('GH_REPO or GH_HOST', reason)
+
+    def test_raw_api_merges_require_target_bound_readiness(self):
+        merge_commands = (
+            'gh api -X PUT repos/example/repo/pulls/349/merge',
+            'gh api --method=put repos/example/repo/pulls/349/merge',
+            'gh api -XPUT /repos/example/repo/pulls/349/%6d%65%72%67%65/',
+            'gh -R example/repo api -X PUT repos/example/repo/pulls/349/merge',
+        )
+        for command in merge_commands:
+            with self.subTest(command=command):
+                output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
+                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+                self.assertIn('receipt', output['hookSpecificOutput']['permissionDecisionReason'])
+
+        for command in (
+            "gh api graphql -f 'query=mutation { mergePullRequest(input: {}) { pullRequest { id } } }'",
+            "gh api graphql -f 'query=# comment\rmutation($input: MergePullRequestInput!)"
+            " { mergePullRequest(input: $input) { pullRequest { id } } }'",
+            "gh api graphql -f 'query=query { viewer { login } }' -f missing",
+            'gh api -X DELETE repos/example/repo/hooks/1',
+            'gh api -X "$METHOD" "$ENDPOINT"',
+            'GH_REPO=other/repo gh api -X PUT repos/example/repo/pulls/349/merge',
+            'gh api --hostname example.invalid -X PUT repos/example/repo/pulls/349/merge',
+            'gh api -X PUT https://api.github.com/repos/example/repo/pulls/349/merge',
+            "gh api -X PUT 'repos/{owner}/{repo}/pulls/349/merge'",
+            "gh api -H 'X-HTTP-Method-Override: PUT' repos/example/repo/pulls/349/merge",
+        ):
+            with self.subTest(command=command):
+                output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
+                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+                self.assertIn('protected command', output['hookSpecificOutput']['permissionDecisionReason'])
+
+        for command in (
+            'gh api repos/example/repo/pulls/349',
+            'gh api --help',
+            'gh api --hostname example.invalid repos/example/repo/pulls/349',
+            "gh api graphql -f 'query=query { viewer { login } }'",
+            "gh api graphql -f 'query=query { repository(owner: \"example\", name: \"mutation\") { id } }'",
+            "gh api graphql -f 'query=query($ids:[ID!]!){nodes(ids:$ids){id}}' -f 'ids[]=one' -f 'ids[]=two'",
+            "gh api graphql -f 'query=query($ids:[ID!]!){nodes(ids:$ids){id}}' -f 'ids[]'",
+            "gh api graphql -f 'query=query { viewer { login } } # mutation'",
+        ):
+            with self.subTest(command=command):
+                output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
+                self.assertNotIn('continue', output)
+                self.assertNotIn('permissionDecision', output.get('hookSpecificOutput', {}))
+
+    def test_raw_api_merge_accepts_only_the_receipt_target(self):
+        fixture = self.fixture
+
+        def git(*args):
+            return subprocess.check_output(['git', '-C', str(fixture.repo), *args],
+                                           env=fixture.env, text=True, timeout=10).strip()
+
+        # Run the real receipt validator with only its hosted reads replaced.
+        checker = fixture.runtime / 'scripts/pr-readiness.py'
+        checker.rename(checker.with_name('pr-readiness-real.py'))
+        checker.write_text(
+            'import runpy\nfrom pathlib import Path\n'
+            'main = runpy.run_path(str(Path(__file__).with_name("pr-readiness-real.py")))["main"]\n'
+            'main.__globals__.update(repository_slug=lambda root: ("example/repo", None),\n'
+            '    remote_sha=lambda root, *_: main.__globals__["git"](root, "rev-parse", "HEAD"),\n'
+            '    recheck_hosted_state=lambda *args, **kwargs: None)\n'
+            'raise SystemExit(main())\n')
+        git('add', '.')
+        git('-c', 'commit.gpgsign=false', '-c', 'user.name=Fixture',
+            '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'Fixture')
+        head = git('rev-parse', 'HEAD')
+        receipt = fixture.repo / '.git/pr-readiness.v1.json'
+        receipt.write_text(json.dumps({
+            'schema_version': 'pr-readiness/v1', 'phase': 'update', 'status': 'pass',
+            'repo': {'branch': git('branch', '--show-current'), 'head_sha': head,
+                     'base_branch': 'main', 'base_sha': head,
+                     'remote_base_sha': head, 'remote_head_sha': head},
+            'lanes': {'pull_request': {'details': {'number': 349}},
+                      'scope': {'details': {'declared_paths': []}}},
+            'receipt': {'scope_digest': hashlib.sha256(b'\n').hexdigest()},
+        }))
+        def merge(endpoint):
+            return self.output('pre-tool-use-dispatch.sh', {
+                'tool_input': {'command': f'gh api -X PUT repos/{endpoint}/merge'},
+            })['hookSpecificOutput']
+
+        output = merge('example/repo/pulls/349')
+        self.assertNotIn('permissionDecision', output)
+        self.assertIn('update readiness receipt is current and passing', output['additionalContext'])
+        for endpoint, target in (('example/other/pulls/349', 'repository'),
+                                 ('example/repo/pulls/350', 'PR')):
+            with self.subTest(endpoint=endpoint):
+                output = merge(endpoint)
+                self.assertEqual(output['permissionDecision'], 'deny')
+                self.assertIn(f'command {target} target does not match receipt', output['permissionDecisionReason'])
 
     def test_pr_inspection_does_not_require_a_mutation_receipt(self):
         for command in ('gh pr view 12 --json state | jq .state',

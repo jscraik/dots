@@ -58,7 +58,7 @@
         "Classify raw GitHub API methods and normalized endpoints; bind canonical REST merges to update receipts and fail closed on uninspectable writes.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "e3f756f54f5341b95744419483a26233c0c56bbb5ec1eaf4fa61c66c9d0102a3"
+      "candidate_sha256": "ed07e08baf5157084fca00db8ac2069e45ace12a0e61a78a87f643bac406619a"
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",
