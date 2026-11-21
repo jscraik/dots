@@ -151,9 +151,13 @@ The projector bootstrap uses the installer's selected Python through the existin
 Standalone callers retain the ordinary `python3` fallback. This selection leaves
 PATH, other tool resolution and persistent runtime-manager trust unchanged.
 
-Preparation creates a private, read-only policy package and validates it before
-backing up the 20 managed targets. Config, hook manifests, profiles and reusable
-code are independent regular-file or directory copies. The additional private
+Preparation requires the exact full commit ID already checked out as `HEAD`,
+refuses tracked or nonignored untracked changes, and creates the package from
+that commit's immutable Git tree rather than worktree bytes. Its private
+`origin.json` receipt records the commit, tree digest and complete blob inventory.
+It then validates the read-only policy package before backing up the 20 managed
+targets. Config, hook manifests, profiles and reusable code are independent
+regular-file or directory copies. The additional private
 `.dots-package.json` reference identifies the sealed installed package without
 using a filesystem link. Copied helpers validate that package and the installed
 code inventory before use. Development-checkout edits cannot change the running
@@ -205,14 +209,15 @@ and absent backup unchanged.
 For an operator-prepared rehearsal, the command sequence is:
 
 ```sh
-python3 -B scripts/install-codex.py prepare --mode rehearsal --home TEMP_HOME --state-dir TEMP_HOME/installation/one --bindings BINDINGS_JSON --braid-bin BRAID_BINARY
+python3 -B scripts/install-codex.py prepare --mode rehearsal --home TEMP_HOME --state-dir TEMP_HOME/installation/one --bindings BINDINGS_JSON --braid-bin BRAID_BINARY --source-revision REVIEWED_COMMIT
 python3 -B scripts/install-codex.py apply --state-dir TEMP_HOME/installation/one --plan-digest PREPARED_DIGEST
 python3 -B scripts/install-codex.py check --state-dir TEMP_HOME/installation/one --plan-digest PREPARED_DIGEST
 python3 -B scripts/install-codex.py rollback --state-dir TEMP_HOME/installation/one --plan-digest PREPARED_DIGEST
 ```
 
-Substitute explicit paths and the digest returned by preparation. That digest
-identifies the prepared change; it grants no execution or installation authority.
+Substitute explicit paths, the full reviewed commit currently checked out as
+`HEAD`, and the digest returned by preparation. That digest identifies the
+prepared change; it grants no execution or installation authority.
 Do not edit the source or package between commands. Repeated application is a
 check. Interrupted application can be rolled back without resuming activation.
 Unexpected newer target content stops recovery and retains the backup for inspection.
@@ -296,13 +301,22 @@ all generated policy remains byte-for-byte unchanged.
 
 <!-- coderabbit-ai-generated-section:v1:ace8d96a672cc207d19a867e439c04f7cd4abd5c316da51599d1997225313da1 -->
 
-Operator hook revocations from a pinned previous installation are preserved
-through preparation, application and repair readback. An initial installation
-with unbound `hooks.state` stops without changing it. Resolve that state
-independently before installation. Then prepare and apply the installation,
-grant fresh native hook consent for the installed hooks, and run
-`prepare-desktop-review`. That command requires an applied installation and
-cannot resolve unbound consent beforehand.
+The supported native-consent route starts from generated policy without
+`hooks.state`, followed by a separately accepted installation-bound consent
+proposal. Revocations from that pinned native-consent installation are
+preserved through preparation, application and repair readback.
+
+Older packages whose generated canonical policy already contains `hooks.state`
+are not supported by this update route. The update refuses that baseline rather
+than treating generated hashes as proof of operator consent or silently
+discarding later consent. Adopting the new format requires separately reviewed
+reprovisioning; this PR provides no automatic conversion of the older format.
+An initial installation with unbound state likewise stops without changing it.
+
+For a supported consent-free installation, prepare and apply it, grant fresh
+native consent for the installed hooks, and run `prepare-desktop-review`.
+That command requires an applied installation; it cannot repair an unsupported
+older baseline or resolve unbound consent before installation.
 
 <!-- /coderabbit-ai-generated:v1 -->
 Existing `enabled = false` flags do not authorise changed trust

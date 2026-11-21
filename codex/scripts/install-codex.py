@@ -651,6 +651,113 @@ def verify_previous(home, descriptor=None):
             raise ValueError('Runtime drift must be reviewed before update')
 
 
+def git_output(root, *arguments, text=True, stdin=None):
+    environment = {name: value for name, value in os.environ.items() if not name.startswith('GIT_')}
+    environment.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM='1',
+                       GIT_NO_REPLACE_OBJECTS='1')
+    return subprocess.run(['git', '--no-replace-objects', '--no-optional-locks',
+        '-c', 'core.fsmonitor=false', *arguments],
+        cwd=root, env=environment, input=stdin, capture_output=True,
+        text=text, check=True, timeout=15).stdout
+
+
+def git_object_id(value):
+    return (isinstance(value, str) and len(value) in {40, 64}
+            and value == value.lower() and all(character in '0123456789abcdef' for character in value))
+
+
+def source_blobs(root, rows):
+    request = b''.join((row['git_object'] + '\n').encode('ascii') for row in rows)
+    details = git_output(root, 'cat-file', '--batch-check', text=False, stdin=request).splitlines()
+    if len(details) != len(rows):
+        raise ValueError('Reviewed Git object inventory is incomplete')
+    for row, detail in zip(rows, details):
+        try:
+            object_id, kind, encoded_size = detail.decode('ascii').split(' ')
+            size = int(encoded_size)
+        except (UnicodeDecodeError, ValueError) as error:
+            raise ValueError('Reviewed Git object metadata is invalid') from error
+        if (object_id != row['git_object'] or kind != 'blob'
+                or size < 0 or size > 16 * 1024 * 1024):
+            raise ValueError('Reviewed Git object changed or exceeds the source limit')
+    output = git_output(root, 'cat-file', '--batch', text=False, stdin=request)
+    blobs = []
+    offset = 0
+    for row in rows:
+        header_end = output.find(b'\n', offset)
+        if header_end < offset:
+            raise ValueError('Reviewed Git object response is incomplete')
+        try:
+            object_id, kind, encoded_size = output[offset:header_end].decode('ascii').split(' ')
+            size = int(encoded_size)
+        except (UnicodeDecodeError, ValueError) as error:
+            raise ValueError('Reviewed Git object response is invalid') from error
+        content_end = header_end + 1 + size
+        raw = output[header_end + 1:content_end]
+        if (object_id != row['git_object'] or kind != 'blob'
+                or size < 0 or size > 16 * 1024 * 1024 or len(raw) != size
+                or output[content_end:content_end + 1] != b'\n'
+                or ('sha256' in row and hashlib.sha256(raw).hexdigest() != row['sha256'])):
+            raise ValueError('Reviewed Git object content changed')
+        blobs.append(raw)
+        offset = content_end + 1
+    if offset != len(output):
+        raise ValueError('Reviewed Git object response has trailing data')
+    return blobs
+
+
+def source_blob(root, row):
+    return source_blobs(root, [row])[0]
+
+
+def source_candidate(root, revision):
+    """Bind preparation to one clean checkout and its immutable commit tree."""
+    root = root.resolve()
+    top = Path(git_output(root, 'rev-parse', '--show-toplevel').strip()).resolve()
+    if top != root:
+        raise ValueError('Installation source must be the Git worktree root')
+    if not git_object_id(revision):
+        raise ValueError('Source revision must be an exact full commit ID')
+    commit = git_output(root, 'rev-parse', '--verify', f'{revision}^{{commit}}').strip()
+    if commit != revision:
+        raise ValueError('Source revision does not resolve to itself as a commit')
+    head = git_output(root, 'rev-parse', '--verify', 'HEAD').strip()
+    if head != commit:
+        raise ValueError('Source revision must equal the checked-out HEAD')
+    if git_output(root, 'status', '--porcelain=v1', '-z', '--untracked-files=all', text=False):
+        raise ValueError('Source checkout must have no tracked or untracked changes')
+    tree = git_output(root, 'rev-parse', '--verify', f'{commit}^{{tree}}').strip()
+    if not git_object_id(tree) or len(tree) != len(commit):
+        raise ValueError('Source tree did not resolve to a full object ID')
+    output = git_output(root, 'ls-tree', '-rz', '--full-tree', tree, text=False)
+    rows = []
+    paths = set()
+    for record in output.split(b'\0'):
+        if not record:
+            continue
+        try:
+            metadata, encoded = record.split(b'\t', 1)
+            mode, kind, object_id = metadata.decode('ascii').split(' ')
+            name = encoded.decode('utf-8')
+        except (UnicodeDecodeError, ValueError) as error:
+            raise ValueError('Source tree contains an invalid entry') from error
+        if (mode not in {'100644', '100755'} or kind != 'blob' or not git_object_id(object_id)
+                or len(object_id) != len(commit)
+                or name.startswith('/') or any(part in {'', '.', '..'} for part in name.split('/'))
+                or name in paths):
+            raise ValueError('Source tree must contain unique regular repository paths')
+        paths.add(name)
+        row = {'path': name, 'git_object': object_id,
+               'mode': 0o755 if mode == '100755' else 0o644}
+        rows.append(row)
+    rows.sort(key=lambda row: row['path'])
+    if 'scripts/install-codex.py' not in paths:
+        raise ValueError('Installation source is not in the reviewed public allowlist')
+    rows = [row | {'sha256': hashlib.sha256(raw).hexdigest()}
+            for row, raw in zip(rows, source_blobs(root, rows))]
+    return {'root': str(root), 'revision': commit, 'tree': tree, 'files': rows}
+
+
 @contextlib.contextmanager
 def transition_inspector(state, package_digest, marker_digest, usage_repair=None):
     """Inspect an exactly pinned old package using the trusted current installer."""
@@ -898,17 +1005,8 @@ def build_policy_transition(args, home, generated, bindings_raw):
 
 
 def public_files(root):
-    names = subprocess.run(['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
-        cwd=root, capture_output=True, text=True, check=True, timeout=15).stdout.split('\0')
-    result = []
-    for name in sorted(set(filter(None, names))):
-        path = root / name
-        raw = SCOPE.read_regular(path)
-        result.append({'path': name, 'sha256': hashlib.sha256(raw).hexdigest(),
-                       'mode': stat.S_IMODE(path.stat().st_mode)})
-    if 'scripts/install-codex.py' not in {row['path'] for row in result}:
-        raise ValueError('Installation source is not in the reviewed public allowlist')
-    return result
+    revision = git_output(root, 'rev-parse', '--verify', 'HEAD').strip()
+    return source_candidate(root, revision)['files']
 
 
 def clean_environment(home, payload):
@@ -980,14 +1078,17 @@ def assemble(args, *, policy_update=False):
             'review_sha256': args.previous_desktop_review_sha256}
     if not transition:
         verify_previous(home, previous_descriptor)
-    files = public_files(ROOT)
+    source = source_candidate(ROOT, args.source_revision)
+    files = source['files']
     state.mkdir(mode=0o700, parents=True)
     payload = state / 'payload'
     payload.mkdir(mode=0o700)
-    for row in files:
+    for row, raw in zip(files, source_blobs(ROOT, files)):
         target = payload / row['path']
         target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        write(target, SCOPE.read_regular(ROOT / row['path']), 0o700 if row['mode'] & 0o111 else 0o600)
+        write(target, raw, 0o700 if row['mode'] & 0o111 else 0o600)
+    if source != source_candidate(ROOT, args.source_revision):
+        raise ValueError('Source candidate changed during package assembly')
     if previous_descriptor:
         write(payload / 'codex/.previous-desktop-review.json',
               json.dumps(previous_descriptor, sort_keys=True).encode())
@@ -1049,7 +1150,7 @@ def assemble(args, *, policy_update=False):
         if path.is_dir():
             path.chmod(0o500)
     payload.chmod(0o500)
-    save(state / 'origin.json', {'root': str(ROOT), 'files': files})
+    save(state / 'origin.json', source)
     env = clean_environment(home, payload)
     (home / 'tmp').mkdir(mode=0o700, exist_ok=True)
     result = subprocess.run([sys.executable, '-B', str(payload / 'scripts/install-codex.py'),
@@ -1437,13 +1538,21 @@ def desktop_check_environment(state, digest):
 def verified_public_payload(state, *, formatting_review=False):
     """Authenticate the package before importing any of its executable files."""
     frozen = read_json(state / 'origin.json')
-    expected = public_files(ROOT)
-    if formatting_review and frozen.get('files') != expected:
-        for row in expected:
-            historical = FORMATTING_REVIEW_BASELINE.get(row['path'])
-            if historical:
-                row['sha256'] = historical
-    if frozen != {'root': str(ROOT), 'files': expected}:
+    if not isinstance(frozen, dict):
+        raise ValueError('Source candidate changed; prepare again')
+    if formatting_review and set(frozen) == {'root', 'files'}:
+        # Retain only the existing exact historical formatting-review route.
+        # Ordinary preparation and recovery require the immutable tree receipt.
+        expected = [{key: value for key, value in row.items() if key != 'git_object'}
+                    for row in public_files(ROOT)]
+        if frozen.get('files') != expected:
+            for row in expected:
+                historical = FORMATTING_REVIEW_BASELINE.get(row['path'])
+                if historical:
+                    row['sha256'] = historical
+        if frozen != {'root': str(ROOT), 'files': expected}:
+            raise ValueError('Source candidate changed; prepare again')
+    elif frozen != source_candidate(ROOT, frozen.get('revision')):
         raise ValueError('Source candidate changed; prepare again')
     payload = state / 'payload'
     generated = {'codex/config.toml', 'codex/projection-map.json', 'codex/requirements.toml',
@@ -1672,8 +1781,9 @@ def dispatch(args):
     if args.operation == 'prepare-policy-update':
         if (ROOT / 'codex/.deployment.json').exists():
             raise ValueError('Policy updates require the reviewed source entrypoint')
-        if not all((*transition_inputs, args.home, args.bindings, args.braid_bin, args.mode)):
-            raise ValueError('Policy updates require explicit bindings and previous-generation pins')
+        if not all((*transition_inputs, args.home, args.bindings, args.braid_bin, args.mode,
+                    args.source_revision)):
+            raise ValueError('Policy updates require explicit bindings, source revision and previous-generation pins')
         return assemble(args, policy_update=True)
     if any(transition_inputs):
         raise ValueError('Policy transition inputs are valid only for prepare-policy-update')
@@ -1700,11 +1810,14 @@ def dispatch(args):
                 state, args.plan_digest, args.desktop_review_sha256)
         return apply(state, args.plan_digest)
     if args.operation == 'prepare':
-        if not all((args.home, args.bindings, args.braid_bin, args.mode)):
-            raise ValueError('Preparation needs explicit home, bindings, Braid path and mode')
+        if not all((args.home, args.bindings, args.braid_bin, args.mode, args.source_revision)):
+            raise ValueError('Preparation needs explicit home, bindings, Braid path, mode and source revision')
         return assemble(args)
     # Never execute package code merely because a caller supplied its manifest.
     # Every public executable must still equal this trusted source candidate.
+    frozen = read_json(state / 'origin.json')
+    if not isinstance(frozen, dict) or frozen != source_candidate(ROOT, frozen.get('revision')):
+        raise ValueError('Source candidate changed; prepare again')
     marker = verified_public_payload(state)
     payload = state / 'payload'
     env = clean_environment(Path(marker['home']), payload)
@@ -1731,6 +1844,7 @@ def main():
     parser.add_argument('--bindings', type=Path)
     parser.add_argument('--braid-bin', type=Path)
     parser.add_argument('--mode', choices=('rehearsal', 'machine'))
+    parser.add_argument('--source-revision')
     parser.add_argument('--plan-digest')
     parser.add_argument('--name')
     parser.add_argument('--desktop-review-sha256')

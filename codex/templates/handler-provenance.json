@@ -55,10 +55,10 @@
       "source_sha256": "f29647371bf978add9878e93a039dccb839e47f8d23723978d3bae13081d4fbb",
       "transformations": [
         "fixture scope and event admission before handler actions",
-        "Reject command-local GH_REPO and GH_HOST assignments before protected PR readiness receipt validation.",
+        "Classify raw GitHub API methods and normalized endpoints; bind canonical REST merges to update receipts and fail closed on uninspectable writes.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "193fd13bfbe257c8ddb995cb0dd2817b1a43860304cdcd03a887ffff4484eb7a"
+      "candidate_sha256": "b978d9942b611b618bd72c8b2298219f5419da7d53ea3138f3d936b1b813564f"
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",
@@ -99,7 +99,7 @@
         "Deny xargs command construction before protected child routing; retain direct-command behavior.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "74101d051b9ae95d3e8e33470513d16b7b9e19014d93c93b82d76d5320839696"
+      "candidate_sha256": "ec8d58c54af347af8286d12389635732d7ed86c17fdd003e5d96511bd24bb8d6"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",
@@ -363,7 +363,7 @@
     {
       "path": "codex/hooks/destructive-git-operation.py",
       "origin": "Extracted isolated destructive Git parser from hook-runtime-lib.sh",
-      "candidate_sha256": "125680f187061428ed436670834643316082fdf580fdec409655d381967b5b42"
+      "candidate_sha256": "b7b21d694190c9526a79e21be1c5268d6fedfa134305d277004be2ec66fad5ca"
     }
   ],
   "external_boundaries": [
