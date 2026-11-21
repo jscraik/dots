@@ -2,6 +2,7 @@ version: 2.1
 
 jobs:
   validate:
+    parallelism: 2
     docker:
       - image: cimg/python:3.12.8@sha256:6c162c73ea0c4af3d63fa3a7725991af19d86c0a10235109d927950539bca05d
     resource_class: small
@@ -56,7 +57,14 @@ jobs:
             export DOTS_CODEX_BIN=/tmp/dots-ci-tools/codex
             echo 'Linux pinned CLI compatibility only; Desktop app-runtime proof is a separate local check.'
             "$DOTS_CODEX_BIN" --version
-            /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -v
+            # Partition complete modules across the small runners. Every module
+            # still runs in full, and any failure stops its required job.
+            test_files=(tests/test_*.py)
+            for index in "${!test_files[@]}"; do
+              if (( index % CIRCLE_NODE_TOTAL == CIRCLE_NODE_INDEX )); then
+                /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p "${test_files[index]##*/}" -v
+              fi
+            done
       - run:
           name: Check shell syntax
           command: bash -n scripts/resolve-homebrew-bin.sh
