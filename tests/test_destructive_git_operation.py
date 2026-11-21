@@ -31,6 +31,9 @@ class DestructiveGitOperationTests(unittest.TestCase):
     def test_search_command_options_are_not_inert_data(self):
         for command in ("rg --pre 'rm -rf /Users/alice' pattern .",
                         "rg --pre='git reset --hard' pattern .",
+                        'rg -e -- --pre=./payload notes.txt',
+                        'rg -ne -- --hostname-bin=./payload notes.txt',
+                        'rg --regexp -- --pre=./payload notes.txt',
                         "rg --hostname-bin='git reset --hard' pattern ."):
             with self.subTest(command=command):
                 self.assertEqual(self.classify(command), 'unsupported')

@@ -9,7 +9,7 @@ set -euo pipefail
 PATH="/usr/bin:/bin:/usr/sbin:/sbin"
 readonly PATH
 export PATH
-unset BASH_ENV CDPATH ENV PYTHONHOME PYTHONINSPECT PYTHONPATH PYTHONSTARTUP
+unset BASH_ENV CDPATH ENV PYTHONHOME PYTHONINSPECT PYTHONPATH PYTHONSTARTUP PYTHONPYCACHEPREFIX
 unset LD_PRELOAD LD_LIBRARY_PATH DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH
 PYTHONNOUSERSITE=1
 readonly PYTHONNOUSERSITE
@@ -103,7 +103,7 @@ resolve_projection_source_root() {
     return 78
   fi
 
-  common_dir_abs="$("$PROJECTOR_PYTHON" - "$REPO_ROOT" "$common_dir" <<'PY'
+  common_dir_abs="$("$PROJECTOR_PYTHON" -I -B - "$REPO_ROOT" "$common_dir" <<'PY'
 import os
 import sys
 
@@ -240,7 +240,7 @@ resolve_tokens_from_map() {
   local section="$1"
   local codex_home="$2"
 
-  "$PROJECTOR_PYTHON" - "$PROJECTION_MAP" "$section" "$REPO_ROOT" "$PROJECTION_SOURCE_ROOT" "$HOME" "$codex_home" "$PLUGINS_CANON_RESOLVED" <<'PY'
+  "$PROJECTOR_PYTHON" -I -B - "$PROJECTION_MAP" "$section" "$REPO_ROOT" "$PROJECTION_SOURCE_ROOT" "$HOME" "$codex_home" "$PLUGINS_CANON_RESOLVED" <<'PY'
 import json
 import os
 import sys
@@ -284,7 +284,7 @@ PY
 }
 
 resolve_realpath() {
-  "$PROJECTOR_PYTHON" -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$1"
+  "$PROJECTOR_PYTHON" -I -B -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$1"
 }
 
 PROJECTION_SOURCE_ROOT="$(resolve_projection_source_root)"
@@ -317,7 +317,7 @@ link_matches_source() {
   resolved_source="$(resolve_realpath "$source_abs")"
   resolved_target="$(resolve_realpath "$target_abs")"
   [[ "$resolved_source" == "$resolved_target" ]] && return 0
-  "$PROJECTOR_PYTHON" - "$resolved_source" "$resolved_target" <<'PYCASE'
+  "$PROJECTOR_PYTHON" -I -B - "$resolved_source" "$resolved_target" <<'PYCASE'
 import os
 import sys
 
@@ -425,7 +425,7 @@ copy_contains_source_prefix() {
   local target_abs="$2"
 
   [[ -f "$target_abs" && ! -L "$target_abs" ]] || return 1
-  "$PROJECTOR_PYTHON" - "$source_abs" "$target_abs" <<'PY'
+  "$PROJECTOR_PYTHON" -I -B - "$source_abs" "$target_abs" <<'PY'
 import sys
 from pathlib import Path
 
@@ -571,7 +571,7 @@ repair_projection_runtime_copy() {
       local check_output=""
       if ! check_output="$("$PROJECTOR_PYTHON" "$(dirname "$source_abs")/scripts/repair-runtime-config-drift.py" \
         --config-path "$target_abs" --check --json 2>&1)"; then
-        if "$PROJECTOR_PYTHON" -c 'import json,sys
+        if "$PROJECTOR_PYTHON" -I -B -c 'import json,sys
 try:
     value = json.load(sys.stdin)
 except (ValueError, TypeError):
@@ -800,7 +800,7 @@ elif [[ -n "${DOTS_PROJECTION_FIXTURE:-}" ]]; then
   echo 'Unknown isolated projection fixture' >&2
   exit 2
 else
-"$PROJECTOR_PYTHON" - "$PROJECTION_MAP" <<'PYMAP'
+"$PROJECTOR_PYTHON" -I -B - "$PROJECTION_MAP" <<'PYMAP'
 import json
 from pathlib import Path
 import sys
@@ -854,7 +854,7 @@ fi
 reconcile_retired_profiles() {
   local codex_home="$1"
   local result=""
-  if ! result="$("$PROJECTOR_PYTHON" - "$codex_home" "$PROJECTION_SOURCE_ROOT" "$REPO_ROOT" "$PROJECTION_MAP" "$MODE" "$DRY_RUN" <<'PY'
+  if ! result="$("$PROJECTOR_PYTHON" -I -B - "$codex_home" "$PROJECTION_SOURCE_ROOT" "$REPO_ROOT" "$PROJECTION_MAP" "$MODE" "$DRY_RUN" <<'PY'
 import json
 import os
 import stat

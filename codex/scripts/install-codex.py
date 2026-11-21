@@ -1186,7 +1186,7 @@ def assemble(args, *, policy_update=False):
         path = home / '.codex' / name
         retained[name] = {'type': 'symlink', 'target': os.readlink(path)} if path.is_symlink() else {
             'type': 'directory' if path.is_dir() else 'absent' if not path.exists() else 'conflict'}
-    write(payload / 'codex/.hook-toolchain.json', json.dumps(toolchain, sort_keys=True).encode())
+    write(payload / 'codex/scripts/.hook-toolchain.json', json.dumps(toolchain, sort_keys=True).encode())
     for path in payload.rglob('*'):
         if path.is_file():
             path.chmod(0o500 if path.stat().st_mode & 0o111 else 0o400)
@@ -1215,7 +1215,7 @@ def finish_prepare(state):
     home = Path(context['home'])
     admission = module('installation_preflight', ROOT / 'codex/scripts/admit-policy-fixture.py')
     with installation_lock(home):
-        toolchain = read_json(ROOT / 'codex/.hook-toolchain.json')
+        toolchain = read_json(ROOT / 'codex/scripts/.hook-toolchain.json')
         verify_hook_toolchain({'hook_toolchain': toolchain})
         descriptor_path = ROOT / 'codex/.previous-desktop-review.json'
         descriptor = read_json(descriptor_path) if descriptor_path.exists() else None
@@ -1282,7 +1282,7 @@ def load_plan(state, digest, *, verified_context=None):
             or plan['package_digest'] != context['package_digest'] or plan['home'] != context['home']
             or plan['before'] != context['before'] or set(plan['expected']) != set(plan['before'])):
         raise ValueError('Plan and package disagree')
-    if 'hook_toolchain' in plan and plan['hook_toolchain'] != read_json(ROOT / 'codex/.hook-toolchain.json'):
+    if 'hook_toolchain' in plan and plan['hook_toolchain'] != read_json(ROOT / 'codex/scripts/.hook-toolchain.json'):
         raise ValueError('Plan and packaged hook toolchain identity disagree')
     return plan
 
@@ -1604,8 +1604,8 @@ def verified_public_payload(state, *, formatting_review=False):
     payload = state / 'payload'
     generated = {'codex/config.toml', 'codex/projection-map.json', 'codex/requirements.toml',
                  'codex/hooks/hooks.json', 'codex/.public-source.json', 'codex/.runtime-source.json'}
-    if (payload / 'codex/.hook-toolchain.json').exists():
-        generated.add('codex/.hook-toolchain.json')
+    if (payload / 'codex/scripts/.hook-toolchain.json').exists():
+        generated.add('codex/scripts/.hook-toolchain.json')
     if (payload / 'codex/.previous-desktop-review.json').exists():
         generated.add('codex/.previous-desktop-review.json')
     if (payload / 'codex/.policy-transition.json').exists():

@@ -52,8 +52,10 @@ The protected hook bootstrap restricts PATH to its selected toolchain and system
 binaries. Before enabling LifeOS retrieval, set `CODEX_LIFEOS_BUN` to the absolute
 Bun executable path in the environment inherited by Codex. For an Apple Silicon
 Homebrew installation this is normally `/opt/homebrew/bin/bun`; verify the path
-on the target machine. Bun installed through a user runtime manager also needs
-an explicit absolute path. The hook does not discover Bun through the caller's
+and its ownership on the target machine. Bun and every directory component
+must be administrator-owned and protected from workspace writes, as README.md
+requires. An absolute path alone is insufficient; do not use a user runtime
+manager or another user-writable Bun installation. The hook does not discover Bun through the caller's
 PATH. Missing Bun leaves this optional context lookup unavailable and continues
 the prompt.
 

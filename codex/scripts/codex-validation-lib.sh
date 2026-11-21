@@ -6,7 +6,7 @@ if [[ -z "${BASH_VERSION:-}" ]]; then
 fi
 
 dots_script_dir="$(cd -P "${BASH_SOURCE[0]%/*}" && pwd -P)"
-unset PYTHONPATH PYTHONHOME PYTHONSTARTUP PYTHONUSERBASE
+unset PYTHONPATH PYTHONHOME PYTHONSTARTUP PYTHONUSERBASE PYTHONPYCACHEPREFIX
 unset LD_PRELOAD LD_LIBRARY_PATH DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH
 if [[ -n "${DOTS_TEST_HOME:-}" && ! -e "$dots_script_dir/../.deployment.json" && ! -L "$dots_script_dir/../.deployment.json" \
       && ! -e "$dots_script_dir/../.dots-package.json" && ! -L "$dots_script_dir/../.dots-package.json" ]]; then

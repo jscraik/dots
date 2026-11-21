@@ -70,6 +70,16 @@ class PolicyProjectionTests(unittest.TestCase):
         self.assertEqual(fixture.managed_snapshot(), before)
         self.assertFalse((fixture.home / '.config-symlink-backups').exists())
 
+    def test_inline_projection_ignores_workspace_python_modules(self):
+        fixture = self.fixture
+        marker = fixture.home / 'workspace-python-ran'
+        (fixture.repo / 'json.py').write_text('from pathlib import Path\nPath('
+            + repr(str(marker)) + ').touch()\nraise RuntimeError("workspace module imported")\n')
+        before = fixture.managed_snapshot()
+        self.success(fixture.project('--repair', '--dry-run'))
+        self.assertFalse(marker.exists())
+        self.assertEqual(fixture.managed_snapshot(), before)
+
     def test_copy_hardlinks_are_rejected_before_any_projection(self):
         fixture = self.fixture
         for relative in ('config.toml', 'hooks.json'):

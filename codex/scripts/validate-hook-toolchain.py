@@ -59,12 +59,40 @@ def identity():
     return {'schema_version': 1, 'bin_dir': str(binary_dir), 'payload_sha256': digest}
 
 
+def runtime_resolve():
+    """Keep installed hooks on their sealed selection before child execution."""
+    binary_dir = resolve()
+    scripts = Path(__file__).resolve().parent
+    binding = scripts / '.hook-toolchain.json'
+    if not os.path.lexists(binding):
+        if any(os.path.lexists(scripts.parent / name)
+               for name in ('.deployment.json', '.dots-package.json')):
+            raise ValueError('Packaged hook toolchain binding is missing')
+        return binary_dir
+    info = binding.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > 4096:
+        raise ValueError('Packaged hook toolchain binding is not a bounded regular file')
+    expected = {'schema_version': 1, 'bin_dir': str(binary_dir),
+                'payload_sha256': binary_dir.parent.name}
+    def unique(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError('Duplicate hook toolchain binding key')
+            value[key] = item
+        return value
+    actual = json.loads(binding.read_text(), object_pairs_hook=unique)
+    if not isinstance(actual, dict) or actual != expected or type(actual.get('schema_version')) is not int:
+        raise ValueError('Selected toolchain differs from the sealed hook binding')
+    return binary_dir
+
+
 if __name__ == "__main__":
     try:
         if sys.argv[1:] == ['--identity']:
             print(json.dumps(identity(), sort_keys=True))
         elif not sys.argv[1:]:
-            print(resolve())
+            print(runtime_resolve())
         else:
             raise ValueError('Unknown toolchain validation operation')
     except (OSError, ValueError) as error:

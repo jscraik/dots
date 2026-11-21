@@ -361,11 +361,31 @@ def inspect_shell(command, depth=0, budget=None, opaque_transport=None):
                 raise ValueError('Dynamic executable requires separate inspection')
             executable = tokens[executable_index].rsplit("/", 1)[-1].lower()
             if executable == 'rg':
+                value_options = {'--regexp', '--file', '--pre-glob', '--dfa-size-limit', '--encoding',
+                    '--engine', '--max-count', '--regex-size-limit', '--threads', '--glob', '--iglob',
+                    '--ignore-file', '--max-depth', '--max-filesize', '--type', '--type-not',
+                    '--type-add', '--type-clear', '--after-context', '--before-context', '--color',
+                    '--colors', '--context', '--context-separator', '--field-context-separator',
+                    '--field-match-separator', '--hyperlink-format', '--max-columns',
+                    '--path-separator', '--replace', '--sort', '--sortr', '--generate'}
+                consume_value = False
                 for operand in tokens[executable_index + 1:]:
+                    if consume_value:
+                        consume_value = False
+                        continue
                     if operand == '--':
                         break
                     if operand.split('=', 1)[0] in {'--pre', '--hostname-bin'}:
                         raise ValueError('Search utility command execution requires separate inspection')
+                    if operand in value_options:
+                        consume_value = True
+                    elif operand.startswith('-') and not operand.startswith('--'):
+                        for position, flag in enumerate(operand[1:], 1):
+                            if flag in 'efEmjgdtTABCMr':
+                                consume_value = position == len(operand) - 1
+                                break
+                if consume_value:
+                    raise ValueError('Missing search option value')
             if executable in {'find', 'gfind', 'fd', 'fdfind'}:
                 search_tokens = [token.replace(marker, "${__codex_substitution__}")
                                  for token in shell_split(protect_search_literals(context))]

@@ -4,6 +4,7 @@ import io
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -20,6 +21,78 @@ SPEC.loader.exec_module(PREPARE)
 
 
 class HookToolchainTests(unittest.TestCase):
+    def test_runtime_probes_cannot_add_cli_state_to_payload(self):
+        spec = importlib.util.spec_from_file_location('runtime_probe_installer', ROOT / 'codex/scripts/install-hook-toolchain.py')
+        publisher = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(publisher)
+        with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as directory:
+            outer = Path(directory)
+            payload = outer / 'payload'
+            (payload / 'bin').mkdir(parents=True)
+            receipt = outer / 'probe-homes.txt'
+            script = ('#!/usr/bin/python3\nimport os,pathlib\n'
+                + 'home=pathlib.Path(os.environ["HOME"])\n'
+                + 'assert home == pathlib.Path.cwd() and home != pathlib.Path(' + repr(str(payload)) + ')\n'
+                + 'assert "PYTHONPATH" not in os.environ and "GITHUB_TOKEN" not in os.environ\n'
+                + 'state=pathlib.Path(os.environ["XDG_STATE_HOME"])/"gh"; state.mkdir(parents=True,exist_ok=True)\n'
+                + '(state/"device-id").write_text("fixture")\n'
+                + 'with open(' + repr(str(receipt)) + ',"a") as stream: stream.write(str(home)+"\\n")\n')
+            for name in ('python3', 'jq', 'gh'):
+                path = payload / 'bin' / name
+                path.write_text(script)
+                path.chmod(0o700)
+            before = publisher.inventory(payload)
+            with mock.patch.dict(os.environ, {'PYTHONPATH': str(outer), 'GITHUB_TOKEN': 'fixture-only'}):
+                publisher.check_runtime(payload)
+            self.assertEqual(publisher.inventory(payload), before)
+            homes = receipt.read_text().splitlines()
+            self.assertEqual(len(homes), 3)
+            self.assertTrue(all(not Path(home).exists() for home in homes))
+
+    def test_runtime_selection_must_match_packaged_binding(self):
+        spec = importlib.util.spec_from_file_location('runtime_selection', ROOT / 'codex/scripts/validate-hook-toolchain.py')
+        validator = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(validator)
+        with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as directory:
+            root = Path(directory)
+            scripts = root / 'scripts'
+            scripts.mkdir()
+            (root / '.dots-package.json').write_text('{}')
+            selected = Path('/opt/dots-hook-tools') / ('a' * 64) / 'bin'
+            metadata = scripts / '.hook-toolchain.json'
+            with mock.patch.object(validator, '__file__', str(scripts / 'validate-hook-toolchain.py')), \
+                    mock.patch.object(validator, 'resolve', return_value=selected):
+                with self.assertRaisesRegex(ValueError, 'binding is missing'):
+                    validator.runtime_resolve()
+                metadata.write_text(json.dumps({'schema_version': 1, 'bin_dir': str(selected),
+                    'payload_sha256': 'a' * 64}))
+                self.assertEqual(validator.runtime_resolve(), selected)
+                with mock.patch.object(validator, 'resolve', return_value=selected.parent.parent / ('b' * 64) / 'bin'):
+                    with self.assertRaisesRegex(ValueError, 'differs from the sealed'):
+                        validator.runtime_resolve()
+                metadata.write_text('[]')
+                with self.assertRaisesRegex(ValueError, 'differs from the sealed'):
+                    validator.runtime_resolve()
+
+    def test_admin_prefix_creation_ignores_restrictive_umask(self):
+        spec = importlib.util.spec_from_file_location('prefix_installer', ROOT / 'codex/scripts/install-hook-toolchain.py')
+        publisher = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(publisher)
+        with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as directory:
+            prefix = Path(directory) / 'new-parent/tools'
+            original_lstat = Path.lstat
+            def admin_info(path):
+                info = original_lstat(path)
+                return SimpleNamespace(st_uid=0, st_mode=info.st_mode & ~0o022)
+            previous = os.umask(0o077)
+            try:
+                with mock.patch.object(publisher, 'PREFIX', prefix), mock.patch.object(Path, 'lstat', admin_info):
+                    publisher.ensure_prefix()
+            finally:
+                os.umask(previous)
+            self.assertEqual(stat.S_IMODE(prefix.stat().st_mode), 0o755)
+            self.assertEqual(stat.S_IMODE(prefix.parent.stat().st_mode), 0o755)
+
     def test_installer_child_ignores_user_site_environment_and_working_directory(self):
         spec = importlib.util.spec_from_file_location('isolated_child_installer', ROOT / 'codex/scripts/install-codex.py')
         installer = importlib.util.module_from_spec(spec)
@@ -144,10 +217,10 @@ class HookToolchainTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as directory:
             state = Path(directory)
             payload = state / 'payload'
-            (payload / 'codex').mkdir(parents=True)
+            (payload / 'codex/scripts').mkdir(parents=True)
             snapshot = {'schema_version': 1, 'bin_dir': '/opt/dots-hook-tools/' + 'a' * 64 + '/bin',
                         'payload_sha256': 'a' * 64}
-            metadata = payload / 'codex/.hook-toolchain.json'
+            metadata = payload / 'codex/scripts/.hook-toolchain.json'
             metadata.write_text(json.dumps(snapshot))
             context = {'state_dir': str(state), 'home': str(state / 'home'), 'before': {}, 'package_digest': 'a' * 64}
             plan = {'schema_version': 1, 'home': context['home'], 'before': {}, 'expected': {},

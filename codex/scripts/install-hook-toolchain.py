@@ -17,8 +17,6 @@ PREFIX = Path("/opt/dots-hook-tools")
 
 def check_runtime(root):
     """Prove the provisioned payload works before changing the selection."""
-    environment = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "PYTHONNOUSERSITE": "1",
-                   "PYTHONDONTWRITEBYTECODE": "1"}
     for name in ("python3", "jq", "gh"):
         path = root / "bin" / name
         if not path.is_file() or not os.access(path, os.X_OK):
@@ -29,11 +27,19 @@ def check_runtime(root):
         [str(root / "bin/jq"), "--version"],
         [str(root / "bin/gh"), "--version"],
     )
-    for command in commands:
-        result = subprocess.run(command, env=environment, cwd=root, capture_output=True,
-                                text=True, timeout=30, check=False)
-        if result.returncode:
-            raise ValueError("Protected toolchain runtime check failed: " + command[0])
+    with tempfile.TemporaryDirectory(prefix='dots-hook-runtime-check-', dir=Path('/tmp').resolve()) as temporary:
+        home = Path(temporary).resolve()
+        environment = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "PYTHONNOUSERSITE": "1",
+            "PYTHONDONTWRITEBYTECODE": "1", "HOME": str(home),
+            "XDG_CONFIG_HOME": str(home / '.config'), "XDG_DATA_HOME": str(home / '.local/share'),
+            "XDG_CACHE_HOME": str(home / '.cache'), "XDG_STATE_HOME": str(home / '.local/state'),
+            "GH_CONFIG_DIR": str(home / '.config/gh'), "TMPDIR": str(home / 'tmp')}
+        (home / 'tmp').mkdir()
+        for command in commands:
+            result = subprocess.run(command, env=environment, cwd=home, capture_output=True,
+                                    text=True, timeout=30, check=False)
+            if result.returncode:
+                raise ValueError("Protected toolchain runtime check failed: " + command[0])
 
 
 def inventory(root):
@@ -64,6 +70,17 @@ def digest(records):
     return hashlib.sha256(json.dumps(records, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def ensure_prefix():
+    # The prefix and its ancestors must be physical root-controlled directories.
+    for path in reversed((PREFIX, *PREFIX.parents)):
+        if not path.exists():
+            path.mkdir(mode=0o755)
+            path.chmod(0o755)
+        info = path.lstat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise ValueError("Toolchain prefix is not protected")
+
+
 def install(source, expected, select=False):
     if os.geteuid() != 0:
         raise ValueError("Protected toolchain installation requires an explicit admin invocation")
@@ -71,13 +88,7 @@ def install(source, expected, select=False):
         raise ValueError("Run admin provisioning with system Python -I -S")
     if len(expected) != 64 or any(character not in "0123456789abcdef" for character in expected):
         raise ValueError("An exact reviewed SHA-256 inventory digest is required")
-    # The prefix and its ancestors must be physical root-controlled directories.
-    for path in reversed((PREFIX, *PREFIX.parents)):
-        if not path.exists():
-            path.mkdir(mode=0o755)
-        info = path.lstat()
-        if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
-            raise ValueError("Toolchain prefix is not protected")
+    ensure_prefix()
     records = inventory(source)
     if digest(records) != expected:
         raise ValueError("Source differs from the reviewed toolchain snapshot")

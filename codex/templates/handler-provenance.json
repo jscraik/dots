@@ -314,7 +314,7 @@
       "transformations": [
         "fixture admission for shell runtime dependency"
       ],
-      "candidate_sha256": "f9ff7ba664be5a29030918592b403f044dd8775527652089ace2e060e7071d13"
+      "candidate_sha256": "5e69e5d7a116c338689dc17e2847d72740dd49d469b0c612a06fdd716bfb182e"
     },
     {
       "path": "codex/scripts/codex-validation-python-uv.sh",
@@ -374,7 +374,7 @@
     {
       "path": "codex/hooks/destructive-git-operation.py",
       "origin": "Extracted isolated destructive Git parser from hook-runtime-lib.sh",
-      "candidate_sha256": "ef82c9f0bb50772b76b5b52b47456236699231e58edde371a0d0c5559d9576b8"
+      "candidate_sha256": "eac1d7600922c36e7051d4b932a9eb4892d516c9bcf3cb08ffe36ceb69772b72"
     }
   ],
   "external_boundaries": [

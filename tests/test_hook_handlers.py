@@ -13,6 +13,34 @@ from hook_fixture import HookFixture
 
 
 class HookHandlerTests(unittest.TestCase):
+    def test_inherited_bytecode_cache_cannot_replace_admission_modules(self):
+        import importlib.util
+        import py_compile
+        from unittest import mock
+        source = self.fixture.codex / 'scripts/migration_scope.py'
+        cache = self.fixture.home / 'tmp/poison-cache'
+        marker = self.fixture.home / 'untrusted-bytecode-ran'
+        poisoned = self.fixture.home / 'poisoned-scope.py'
+        poisoned.write_text(source.read_text() + '\nfrom pathlib import Path\nPath('
+            + repr(str(marker)) + ').touch()\n')
+        with mock.patch.object(sys, 'pycache_prefix', str(cache)):
+            cached = Path(importlib.util.cache_from_source(str(source)))
+        cached.parent.mkdir(parents=True)
+        py_compile.compile(str(poisoned), cfile=str(cached), doraise=True,
+                           invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH)
+        environment = self.fixture.env | {'PYTHONPYCACHEPREFIX': str(cache)}
+        control = subprocess.run([sys.executable, '-B',
+            str(self.fixture.codex / 'scripts/admit-hook-fixture.py'), '{}'],
+            env=environment, cwd=self.fixture.repo, capture_output=True, text=True, timeout=15)
+        self.assertEqual(control.returncode, 0, control.stderr)
+        self.assertTrue(marker.exists(), 'poisoned cache control must exercise the attack')
+        marker.unlink()
+        for hook in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
+            with self.subTest(hook=hook):
+                self.output(hook, {'tool_input': {'command': 'git status --short'}},
+                            {'PYTHONPYCACHEPREFIX': str(cache)})
+                self.assertFalse(marker.exists())
+
     def test_shared_classifier_boundaries_through_both_guards(self):
         blocked = ('rm --recursive --force "${HOME:?}"',
                    'TARGET=/; rm --recursive --force "$TARGET"',

@@ -15,7 +15,7 @@ set -euo pipefail
 PATH='/usr/bin:/bin:/usr/sbin:/sbin'
 readonly PATH
 export PATH
-unset PYTHONHOME PYTHONPATH PYTHONSTARTUP PYTHONINSPECT
+unset PYTHONHOME PYTHONPATH PYTHONSTARTUP PYTHONINSPECT PYTHONPYCACHEPREFIX
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=codex/scripts/codex-validation-lib.sh
