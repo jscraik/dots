@@ -107,7 +107,11 @@ class HookHandlerTests(unittest.TestCase):
                    'TARGET=/; rm --recursive --force "$TARGET"',
                    'setsid rm -rf /', 'cat <(git reset --hard)',
                    'rm --recursive --force /private/tmp/dots-fixture',
-                   "rg --pre 'rm -rf /Users/alice' pattern .")
+                   "rg --pre 'rm -rf /Users/alice' pattern .",
+                   'op=--pre; rg "$op" ./payload pattern notes.txt',
+                   'OP=c; bash -"$OP" "rm -rf /"',
+                   'OP="pipefail -c"; bash -o $OP "rm -rf /"',
+                   'bash "$(printf %s "$TEXT" > /tmp/payload; printf /tmp/payload)"')
         allowed = ('mkdir -p /tmp/x/{one,two}', 'printf %s $((1+1))',
                    'cat <(printf hello)')
         for hook in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
