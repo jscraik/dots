@@ -1332,7 +1332,8 @@ def prepare_desktop_review(state, digest, *, before_write=None):
     proposal = {'schema_version': 1, 'state_dir': str(state), 'home': plan['home'],
         'package_digest': plan['package_digest'], 'plan_digest': digest,
         'installed': installed, 'observed': observed, 'original': original,
-        'rollback': compat.reviewed_rollback(original, installed, changes), 'changes': changes}
+        'rollback': compat.reviewed_rollback(original, installed, changes,
+                                             baseline_kind=original_record['kind']), 'changes': changes}
     raw = (json.dumps(proposal, sort_keys=True, indent=2) + '\n').encode()
     if {name: describe(runtime / name) for name in plan['before']} != current:
         raise ValueError('Managed state changed while proposing Desktop compatibility')

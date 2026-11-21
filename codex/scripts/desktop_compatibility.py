@@ -365,9 +365,11 @@ def repair_candidate(installed: str, observed: str) -> dict:
             'desktop_changes': desktop_changes, 'canonical_restorations': restorations}
 
 
-def reviewed_rollback(original: str, installed: str, changes: list) -> str:
+def reviewed_rollback(original: str, installed: str, changes: list, *, baseline_kind: str = 'file') -> str:
     """A toggle must also bind an unchanged trusted identity in the rollback home."""
-    if original == '' and (not changes or any(
+    if baseline_kind not in {'file', 'absent'} or baseline_kind == 'absent' and original != '':
+        raise ValueError('Invalid config baseline kind')
+    if baseline_kind == 'absent' and (not changes or any(
             tuple(row['path']) != ('hooks', 'state') or not row['after'].get('value')
             for row in changes)):
         raise ValueError('Absent config baseline permits only a nonempty native consent review')
@@ -472,6 +474,7 @@ def load(path: Path, digest: str, *, state: Path, plan_digest: str,
     if (sha(data['installed'].encode()) != plan['expected']['config.toml']['sha256']
             or not equal(delta(data['installed'], data['observed'],
                                hook_source=str(Path(plan['home']) / '.codex/hooks.json')), data['changes'])
-            or reviewed_rollback(data['original'], data['installed'], data['changes']) != data['rollback']):
+            or reviewed_rollback(data['original'], data['installed'], data['changes'],
+                                 baseline_kind=original_record['kind']) != data['rollback']):
         raise ValueError('Desktop review disagrees with the verified installation')
     return data

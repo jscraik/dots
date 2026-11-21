@@ -468,6 +468,23 @@ class InstallationRouteTests(unittest.TestCase):
         self.success(self.operation('rollback', digest))
         self.assertFalse(path.exists())
 
+    def test_empty_file_baseline_allows_reviewed_desktop_preference(self):
+        path = self.runtime / 'config.toml'
+        path.write_text('')
+        self.before = self.snapshot()
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        data = tomllib.loads(path.read_text())
+        data.setdefault('desktop', {})['selected-avatar-id'] = 'independent-avatar'
+        path.write_text(GEN.toml_document(data))
+        pin = self.success(self.operation('prepare-desktop-review', digest))['review_sha256']
+        arguments = ('--state-dir', self.state, '--plan-digest', digest,
+                     '--desktop-review-sha256', pin)
+        self.success(self.run_cli('check', *arguments))
+        self.success(self.run_cli('rollback', *arguments))
+        self.assertEqual(tomllib.loads(path.read_text()),
+                         {'desktop': {'selected-avatar-id': 'independent-avatar'}})
+
     def test_native_consent_survives_reviewed_update_and_rollback(self):
         self.check_reviewed_native_update()
 

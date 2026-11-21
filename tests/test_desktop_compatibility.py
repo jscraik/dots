@@ -113,7 +113,8 @@ class DesktopCompatibilityTests(unittest.TestCase):
         empty = adapter.overlay(installed, [{'path': ['hooks', 'state'],
             'after': {'present': True, 'value': {}}}])
         empty_changes = adapter.delta(installed, empty, hook_source=source)
-        self.assertRaises(ValueError, adapter.reviewed_rollback, '', installed, empty_changes)
+        self.assertRaises(ValueError, adapter.reviewed_rollback, '', installed, empty_changes,
+                          baseline_kind='absent')
 
     def paired_fixture(self):
         adapter, installed, observed = self.seven_fixture()
