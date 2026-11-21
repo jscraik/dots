@@ -28,6 +28,27 @@ PATHS = (
     ('plugins', 'codex-app-tools@openai-bundled'),
     ('desktop', 'codex-micro-layout'),
 )
+DESKTOP_OWNED_COMPUTER_USE_PLUGIN_IDS = frozenset({
+    'computer-use@openai-bundled',
+    'unified-computer-use@openai-bundled',
+})
+
+
+def computer_use_plugin_preservation_errors(config: dict) -> list[str]:
+    """Allow automatic repair to retain only an inert Desktop consent marker."""
+    plugins = config.get('plugins')
+    if not isinstance(plugins, dict):
+        return []
+    errors = []
+    for plugin_id in sorted(DESKTOP_OWNED_COMPUTER_USE_PLUGIN_IDS):
+        if plugin_id not in plugins:
+            continue
+        plugin = plugins[plugin_id]
+        if (type(plugin) is not dict or set(plugin) != {'enabled'}
+                or type(plugin['enabled']) is not bool or plugin['enabled'] is not False):
+            errors.append(
+                f'plugins.{plugin_id} may preserve only the exact disabled consent marker')
+    return errors
 
 
 def sha(raw: bytes) -> str:
@@ -36,7 +57,8 @@ def sha(raw: bytes) -> str:
 
 def requires_preservation(config: dict) -> bool:
     """Independent executable registrations also need an operator decision."""
-    return any(get(config, path)['present'] for path in (
+    return bool(computer_use_plugin_preservation_errors(config)) or any(
+        get(config, path)['present'] for path in (
         ('mcp_servers', 'node_repl'), ('notify',),
         ('plugins', 'computer-history@openai-bundled'),
         ('plugins', 'codex-app-tools@openai-bundled'),

@@ -18,6 +18,10 @@ from importlib import import_module  # noqa: E402
 from pathlib import Path  # noqa: E402
 from urllib.parse import urlparse  # noqa: E402
 
+from desktop_compatibility import (  # noqa: E402
+    DESKTOP_OWNED_COMPUTER_USE_PLUGIN_IDS,
+    computer_use_plugin_preservation_errors,
+)
 from marketplace_identity import (  # noqa: E402
     MarketplaceIdentityError,
     verify_marketplace_revision,
@@ -402,12 +406,16 @@ def validate_browser_runtime_policy(config: dict[str, object]) -> list[str]:
                     errors.append(f'permissions.workspace-net.network.domains."{domain}" must allow language and package-manager downloads')
     return errors
 
-def validate_unified_computer_use_runtime_policy(config: dict[str, object], discovery_errors: list[str] | tuple[str, ...]=()) -> list[str]:
+def validate_unified_computer_use_runtime_policy(
+        config: dict[str, object], discovery_errors: list[str] | tuple[str, ...]=(),
+        *, allow_repairable_desktop_plugins: bool=False) -> list[str]:
     """Keep canonical config out of desktop-owned runtime registration."""
     errors = [f'unified Computer Use runtime discovery failed: {error}' for error in discovery_errors] + validate_computer_use_mcp_policy(config)
     plugins = config.get('plugins')
-    if isinstance(plugins, dict):
-        for plugin_id in (COMPUTER_USE_PLUGIN_ID, 'computer-use@openai-bundled'):
+    if allow_repairable_desktop_plugins:
+        errors.extend(computer_use_plugin_preservation_errors(config))
+    elif isinstance(plugins, dict):
+        for plugin_id in DESKTOP_OWNED_COMPUTER_USE_PLUGIN_IDS:
             if plugin_id in plugins:
                 errors.append(f'plugins.{plugin_id} must not appear in canonical config; the desktop app owns plugin consent')
     return errors
@@ -1704,7 +1712,7 @@ def validate_mcp_servers(data: dict[str, object]) -> tuple[list[str], list[str]]
     notes.append(f'required_mcp_servers={required_count}')
     return (errors, notes)
 
-def main(raw_config: str | None=None) -> int:
+def main(raw_config: str | None=None, *, runtime_snapshot: bool=False) -> int:
     """
     Validate the repository and runtime Codex configuration against repository and runtime governance rules.
 
@@ -1775,7 +1783,8 @@ def main(raw_config: str | None=None) -> int:
     errors.extend(validate_config_maintenance_write_access(data))
     errors.extend(validate_auth_environment_fifo_isolation(data))
     errors.extend(validate_browser_runtime_policy(data))
-    errors.extend(validate_unified_computer_use_runtime_policy(data))
+    errors.extend(validate_unified_computer_use_runtime_policy(
+        data, allow_repairable_desktop_plugins=runtime_snapshot))
     errors.extend(validate_mcp_network_access(data))
     errors.extend(validate_no_retired_macos_1password_socket(data))
     errors.extend(validate_local_memory_cli_policy(data))
@@ -1852,7 +1861,9 @@ def main(raw_config: str | None=None) -> int:
             if not isinstance(plugin_name, str) or not plugin_name.strip():
                 errors.append('plugins keys must be non-empty strings')
                 continue
-            if not plugin_id_is_allowed(plugin_name, allowed_plugin_ids):
+            runtime_desktop_plugin = (
+                runtime_snapshot and plugin_name in DESKTOP_OWNED_COMPUTER_USE_PLUGIN_IDS)
+            if not runtime_desktop_plugin and not plugin_id_is_allowed(plugin_name, allowed_plugin_ids):
                 errors.append(f'plugin {plugin_name!r} is not in allowed plugin IDs: {sorted(allowed_plugin_ids)}')
                 continue
             if not isinstance(plugin, dict):
@@ -1879,7 +1890,13 @@ def main(raw_config: str | None=None) -> int:
     return 0
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--config-stdin', action='store_true', help='Validate the supplied config snapshot with all normal policy checks')
+    snapshot = parser.add_mutually_exclusive_group()
+    snapshot.add_argument('--config-stdin', action='store_true',
+                          help='Validate a canonical config snapshot with all normal policy checks')
+    snapshot.add_argument('--runtime-config-stdin', action='store_true',
+                          help='Validate a repaired runtime snapshot including its bounded Desktop marker')
     arguments = parser.parse_args()
-    result = main(sys.stdin.read() if arguments.config_stdin else None)
-    raise SystemExit(65 if arguments.config_stdin and result == 1 else result)
+    from_stdin = arguments.config_stdin or arguments.runtime_config_stdin
+    result = main(sys.stdin.read() if from_stdin else None,
+                  runtime_snapshot=arguments.runtime_config_stdin)
+    raise SystemExit(65 if from_stdin and result == 1 else result)
