@@ -79,6 +79,11 @@ class DesktopCompatibilityTests(unittest.TestCase):
         self.assertRaises(ValueError, adapter.reviewed_rollback, trusted, revoked, fresh_changes)
         self.assertRaises(ValueError, adapter.delta, installed,
             revoked.replace('on-request', 'never'), hook_source=source)
+        omitted = adapter.overlay(trusted, [{'path': ['hooks', 'state'],
+            'after': {'present': False}}])
+        omitted_changes = adapter.delta(trusted, omitted, hook_source=source)
+        self.assertFalse(tomllib.loads(adapter.reviewed_rollback(
+            trusted, trusted, omitted_changes)).get('hooks', {}).get('state'))
 
     def test_incremental_native_consent_preserves_existing_trust(self):
         adapter, installed, _ = self.seven_fixture()

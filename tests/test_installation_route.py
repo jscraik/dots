@@ -520,10 +520,17 @@ class InstallationRouteTests(unittest.TestCase):
     def test_complete_revocation_survives_subsequent_update(self):
         self.check_reviewed_native_update(revoke=True, next_update=True)
 
+    def test_omitted_native_state_revocation_survives_subsequent_update(self):
+        self.check_reviewed_native_update(revoke=True, next_update=True, omit=True)
+
+    def test_updated_native_consent_blocks_drift_repair_without_writes(self):
+        self.check_reviewed_native_update(repair_drift=True)
+
     def test_fresh_native_consent_after_complete_revocation_is_reviewed(self):
         self.check_reviewed_native_update(revoke=True, next_update=True, renew=True)
 
-    def check_reviewed_native_update(self, *, revoke=False, next_update=False, renew=False):
+    def check_reviewed_native_update(self, *, revoke=False, next_update=False, renew=False,
+                                    omit=False, repair_drift=False):
         first_digest = self.success(self.prepare())['plan_digest']
         self.success(self.operation('apply', first_digest))
         path = self.runtime / 'config.toml'
@@ -543,9 +550,35 @@ class InstallationRouteTests(unittest.TestCase):
         self.success(self.operation('apply', next_digest))
         self.success(self.operation('check', next_digest))
         self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], consent)
+        if repair_drift:
+            clean = path.read_bytes()
+            identity = path.stat().st_ino
+            backup = self.home / 'tmp/native-repair-backup.toml'
+            command = [sys.executable, '-B',
+                str(self.payload / 'codex/scripts/repair-runtime-config-drift.py'),
+                '--config-path', str(path), '--repair', '--json', '--backup-path', str(backup)]
+            correct = subprocess.run(command, env=self.installed_env(), cwd=self.payload,
+                capture_output=True, text=True, timeout=60, check=False)
+            self.assertEqual(correct.returncode, 0, correct.stdout + correct.stderr)
+            self.assertEqual(path.read_bytes(), clean)
+            self.assertEqual(path.stat().st_ino, identity)
+            changed = tomllib.loads(path.read_text())
+            changed['approval_policy'] = 'never'
+            path.write_text(GEN.toml_document(changed))
+            drifted = path.read_bytes()
+            rejected = subprocess.run(command, env=self.installed_env(), cwd=self.payload,
+                capture_output=True, text=True, timeout=60, check=False)
+            self.assertNotEqual(rejected.returncode, 0, rejected.stdout + rejected.stderr)
+            self.assertIn('native_hook_consent_preservation_required', rejected.stdout)
+            self.assertEqual(path.read_bytes(), drifted)
+            self.assertFalse(backup.exists())
+            path.write_bytes(clean)
         if revoke:
             updated = tomllib.loads(path.read_text())
-            updated['hooks']['state'] = {}
+            if omit:
+                updated['hooks'].pop('state')
+            else:
+                updated['hooks']['state'] = {}
             path.write_text(GEN.toml_document(updated))
             revoked_pin = self.success(self.operation('prepare-desktop-review', next_digest))['review_sha256']
             args = ('--state-dir', self.state, '--plan-digest', next_digest,
@@ -564,7 +597,8 @@ class InstallationRouteTests(unittest.TestCase):
                     '--previous-desktop-review-sha256', revoked_pin))['plan_digest']
                 self.success(self.operation('apply', third_digest))
                 self.success(self.operation('check', third_digest))
-                self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], {})
+                self.assertEqual(tomllib.loads(path.read_text()).get('hooks', {}).get('state'),
+                                 None if omit else {})
                 if renew:
                     fresh = {key: {'enabled': True, 'trusted_hash': 'sha256:' + 'b' * 64}}
                     updated = tomllib.loads(path.read_text())
@@ -579,10 +613,12 @@ class InstallationRouteTests(unittest.TestCase):
                     self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], fresh)
                     return
                 self.success(self.operation('rollback', third_digest))
-                self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], {})
+                self.assertEqual(tomllib.loads(path.read_text()).get('hooks', {}).get('state'),
+                                 None if omit else {})
                 self.state, self.payload = second_state, second_payload
             self.success(self.run_cli('rollback', *args))
-            self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], {})
+            self.assertEqual(tomllib.loads(path.read_text()).get('hooks', {}).get('state'),
+                             None if omit else {})
             return
         self.success(self.operation('rollback', next_digest))
         self.assertEqual(path.read_bytes(), observed)

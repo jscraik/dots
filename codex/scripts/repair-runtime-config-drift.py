@@ -1369,12 +1369,6 @@ def main(argv: list[str] | None=None) -> int:
         except (OSError, ValueError, KeyError, TypeError) as exc:
             _emit(_payload(status='blocked', path=config_path, reason='desktop_update_invalid', error=str(exc)), args.json)
             return 1
-    runtime, _ = _loads_toml(original)
-    if args.repair and isinstance(runtime, dict) and isinstance(runtime.get('hooks'), dict) and 'state' in runtime['hooks']:
-        _emit(_payload(status='blocked', path=config_path,
-            reason='native_hook_consent_preservation_required',
-            error='Review native hook consent through the installation-bound proposal before repair; no config was changed'), args.json)
-        return 1
     drift = detect_drift(original, expected_auto_review_policy=expected_auto_review_policy, expected_signing_agent_socket=expected_signing_agent_socket, expected_circle_no_telemetry=expected_circle_no_telemetry, expected_control_settings=expected_control_settings)
     if args.repair and deployment_module() is not None:
         runtime, _ = _loads_toml(original)
@@ -1402,6 +1396,14 @@ def main(argv: list[str] | None=None) -> int:
     if not args.repair:
         payload = _payload(status='fail', path=config_path, drift=drift, reason='runtime_config_drift')
         _emit(payload, args.json, f"FAIL runtime config drift: {', '.join(drift)}; Repair with: {Path(sys.argv[0]).name} --repair")
+        return 1
+    # Update normalisation may remove approved consent from the comparison view.
+    # A no-drift check is harmless; any repair write must inspect the raw file.
+    runtime, _ = _loads_toml(original_bytes.decode('utf-8'))
+    if isinstance(runtime, dict) and isinstance(runtime.get('hooks'), dict) and 'state' in runtime['hooks']:
+        _emit(_payload(status='blocked', path=config_path,
+            reason='native_hook_consent_preservation_required',
+            error='Review native hook consent through the installation-bound proposal before repair; no config was changed'), args.json)
         return 1
     repaired_text, repairs, blocked = repair_text(original, expected_auto_review_policy=expected_auto_review_policy, expected_signing_agent_socket=expected_signing_agent_socket, expected_circle_no_telemetry=expected_circle_no_telemetry, expected_control_settings=expected_control_settings)
     remaining_drift = detect_drift(repaired_text, expected_auto_review_policy=expected_auto_review_policy, expected_signing_agent_socket=expected_signing_agent_socket, expected_circle_no_telemetry=expected_circle_no_telemetry, expected_control_settings=expected_control_settings)

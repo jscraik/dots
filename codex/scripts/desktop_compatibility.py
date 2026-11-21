@@ -97,10 +97,13 @@ def delta(installed: str, observed: str, *, hook_source: str | None = None) -> l
     # consent. Existing hashes cannot be replaced through this route.
     path = ('hooks', 'state')
     old, new = get(before, path), get(after, path)
-    if (new['present'] and hook_source is not None and not equal(old, new)
-            and (not old['present'] or old['value'] == {} or new['value'] == {}
-                 or consent_additions(old['value'], new['value']))):
-        selected = new['value']
+    omitted_revocation = (not new['present'] and old['present']
+                          and type(old['value']) is dict)
+    if (hook_source is not None and not equal(old, new)
+            and (omitted_revocation or new['present']
+                 and (not old['present'] or old['value'] == {} or new['value'] == {}
+                      or consent_additions(old['value'], new['value'])))):
+        selected = new.get('value', {})
         if old['present'] and consent_additions(old['value'], selected):
             # Other installed sources retain their exact existing records. All
             # additions and this source's aliases still undergo full validation.
@@ -374,7 +377,7 @@ def reviewed_rollback(original: str, installed: str, changes: list) -> str:
         if path[:2] != ('hooks', 'state'):
             continue
         if path == ('hooks', 'state'):
-            if row['after'] == {'present': True, 'value': {}}:
+            if row['after'] in ({'present': False}, {'present': True, 'value': {}}):
                 if (not equal(get(before, path), get(current, path))
                         or not equal(get(current, path), row['before'])):
                     raise ValueError('Complete revocation needs an unchanged trusted rollback baseline')

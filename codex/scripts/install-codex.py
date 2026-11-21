@@ -493,7 +493,8 @@ def effective_previous_review():
             changes[path] = {'path': list(path), 'before': compat.get(previous, path), 'after': value}
         old_states = previous.get('hooks', {}).get('state', {})
         new_states = observed.get('hooks', {}).get('state', {})
-        if not old_states and compat.get(observed, ('hooks', 'state'))['present']:
+        if not old_states and (compat.get(observed, ('hooks', 'state'))['present']
+                               or ('hooks', 'state') in changes):
             compat.validate_native_consent(new_states, str(Path(review['home']) / '.codex/hooks.json'))
             changes = {path: row for path, row in changes.items() if path[:2] != ('hooks', 'state')}
             changes[('hooks', 'state')] = {'path': ['hooks', 'state'],
@@ -531,7 +532,8 @@ def update_desktop_text(canonical, original):
         approved = tomllib.loads(review['observed'])
         observed = tomllib.loads(rebase_reviewed_hook_keys(original, review))
         actual = compat.get(observed, state_path)
-        if not actual['present'] or type(actual['value']) is not dict:
+        if ((not actual['present'] and compat.get(approved, state_path)['present'])
+                or actual['present'] and type(actual['value']) is not dict):
             raise ValueError('Native hook consent disappeared after its pinned review')
         preserved = preserve_hook_disables(approved, observed)
         if not compat.equal(compat.get(preserved, state_path), actual):
