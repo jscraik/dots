@@ -711,7 +711,7 @@
         "Bind only generic harness resource placeholders, preserving tool commands as data",
         "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "ff5ae651c06ef4210d2658d8081a8494c8742b0efa9c5b8b8aaf5af7630a9cdd"
+      "candidate_sha256": "50ae36a4abbf172cfb91420c511d18b7174d2540c211d76682be04ff89fba9c4"
     },
     {
       "path": "codex/scripts/core-hook-fixture-manifest.py",

@@ -21,5 +21,5 @@ if isinstance(data, dict):
         source = str(Path(__file__).resolve().parents[1])
         tool_input["command"] = tool_input["command"].replace(
             "${HOME}/dev/dots/codex", source
-        )
+        ).replace("$repo_root/scripts/run-auth-backed.sh", source + "/scripts/run-auth-backed.sh")
 print(json.dumps(data), end="")
