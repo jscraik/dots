@@ -1245,7 +1245,7 @@ def _codex_no_findings_report(body: str, head_sha: str | None) -> bool:
         r"Codex Review: Didn't find any major issues\. "
         r"(?:Already looking forward to the next diff\.|Keep them coming!|"
         r"More of your lovely PRs please\.|Chef's kiss\.|You're on a roll\.|:tada:|Delightful!|"
-        r"Breezy!|Swish!|Hooray!|Bravo\.|:rocket:|:\+1:|Can't wait for the next one!|Another round soon, please!)"
+        r"Breezy!|Swish!|Hooray!|Bravo\.|Keep it up!|:rocket:|:\+1:|Can't wait for the next one!|Another round soon, please!)"
         r"\s+\*\*Reviewed commit:\*\* `([0-9a-f]{7,40}|[0-9a-f]{64})`\s+(.+?)\s*",
         _codex_receipt_body(body), re.DOTALL,
     )

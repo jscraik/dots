@@ -743,7 +743,7 @@
         "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "1af21f53e52e4953787e69f1ed989999ead6dfd3e1232594d72bde0c7473e5c9"
+      "candidate_sha256": "83d1e690df964c2fd418b756df72b7060e442030b67585a5bcada9a377495e8c"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
@@ -848,7 +848,7 @@
         "Add missing-check and dismissed historical-review scenarios from the coordinated follow-up.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "1791ced749f27f2f017fa54fb2bad59dc041a757eb964c27e73fd201ef7b24a9"
+      "candidate_sha256": "0bf20720594f9169eadd9a67007e5ec8411803c54822163299cf11cfb9280477"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",
