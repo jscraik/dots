@@ -65,7 +65,11 @@ jobs:
             export DOTS_CODEX_BIN=/tmp/dots-ci-tools/codex
             echo 'Linux pinned CLI compatibility only; Desktop app-runtime proof is a separate local check.'
             "$DOTS_CODEX_BIN" --version
-            /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -v
+            export DOTS_REQUIRE_PROTECTED_TOOLCHAIN=1
+            /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_hook_handlers.py -k raw_api_merge_accepts_only_the_receipt_target -v --failfast
+            /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_installation_route.py -k partial_cutover_rolls_back_without_resuming_activation -v --failfast
+            /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_installation_route.py -k policy_transition_preserves_selected_preferences_and_exact_rollback -v --failfast
+            /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -v --failfast
       - run:
           name: Check shell syntax
           command: bash -n scripts/resolve-homebrew-bin.sh

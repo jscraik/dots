@@ -18,7 +18,7 @@ from migration_scope import deployment_module, require_policy_path, require_poli
 require_policy_scope()
 
 BRAID_STORE_PREFIX = "braid-"
-MAX_BRAID_BYTES = 16 * 1024 * 1024
+MAX_BRAID_BYTES = 64 * 1024 * 1024
 
 
 def guard_manifest() -> dict:

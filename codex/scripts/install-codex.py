@@ -20,11 +20,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 COPY_DIRECTORIES = frozenset({'hooks', 'scripts', 'instructions', 'schemas', 'model-catalogs', 'rules'})
 SYSTEM_PATH = '/usr/bin:/bin:/usr/sbin:/sbin'
+SYSTEM_EXECUTABLES = {'bash': Path('/bin/bash'), 'git': Path('/usr/bin/git')}
 
 
 def system_executable(name):
-    paths = {'git': Path('/usr/bin/git'), 'bash': Path('/bin/bash')}
-    resolved = paths[name].resolve(strict=True)
+    """Resolve a fixed executable whose complete path is root-controlled."""
+    try:
+        resolved = SYSTEM_EXECUTABLES[name].resolve(strict=True)
+    except (KeyError, OSError) as error:
+        raise ValueError(f'Required system executable is unavailable: {name}') from error
     info = resolved.stat()
     if (not stat.S_ISREG(info.st_mode) or not os.access(resolved, os.X_OK)
             or any(path.stat().st_uid != 0 or path.stat().st_mode & 0o022
@@ -185,7 +189,7 @@ def store_braid(payload, home, source):
     source = Path(source)
     if not source.is_absolute():
         raise ValueError('An explicit absolute Braid executable is required')
-    raw = SCOPE.read_regular(source)
+    raw = SCOPE.read_regular(source, 64 * 1024 * 1024)
     if not source.lstat().st_mode & stat.S_IXUSR:
         raise ValueError('The original Braid input must be executable by its owner')
     digest = hashlib.sha256(raw).hexdigest()

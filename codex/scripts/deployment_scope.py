@@ -83,8 +83,15 @@ def physical(path):
     return path
 
 
-def read_regular(path, limit=16 * 1024 * 1024):
+def read_regular(path, limit=None):
     path = physical(path)
+    if limit is None:
+        # Only content-addressed adapter payloads receive the larger default.
+        packaged_braid = (path.name == 'braid' and path.parent.name.startswith('braid-')
+                          and len(path.parent.name) == 70
+                          and all(char in '0123456789abcdef' for char in path.parent.name[6:])
+                          and path.parent.parent.name == 'hooks')
+        limit = (64 if packaged_braid else 16) * 1024 * 1024
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
         before = os.fstat(fd)
