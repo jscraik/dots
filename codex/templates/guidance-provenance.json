@@ -522,7 +522,7 @@
       "deferred_context_pointers": [
         "../scripts/build-log-summary.md"
       ],
-      "candidate_sha256": "88477a309e8ecbc5a1ba9cfccadeeb449d29e922bc894f71b280167d15035ab4",
+      "candidate_sha256": "fb470fabfcf1bbf5eabbe01fbece818b3d74ed70a8b1164363891494d06661d3",
       "transformation": "State installation authority separately from each machine's verified active or rollback state."
     },
     {
