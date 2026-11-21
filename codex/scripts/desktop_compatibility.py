@@ -123,7 +123,7 @@ def delta(installed: str, observed: str, *, hook_source: str | None = None) -> l
             if equal(old, new):
                 continue
             if (type(old) is not dict or type(new) is not dict
-                    or type(old.get('enabled', True)) is not bool or type(new.get('enabled', True)) is not bool
+                    or type(old.get('enabled', True)) is not bool or type(new.get('enabled')) is not bool
                     or type(old.get('trusted_hash')) is not str
                     or not re.fullmatch('sha256:[0-9a-f]{64}', old['trusted_hash'])
                     or not equal({k: v for k, v in old.items() if k != 'enabled'},

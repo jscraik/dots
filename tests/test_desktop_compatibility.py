@@ -34,8 +34,9 @@ class DesktopCompatibilityTests(unittest.TestCase):
             'after': {'present': True, 'value': False}}])
         toggle = adapter.delta(default_enabled, disabled, hook_source=source)
         self.assertEqual(adapter.reviewed_rollback(default_enabled, default_enabled, toggle), disabled)
-        enabled_again = adapter.delta(disabled, default_enabled, hook_source=source)
-        self.assertEqual(adapter.reviewed_rollback(disabled, disabled, enabled_again), default_enabled)
+        self.assertRaises(ValueError, adapter.delta, disabled, default_enabled, hook_source=source)
+        enabled_again = adapter.delta(disabled, observed, hook_source=source)
+        self.assertEqual(adapter.reviewed_rollback(disabled, disabled, enabled_again), observed)
         self.assertTrue(adapter.requires_preservation(tomllib.loads(observed)))
         bad_states = [
             {key: states[key], key.removeprefix('user:'): states[key]},
