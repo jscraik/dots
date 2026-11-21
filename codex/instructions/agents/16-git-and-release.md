@@ -98,6 +98,15 @@ baseline; its safeguards apply only to the selected authorized workflow.
   `--retry-unavailable-source <issue-comment-url>` once that authenticated
   response is at least one hour old. The source must belong to the same PR;
   the source-bound request is deduplicated and never enables paid reviews.
+  A supported SHA-less quota notification may bind to one unedited canonical
+  current-head request by the authenticated actor within the preceding sixty
+  seconds, with no competing invocation. Require the fixed CodeRabbit identity,
+  complete notification format and unchanged request/reply records at consumption.
+  This temporal association permits inspection only; it proves no provider
+  linkage, completed review or clearance. Wait at least one hour or the stated
+  allowance delay, whichever is longer. This evidence does not establish billing
+  policy; verify included capacity and the existing paid-continuation boundary
+  before consuming it. Request wording cannot enforce provider billing.
   If a later authenticated CodeRabbit concern leaves the same head outstanding,
   use `--reinspect-source <issue-or-inline-comment-url>` for one fresh full inspection.
   This route requires that exact PR's current-head bot concern to follow an
