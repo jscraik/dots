@@ -848,7 +848,7 @@
         "Add missing-check and dismissed historical-review scenarios from the coordinated follow-up.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "75b6ad75606e0497a67e4231b33226b787aae3feded21104e3bfc8904e5e61ec"
+      "candidate_sha256": "1791ced749f27f2f017fa54fb2bad59dc041a757eb964c27e73fd201ef7b24a9"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",

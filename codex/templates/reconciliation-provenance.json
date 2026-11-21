@@ -170,7 +170,7 @@
     {
       "path": "codex/scripts/tests/test_pr_readiness.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "75b6ad75606e0497a67e4231b33226b787aae3feded21104e3bfc8904e5e61ec",
+      "candidate_sha256": "1791ced749f27f2f017fa54fb2bad59dc041a757eb964c27e73fd201ef7b24a9",
       "transformation": "Preserve selected checks and add synthetic missing-check and dismissed historical-review scenarios from the coordinated follow-up; production policy is unchanged.",
       "additional_source": {
         "revision": "d3b8f231dc659bde32ebac5e5c305b75b7589d4e",
