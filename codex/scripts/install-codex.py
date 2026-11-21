@@ -60,6 +60,7 @@ def child_environment():
     return env
 
 
+BRAID_STORE_PREFIX = 'braid-'
 # Exact source-only differences in the reviewed 21ff7a3 installation. These
 # exceptions never change the package, normal dispatch or runtime policy.
 FORMATTING_REVIEW_BASELINE = {
@@ -158,6 +159,38 @@ def copy_resource(source, target):
         raise ValueError('Only managed regular resources may be copied')
     if semantic(describe(source)) != semantic(before) or semantic(describe(target)) != semantic(before):
         raise ValueError('Resource changed during copy')
+
+
+def packaged_braid(payload):
+    """Return the one content-addressed Braid copy in the managed hook store."""
+    store = payload / 'codex/hooks'
+    candidates = list(store.glob(BRAID_STORE_PREFIX + '*/braid'))
+    if len(candidates) != 1:
+        raise ValueError('The package must contain exactly one managed Braid executable')
+    candidate = candidates[0]
+    digest = candidate.parent.name.removeprefix(BRAID_STORE_PREFIX)
+    if (candidate.parent.parent != store or len(digest) != 64
+            or any(char not in '0123456789abcdef' for char in digest)
+            or hashlib.sha256(SCOPE.read_regular(candidate)).hexdigest() != digest):
+        raise ValueError('The managed Braid executable does not match its content address')
+    return candidate
+
+
+def store_braid(payload, home, source):
+    """Snapshot an external adapter into the sealed, content-addressed hook store."""
+    source = Path(source)
+    if not source.is_absolute():
+        raise ValueError('An explicit absolute Braid executable is required')
+    raw = SCOPE.read_regular(source, 64 * 1024 * 1024)
+    if not source.lstat().st_mode & stat.S_IXUSR:
+        raise ValueError('The original Braid input must be executable by its owner')
+    digest = hashlib.sha256(raw).hexdigest()
+    destination = payload / 'codex/hooks' / (BRAID_STORE_PREFIX + digest) / 'braid'
+    destination.parent.mkdir(mode=0o700)
+    write(destination, raw, 0o500)
+    if packaged_braid(payload) != destination:
+        raise ValueError('The managed Braid copy could not be content-bound')
+    return home / '.codex/hooks' / destination.relative_to(payload / 'codex/hooks')
 
 
 def remove_resource(path):
@@ -1000,10 +1033,9 @@ def assemble(args, *, policy_update=False):
             target.unlink()
         write(target, text.encode())
     write(payload / 'codex/requirements.toml', requirements.encode())
-    braid = Path(args.braid_bin)
-    if not braid.is_absolute() or not braid.is_file():
-        raise ValueError('An explicit existing Braid executable is required; it is not executed')
-    manifest = (payload / 'codex/templates/hooks.json').read_text().replace('@BRAID_COMMAND@', shlex.quote(str(braid)))
+    braid = store_braid(payload, home, args.braid_bin)
+    manifest = (payload / 'codex/templates/hooks.json').read_text().replace(
+        '@BRAID_COMMAND@', shlex.quote(str(braid)))
     write(payload / 'codex/hooks/hooks.json', manifest.encode())
     mapping = read_json(payload / 'codex/templates/projection-map.json')
     for row in mapping['codex_projection']:
@@ -1435,6 +1467,7 @@ def verified_public_payload(state, *, formatting_review=False):
         'docs', 'oss-local', 'oss-local-code', 'oss-local-fallback', 'oss-security', 'oss-cloud', 'oss-inspect'))
     generated.update('codex/rules/' + name for name in (
         'automation.rules', 'default.rules', 'foundation.rules', 'guard.rules', 'pr.rules', 'project.rules'))
+    generated.add(packaged_braid(payload).relative_to(payload).as_posix())
     actual_files = {row['path'] for row in SCOPE.fingerprint(payload)}
     if actual_files != {row['path'] for row in frozen['files']} | generated:
         raise ValueError('Packaged file inventory changed')

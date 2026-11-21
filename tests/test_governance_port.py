@@ -1,4 +1,5 @@
 """Exercise the complete governance entrypoint only in disposable homes."""
+import hashlib
 import importlib.util
 import json
 import os
@@ -14,6 +15,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
+BRAID_FIXTURE = b'#!/bin/sh\nprintf \'{"continue":true}\\n\'\n'
 SPEC = importlib.util.spec_from_file_location('generator', ROOT / 'scripts/generate-codex-policy.py')
 GEN = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(GEN)
@@ -107,8 +109,13 @@ class GovernancePortTests(unittest.TestCase):
                 destination.symlink_to(self.codex / filename)
         source = self.codex / 'hooks/hooks.json'
         source.parent.mkdir(parents=True)
+        digest = hashlib.sha256(BRAID_FIXTURE).hexdigest()
+        braid = source.parent / ('braid-' + digest) / 'braid'
+        braid.parent.mkdir()
+        braid.write_bytes(BRAID_FIXTURE)
+        braid.chmod(0o500)
         manifest = (ROOT / 'codex/templates/hooks.json').read_text().replace(
-            '@BRAID_COMMAND@', shlex.quote(str(self.home / '.local/bin/braid')))
+            '@BRAID_COMMAND@', shlex.quote(str(runtime / 'hooks' / braid.parent.name / 'braid')))
         source.write_text(manifest)
         # No handler is run, no registry is trusted, and no consent is installed.
         for name in ('auth.json', 'session_index.json', 'state.db'):
@@ -151,6 +158,38 @@ class GovernancePortTests(unittest.TestCase):
         self.assertEqual(target.read_text(), 'preserve-me')
         self.assertFalse(list(target.parent.glob('.hooks-backup-*')))
 
+    def test_braid_copy_rejects_replacement_and_unsafe_metadata(self):
+        source, _ = self.runtime_fixture()
+        braid = next(source.parent.glob('braid-*/braid'))
+
+        def render_without_braid():
+            return subprocess.run([sys.executable, '-B', str(self.codex / 'scripts/project-codex-hooks.py'),
+                '--source', str(source), '--without-braid'], env=self.env,
+                capture_output=True, text=True, timeout=10, check=False)
+
+        original = braid.read_bytes()
+        self.assertEqual(render_without_braid().returncode, 0)
+        braid.chmod(0o401)
+        self.assertNotEqual(render_without_braid().returncode, 0)
+        braid.chmod(0o500)
+        self.assertEqual(render_without_braid().returncode, 0)
+        braid.chmod(0o700)
+        braid.write_bytes(original + b'# replacement\n')
+        braid.chmod(0o500)
+        self.assertNotEqual(render_without_braid().returncode, 0)
+        braid.chmod(0o700)
+        braid.write_bytes(original)
+        self.assertNotEqual(render_without_braid().returncode, 0)
+        braid.chmod(0o500)
+        peer = braid.with_name('peer')
+        os.link(braid, peer)
+        self.assertNotEqual(render_without_braid().returncode, 0)
+        peer.unlink()
+        held = braid.with_name('held')
+        braid.rename(held)
+        braid.symlink_to(held)
+        self.assertNotEqual(render_without_braid().returncode, 0)
+
     def test_hook_hardlink_and_external_target_rejected(self):
         source, target = self.runtime_fixture()
         os.link(source, target)
@@ -175,6 +214,21 @@ class GovernancePortTests(unittest.TestCase):
             self.assertIn(old, self.generated['config'])
             result = self.validate(self.generated['config'].replace(old, new))
             self.assertEqual(result.returncode, 65, result.stdout + result.stderr)
+
+    def test_networked_profiles_deny_auth_fifo(self):
+        fifo = str(self.home / '.codex/.env')
+        for profile_name in ('workspace-net', 'readonly-net'):
+            with self.subTest(profile=profile_name):
+                profile = self.root['permissions'][profile_name]
+                self.assertEqual(profile['filesystem'][fifo], 'deny')
+                weakened = tomllib.loads(self.generated['config'])
+                weakened['permissions'][profile_name]['filesystem'][fifo] = 'read'
+                result = self.validate(GEN.toml_document(weakened))
+                self.assertEqual(result.returncode, 65, result.stdout + result.stderr)
+                self.assertIn(
+                    f'permissions.{profile_name}.filesystem must deny access to {fifo}',
+                    result.stdout,
+                )
 
     def test_missing_schema_is_unavailable_not_pass(self):
         (self.codex / 'schemas/config.schema.json').unlink()
