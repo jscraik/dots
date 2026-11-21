@@ -98,8 +98,16 @@ def delta(installed: str, observed: str, *, hook_source: str | None = None) -> l
     path = ('hooks', 'state')
     old, new = get(before, path), get(after, path)
     if (new['present'] and hook_source is not None and not equal(old, new)
-            and (not old['present'] or old['value'] == {} or new['value'] == {})):
-        validate_native_consent(new['value'], hook_source)
+            and (not old['present'] or old['value'] == {} or new['value'] == {}
+                 or consent_additions(old['value'], new['value']))):
+        selected = new['value']
+        if old['present'] and consent_additions(old['value'], selected):
+            # Other installed sources retain their exact existing records. All
+            # additions and this source's aliases still undergo full validation.
+            selected = {key: value for key, value in selected.items()
+                if key not in old['value'] or type(key) is str
+                and key.rsplit(':', 3)[0] in {hook_source, 'user:' + hook_source}}
+        validate_native_consent(selected, hook_source)
         changes.append({'path': list(path), 'before': old, 'after': new})
         put(reduced, path, old)
     else:
@@ -112,7 +120,7 @@ def delta(installed: str, observed: str, *, hook_source: str | None = None) -> l
             if equal(old, new):
                 continue
             if (type(old) is not dict or type(new) is not dict
-                    or type(old.get('enabled')) is not bool or type(new.get('enabled')) is not bool
+                    or type(old.get('enabled', True)) is not bool or type(new.get('enabled', True)) is not bool
                     or type(old.get('trusted_hash')) is not str
                     or not re.fullmatch('sha256:[0-9a-f]{64}', old['trusted_hash'])
                     or not equal({k: v for k, v in old.items() if k != 'enabled'},
@@ -132,6 +140,12 @@ def delta(installed: str, observed: str, *, hook_source: str | None = None) -> l
     return changes
 
 
+def consent_additions(before: object, after: object) -> bool:
+    """Recognise strict additions without changing any existing identity bytes."""
+    return (type(before) is dict and type(after) is dict and before.keys() < after.keys()
+            and all(equal(value, after[key]) for key, value in before.items()))
+
+
 def validate_native_consent(states: object, hook_source: str) -> None:
     """Restrict an explicit review to this installation's native user hooks."""
     source = Path(hook_source)
@@ -145,8 +159,8 @@ def validate_native_consent(states: object, hook_source: str) -> None:
         parts = key.rsplit(':', 3) if type(key) is str else []
         if (len(parts) != 4 or parts[0] not in {hook_source, 'user:' + hook_source} or parts[1] not in events
                 or any(not re.fullmatch(r'0|[1-9][0-9]*', index) for index in parts[2:])
-                or type(row) is not dict or set(row) != {'enabled', 'trusted_hash'}
-                or type(row['enabled']) is not bool or type(row['trusted_hash']) is not str
+                or type(row) is not dict or not {'trusted_hash'} <= set(row) <= {'enabled', 'trusted_hash'}
+                or type(row.get('enabled', True)) is not bool or type(row['trusted_hash']) is not str
                 or not re.fullmatch(r'sha256:[0-9a-f]{64}', row['trusted_hash'])):
             raise ValueError('Native consent contains an unbound identity or invalid trust state')
         identity = tuple(parts[1:])
@@ -350,6 +364,10 @@ def repair_candidate(installed: str, observed: str) -> dict:
 
 def reviewed_rollback(original: str, installed: str, changes: list) -> str:
     """A toggle must also bind an unchanged trusted identity in the rollback home."""
+    if original == '' and (not changes or any(
+            tuple(row['path']) != ('hooks', 'state') or not row['after'].get('value')
+            for row in changes)):
+        raise ValueError('Absent config baseline permits only a nonempty native consent review')
     before, current = tomllib.loads(original), tomllib.loads(installed)
     for row in changes:
         path = tuple(row['path'])
@@ -362,6 +380,11 @@ def reviewed_rollback(original: str, installed: str, changes: list) -> str:
                     raise ValueError('Complete revocation needs an unchanged trusted rollback baseline')
                 continue
             original_state, installed_state = get(before, path), get(current, path)
+            if (original_state['present'] and installed_state['present']
+                    and equal(original_state, installed_state)
+                    and equal(installed_state, row['before'])
+                    and consent_additions(installed_state['value'], row['after']['value'])):
+                continue
             if (any(value['present'] and value['value'] != {}
                     for value in (original_state, installed_state))
                     or not equal(installed_state, row['before'])):

@@ -25,6 +25,17 @@ class DesktopCompatibilityTests(unittest.TestCase):
         self.assertEqual([row['path'] for row in changes], [['hooks', 'state']])
         # Native CLI generations use both the exact source prefix and user:.
         adapter.delta(installed, observed.replace('user:' + source, source), hook_source=source)
+        # The native schema defaults enabled to true when the field is absent.
+        default_enabled = adapter.overlay(installed, [{'path': ['hooks', 'state'],
+            'after': {'present': True, 'value': {key: {'trusted_hash': 'sha256:' + 'a' * 64}}}}])
+        default_changes = adapter.delta(installed, default_enabled, hook_source=source)
+        self.assertEqual(adapter.reviewed_rollback(installed, installed, default_changes), default_enabled)
+        disabled = adapter.overlay(default_enabled, [{'path': ['hooks', 'state', key, 'enabled'],
+            'after': {'present': True, 'value': False}}])
+        toggle = adapter.delta(default_enabled, disabled, hook_source=source)
+        self.assertEqual(adapter.reviewed_rollback(default_enabled, default_enabled, toggle), disabled)
+        enabled_again = adapter.delta(disabled, default_enabled, hook_source=source)
+        self.assertEqual(adapter.reviewed_rollback(disabled, disabled, enabled_again), default_enabled)
         self.assertTrue(adapter.requires_preservation(tomllib.loads(observed)))
         bad_states = [
             {key: states[key], key.removeprefix('user:'): states[key]},
@@ -68,6 +79,35 @@ class DesktopCompatibilityTests(unittest.TestCase):
         self.assertRaises(ValueError, adapter.reviewed_rollback, trusted, revoked, fresh_changes)
         self.assertRaises(ValueError, adapter.delta, installed,
             revoked.replace('on-request', 'never'), hook_source=source)
+
+    def test_incremental_native_consent_preserves_existing_trust(self):
+        adapter, installed, _ = self.seven_fixture()
+        source = '/fixture/.codex/hooks.json'
+        first = source + ':pre_tool_use:0:0'
+        second = source + ':stop:0:0'
+        states = {first: {'trusted_hash': 'sha256:' + 'a' * 64}}
+        trusted = adapter.overlay(installed, [{'path': ['hooks', 'state'],
+            'after': {'present': True, 'value': states}}])
+        additional = dict(states, **{second: {'enabled': True, 'trusted_hash': 'sha256:' + 'b' * 64}})
+        observed = adapter.overlay(trusted, [{'path': ['hooks', 'state'],
+            'after': {'present': True, 'value': additional}}])
+        self.assertRaises(ValueError, adapter.delta, trusted, observed)
+        changes = adapter.delta(trusted, observed, hook_source=source)
+        self.assertEqual(adapter.reviewed_rollback(trusted, trusted, changes), observed)
+        self.assertRaises(ValueError, adapter.reviewed_rollback, installed, trusted, changes)
+        self.assertRaises(ValueError, adapter.delta, trusted,
+            observed.replace('a' * 64, 'c' * 64), hook_source=source)
+        self.assertRaises(ValueError, adapter.delta, trusted,
+            observed.replace(second, 'user:' + first), hook_source=source)
+        foreign = trusted.replace(source, '/other/hooks.json')
+        mixed = adapter.overlay(foreign, [{'path': ['hooks', 'state', second],
+            'after': {'present': True, 'value': additional[second]}}])
+        mixed_changes = adapter.delta(foreign, mixed, hook_source=source)
+        self.assertEqual(adapter.reviewed_rollback(foreign, foreign, mixed_changes), mixed)
+        empty = adapter.overlay(installed, [{'path': ['hooks', 'state'],
+            'after': {'present': True, 'value': {}}}])
+        empty_changes = adapter.delta(installed, empty, hook_source=source)
+        self.assertRaises(ValueError, adapter.reviewed_rollback, '', installed, empty_changes)
 
     def paired_fixture(self):
         adapter, installed, observed = self.seven_fixture()

@@ -449,8 +449,70 @@ class InstallationRouteTests(unittest.TestCase):
         self.assertEqual(set(restored), {'hooks'})
         self.assertFalse((self.state / 'backups/config.toml').exists())
 
+    def test_absent_config_review_rejects_empty_and_non_consent_deltas(self):
+        path = self.runtime / 'config.toml'
+        path.unlink()
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        installed = path.read_bytes()
+        self.assertNotEqual(self.operation('prepare-desktop-review', digest).returncode, 0)
+        self.assertFalse((self.state / 'desktop-review.json').exists())
+        data = tomllib.loads(path.read_text())
+        data.setdefault('desktop', {})['selected-avatar-id'] = 'independent-avatar'
+        path.write_text(GEN.toml_document(data))
+        observed = path.read_bytes()
+        self.assertNotEqual(self.operation('prepare-desktop-review', digest).returncode, 0)
+        self.assertEqual(path.read_bytes(), observed)
+        self.assertFalse((self.state / 'desktop-review.json').exists())
+        path.write_bytes(installed)
+        self.success(self.operation('rollback', digest))
+        self.assertFalse(path.exists())
+
     def test_native_consent_survives_reviewed_update_and_rollback(self):
         self.check_reviewed_native_update()
+
+    def test_incremental_native_consent_review_after_reviewed_update(self):
+        path = self.runtime / 'config.toml'
+        first_digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', first_digest))
+        data = tomllib.loads(path.read_text())
+        previous = {'user:' + str(self.runtime / 'hooks.json') + ':stop:0:0':
+                    {'trusted_hash': 'sha256:' + 'a' * 64}}
+        data['hooks'] = {'state': previous}
+        path.write_text(GEN.toml_document(data))
+        pin = self.success(self.operation('prepare-desktop-review', first_digest))['review_sha256']
+        self.second_installation()
+        digest = self.success(self.run_cli('prepare', '--home', self.home,
+            '--state-dir', self.state, '--bindings', self.bindings,
+            '--braid-bin', self.fixture.bin / 'braid', '--mode', 'rehearsal',
+            '--previous-desktop-review-sha256', pin))['plan_digest']
+        self.success(self.operation('apply', digest))
+        data = tomllib.loads(path.read_text())
+        key = 'user:' + str(self.runtime / 'hooks.json') + ':pre_tool_use:0:0'
+        expected = previous | {key: {'trusted_hash': 'sha256:' + 'b' * 64}}
+        data['hooks']['state'] = expected
+        path.write_text(GEN.toml_document(data))
+        proposal = self.success(self.operation('prepare-desktop-review', digest))
+        arguments = ('--state-dir', self.state, '--plan-digest', digest,
+                     '--desktop-review-sha256', proposal['review_sha256'])
+        self.success(self.run_cli('check', *arguments))
+        second_state, second_payload = self.state, self.payload
+        self.state = self.home / 'installation/three'
+        self.payload = self.state / 'payload'
+        values = json.loads(self.bindings.read_text())
+        self.bindings.write_text(json.dumps({key: value.replace(str(second_payload), str(self.payload))
+                                            for key, value in values.items()}))
+        third = self.success(self.run_cli('prepare', '--home', self.home,
+            '--state-dir', self.state, '--bindings', self.bindings,
+            '--braid-bin', self.fixture.bin / 'braid', '--mode', 'rehearsal',
+            '--previous-desktop-review-sha256', proposal['review_sha256']))['plan_digest']
+        self.success(self.operation('apply', third))
+        self.success(self.operation('check', third))
+        self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], expected)
+        self.success(self.operation('rollback', third))
+        self.state, self.payload = second_state, second_payload
+        self.success(self.run_cli('rollback', *arguments))
+        self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], expected)
 
     def test_complete_revocation_of_updated_consent_survives_reviewed_rollback(self):
         self.check_reviewed_native_update(revoke=True)
