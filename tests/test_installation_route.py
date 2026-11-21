@@ -139,6 +139,7 @@ class InstallationRouteTests(unittest.TestCase):
         self.assertEqual(self.snapshot(), self.before)
 
     def test_selected_interpreter_with_spaces_does_not_shadow_other_tools(self):
+        self.require_operator_toolchain()
         runtime = self.home / 'selected runtime with spaces'
         runtime.mkdir()
         interpreter = runtime / 'python3'
@@ -149,6 +150,7 @@ class InstallationRouteTests(unittest.TestCase):
         sibling.chmod(0o700)
 
         def selected_cli(*args):
+            self.require_operator_toolchain()
             return subprocess.run([str(interpreter), '-B', str(self.source_root / 'scripts/install-codex.py'),
                 *map(str, args)], cwd=self.source_root, env=self.env, text=True,
                 capture_output=True, timeout=120, check=False)
@@ -273,12 +275,15 @@ class InstallationRouteTests(unittest.TestCase):
         self.source_tree = subprocess.run(['git', 'rev-parse', f'{self.source_revision}^{{tree}}'], cwd=self.source_root,
             env=self.env, text=True, capture_output=True, timeout=15, check=True).stdout.strip()
 
-    def run_cli(self, *args, source_pin=True):
+    def require_operator_toolchain(self):
         if not os.path.lexists('/opt/dots-hook-tools'):
             reason = 'Installation operator tests require the separately administered protected toolchain'
             if os.environ.get('DOTS_REQUIRE_PROTECTED_TOOLCHAIN') == '1':
                 self.fail(reason)
             self.skipTest(reason + '; component tests remain available without live installation')
+
+    def run_cli(self, *args, source_pin=True):
+        self.require_operator_toolchain()
         if source_pin and args and args[0] in {'prepare', 'prepare-policy-update'} and '--source-revision' not in args:
             args = (*args, '--source-revision', self.source_revision)
         return subprocess.run([sys.executable, '-B', str(self.source_root / 'scripts/install-codex.py'),
@@ -286,14 +291,22 @@ class InstallationRouteTests(unittest.TestCase):
             text=True, capture_output=True, timeout=120, check=False)
 
     def test_operator_prerequisite_is_explicit_and_required_in_ci(self):
+        entrypoints = (lambda: self.run_cli('check'),
+                       lambda: self.packaged_operation('check', 'unused'),
+                       self.legacy_reviewed_state,
+                       self.test_selected_interpreter_with_spaces_does_not_shadow_other_tools)
         with (mock.patch('os.path.lexists', return_value=False),
               mock.patch.dict(os.environ, {'DOTS_REQUIRE_PROTECTED_TOOLCHAIN': ''})):
-            with self.assertRaisesRegex(unittest.SkipTest, 'separately administered'):
-                self.run_cli('check')
+            for entrypoint in entrypoints:
+                with self.subTest(entrypoint=entrypoint), self.assertRaisesRegex(
+                        unittest.SkipTest, 'separately administered'):
+                    entrypoint()
         with (mock.patch('os.path.lexists', return_value=False),
               mock.patch.dict(os.environ, {'DOTS_REQUIRE_PROTECTED_TOOLCHAIN': '1'})):
-            with self.assertRaisesRegex(AssertionError, 'separately administered'):
-                self.run_cli('check')
+            for entrypoint in entrypoints:
+                with self.subTest(entrypoint=entrypoint), self.assertRaisesRegex(
+                        AssertionError, 'separately administered'):
+                    entrypoint()
 
     def prepare(self):
         return self.run_cli('prepare', '--home', self.home, '--state-dir', self.state,
@@ -1274,6 +1287,7 @@ with installer.renameable_directories(state, staged, target):
 
     def legacy_reviewed_state(self):
         """Build two real old-policy generations, never copy caller runtime state."""
+        self.require_operator_toolchain()
         source = self.home / 'legacy-source'
         source.mkdir()
         installer = self.import_installer(self.source_root)
@@ -1304,6 +1318,7 @@ with installer.renameable_directories(state, staged, target):
         self.bindings.write_text(json.dumps(values))
 
         def source_cli(*args):
+            self.require_operator_toolchain()
             if args and args[0] == 'prepare':
                 args = (*args, '--source-revision', legacy_revision)
             return subprocess.run([sys.executable, '-B', str(source / 'codex/scripts/install-codex.py'),
@@ -1323,6 +1338,7 @@ with installer.renameable_directories(state, staged, target):
         return digest, projects
 
     def packaged_operation(self, operation, digest):
+        self.require_operator_toolchain()
         return subprocess.run([sys.executable, '-B', str(self.payload / 'scripts/install-codex.py'),
             operation, '--state-dir', str(self.state), '--plan-digest', digest], cwd=self.payload,
             env=self.installed_env(), text=True, capture_output=True, timeout=180, check=False)
