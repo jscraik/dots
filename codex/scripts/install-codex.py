@@ -471,13 +471,31 @@ def effective_previous_review():
     return review
 
 
+def reviewed_plugin_validation_text(text, review):
+    """Exclude only exact pinned Desktop plugin tables from automatic policy."""
+    if not review:
+        return text
+    compat = module('reviewed_plugin_values', ROOT / 'codex/scripts/desktop_compatibility.py')
+    parsed = tomllib.loads(text)
+    changes = []
+    for row in review['changes']:
+        path = tuple(row['path'])
+        if len(path) != 2 or path[0] != 'plugins' or path[1] not in compat.DESKTOP_OWNED_COMPUTER_USE_PLUGIN_IDS:
+            continue
+        if not compat.equal(compat.get(parsed, path), row['after']):
+            raise ValueError('Pinned Desktop plugin registration changed')
+        changes.append({'path': list(path), 'after': {'present': False}})
+    return compat.overlay(text, changes)
+
+
 def update_desktop_text(canonical, original):
     import tomllib
     repair = module('update_policy', ROOT / 'codex/scripts/repair-runtime-config-drift.py')
-    merged, error = repair._canonical_with_desktop_plugins(canonical, original)
+    review = effective_previous_review()
+    merged, error = repair._canonical_with_desktop_plugins(
+        canonical, reviewed_plugin_validation_text(original, review))
     if merged is None:
         raise ValueError('Unsupported Desktop state: ' + str(error))
-    review = effective_previous_review()
     if review:
         compat = module('update_desktop', ROOT / 'codex/scripts/desktop_compatibility.py')
         parsed = tomllib.loads(canonical)
@@ -1309,6 +1327,8 @@ def apply(state, digest):
                     merged.encode()).hexdigest(), 'size': len(merged.encode())}, plan['expected']['config.toml']):
                 raise ValueError('Prepared canonical policy or Desktop state changed: ' + str(error))
             repair._validate_canonical_snapshot(canonical.decode())
+            validation_text, _ = normalized_desktop_update(merged, canonical.decode())
+            repair._validate_runtime_snapshot(validation_text)
             if original != merged.encode():
                 repair._write_repair(target, merged, expected=original,
                     unchanged=((ROOT / 'codex/config.toml', canonical),))

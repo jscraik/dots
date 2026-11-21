@@ -185,7 +185,7 @@
     {
       "path": "codex/scripts/validate-codex-config.py",
       "prior_candidate_sha256": "e9cdebab1d97447c1ac3ff1dce5894c7c13ccf095c2a1cc8e44716c103768e61",
-      "candidate_sha256": "dbe8ecf98ef21f1413742e005469d122602dc153b09eddb1197893a09d515fc9",
+      "candidate_sha256": "94bd99800f8434482eeb9edf4d7792358e8afdd6a1dc264a54cfdfef2278fa99",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
     },
     {

@@ -124,8 +124,6 @@ class PolicyProjectionTests(unittest.TestCase):
         self.assertIn('\n[desktop]\n', previous)
         plugin = '''[plugins."computer-use@openai-bundled"]
 enabled = false
-[plugins."computer-use@openai-bundled".mcp_servers.computer-use.tools.click]
-approval_mode = "prompt"
 '''
         previous = previous.replace('\n[desktop]\n', '\n' + plugin + '\n[desktop]\n', 1)
         runtime.write_text(previous)
@@ -143,6 +141,30 @@ approval_mode = "prompt"
         backup = Path(receipts[0]['backup_path'])
         self.assertTrue(backup.is_relative_to(fixture.home))
         self.assertEqual(backup.read_bytes(), previous.encode())
+
+    def test_drift_repair_rejects_desktop_plugin_authority(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        runtime = fixture.runtime / 'config.toml'
+        original = runtime.read_text()
+        plugins = (
+            '[plugins."computer-use@openai-bundled"]\nenabled = true\n',
+            '[plugins."computer-use@openai-bundled"]\nenabled = false\n'
+            '[plugins."computer-use@openai-bundled".mcp_servers.cua_repl]\n'
+            'default_tools_approval_mode = "auto"\n',
+            '[plugins."computer-use@openai-bundled"]\nenabled = false\n'
+            '[plugins."computer-use@openai-bundled".mcp_servers.cua_repl]\n'
+            'enabled_tools = ["click"]\n',
+            '[plugins."computer-use@openai-bundled"]\nenabled = false\n'
+            'command = "/unreviewed"\nenv = { TOKEN = "unreviewed" }\n',
+        )
+        for plugin in plugins:
+            with self.subTest(plugin=plugin):
+                previous = original.replace('\n[desktop]\n', '\n' + plugin + '\n[desktop]\n', 1)
+                runtime.write_text(previous)
+                result = fixture.project()
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(runtime.read_bytes(), previous.encode())
 
     def test_symlink_escape_and_bad_runtime_directory_preserve_targets(self):
         fixture = self.fixture
