@@ -155,8 +155,8 @@ class InstallationRouteTests(unittest.TestCase):
         sibling.chmod(0o700)
 
         def selected_cli(*args):
-            return subprocess.run([str(interpreter), '-B', str(ROOT / 'scripts/install-codex.py'),
-                *map(str, args)], cwd=ROOT, env=self.env, text=True,
+            return subprocess.run([str(interpreter), '-B', str(self.source_root / 'scripts/install-codex.py'),
+                *map(str, args)], cwd=self.source_root, env=self.env, text=True,
                 capture_output=True, timeout=120, check=False)
 
         self.run_cli = selected_cli
@@ -260,14 +260,36 @@ class InstallationRouteTests(unittest.TestCase):
         self.before = self.snapshot()
         self.env = {name: value for name, value in self.fixture.env.items()
                     if not name.startswith('DOTS_')}
+        self.source_root = self.home / 'installation-source'
+        names = subprocess.run(['git', 'ls-files', '-z'], cwd=ROOT, env=self.env,
+            text=True, capture_output=True, timeout=15, check=True).stdout.split('\0')
+        for name in filter(None, names):
+            target = self.source_root / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / name, target)
+        subprocess.run(['git', 'init', '-q', str(self.source_root)], env=self.env,
+            capture_output=True, timeout=15, check=True)
+        subprocess.run(['git', '-C', str(self.source_root), 'add', '.'], env=self.env,
+            capture_output=True, timeout=15, check=True)
+        subprocess.run(['git', '-C', str(self.source_root), '-c', 'user.name=Dots Test',
+            '-c', 'user.email=dots-test@example.invalid', 'commit', '-qm', 'installation source'], env=self.env,
+            capture_output=True, timeout=15, check=True)
+        self.source_revision = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=self.source_root,
+            env=self.env, text=True, capture_output=True, timeout=15, check=True).stdout.strip()
+        self.source_tree = subprocess.run(['git', 'rev-parse', f'{self.source_revision}^{{tree}}'], cwd=self.source_root,
+            env=self.env, text=True, capture_output=True, timeout=15, check=True).stdout.strip()
 
-    def run_cli(self, *args):
-        return subprocess.run([sys.executable, '-B', str(ROOT / 'scripts/install-codex.py'),
-            *map(str, args)], cwd=ROOT, env=self.env, text=True, capture_output=True, timeout=120, check=False)
+    def run_cli(self, *args, source_pin=True):
+        if source_pin and args and args[0] in {'prepare', 'prepare-policy-update'} and '--source-revision' not in args:
+            args = (*args, '--source-revision', self.source_revision)
+        return subprocess.run([sys.executable, '-B', str(self.source_root / 'scripts/install-codex.py'),
+            *map(str, args)], cwd=self.source_root, env=self.env,
+            text=True, capture_output=True, timeout=120, check=False)
 
     def prepare(self):
         return self.run_cli('prepare', '--home', self.home, '--state-dir', self.state,
-            '--bindings', self.bindings, '--braid-bin', self.fixture.bin / 'braid', '--mode', 'rehearsal')
+            '--bindings', self.bindings, '--braid-bin', self.fixture.bin / 'braid', '--mode', 'rehearsal',
+            '--source-revision', self.source_revision)
 
     def test_prepare_content_addresses_braid_in_managed_hook_store(self):
         external = self.fixture.bin / 'braid'
@@ -631,6 +653,11 @@ class InstallationRouteTests(unittest.TestCase):
         prepared = self.success(self.prepare())
         self.assertEqual(prepared['status'], 'prepared')
         self.assertEqual(self.snapshot(), self.before, 'Preparation must not install')
+        origin = json.loads((self.state / 'origin.json').read_text())
+        self.assertEqual(origin['revision'], self.source_revision)
+        self.assertEqual(origin['tree'], self.source_tree)
+        self.assertEqual(origin['files'], json.loads(
+            (self.payload / 'codex/.public-source.json').read_text()))
         digest = prepared['plan_digest']
         applied = self.success(self.run_cli('apply', '--state-dir', self.state, '--plan-digest', digest))
         self.assertEqual(applied['status'], 'applied')
@@ -684,6 +711,70 @@ class InstallationRouteTests(unittest.TestCase):
         spec.loader.exec_module(installer)
         return installer
 
+    def test_source_candidate_requires_clean_exact_head_and_reads_git_objects(self):
+        installer = self.import_installer(self.source_root)
+        source = self.home / 'reviewed-source'
+        (source / 'scripts').mkdir(parents=True)
+        (source / 'scripts/install-codex.py').write_text('reviewed installer\n')
+        policy = source / 'policy.txt'
+        reviewed = b'reviewed policy\n'
+        policy.write_bytes(reviewed)
+        subprocess.run(['git', 'init', '-q', str(source)], env=self.env,
+            capture_output=True, timeout=15, check=True)
+        subprocess.run(['git', '-C', str(source), 'add', '.'], env=self.env,
+            capture_output=True, timeout=15, check=True)
+        subprocess.run(['git', '-C', str(source), '-c', 'user.name=Dots Test',
+            '-c', 'user.email=dots-test@example.invalid', 'commit', '-qm', 'reviewed'], env=self.env,
+            capture_output=True, timeout=15, check=True)
+        revision = subprocess.run(['git', '-C', str(source), 'rev-parse', 'HEAD'], env=self.env,
+            text=True, capture_output=True, timeout=15, check=True).stdout.strip()
+        candidate = installer.source_candidate(source, revision)
+        rows = {row['path']: row for row in candidate['files']}
+        self.assertEqual(candidate['revision'], revision)
+        self.assertEqual(candidate['tree'], subprocess.run(
+            ['git', '-C', str(source), 'rev-parse', f'{revision}^{{tree}}'], env=self.env,
+            text=True, capture_output=True, timeout=15, check=True).stdout.strip())
+        policy.write_text('dirty worktree policy\n')
+        self.assertEqual(installer.source_blob(source, rows['policy.txt']), reviewed)
+        with self.assertRaisesRegex(ValueError, 'no tracked or untracked changes'):
+            installer.source_candidate(source, revision)
+        policy.write_bytes(reviewed)
+        untracked = source / 'scripts/untracked-policy.py'
+        untracked.write_text('unreviewed policy\n')
+        with self.assertRaisesRegex(ValueError, 'no tracked or untracked changes'):
+            installer.source_candidate(source, revision)
+        untracked.unlink()
+        policy.write_text('next reviewed policy\n')
+        subprocess.run(['git', '-C', str(source), 'add', 'policy.txt'], env=self.env,
+            capture_output=True, timeout=15, check=True)
+        subprocess.run(['git', '-C', str(source), '-c', 'user.name=Dots Test',
+            '-c', 'user.email=dots-test@example.invalid', 'commit', '-qm', 'next'], env=self.env,
+            capture_output=True, timeout=15, check=True)
+        replacement = subprocess.run(['git', '-C', str(source), 'rev-parse', 'HEAD'], env=self.env,
+            text=True, capture_output=True, timeout=15, check=True).stdout.strip()
+        subprocess.run(['git', '-C', str(source), 'reset', '--hard', '-q', revision], env=self.env,
+            capture_output=True, timeout=15, check=True)
+        subprocess.run(['git', '-C', str(source), 'replace', revision, replacement], env=self.env,
+            capture_output=True, timeout=15, check=True)
+        replaced = installer.source_candidate(source, revision)
+        self.assertEqual(replaced['tree'], candidate['tree'])
+        self.assertEqual(installer.source_blob(source,
+            {row['path']: row for row in replaced['files']}['policy.txt']), reviewed)
+        subprocess.run(['git', '-C', str(source), 'replace', '-d', revision], env=self.env,
+            capture_output=True, timeout=15, check=True)
+        subprocess.run(['git', '-C', str(source), 'checkout', '-q', replacement], env=self.env,
+            capture_output=True, timeout=15, check=True)
+        with self.assertRaisesRegex(ValueError, 'must equal the checked-out HEAD'):
+            installer.source_candidate(source, revision)
+
+    def test_prepare_requires_explicit_source_revision(self):
+        result = self.run_cli('prepare', '--home', self.home, '--state-dir', self.state,
+            '--bindings', self.bindings, '--braid-bin', self.fixture.bin / 'braid', '--mode', 'rehearsal',
+            source_pin=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('source revision', result.stdout)
+        self.assertFalse(self.state.exists())
+
     def test_copy_publication_rejects_edit_after_apply_preflight(self):
         digest = self.success(self.prepare())['plan_digest']
         self.success(self.operation('apply', digest))
@@ -703,19 +794,20 @@ class InstallationRouteTests(unittest.TestCase):
         digest = self.success(self.prepare())['plan_digest']
         self.success(self.operation('apply', digest))
         self.second_installation()
-        installer = self.import_installer(ROOT)
-        public_files = installer.public_files
+        installer = self.import_installer(self.source_root)
+        source_candidate = installer.source_candidate
         target = self.runtime / 'AGENTS.md'
-        def change_after_initial_check(source):
-            result = public_files(source)
+        def change_after_initial_check(source, revision):
+            result = source_candidate(source, revision)
             target.chmod(0o600)
             target.write_text('Edit during preparation must survive.\n')
             return result
         arguments = SimpleNamespace(home=self.home, mode='rehearsal', state_dir=self.state,
                                     bindings=self.bindings, braid_bin=self.fixture.bin / 'braid',
+                                    source_revision=self.source_revision,
                                     previous_desktop_review_sha256=None)
         with mock.patch.dict(os.environ, self.env, clear=True), mock.patch.object(
-                installer, 'public_files', side_effect=change_after_initial_check):
+                installer, 'source_candidate', side_effect=change_after_initial_check):
             with self.assertRaisesRegex(ValueError, 'Preparation refused'):
                 installer.assemble(arguments)
         self.assertEqual(target.read_text(), 'Edit during preparation must survive.\n')
@@ -1064,7 +1156,7 @@ with installer.renameable_directories(state, staged, target):
         options = self.formatting_review_args(digest)
         arguments = SimpleNamespace(plan_digest=options[4], package_digest=options[6],
                                     expected_config_sha256=options[8], observed_config_sha256=options[10])
-        installer = self.import_installer(ROOT)
+        installer = self.import_installer(self.source_root)
         verify = installer.verified_public_payload
         for path in (config, self.runtime / 'AGENTS.md', self.state / 'plan.json',
                      self.state / 'result.json', prior_state / 'desktop-review.json',
@@ -1143,11 +1235,11 @@ with installer.renameable_directories(state, staged, target):
         """Build two real old-policy generations, never copy caller runtime state."""
         source = self.home / 'legacy-source'
         source.mkdir()
-        installer = self.import_installer(ROOT)
-        for row in installer.public_files(ROOT):
+        installer = self.import_installer(self.source_root)
+        for row in installer.public_files(self.source_root):
             target = source / row['path']
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(ROOT / row['path'], target)
+            shutil.copy2(self.source_root / row['path'], target)
         bundle_path = source / 'codex/templates/policy-bundle.json'
         bundle = json.loads(bundle_path.read_text())
         legacy = json.loads((ROOT / 'tests/fixtures/legacy-root-preferences.json').read_text())
@@ -1160,11 +1252,19 @@ with installer.renameable_directories(state, staged, target):
             bundle['config']['projects'].pop(key)
         bundle_path.write_text(json.dumps(bundle))
         subprocess.run(['git', 'init', '-q', str(source)], env=self.env, check=True, capture_output=True)
+        subprocess.run(['git', '-C', str(source), 'add', '.'], env=self.env, check=True, capture_output=True)
+        subprocess.run(['git', '-C', str(source), '-c', 'user.name=Dots Test',
+            '-c', 'user.email=dots-test@example.invalid', 'commit', '-qm', 'legacy installation source'],
+            env=self.env, check=True, capture_output=True)
+        legacy_revision = subprocess.run(['git', '-C', str(source), 'rev-parse', 'HEAD'],
+            env=self.env, check=True, capture_output=True, text=True).stdout.strip()
         values = json.loads(self.bindings.read_text())
         projects = [values.pop(key) for key in ('value_0174', 'value_0175', 'value_0176', 'value_0177')]
         self.bindings.write_text(json.dumps(values))
 
         def source_cli(*args):
+            if args and args[0] == 'prepare':
+                args = (*args, '--source-revision', legacy_revision)
             return subprocess.run([sys.executable, '-B', str(source / 'codex/scripts/install-codex.py'),
                 *map(str, args)], cwd=source, env=self.env, text=True, capture_output=True,
                 timeout=180, check=False)
@@ -2244,7 +2344,8 @@ except ValueError:
         for home, mode in ((Path(pwd.getpwuid(os.getuid()).pw_dir).resolve(), 'rehearsal'),
                            (self.home, 'machine')):
             result = self.run_cli('prepare', '--home', home, '--state-dir', self.state,
-                '--bindings', self.bindings, '--braid-bin', self.fixture.bin / 'braid', '--mode', mode)
+                '--bindings', self.bindings, '--braid-bin', self.fixture.bin / 'braid', '--mode', mode,
+                '--source-revision', self.source_revision)
             self.assertNotEqual(result.returncode, 0)
             self.assertFalse(self.state.exists())
             self.assertEqual(self.snapshot(), self.before)
