@@ -76,9 +76,9 @@ def committed_review_requirement(records: object) -> dict[str, object]:
         lowered = path.casefold()
         components = lowered.split("/")
         separated = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", path)
-        # Keep mixed-case words such as OAuth2 alongside acronym splits
-        # that expose protected terms in names such as APIAuth.
-        acronym_split = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", separated)
+        # After an acronym, prefer a whole OAuth or OAuth2 token before
+        # falling back to the usual capital-plus-lowercase boundary.
+        acronym_split = re.sub(r"([A-Z]+?)(OAuth2?(?![A-Za-z0-9])|[A-Z][a-z])", r"\1 \2", separated)
         words = set(re.split(r"[^a-z0-9]+", f"{separated} {acronym_split}".casefold()))
         protected = bool(set(components) & HIGH_RISK_COMPONENTS) or components[-1] in HIGH_RISK_NAMES
         protected = protected or any(lowered == suffix or lowered.endswith("/" + suffix)

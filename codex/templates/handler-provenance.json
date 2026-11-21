@@ -294,7 +294,7 @@
       "transformations": [
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "e64a8d851b8c1ba67c0d870e20fc7708365731bae73eecbe76b7b0048a4feda2"
+      "candidate_sha256": "17bb6cdf2162b62b173eee8c207b75a0a1c7a3253fde93b2623eb5fdf830e2a5"
     },
     {
       "path": "codex/scripts/codex-validation-lib.sh",
