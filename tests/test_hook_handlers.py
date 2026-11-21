@@ -12,6 +12,32 @@ from hook_fixture import HookFixture
 
 
 class HookHandlerTests(unittest.TestCase):
+    def test_shared_classifier_boundaries_through_both_guards(self):
+        blocked = ('rm --recursive --force "${HOME:?}"',
+                   'TARGET=/; rm --recursive --force "$TARGET"',
+                   'setsid rm -rf /', 'cat <(git reset --hard)')
+        allowed = ('mkdir -p /tmp/x/{one,two}', 'printf %s $((1+1))',
+                   'cat <(printf hello)', 'rm --recursive --force /private/tmp/dots-fixture')
+        for hook in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
+            for command in blocked:
+                with self.subTest(hook=hook, command=command):
+                    output = self.output(hook, {'tool_input': {'command': command}})
+                    self.assertIn('hookSpecificOutput', output)
+            for command in allowed:
+                with self.subTest(hook=hook, command=command):
+                    output = self.output(hook, {'tool_input': {'command': command}})
+                    self.assertNotIn('hookSpecificOutput', output)
+
+    def test_inherited_target_environment_can_only_be_cleared_explicitly(self):
+        for command, denied in (('gh pr merge 1', True),
+                                ('env -u GH_REPO gh pr merge 1', False),
+                                ('env -i GH_REPO=other/repo gh pr merge 1', True)):
+            with self.subTest(command=command):
+                output = self.output('pr-readiness-guard.sh', {'tool_input': {'command': command}},
+                                     {'GH_REPO': 'other/repo'})
+                reason = output['hookSpecificOutput']['permissionDecisionReason']
+                self.assertEqual('GH_REPO or GH_HOST' in reason, denied)
+
     def setUp(self):
         self.fixture = HookFixture(self)
         self.addCleanup(self.fixture.assert_preserved, self)

@@ -26,6 +26,7 @@ fi
 hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 if ! target_fields="$(python3 -I -S - "$raw_command" "$hook_dir/../scripts" <<'PY'
 import base64
+import os
 import shlex
 import sys
 import re
@@ -64,13 +65,12 @@ reject_compound(tokens)
 assignment = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=.*")
 target_override = False
 target_environment = {"GH_HOST", "GH_REPO"}
-target_environment_override = False
+effective_targets = {name for name in target_environment if os.environ.get(name)}
 wrapped_command = False
 for _ in range(4):
     while tokens and assignment.fullmatch(tokens[0]):
-        target_override |= tokens[0].partition("=")[0] in target_environment
-        target_environment_override |= tokens[0].partition("=")[0] in target_environment
-        target_override |= target_environment_override
+        if tokens[0].partition("=")[0] in target_environment:
+            effective_targets.add(tokens[0].partition("=")[0])
         tokens.pop(0)
     if not tokens or tokens[0].rsplit("/", 1)[-1] not in {"env", "sudo"}:
         break
@@ -82,6 +82,20 @@ for _ in range(4):
         if (option.startswith(("--chdir", "--chroot"))
             or re.fullmatch(r"-[^-]*" + ("C" if prefix == "env" else "[DR]") + r".*", option)):
             reject_unsupported()
+        if prefix == "env":
+            if option in {"-i", "--ignore-environment", "-"}:
+                effective_targets.clear()
+                continue
+            if option in {"-u", "--unset"}:
+                if not tokens: reject_unsupported()
+                effective_targets.discard(tokens.pop(0))
+                continue
+            if option.startswith("--unset="):
+                effective_targets.discard(option.partition("=")[2])
+                continue
+            if option.startswith("-u"):
+                effective_targets.discard(option[2:])
+                continue
         if option == "--":
             break
         if option in value_options and tokens:
@@ -90,6 +104,8 @@ for _ in range(4):
             tokens.pop(0)
         elif prefix == "env" and option.startswith("--unset=") and option.split("=", 1)[1] in {"GH_HOST", "GH_REPO"}:
             target_override = True
+target_environment_override = bool(effective_targets)
+target_override = target_environment_override
 for _ in range(4):
     if not tokens or tokens[0].rsplit("/", 1)[-1] not in {"bash", "zsh", "sh"}:
         break
