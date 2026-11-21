@@ -100,6 +100,31 @@ class HookHandlerTests(unittest.TestCase):
                             'cwd': str(self.fixture.repo)}})
         self.assertNotEqual(output.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
 
+    def test_documented_syntax_validation_from_separate_checkout(self):
+        checkout = self.fixture.home / 'editable-checkout'
+        checkout.mkdir()
+        subprocess.run(['git', 'init', str(checkout)], env=self.fixture.env,
+                       capture_output=True, check=True)
+        scripts = checkout / 'scripts'
+        scripts.mkdir()
+        resolver = scripts / 'resolve-homebrew-bin.sh'
+        resolver.write_text('#!/bin/bash\nexit 0\n')
+        for command, denied in (
+                ('bash -n scripts/resolve-homebrew-bin.sh', False),
+                ('bash scripts/resolve-homebrew-bin.sh', True),
+                ('bash -n scripts/resolve-homebrew-bin.sh extra', True)):
+            with self.subTest(command=command):
+                output = self.output('pre-tool-use-dispatch.sh',
+                    {'cwd': str(checkout), 'tool_input': {'command': command,
+                                                        'cwd': str(checkout)}})
+                self.assertEqual(output.get('hookSpecificOutput', {}).get('permissionDecision') == 'deny', denied)
+        resolver.unlink()
+        resolver.symlink_to(self.fixture.repo / 'README.md')
+        output = self.output('pre-tool-use-dispatch.sh',
+            {'cwd': str(checkout), 'tool_input': {'command': 'bash -n scripts/resolve-homebrew-bin.sh',
+                                                'cwd': str(checkout)}})
+        self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+
     def test_all_shell_syntax_and_manifest_targets(self):
         for directory in ('hooks', 'scripts'):
             for path in self.fixture.codex.joinpath(directory).rglob('*.sh'):

@@ -583,9 +583,6 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                     for path in governed if os.path.isfile(path)
                 )
                 literal_script = owned_script and not any(arg.startswith("--repo-root") for arg in args[1:])
-                if (executable == "bash" and segment[index + 1:] == ["-n", script]
-                        and same_owned_path(selected, os.path.join(repo_root, "scripts/resolve-homebrew-bin.sh"))):
-                    literal_script = True
                 if (executable == "bash" and same_owned_path(selected, os.path.join(repo_root, "scripts/test-app-codex.sh"))):
                     literal_script = native_test_args(args[1:])
                 validation_wrapper = os.path.join(repo_root, "codex/scripts/codex-validation-python-uv.sh")
@@ -595,9 +592,11 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                     literal_script = literal_script and index == 0 and depth == 0 and len(segments) == 1 and os.path.realpath(cwd) == os.path.abspath(cwd) and same_owned_path(cwd.rstrip(os.sep) or os.sep, repo_root)
                 # Admit a direct project verifier structurally; execution remains
                 # governed by the native sandbox and approval policy.
+                syntax_only_resolver = (script == "scripts/resolve-homebrew-bin.sh"
+                                        and segment[index + 1:] == ["-n", script])
                 if (index == 0 and depth == 0 and len(segments) == 1
                         and executable == "bash" and canonical_entry
-                        and script in {"scripts/verify-work.sh", "scripts/validate-repository.sh", "scripts/validate-codestyle.sh"}
+                        and (syntax_only_resolver or script in {"scripts/verify-work.sh", "scripts/validate-repository.sh", "scripts/validate-codestyle.sh"})
                         and not any(arg.startswith("--repo-root") for arg in args[1:])):
                     info = os.stat(selected, follow_symlinks=False)
                     project_result = subprocess.run(
