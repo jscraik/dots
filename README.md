@@ -172,9 +172,13 @@ wrappers use the protected launcher and pass their selected absolute Python.
 
 <!-- /coderabbit-ai-generated:v1 -->
 
-Preparation creates a private, read-only policy package and validates it before
-backing up the 20 managed targets. Config, hook manifests, profiles and reusable
-code are independent regular-file or directory copies. The additional private
+Preparation requires the exact full commit ID already checked out as `HEAD`,
+refuses tracked or nonignored untracked changes, and creates the package from
+that commit's immutable Git tree rather than worktree bytes. Its private
+`origin.json` receipt records the commit, tree digest and complete blob inventory.
+It then validates the read-only policy package before backing up the 20 managed
+targets. Config, hook manifests, profiles and reusable code are independent
+regular-file or directory copies. The additional private
 `.dots-package.json` reference identifies the sealed installed package without
 using a filesystem link. Copied helpers validate that package and the installed
 code inventory before use. Development-checkout edits cannot change the running
@@ -210,14 +214,15 @@ regression checks this distinction in a disposable home without a model turn.
 For an operator-prepared rehearsal, the command sequence is:
 
 ```sh
-python3 -B scripts/install-codex.py prepare --mode rehearsal --home TEMP_HOME --state-dir TEMP_HOME/installation/one --bindings BINDINGS_JSON --braid-bin BRAID_BINARY
+python3 -B scripts/install-codex.py prepare --mode rehearsal --home TEMP_HOME --state-dir TEMP_HOME/installation/one --bindings BINDINGS_JSON --braid-bin BRAID_BINARY --source-revision REVIEWED_COMMIT
 python3 -B scripts/install-codex.py apply --state-dir TEMP_HOME/installation/one --plan-digest PREPARED_DIGEST
 python3 -B scripts/install-codex.py check --state-dir TEMP_HOME/installation/one --plan-digest PREPARED_DIGEST
 python3 -B scripts/install-codex.py rollback --state-dir TEMP_HOME/installation/one --plan-digest PREPARED_DIGEST
 ```
 
-Substitute explicit paths and the digest returned by preparation. That digest
-identifies the prepared change; it grants no execution or installation authority.
+Substitute explicit paths, the full reviewed commit currently checked out as
+`HEAD`, and the digest returned by preparation. That digest identifies the
+prepared change; it grants no execution or installation authority.
 Do not edit the source or package between commands. Repeated application is a
 check. Interrupted application can be rolled back without resuming activation.
 Unexpected newer target content stops recovery and retains the backup for inspection.

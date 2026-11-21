@@ -207,7 +207,7 @@
       "source_sha256": "dfd4f91164e826bd903b05a2e90d2d83767a8df26a532525089e3498c2e23d94",
       "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "fbbe0be01b2b56e215cfa98ac39340ae58e5be7a1572b98f7624807d8ed67d4e"
+      "candidate_sha256": "901f24b490c14d9fa5661ed6fb1e09290a4fc36f43cfce65251fbb098487357c"
     },
     {
       "path": "codex/instructions/agents/16a-review-reply-parsing.md",
