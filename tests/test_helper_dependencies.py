@@ -575,7 +575,9 @@ class HelperDependencyTests(unittest.TestCase):
             (runtime / "config.toml").read_bytes(),
             (destination / "codex/config.toml").read_bytes(),
         )
-        projects = tomllib.loads((destination / "codex/config.toml").read_text())["projects"]
+        projects = tomllib.loads((destination / "codex/config.toml").read_text())[
+            "projects"
+        ]
         self.assertTrue(projects)
         for project in projects:
             path = Path(project)
@@ -595,7 +597,9 @@ class HelperDependencyTests(unittest.TestCase):
             config = fixture.codex / "config.toml"
             injected = fixture.home / "escape" / "must-not-be-created"
             config.write_text(
-                config.read_text() + "\n[projects." + json.dumps(str(injected))
+                config.read_text()
+                + "\n[projects."
+                + json.dumps(str(injected))
                 + ']\ntrust_level = "trusted"\n'
             )
             code = (
@@ -604,12 +608,25 @@ class HelperDependencyTests(unittest.TestCase):
                 "create_runtime_checkout(Path(sys.argv[1]), Path(sys.argv[2]))"
             )
             result = subprocess.run(
-                [sys.executable, "-B", "-c", code, str(nested_home / "dev/dots"), str(fixture.repo)],
-                cwd=fixture.repo, env=fixture.env, text=True, capture_output=True,
-                timeout=75, check=False,
+                [
+                    sys.executable,
+                    "-B",
+                    "-c",
+                    code,
+                    str(nested_home / "dev/dots"),
+                    str(fixture.repo),
+                ],
+                cwd=fixture.repo,
+                env=fixture.env,
+                text=True,
+                capture_output=True,
+                timeout=75,
+                check=False,
             )
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("Nested fixture project leaves its disposable HOME", result.stderr)
+            self.assertIn(
+                "Nested fixture project leaves its disposable HOME", result.stderr
+            )
             self.assertFalse((Path(outside) / "must-not-be-created").exists())
         fixture.assert_preserved(self)
 
@@ -643,14 +660,23 @@ class HelperDependencyTests(unittest.TestCase):
         probe = fixture.home / "repair-runtime-config-drift.py"
         probe.write_text("import tomllib\n")
         fallback = subprocess.run(
-            ["python3", str(probe)], executable=sys.executable,
-            env=fixture.env, capture_output=True, text=True, timeout=10, check=False,
+            ["python3", str(probe)],
+            executable=sys.executable,
+            env=fixture.env,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
         )
         self.assertNotEqual(fallback.returncode, 0, "fallback simulation must fail")
         self.assertIn("tomllib", fallback.stderr)
         selected = subprocess.run(
-            [sys.executable, str(probe)], env=fixture.env, capture_output=True,
-            text=True, timeout=10, check=False,
+            [sys.executable, str(probe)],
+            env=fixture.env,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
         )
         self.assertEqual(selected.returncode, 0, selected.stderr)
         result = fixture.helper(
@@ -701,18 +727,25 @@ class HelperDependencyTests(unittest.TestCase):
                 result = subprocess.run(
                     [sys.executable, "-B", "-c", program],
                     env=env | {"DOTS_FAKE_HOOK_TRUST": trust},
-                    cwd=fixture.codex, capture_output=True, text=True,
-                    timeout=30, check=False,
+                    cwd=fixture.codex,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=False,
                 )
                 self.assertEqual(result.returncode, expected, result.stderr)
                 if trust == "untrusted":
-                    self.assertIn("enabled runtime hooks are not trusted", result.stderr)
+                    self.assertIn(
+                        "enabled runtime hooks are not trusted", result.stderr
+                    )
         homes = [Path(path) for path in evidence.read_text().splitlines()]
         self.assertEqual(len(homes), 2)
         self.assertNotEqual(homes[0], homes[1])
         for home in homes:
             self.assertTrue(home.is_relative_to(fixture.home))
-            self.assertFalse(home.exists(), "disposable runtime home should be cleaned up")
+            self.assertFalse(
+                home.exists(), "disposable runtime home should be cleaned up"
+            )
         fixture.assert_preserved(self)
 
     def test_accepted_governance_regressions(self):
@@ -746,4 +779,10 @@ class HelperDependencyTests(unittest.TestCase):
                 result = self.fixture.accepted_tests(pattern, timeout=240)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertNotIn("skipped=", result.stderr)
+        self.fixture.assert_preserved(self)
+
+    def test_review_request_retry_regressions_preserve_caller_state(self):
+        result = self.fixture.accepted_tests("test_pr_review_request.py", timeout=240)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("skipped=", result.stderr)
         self.fixture.assert_preserved(self)

@@ -28,6 +28,13 @@ def seed_checkout_ref(repository, environment, branch='topic'):
 
 
 class DestructiveGitOperationTests(unittest.TestCase):
+    def test_inert_shell_forms_and_confined_cleanup_remain_safe(self):
+        for command in ('mkdir -p /tmp/x/{one,two}', 'printf %s $((1+1))',
+                        'rg -n rm .', 'grep rm notes.txt',
+                        'rm --recursive --force /private/tmp/dots-fixture'):
+            with self.subTest(command=command):
+                self.assertEqual(self.classify(command), 'safe')
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(dir=Path('/tmp').resolve())
         self.addCleanup(temporary.cleanup)
@@ -51,6 +58,14 @@ class DestructiveGitOperationTests(unittest.TestCase):
     def test_reviewed_execution_forms_do_not_clear_destructive_git(self):
         commands = (
             '2>/dev/null git reset --hard',
+            'rm --recursive --force "${HOME:?}"',
+            'rm -r -f "${HOME}/"',
+            'TARGET=/; rm --recursive --force "$TARGET"',
+            'doas rm -rf /',
+            'setsid rm -rf /',
+            'rm --recursive --force /etc',
+            'rm --recursive --force /Applications',
+            'ssh host rm -rf /',
             '> /dev/null git reset --hard',
             'FOO+=x git reset --hard',
             'echo x |& git reset --hard',

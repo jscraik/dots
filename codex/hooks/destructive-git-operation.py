@@ -376,8 +376,8 @@ def inspect_shell(command, depth=0, budget=None, opaque_transport=None):
                     raise ValueError('File-backed shell after opaque data transport requires separate inspection')
             if executable not in {'git', 'printf', 'echo', 'cat', ':', 'true', 'false', 'test', '[',
                     'find', 'gfind', 'fd', 'fdfind', 'bash', 'sh', 'zsh', 'dash', 'ksh',
-                    'export', 'declare', 'typeset', 'readonly'} and any(
-                    re.search(r'(?i)(?:^|[\s/;|&()])git(?:\s|$)', value)
+                    'export', 'declare', 'typeset', 'readonly', 'rg', 'grep', 'egrep', 'fgrep'} and any(
+                    re.search(r'(?i)(?:^|[\s/;|&()])(?:git|rm)(?:\s|$)', value)
                     for value in tokens[executable_index + 1:]):
                 raise ValueError('Unparsed utility with embedded Git command requires separate inspection')
             if executable in {"export", "declare", "typeset", "readonly"} and any(
@@ -744,11 +744,17 @@ def known_checkout_ref(tokens, git_index, subcommand_index, operand, positions):
 
 signal.signal(signal.SIGALRM, inspection_timeout)
 signal.alarm(3)
+
+def inert_shell_form(command):
+    return bool(re.fullmatch(r'mkdir -p /[A-Za-z0-9_./-]+/\{[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)+\}', command)
+                or re.fullmatch(r'printf %s \$\(\([0-9 +*/%()-]+\)\)', command)
+                or re.fullmatch(r'cat <\(printf [A-Za-z0-9_./ -]+\)', command))
+
 if len(sys.argv) > 1 and sys.argv[1] == '--prepare-literals':
     try:
         if len(sys.argv[2]) > 1048576:
             raise ValueError('Shell transport input exceeds inspection budget')
-        print(prepare_literals(sys.argv[2]))
+        print('true' if inert_shell_form(sys.argv[2]) else prepare_literals(sys.argv[2]))
     except (ValueError, IndexError):
         raise SystemExit(2)
     raise SystemExit(0)
@@ -764,7 +770,8 @@ try:
         raise ValueError("Shell input exceeds inspection budget")
     command_tokens = inspect_shell(command)
 except (ValueError, IndexError):
-    print("unsupported")
+    # Admit only complete, inert forms; never infer safety from an absent keyword.
+    print("safe" if inert_shell_form(command) else "unsupported")
     raise SystemExit(0)
 
 positions = command_executable_positions(command_tokens)
@@ -783,10 +790,29 @@ for git_index in range(len(command_tokens)):
                         and any(char in token[1:] for char in 'rR') for token in arguments)
         force = any(token == '--force' or token.startswith('-') and not token.startswith('--')
                     and 'f' in token[1:] for token in arguments)
-        if recursive and force and any(token.startswith(('/', '~')) or token in {'$HOME', '${HOME}'}
-                                       for token in arguments):
-            print('broad-delete')
-            raise SystemExit(0)
+        if recursive and force:
+            for target in (value for value in arguments if not value.startswith('-')):
+                if any(char in target for char in '$`*?[{'):
+                    print('unsupported')
+                    raise SystemExit(0)
+                try:
+                    resolved = Path(target).expanduser()
+                    if not resolved.is_absolute():
+                        resolved = Path(command_cwd) / resolved
+                    resolved = resolved.resolve()
+                    home = Path.home().resolve()
+                except (OSError, RuntimeError, ValueError):
+                    print('unsupported')
+                    raise SystemExit(0)
+                if resolved == Path('/') or resolved == home or resolved in home.parents:
+                    print('broad-delete')
+                    raise SystemExit(0)
+                # Only a confined disposable subtree may clear this broad form.
+                temporary_roots = (Path('/tmp').resolve(), Path('/private/tmp').resolve())
+                if not any(resolved != root and resolved.is_relative_to(root)
+                           for root in temporary_roots):
+                    print('unsupported')
+                    raise SystemExit(0)
     if not is_git_command(command_tokens, git_index, segment_start, positions):
         continue
     if has_dynamic_git_config_environment(command_tokens, git_index, segment_start):
