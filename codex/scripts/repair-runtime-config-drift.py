@@ -1211,6 +1211,22 @@ def _validate_canonical_snapshot(text: str) -> None:
 def _validate_runtime_snapshot(text: str) -> None:
     _validate_snapshot(text, option='--runtime-config-stdin', label='repaired runtime')
 
+def _validate_notifier_cutover_snapshot(text: str) -> None:
+    """Validate policy around the unchanged, digest-pinned retired launcher."""
+    parsed, _ = _loads_toml(text)
+    if parsed is None or not _has_legacy_pinned_cua(parsed):
+        raise OSError('legacy notifier cleanup lost its exact launcher identity')
+    expected = copy.deepcopy(parsed)
+    del expected['mcp_servers']['cua_repl']
+    # This is a validation view only. Publication retains the complete pinned
+    # launcher until the separately authorised cutover; no new launcher passes.
+    view = _remove_complete_table(text, 'mcp_servers.cua_repl.env')[0]
+    view = _remove_complete_table(view, 'mcp_servers.cua_repl')[0]
+    observed, _ = _loads_toml(view)
+    if not _same_toml_values(observed, expected):
+        raise OSError('legacy validation view changed unrelated configuration')
+    _validate_runtime_snapshot(view)
+
 def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, unchanged: tuple[tuple[Path, bytes], ...]=()) -> None:
     if config_path.is_symlink():
         raise OSError(f'runtime config must be a regular file, not a symlink: {config_path}')
@@ -1427,20 +1443,26 @@ def main(argv: list[str] | None=None) -> int:
         payload = _payload(status='blocked', path=config_path, drift=remaining_drift, repairs=repairs, reason='runtime_config_drift_unrepairable', error=', '.join([*blocked, *remaining_drift]))
         _emit(payload, args.json)
         return 1
+    canonical_repair, plugin_error = _canonical_with_desktop_plugins(canonical_text, original)
+    if canonical_repair is None:
+        _emit(_payload(status='blocked', path=config_path, drift=drift, reason='desktop_plugin_preservation_failed', error=plugin_error), args.json)
+        return 1
     if not notifier_only_cutover:
-        repaired_text, plugin_error = _canonical_with_desktop_plugins(canonical_text, original)
-        if repaired_text is None:
-            _emit(_payload(status='blocked', path=config_path, drift=drift, reason='desktop_plugin_preservation_failed', error=plugin_error), args.json)
-            return 1
+        repaired_text = canonical_repair
         repairs = [*repairs, 'canonical_file_sync']
-        try:
+    # A blocked legacy cleanup is still a publication. Apply the same consent
+    # and exact-snapshot checks before creating a backup or replacing bytes.
+    try:
+        if notifier_only_cutover:
+            _validate_notifier_cutover_snapshot(repaired_text)
+        else:
             _validate_runtime_snapshot(repaired_text)
-        except SnapshotValidationUnavailable as exc:
-            _emit(_payload(status='blocked', path=config_path, drift=drift, reason='canonical_validation_unavailable', error=str(exc)), args.json)
-            return 1
-        except OSError as exc:
-            _emit(_payload(status='blocked', path=config_path, drift=drift, reason='canonical_source_invalid', error=str(exc)), args.json)
-            return 1
+    except SnapshotValidationUnavailable as exc:
+        _emit(_payload(status='blocked', path=config_path, drift=drift, reason='canonical_validation_unavailable', error=str(exc)), args.json)
+        return 1
+    except OSError as exc:
+        _emit(_payload(status='blocked', path=config_path, drift=drift, reason='canonical_source_invalid', error=str(exc)), args.json)
+        return 1
     if args.backup_path is None:
         backup_dir = Path(tempfile.mkdtemp(prefix='codex-config-backup-'))
         args.backup_path = backup_dir / 'config.toml'
