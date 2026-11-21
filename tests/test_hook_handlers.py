@@ -403,6 +403,7 @@ class HookHandlerTests(unittest.TestCase):
 
     def test_raw_api_merge_accepts_only_the_receipt_target(self):
         fixture = self.fixture
+        fixture.env.pop('PYTHONDONTWRITEBYTECODE', None)
 
         def git(*args):
             return subprocess.check_output(['git', '-C', str(fixture.repo), *args],
@@ -438,7 +439,8 @@ class HookHandlerTests(unittest.TestCase):
             })['hookSpecificOutput']
 
         output = merge('example/repo/pulls/349')
-        self.assertNotIn('permissionDecision', output)
+        self.assertNotIn('permissionDecision', output,
+                         git('status', '--porcelain=v1', '--untracked-files=all'))
         self.assertIn('update readiness receipt is current and passing', output['additionalContext'])
         for endpoint, target in (('example/other/pulls/349', 'repository'),
                                  ('example/repo/pulls/350', 'PR')):
