@@ -33,6 +33,7 @@ class PrReadinessTests(unittest.TestCase):
                 self.assertEqual(result['required_bot_review_count'], 1)
         for path in ('src/auth/login.py', 'src/oauth.py', 'src/oauth2.py', 'src/OAuth2Provider.ts',
                      'src/login.py', 'src/password.py', 'src/jwt.py',
+                     'src/APIJWTParser.ts', 'src/JWTAPIProvider.ts', 'src/VerifyJWT.ts',
                      '.github/workflows/check.yml',
                      'codex/scripts/pr-readiness.py', 'migrations/001.sql',
                      'scripts/deploy.sh', 'package-lock.json', 'unknown.blob',

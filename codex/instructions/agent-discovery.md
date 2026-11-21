@@ -123,7 +123,7 @@ Codex hook policy is driven by `~/.codex/hooks.json` projected from:
 Validation commands:
 
 - `bash codex/scripts/validate-codex-hooks.sh`
-- `bash codex/scripts/audit-codex-symlinks.sh`
+- `/bin/bash -p codex/scripts/audit-codex-symlinks.sh`
 
 ---
 

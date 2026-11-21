@@ -97,7 +97,8 @@ def delta(installed: str, observed: str, *, hook_source: str | None = None) -> l
     # consent. Existing hashes cannot be replaced through this route.
     path = ('hooks', 'state')
     old, new = get(before, path), get(after, path)
-    if not old['present'] and new['present'] and hook_source is not None:
+    if (new['present'] and hook_source is not None and not equal(old, new)
+            and (not old['present'] or new['value'] == {})):
         validate_native_consent(new['value'], hook_source)
         changes.append({'path': list(path), 'before': old, 'after': new})
         put(reduced, path, old)
@@ -134,11 +135,12 @@ def delta(installed: str, observed: str, *, hook_source: str | None = None) -> l
 def validate_native_consent(states: object, hook_source: str) -> None:
     """Restrict an explicit review to this installation's native user hooks."""
     source = Path(hook_source)
-    if not source.is_absolute() or '..' in source.parts or type(states) is not dict or not states:
-        raise ValueError('Native consent needs the exact installed hook source and nonempty state')
+    if not source.is_absolute() or '..' in source.parts or type(states) is not dict:
+        raise ValueError('Native consent needs the exact installed hook source and a state table')
     events = {'session_start', 'session_end', 'interrupt', 'user_prompt_submit', 'pre_tool_use', 'permission_request',
               'post_tool_use', 'pre_compact', 'post_compact', 'stop',
               'subagent_start', 'subagent_stop'}
+    seen = set()
     for key, row in states.items():
         parts = key.rsplit(':', 3) if type(key) is str else []
         if (len(parts) != 4 or parts[0] not in {hook_source, 'user:' + hook_source} or parts[1] not in events
@@ -147,6 +149,10 @@ def validate_native_consent(states: object, hook_source: str) -> None:
                 or type(row['enabled']) is not bool or type(row['trusted_hash']) is not str
                 or not re.fullmatch(r'sha256:[0-9a-f]{64}', row['trusted_hash'])):
             raise ValueError('Native consent contains an unbound identity or invalid trust state')
+        identity = tuple(parts[1:])
+        if identity in seen:
+            raise ValueError('Native consent contains duplicate hook aliases')
+        seen.add(identity)
 
 
 def validate_desktop_change(path: tuple, new: dict) -> None:
@@ -350,6 +356,11 @@ def reviewed_rollback(original: str, installed: str, changes: list) -> str:
         if path[:2] != ('hooks', 'state'):
             continue
         if path == ('hooks', 'state'):
+            if row['after'] == {'present': True, 'value': {}}:
+                if (not equal(get(before, path), get(current, path))
+                        or not equal(get(current, path), row['before'])):
+                    raise ValueError('Complete revocation needs an unchanged trusted rollback baseline')
+                continue
             if get(before, path)['present'] or get(current, path)['present']:
                 raise ValueError('New native consent requires an absent trusted baseline')
             continue

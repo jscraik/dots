@@ -148,8 +148,30 @@ packages, starts no background service and does not contact a provider or CI.
 
 The projector bootstrap uses the installer's selected Python through the existing
 `CODEX_VALIDATION_PYTHON` contract, including quoted paths containing spaces.
-Standalone callers retain the ordinary `python3` fallback. This selection leaves
-PATH, other tool resolution and persistent runtime-manager trust unchanged.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:cb3654d2c3df54a2c07c62809a85870e0dbea6d5a0bee52afb9eb31f730e263b -->
+
+Full-policy disposable fixtures also select `CODEX_VALIDATION_PYTHON` before
+admission checks. Preview fixtures use `/usr/bin/python3`; the selected absolute
+executable must provide Python 3.9 or later. Full-policy validation additionally
+requires the validation environment described above. Projector children use a
+fixed system PATH.
+
+Standalone projection requires this sanitized launcher (append projection flags):
+
+```sh
+/bin/bash -p scripts/link-configs.sh --help
+```
+
+Privileged Bash startup ignores `BASH_ENV`, `ENV` and exported shell functions
+before reading the script. The executable script uses the same protected
+shebang. Plain `bash scripts/link-configs.sh` with an inherited environment is
+unsupported. The in-script unset protects child processes. The packaged
+installer supplies an allowlisted environment; installed audit and repair
+wrappers use the protected launcher and pass their selected absolute Python.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 Preparation requires the exact full commit ID already checked out as `HEAD`,
 refuses tracked or nonignored untracked changes, and creates the package from
@@ -265,7 +287,8 @@ already differ from the installed policy, first express them in the public root
 template and private project bindings. The source-only `prepare-policy-update`
 operation prepares a new generation without clearing the old generation's drift.
 It takes the ordinary `--home`, fresh `--state-dir`, `--bindings`, `--braid-bin`
-and `--mode` arguments, plus all six exact SHA-256 pins:
+and `--mode` arguments, plus `--source-revision` naming the full reviewed commit
+currently checked out in the clean source checkout, and all six exact SHA-256 pins:
 `--bindings-sha256`, `--previous-plan-digest`, `--previous-package-digest`,
 `--previous-marker-sha256`, `--previous-expected-config-sha256` and
 `--previous-observed-config-sha256`. Obtain them from the reviewed private inputs,

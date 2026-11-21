@@ -807,12 +807,9 @@ for git_index in range(len(command_tokens)):
                 if resolved == Path('/') or resolved == home or resolved in home.parents:
                     print('broad-delete')
                     raise SystemExit(0)
-                # Only a confined disposable subtree may clear this broad form.
-                temporary_roots = (Path('/tmp').resolve(), Path('/private/tmp').resolve())
-                if not any(resolved != root and resolved.is_relative_to(root)
-                           for root in temporary_roots):
-                    print('unsupported')
-                    raise SystemExit(0)
+                # A preflight pathname cannot bind the later raw deletion inode.
+                print('unsupported')
+                raise SystemExit(0)
     if not is_git_command(command_tokens, git_index, segment_start, positions):
         continue
     if has_dynamic_git_config_environment(command_tokens, git_index, segment_start):

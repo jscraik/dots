@@ -329,7 +329,7 @@
       "transformations": [
         "public path placeholders; accepted schema/policy content retained"
       ],
-      "candidate_sha256": "8076151e6be0744fdf56ebc72ed9741fdc41782ab6eef4f4dc66d7083e8246bd"
+      "candidate_sha256": "16a58767203e0718f30a922e2a98f81c27592f428a3e63f84dcd4712e249a65a"
     },
     {
       "path": "codex/hooks/README.md",
@@ -848,7 +848,7 @@
         "Add missing-check and dismissed historical-review scenarios from the coordinated follow-up.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "f0428c54d82b17115b3964171eda835e95144b9866a38f5fd285e52a29cb42ab"
+      "candidate_sha256": "75b6ad75606e0497a67e4231b33226b787aae3feded21104e3bfc8904e5e61ec"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",

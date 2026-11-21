@@ -80,6 +80,8 @@ def committed_review_requirement(records: object) -> dict[str, object]:
         # that expose protected terms in names such as APIAuth.
         acronym_split = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", separated)
         words = set(re.split(r"[^a-z0-9]+", f"{separated} {acronym_split}".casefold()))
+        if any('JWT' in run for run in re.findall(r'[A-Z]{2,}', path)):
+            words.add('jwt')
         protected = bool(set(components) & HIGH_RISK_COMPONENTS) or components[-1] in HIGH_RISK_NAMES
         protected = protected or any(lowered == suffix or lowered.endswith("/" + suffix)
                                      for suffix in HIGH_RISK_PATH_SUFFIXES)

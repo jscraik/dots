@@ -27,6 +27,7 @@ class DesktopCompatibilityTests(unittest.TestCase):
         adapter.delta(installed, observed.replace('user:' + source, source), hook_source=source)
         self.assertTrue(adapter.requires_preservation(tomllib.loads(observed)))
         bad_states = [
+            {key: states[key], key.removeprefix('user:'): states[key]},
             {key.replace('/fixture/', '/other/'): states[key]},
             {key: dict(states[key], enabled=1)},
             {key: dict(states[key], extra=True)},
@@ -43,6 +44,25 @@ class DesktopCompatibilityTests(unittest.TestCase):
         self.assertRaises(ValueError, adapter.delta, observed, replacement, hook_source=source)
         self.assertRaises(ValueError, adapter.delta, installed,
             observed.replace('on-request', 'never'), hook_source=source)
+
+    def test_explicit_native_review_accepts_complete_revocation(self):
+        adapter, installed, _ = self.seven_fixture()
+        source = '/fixture/.codex/hooks.json'
+        revoked = adapter.overlay(installed, [{'path': ['hooks', 'state'],
+            'after': {'present': True, 'value': {}}}])
+        self.assertRaises(ValueError, adapter.delta, installed, revoked)
+        changes = adapter.delta(installed, revoked, hook_source=source)
+        self.assertEqual(changes[0]['after'], {'present': True, 'value': {}})
+        trusted = adapter.overlay(installed, [{'path': ['hooks', 'state'],
+            'after': {'present': True, 'value': {source + ':pre_tool_use:0:0':
+                {'enabled': True, 'trusted_hash': 'sha256:' + 'a' * 64}}}}])
+        changes = adapter.delta(trusted, revoked, hook_source=source)
+        self.assertEqual(adapter.overlay(trusted, changes), revoked)
+        self.assertEqual(adapter.reviewed_rollback(trusted, trusted, changes), revoked)
+        self.assertRaises(ValueError, adapter.reviewed_rollback,
+            trusted.replace('a' * 64, 'b' * 64), trusted, changes)
+        self.assertRaises(ValueError, adapter.delta, installed,
+            revoked.replace('on-request', 'never'), hook_source=source)
 
     def paired_fixture(self):
         adapter, installed, observed = self.seven_fixture()
