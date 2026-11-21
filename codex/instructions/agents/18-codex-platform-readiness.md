@@ -17,7 +17,7 @@ Treat `codex/config.toml`, hooks, requirements, validators, and projected
 symlinks as the canonical local control plane. Validate configuration with
 `python3 codex/scripts/validate-codex-config.py`, hooks with
 `bash codex/scripts/validate-codex-hooks.sh`, and projections with
-`bash codex/scripts/audit-codex-symlinks.sh`.
+`/bin/bash -p codex/scripts/audit-codex-symlinks.sh`.
 
 ## Runtime evidence
 

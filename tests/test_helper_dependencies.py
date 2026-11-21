@@ -21,6 +21,29 @@ class HelperDependencyTests(unittest.TestCase):
     def setUp(self):
         self.fixture = HelperFixture(self)
 
+    def test_selected_python_missing_dependencies_never_falls_through_to_path(self):
+        fixture = self.fixture
+        isolated = fixture.home / 'stdlib-python'
+        created = subprocess.run([sys.executable, '-I', '-B', '-m', 'venv', '--without-pip', str(isolated)],
+                                 env=fixture.env, cwd=fixture.repo, capture_output=True, text=True, timeout=30)
+        self.assertEqual(created.returncode, 0, created.stdout + created.stderr)
+        marker = fixture.home / 'fallback-shim-ran'
+        for name in ('python3', 'uv'):
+            (fixture.bin / name).write_text('#!/bin/sh\n/usr/bin/touch "' + str(marker) + '"\nexit 75\n')
+            (fixture.bin / name).chmod(0o700)
+        command = ['/bin/bash', '-p', '-c', '. "$1"; codex_select_validation_python',
+                   'validation-probe', str(fixture.codex / 'scripts/codex-validation-lib.sh')]
+        for selected, expected in ((str(isolated / 'bin/python'), 1), (sys.executable, 0)):
+            result = subprocess.run(command, env=fixture.env | {'CODEX_VALIDATION_PYTHON': selected},
+                                    cwd=fixture.repo, capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+            if expected == 0:
+                self.assertEqual(result.stdout.strip(), selected)
+            else:
+                self.assertIn('PyYAML', result.stderr)
+            self.assertFalse(marker.exists())
+        fixture.assert_preserved(self)
+
     def test_git_reported_metadata_cannot_probe_outside_the_fixture(self):
         fixture = self.fixture
         with tempfile.TemporaryDirectory(dir=Path("/tmp").resolve()) as outside:

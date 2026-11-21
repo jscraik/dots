@@ -6,14 +6,14 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "f1d04051212667d750fdae7f0d150abcd51b564d4a61910b287b87535123e169",
       "transformation": "explicit disposable-home admission; original checks retained",
-      "candidate_sha256": "0296c591fae37ec09fb7b693a7376133268860ce664a092a8acbd13f977e68e2"
+      "candidate_sha256": "6e45cd45a15b84fd37af8129625e8d18ccc0dd8f05b341bc503592f274e9e2fd"
     },
     {
       "path": "codex/scripts/audit-codex-symlinks.sh",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "728e2c2c5795707ca642c5d95b253ee85a361e5458f812399f5a6f1b7d1aa03f",
       "transformation": "explicit disposable-home admission; original checks retained",
-      "candidate_sha256": "27faef77e524e3929afe9cd1941840e6fde032acfb69d1759d5877c3cd6f9720"
+      "candidate_sha256": "6badea607a4004d921dcc8ffbcc4c06b5a34887abd25d586703b8ee592f99432"
     },
     {
       "path": "codex/scripts/check-runtime-config-path.sh",
@@ -55,7 +55,7 @@
       "source_revision": null,
       "source_sha256": null,
       "transformation": "New local prepare/apply/check/rollback procedure reusing existing validators and publishers.; Add fixed packaged-context admission; retain default disposable admission and original checks. Apply inode-journalled temporary rename modes on Linux as well as macOS.",
-      "candidate_sha256": "44c398936db33c0ece3363e941e91f9365d8903da919d88bcd3593622169ff7f"
+      "candidate_sha256": "48dcb1103fc3f407131056538635a7a63deefd9b82cef9f66bfab1d695a96ea0"
     }
   ],
   "fixture_kind": "full-policy-v1",
