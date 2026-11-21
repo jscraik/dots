@@ -15,9 +15,10 @@ class HookHandlerTests(unittest.TestCase):
     def test_shared_classifier_boundaries_through_both_guards(self):
         blocked = ('rm --recursive --force "${HOME:?}"',
                    'TARGET=/; rm --recursive --force "$TARGET"',
-                   'setsid rm -rf /', 'cat <(git reset --hard)')
+                   'setsid rm -rf /', 'cat <(git reset --hard)',
+                   'rm --recursive --force /private/tmp/dots-fixture')
         allowed = ('mkdir -p /tmp/x/{one,two}', 'printf %s $((1+1))',
-                   'cat <(printf hello)', 'rm --recursive --force /private/tmp/dots-fixture')
+                   'cat <(printf hello)', 'git status --short')
         for hook in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
             for command in blocked:
                 with self.subTest(hook=hook, command=command):
