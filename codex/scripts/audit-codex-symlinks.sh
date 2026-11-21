@@ -20,7 +20,7 @@ unset PYTHONHOME PYTHONPATH PYTHONSTARTUP PYTHONINSPECT
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=codex/scripts/codex-validation-lib.sh
 . "${SCRIPT_DIR}/codex-validation-lib.sh"
-POLICY_ROOT="$("$dots_bootstrap_python" -E -s "$SCRIPT_DIR/migration_scope.py" --source-root)"
+POLICY_ROOT="$("$dots_bootstrap_python" -B -E -s "$SCRIPT_DIR/migration_scope.py" --source-root)"
 REPO_ROOT="$(dirname "$POLICY_ROOT")"
 
 declare -a codex_homes=()

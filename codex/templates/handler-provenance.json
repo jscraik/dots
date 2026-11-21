@@ -303,7 +303,7 @@
       "transformations": [
         "fixture admission for shell runtime dependency"
       ],
-      "candidate_sha256": "56dcc1ad551e640eb89662924db3ced56d5a572cb12e1100aa9b14f0bfe9e2bf"
+      "candidate_sha256": "bb7ba57a4322e8a359764099b4367bdf52aae44de28555a2f074103c75781e1c"
     },
     {
       "path": "codex/scripts/codex-validation-python-uv.sh",
