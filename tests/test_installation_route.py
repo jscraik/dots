@@ -455,7 +455,13 @@ class InstallationRouteTests(unittest.TestCase):
     def test_complete_revocation_of_updated_consent_survives_reviewed_rollback(self):
         self.check_reviewed_native_update(revoke=True)
 
-    def check_reviewed_native_update(self, *, revoke=False):
+    def test_complete_revocation_survives_subsequent_update(self):
+        self.check_reviewed_native_update(revoke=True, next_update=True)
+
+    def test_fresh_native_consent_after_complete_revocation_is_reviewed(self):
+        self.check_reviewed_native_update(revoke=True, next_update=True, renew=True)
+
+    def check_reviewed_native_update(self, *, revoke=False, next_update=False, renew=False):
         first_digest = self.success(self.prepare())['plan_digest']
         self.success(self.operation('apply', first_digest))
         path = self.runtime / 'config.toml'
@@ -483,6 +489,36 @@ class InstallationRouteTests(unittest.TestCase):
             args = ('--state-dir', self.state, '--plan-digest', next_digest,
                     '--desktop-review-sha256', revoked_pin)
             self.success(self.run_cli('check', *args))
+            if next_update:
+                second_state, second_payload = self.state, self.payload
+                self.state = self.home / 'installation/three'
+                self.payload = self.state / 'payload'
+                values = json.loads(self.bindings.read_text())
+                self.bindings.write_text(json.dumps({key: value.replace(str(second_payload), str(self.payload))
+                                                    for key, value in values.items()}))
+                third_digest = self.success(self.run_cli('prepare', '--home', self.home,
+                    '--state-dir', self.state, '--bindings', self.bindings,
+                    '--braid-bin', self.fixture.bin / 'braid', '--mode', 'rehearsal',
+                    '--previous-desktop-review-sha256', revoked_pin))['plan_digest']
+                self.success(self.operation('apply', third_digest))
+                self.success(self.operation('check', third_digest))
+                self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], {})
+                if renew:
+                    fresh = {key: {'enabled': True, 'trusted_hash': 'sha256:' + 'b' * 64}}
+                    updated = tomllib.loads(path.read_text())
+                    updated['hooks']['state'] = fresh
+                    path.write_text(GEN.toml_document(updated))
+                    self.assertNotEqual(self.operation('check', third_digest).returncode, 0)
+                    fresh_pin = self.success(self.operation('prepare-desktop-review', third_digest))['review_sha256']
+                    fresh_args = ('--state-dir', self.state, '--plan-digest', third_digest,
+                                  '--desktop-review-sha256', fresh_pin)
+                    self.success(self.run_cli('check', *fresh_args))
+                    self.success(self.run_cli('rollback', *fresh_args))
+                    self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], fresh)
+                    return
+                self.success(self.operation('rollback', third_digest))
+                self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], {})
+                self.state, self.payload = second_state, second_payload
             self.success(self.run_cli('rollback', *args))
             self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], {})
             return

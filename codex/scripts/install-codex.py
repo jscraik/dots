@@ -493,7 +493,7 @@ def effective_previous_review():
             changes[path] = {'path': list(path), 'before': compat.get(previous, path), 'after': value}
         old_states = previous.get('hooks', {}).get('state', {})
         new_states = observed.get('hooks', {}).get('state', {})
-        if not old_states and new_states:
+        if not old_states and compat.get(observed, ('hooks', 'state'))['present']:
             compat.validate_native_consent(new_states, str(Path(review['home']) / '.codex/hooks.json'))
             changes = {path: row for path, row in changes.items() if path[:2] != ('hooks', 'state')}
             changes[('hooks', 'state')] = {'path': ['hooks', 'state'],

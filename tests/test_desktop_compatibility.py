@@ -61,6 +61,11 @@ class DesktopCompatibilityTests(unittest.TestCase):
         self.assertEqual(adapter.reviewed_rollback(trusted, trusted, changes), revoked)
         self.assertRaises(ValueError, adapter.reviewed_rollback,
             trusted.replace('a' * 64, 'b' * 64), trusted, changes)
+        fresh = trusted.replace('a' * 64, 'b' * 64)
+        self.assertRaises(ValueError, adapter.delta, revoked, fresh)
+        fresh_changes = adapter.delta(revoked, fresh, hook_source=source)
+        self.assertEqual(adapter.reviewed_rollback(revoked, revoked, fresh_changes), fresh)
+        self.assertRaises(ValueError, adapter.reviewed_rollback, trusted, revoked, fresh_changes)
         self.assertRaises(ValueError, adapter.delta, installed,
             revoked.replace('on-request', 'never'), hook_source=source)
 

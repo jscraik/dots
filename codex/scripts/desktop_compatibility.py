@@ -98,7 +98,7 @@ def delta(installed: str, observed: str, *, hook_source: str | None = None) -> l
     path = ('hooks', 'state')
     old, new = get(before, path), get(after, path)
     if (new['present'] and hook_source is not None and not equal(old, new)
-            and (not old['present'] or new['value'] == {})):
+            and (not old['present'] or old['value'] == {} or new['value'] == {})):
         validate_native_consent(new['value'], hook_source)
         changes.append({'path': list(path), 'before': old, 'after': new})
         put(reduced, path, old)
@@ -361,8 +361,11 @@ def reviewed_rollback(original: str, installed: str, changes: list) -> str:
                         or not equal(get(current, path), row['before'])):
                     raise ValueError('Complete revocation needs an unchanged trusted rollback baseline')
                 continue
-            if get(before, path)['present'] or get(current, path)['present']:
-                raise ValueError('New native consent requires an absent trusted baseline')
+            original_state, installed_state = get(before, path), get(current, path)
+            if (any(value['present'] and value['value'] != {}
+                    for value in (original_state, installed_state))
+                    or not equal(installed_state, row['before'])):
+                raise ValueError('New native consent requires a trust-free unchanged baseline')
             continue
         old = get(before, path[:3])
         selected = get(current, path[:3])
