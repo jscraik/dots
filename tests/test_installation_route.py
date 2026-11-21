@@ -287,6 +287,9 @@ class InstallationRouteTests(unittest.TestCase):
 
     def test_prepare_content_addresses_braid_in_managed_hook_store(self):
         external = self.fixture.bin / 'braid'
+        # Match the size class of the supported native adapter without executing it.
+        with external.open('ab') as stream:
+            stream.truncate(23 * 1024 * 1024)
         original = external.read_bytes()
         digest = hashlib.sha256(original).hexdigest()
         prepared = self.success(self.prepare())
@@ -323,7 +326,10 @@ class InstallationRouteTests(unittest.TestCase):
         return self.run_cli(operation, '--state-dir', self.state, '--plan-digest', digest)
 
     def installed_env(self):
-        return self.env | {'CODEX_CONFIG_SOURCE_ROOT': str(self.payload / 'codex')}
+        return self.env | {
+            'CODEX_CONFIG_SOURCE_ROOT': str(self.payload / 'codex'),
+            'CODEX_VALIDATION_PYTHON': sys.executable,
+        }
 
     def snapshot(self):
         result = {}
@@ -914,22 +920,45 @@ with installer.renameable_directories(state, staged, target):
                 self.assertEqual((target / 'identity.txt').read_text(), 'new' if phase == 'after' else 'old')
                 self.assertFalse((state / 'rename-modes.json').exists())
 
+    def test_active_python_preserves_virtual_environment_launcher(self):
+        installer = self.import_installer(ROOT)
+        launcher = self.home / 'venv-python'
+        launcher.symlink_to(sys.executable)
+        with mock.patch.object(sys, 'executable', str(launcher)):
+            self.assertEqual(installer.active_python_executable(), str(launcher))
+
     def test_copied_helpers_resolve_the_installed_source(self):
         digest = self.success(self.prepare())['plan_digest']
         self.success(self.operation('apply', digest))
         environment = self.installed_env()
         environment.pop('CODEX_CONFIG_SOURCE_ROOT', None)
+        environment.pop('CODEX_VALIDATION_PYTHON', None)
+        # Exercise a mise-only installation without the optional named venv.
+        known_python = self.home / '.local/share/mise/installs/python/3.14.4/bin/python3'
+        known_python.parent.mkdir(parents=True)
+        known_python.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' "$@"\n')
+        known_python.chmod(0o700)
+        shadow = self.home / 'untrusted-tools'
+        shadow.mkdir()
+        marker = self.home / 'untrusted-tool-ran'
+        for name in ('python3', 'dirname', 'git', 'jq'):
+            shim = shadow / name
+            shim.write_text('#!/bin/sh\n/usr/bin/touch ' + shlex.quote(str(marker)) + '\nexit 75\n')
+            shim.chmod(0o700)
+        environment['PATH'] = str(shadow) + ':' + environment['PATH']
         commands = [
             [sys.executable, '-B', str(self.runtime / 'scripts/validate-codex-config.py')],
             [sys.executable, '-B', str(self.runtime / 'scripts/validate-execpolicy-rules.py'), '--static-only'],
-            ['bash', str(self.runtime / 'scripts/audit-codex-symlinks.sh')],
-            ['bash', str(self.runtime / 'scripts/reconcile-config-projection.sh'), '--check', '--scope', 'codex'],
+            ['/bin/bash', '-p', str(self.runtime / 'scripts/audit-codex-symlinks.sh')],
+            ['/bin/bash', '-p', str(self.runtime / 'scripts/reconcile-config-projection.sh'), '--check', '--scope', 'codex'],
         ]
         for command in commands:
             with self.subTest(command=command):
                 result = subprocess.run(command, env=environment, cwd=self.home / 'tmp',
                     text=True, capture_output=True, timeout=60, check=False)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertFalse(marker.exists())
+                self.assertFalse(list((self.runtime / 'scripts').rglob('*.pyc')))
         self.success(self.operation('rollback', digest))
         self.assertEqual(self.snapshot(), self.before)
 
@@ -1362,8 +1391,8 @@ with installer.renameable_directories(state, staged, target):
         self.assertFalse(self.state.exists())
         self.assertEqual(self.snapshot(), before)
         alias.unlink()
-        installer = self.import_installer(ROOT)
-        generator = installer.module('transition_generation_race', ROOT / 'scripts/generate-codex-policy.py')
+        installer = self.import_installer(self.source_root)
+        generator = installer.module('transition_generation_race', self.source_root / 'scripts/generate-codex-policy.py')
         render = generator.render
         binding_bytes = self.bindings.read_bytes()
         def changed_bindings(path):
@@ -1411,13 +1440,16 @@ with installer.renameable_directories(state, staged, target):
                 os.utime(path, ns=(metadata.st_atime_ns, metadata.st_mtime_ns))
         # Fail at the existing real projector boundary, then retry the prepared
         # transition with its partially published config and managed resources.
-        shadow = self.fixture.bin / 'bash'
-        shadow.write_text('#!/bin/sh\nexit 75\n')
-        shadow.chmod(0o700)
-        self.assertNotEqual(self.operation('apply', digest).returncode, 0)
+        installer = self.import_installer(self.payload)
+        script_path = str(self.payload / 'codex/scripts')
+        with mock.patch.object(sys, 'path', [script_path, *sys.path]), mock.patch.dict(
+                os.environ, self.installed_env(), clear=True), mock.patch.dict(sys.modules), mock.patch.object(
+                installer, 'projector', side_effect=ValueError('synthetic projector refusal')):
+            sys.modules.pop('migration_scope', None)
+            with self.assertRaisesRegex(ValueError, 'synthetic projector refusal'):
+                installer.apply(self.state, digest)
         self.assertEqual(json.loads((self.state / 'result.json').read_text())['status'], 'failed')
         self.assertNotEqual(self.snapshot(), before)
-        shadow.unlink()
         self.success(self.operation('apply', digest))
         self.success(self.operation('check', digest))
         actual = tomllib.loads(config.read_text())
@@ -2288,19 +2320,36 @@ except ValueError:
         self.assertEqual(self.snapshot(), current)
         self.assertTrue((self.state / 'backups/config.toml').is_file())
 
+    def test_installation_ignores_writable_path_shims(self):
+        marker = self.home / 'path-shim-ran'
+        body = '#!/bin/sh\nprintf reached > ' + shlex.quote(str(marker)) + '\nexit 75\n'
+        for name in ('git', 'bash', 'python3'):
+            shadow = self.fixture.bin / name
+            shadow.write_text(body)
+            shadow.chmod(0o700)
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        self.success(self.operation('check', digest))
+        self.success(self.operation('rollback', digest))
+        self.assertFalse(marker.exists())
+        self.assertEqual(self.snapshot(), self.before)
+
     def test_partial_cutover_rolls_back_without_resuming_activation(self):
         digest = self.success(self.prepare())['plan_digest']
-        # Interrupt at the real projector boundary after atomic config publication.
-        shadow = self.fixture.bin / 'bash'
-        shadow.write_text('#!/bin/sh\nexit 75\n')
-        shadow.chmod(0o700)
-        failed = self.operation('apply', digest)
-        self.assertNotEqual(failed.returncode, 0)
+        installer = self.import_installer(self.payload)
+        script_path = str(self.payload / 'codex/scripts')
+        with mock.patch.object(sys, 'path', [script_path, *sys.path]), mock.patch.dict(
+                os.environ, self.installed_env(), clear=True), mock.patch.dict(sys.modules), mock.patch.object(
+                installer, 'projector', side_effect=ValueError('synthetic projector refusal')):
+            sys.modules.pop('migration_scope', None)
+            with self.assertRaisesRegex(ValueError, 'synthetic projector refusal'):
+                installer.apply(self.state, digest)
         self.assertEqual(json.loads((self.state / 'result.json').read_text())['status'], 'failed')
         self.assertNotEqual(self.snapshot()['config.toml'], self.before['config.toml'])
-        self.success(self.operation('rollback', digest))
-        shadow.unlink()
-        self.assertEqual(self.snapshot(), self.before)
+        with mock.patch.object(sys, 'path', [script_path, *sys.path]), mock.patch.dict(
+                os.environ, self.installed_env(), clear=True), mock.patch.dict(sys.modules):
+            sys.modules.pop('migration_scope', None)
+            installer.restore(self.state, digest)
         self.assertEqual(self.snapshot(), self.before)
 
     def test_rehearsal_refuses_credentials_and_nested_auth_alias(self):
