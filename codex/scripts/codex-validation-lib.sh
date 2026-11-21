@@ -6,7 +6,19 @@ if [[ -z "${BASH_VERSION:-}" ]]; then
 fi
 
 dots_script_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python3 "$dots_script_dir/admit-hook-fixture.py" '{}' || return $?
+dots_bootstrap_python="${CODEX_VALIDATION_PYTHON:-}"
+if [[ -z "$dots_bootstrap_python" ]]; then
+  if [[ -x "${HOME}/.venvs/pyyaml/bin/python" ]]; then
+    dots_bootstrap_python="${HOME}/.venvs/pyyaml/bin/python"
+  else
+    dots_bootstrap_python='/usr/bin/python3'
+  fi
+fi
+if [[ "$dots_bootstrap_python" != /* || ! -f "$dots_bootstrap_python" || ! -x "$dots_bootstrap_python" ]]; then
+  printf 'Validation bootstrap requires an absolute executable Python.\n' >&2
+  return 78
+fi
+"$dots_bootstrap_python" -E -s "$dots_script_dir/admit-hook-fixture.py" '{}' || return $?
 
 _codex_python_candidates() {
   local -a candidates=()

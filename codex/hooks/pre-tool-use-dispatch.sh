@@ -289,10 +289,14 @@ def gh_subcommand(tokens, index):
         if token in options_with_values:
             index += 2
             continue
-        if token.startswith(("--repo=", "--hostname=")):
+        if token.startswith(("--repo=", "--hostname=")) or token.startswith("-R") and len(token) > 2:
             index += 1
             continue
         if token.startswith("-"):
+            # Cobra can forward API flags placed before the subcommand.
+            # Never discard an unknown prefix and infer an option-free GET.
+            if token not in {"--help", "-h", "--version"}:
+                route["unsafe"] = True
             index += 1
             continue
         return token, tokens[index + 1 :]

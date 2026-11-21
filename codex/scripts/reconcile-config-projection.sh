@@ -12,14 +12,16 @@ if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
 fi
 
 set -euo pipefail
-dots_script_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python3 "$dots_script_dir/admit-hook-fixture.py" '{}' || exit $?
+PATH='/usr/bin:/bin:/usr/sbin:/sbin'
+readonly PATH
+export PATH
+unset PYTHONHOME PYTHONPATH PYTHONSTARTUP PYTHONINSPECT
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-POLICY_ROOT="$(python3 "$SCRIPT_DIR/migration_scope.py" --source-root)"
-REPO_ROOT="$(dirname "$POLICY_ROOT")"
 # shellcheck source=codex/scripts/codex-validation-lib.sh
 . "${SCRIPT_DIR}/codex-validation-lib.sh"
+POLICY_ROOT="$("$dots_bootstrap_python" -E -s "$SCRIPT_DIR/migration_scope.py" --source-root)"
+REPO_ROOT="$(dirname "$POLICY_ROOT")"
 
 usage() {
   cat <<'USAGE'

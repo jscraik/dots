@@ -933,6 +933,19 @@ with installer.renameable_directories(state, staged, target):
         environment = self.installed_env()
         environment.pop('CODEX_CONFIG_SOURCE_ROOT', None)
         environment.pop('CODEX_VALIDATION_PYTHON', None)
+        # Exercise the supported named environment without inheriting PATH.
+        known_python = self.home / '.venvs/pyyaml/bin/python'
+        known_python.parent.mkdir(parents=True)
+        known_python.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' "$@"\n')
+        known_python.chmod(0o700)
+        shadow = self.home / 'untrusted-tools'
+        shadow.mkdir()
+        marker = self.home / 'untrusted-tool-ran'
+        for name in ('python3', 'dirname', 'git'):
+            shim = shadow / name
+            shim.write_text('#!/bin/sh\n/usr/bin/touch ' + shlex.quote(str(marker)) + '\nexit 75\n')
+            shim.chmod(0o700)
+        environment['PATH'] = str(shadow) + ':' + environment['PATH']
         commands = [
             [sys.executable, '-B', str(self.runtime / 'scripts/validate-codex-config.py')],
             [sys.executable, '-B', str(self.runtime / 'scripts/validate-execpolicy-rules.py'), '--static-only'],
@@ -944,6 +957,7 @@ with installer.renameable_directories(state, staged, target):
                 result = subprocess.run(command, env=environment, cwd=self.home / 'tmp',
                     text=True, capture_output=True, timeout=60, check=False)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertFalse(marker.exists())
         self.success(self.operation('rollback', digest))
         self.assertEqual(self.snapshot(), self.before)
 

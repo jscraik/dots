@@ -13,14 +13,20 @@ from hook_fixture import HookFixture
 
 class HookHandlerTests(unittest.TestCase):
     def test_read_only_rest_pipeline_preserves_mutation_denial(self):
-        command = 'gh api repos/example/repo/pulls/349 | jq .state'
-        output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
-        self.assertNotIn('hookSpecificOutput', output)
+        for command in ('gh api repos/example/repo/pulls/349 | jq .state',
+                        'gh --repo example/repo api repos/example/repo/pulls/349 | jq .state',
+                        'gh --hostname github.com api repos/example/repo/pulls/349 | jq .state'):
+            output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
+            self.assertNotIn('hookSpecificOutput', output)
         for command in ('gh api repos/example/repo/pulls/349 -X PATCH | jq .state',
-                        'gh api repos/example/repo/pulls/349 | gh pr merge 349'):
+                        'gh api repos/example/repo/pulls/349 | gh pr merge 349',
+                        'gh --method=PUT api repos/example/repo/pulls/349/merge | cat',
+                        'gh -XPUT api repos/example/repo/pulls/349/merge | cat',
+                        'gh -X PUT api repos/example/repo/pulls/349/merge | cat',
+                        'gh -F body=data api repos/example/repo/pulls/349 | cat'):
             with self.subTest(command=command):
                 output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
-                self.assertIn('hookSpecificOutput', output)
+                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
 
     def test_shared_classifier_boundaries_through_both_guards(self):
         blocked = ('rm --recursive --force "${HOME:?}"',
