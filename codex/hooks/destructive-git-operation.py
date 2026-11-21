@@ -279,8 +279,13 @@ def protect_search_literals(command):
         if char in "'\"":
             quote = None if quote == char else char if quote is None else quote
         following = command[index + 1:index + 2]
-        literal_dollar = (char == '$' and not (quote is None and following in {'"', "'"}) and not (
-            following and (following.isalnum() or following in '_({@*#?$!-')))
+        # Admit known literal boundaries, rather than enumerating expansion
+        # prefixes across shells. A backslash is safe only before a known
+        # regex glyph: backslash-newline could join a parameter name to '$'.
+        literal_dollar = (char == '$' and (not following
+            or quote == '"' and following == '"'
+            or following in ' \t\r\n.:/|,;)'
+            or following == '\\' and command[index + 2:index + 3] in {'.', '|', ':'}))
         if char in markers and (quote == "'" or quote == '"' and char not in '$`' or literal_dollar):
             output.append(markers[char])
         else:

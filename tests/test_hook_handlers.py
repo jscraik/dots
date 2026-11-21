@@ -23,6 +23,14 @@ class HookHandlerTests(unittest.TestCase):
         self.assertFalse(marker.exists(), result.stderr)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertNotEqual(json.loads(result.stdout).get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+        workspace_shadow = self.fixture.repo / 'fnmatch.py'
+        workspace_shadow.write_text('from pathlib import Path\nPath(' + repr(str(marker))
+                                   + ').touch()\nraise RuntimeError("workspace shadow ran")\n')
+        result = self.fixture.run('pre-tool-use-guard.sh',
+                                  {'tool_input': {'command': 'git status --short'}})
+        self.assertFalse(marker.exists(), result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotEqual(json.loads(result.stdout).get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
 
     def test_lifeos_selects_only_optional_provider_in_validated_payload(self):
         tools = self.fixture.home / '.fixture-hook-tools/bin'
@@ -120,10 +128,15 @@ class HookHandlerTests(unittest.TestCase):
                    'rm --recursive --force /private/tmp/dots-fixture',
                    "rg --pre 'rm -rf /Users/alice' pattern .",
                    'op=--pre; rg "$op" ./payload pattern notes.txt',
+                   'rg "$[OP]" notes.txt', 'rg "$=OP" ./payload pattern notes.txt',
+                   'rg "$^OP" notes.txt', 'rg "$~OP" notes.txt',
+                   'rg "$<" notes.txt', 'rg "$+OP" notes.txt',
                    'OP=c; bash -"$OP" "rm -rf /"',
                    'OP="pipefail -c"; bash -o $OP "rm -rf /"',
                    'bash "$(printf %s "$TEXT" > /tmp/payload; printf /tmp/payload)"')
         allowed = ('mkdir -p /tmp/x/{one,two}', 'printf %s $((1+1))',
+                   'rg "^foo$|^bar$" notes.txt', 'rg "(foo$)|(bar$)" notes.txt',
+                   r'rg "foo$\." notes.txt',
                    'cat <(printf hello)')
         for hook in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
             for command in blocked:

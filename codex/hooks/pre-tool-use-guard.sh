@@ -708,7 +708,7 @@ contains_direct_auth_material_access() {
   if ! command_text="$(python3 -I -S "$hook_dir/destructive-git-operation.py" --prepare-literals "$command_text")"; then
     return 0
   fi
-  analysis_result="$(python3 - "$command_text" "$HOME" "$_command_cwd" "$codex_repo_root/scripts/pr-reconciliation.py" "$codex_repo_root/scripts/run-auth-backed.sh" <<'PY'
+  analysis_result="$(python3 -I -S - "$command_text" "$HOME" "$_command_cwd" "$codex_repo_root/scripts/pr-reconciliation.py" "$codex_repo_root/scripts/run-auth-backed.sh" <<'PY'
 from __future__ import annotations
 
 import fnmatch

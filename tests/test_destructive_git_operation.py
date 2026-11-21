@@ -35,6 +35,13 @@ class DestructiveGitOperationTests(unittest.TestCase):
                    'rg "$?" ./payload pattern notes.txt',
                    'rg $"--pre" ./payload pattern notes.txt',
                    "rg $'--pre' ./payload pattern notes.txt",
+                   'rg "$[OP]" notes.txt',
+                   'rg "$=OP" ./payload pattern notes.txt',
+                   'rg "$^OP" ./payload pattern notes.txt',
+                   'rg "$~OP" ./payload pattern notes.txt',
+                   'rg "$<" notes.txt',
+                   'rg "$+OP" notes.txt',
+                   'rg "$\\\nOP" notes.txt',
                    'rg "$(printf %s --pre)" ./payload pattern notes.txt',
                    'rg * pattern notes.txt',
                    'rg -e -- --pre=./payload notes.txt',
@@ -50,6 +57,9 @@ class DestructiveGitOperationTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertEqual(self.classify(command), 'unsupported')
         for command in ("rg 'foo$' notes.txt", 'rg "^foo$" notes.txt', "rg '*.py' notes.txt",
+                        'rg "^foo$|^bar$" notes.txt', 'rg "(foo$)|(bar$)" notes.txt',
+                        r'rg "foo$\." notes.txt',
+                        'rg "foo$:" notes.txt', 'rg foo$/bar notes.txt',
                         "rg '${OP}' notes.txt", "rg -e '--pre' notes.txt",
                         'rg -- "$op" notes.txt', 'bash scripts/verify-work.sh --fast',
                         'bash -o pipefail scripts/verify-work.sh --fast',
