@@ -663,10 +663,10 @@ def verify_previous(home, descriptor=None):
 
 
 def git_output(root, *arguments, text=True, stdin=None):
-    environment = {name: value for name, value in os.environ.items() if not name.startswith('GIT_')}
+    environment = child_environment()
     environment.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM='1',
                        GIT_NO_REPLACE_OBJECTS='1')
-    return subprocess.run(['git', '--no-replace-objects', '--no-optional-locks',
+    return subprocess.run([system_executable('git'), '--no-replace-objects', '--no-optional-locks',
         '-c', 'core.fsmonitor=false', *arguments],
         cwd=root, env=environment, input=stdin, capture_output=True,
         text=text, check=True, timeout=15).stdout

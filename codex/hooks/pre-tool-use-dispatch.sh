@@ -642,7 +642,13 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                 "view", "list", "status", "checks", "diff"
             }
             # Raw API requests retain operation-aware readiness analysis.
-            protected_gh = (subcommand == "pr" and not read_only_pr) or subcommand == "api"
+            # With exactly one literal REST endpoint and no options, gh uses
+            # GET. Keep this narrow inspection form usable in pipelines; any
+            # method, body, header or GraphQL option retains full analysis.
+            read_only_api = (subcommand == "api" and len(remaining) == 1
+                             and re.fullmatch(r"/?repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_./-]+)?", remaining[0]))
+            protected_gh = ((subcommand == "pr" and not read_only_pr)
+                            or subcommand == "api" and not read_only_api)
             route["pr"] = route["pr"] or protected_gh
             if indirect and protected_gh:
                 route["unsafe"] = True

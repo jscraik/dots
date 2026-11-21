@@ -12,12 +12,23 @@ from hook_fixture import HookFixture
 
 
 class HookHandlerTests(unittest.TestCase):
+    def test_read_only_rest_pipeline_preserves_mutation_denial(self):
+        command = 'gh api repos/example/repo/pulls/349 | jq .state'
+        output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
+        self.assertNotIn('hookSpecificOutput', output)
+        for command in ('gh api repos/example/repo/pulls/349 -X PATCH | jq .state',
+                        'gh api repos/example/repo/pulls/349 | gh pr merge 349'):
+            with self.subTest(command=command):
+                output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
+                self.assertIn('hookSpecificOutput', output)
+
     def test_shared_classifier_boundaries_through_both_guards(self):
         blocked = ('rm --recursive --force "${HOME:?}"',
                    'TARGET=/; rm --recursive --force "$TARGET"',
-                   'setsid rm -rf /', 'cat <(git reset --hard)')
+                   'setsid rm -rf /', 'cat <(git reset --hard)',
+                   'rm --recursive --force /private/tmp/dots-fixture')
         allowed = ('mkdir -p /tmp/x/{one,two}', 'printf %s $((1+1))',
-                   'cat <(printf hello)', 'rm --recursive --force /private/tmp/dots-fixture')
+                   'cat <(printf hello)')
         for hook in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
             for command in blocked:
                 with self.subTest(hook=hook, command=command):

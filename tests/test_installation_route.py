@@ -1376,8 +1376,8 @@ with installer.renameable_directories(state, staged, target):
         self.assertFalse(self.state.exists())
         self.assertEqual(self.snapshot(), before)
         alias.unlink()
-        installer = self.import_installer(ROOT)
-        generator = installer.module('transition_generation_race', ROOT / 'scripts/generate-codex-policy.py')
+        installer = self.import_installer(self.source_root)
+        generator = installer.module('transition_generation_race', self.source_root / 'scripts/generate-codex-policy.py')
         render = generator.render
         binding_bytes = self.bindings.read_bytes()
         def changed_bindings(path):

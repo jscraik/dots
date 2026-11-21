@@ -270,7 +270,8 @@ already differ from the installed policy, first express them in the public root
 template and private project bindings. The source-only `prepare-policy-update`
 operation prepares a new generation without clearing the old generation's drift.
 It takes the ordinary `--home`, fresh `--state-dir`, `--bindings`, `--braid-bin`
-and `--mode` arguments, plus all six exact SHA-256 pins:
+and `--mode` arguments, plus `--source-revision` naming the full reviewed commit
+currently checked out in the clean source checkout, and all six exact SHA-256 pins:
 `--bindings-sha256`, `--previous-plan-digest`, `--previous-package-digest`,
 `--previous-marker-sha256`, `--previous-expected-config-sha256` and
 `--previous-observed-config-sha256`. Obtain them from the reviewed private inputs,
