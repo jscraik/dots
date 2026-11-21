@@ -36,8 +36,8 @@
     {
       "path": "README.md",
       "prior_candidate_sha256": "ced157af36e675f8d6c890a5b04a70805e0835432efc957efc85c92f1e98ab01",
-      "candidate_sha256": "74632efa4db42ec9f662a77174b23ba51918cebe44fa7bba62e3bd304931c966",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Document the native distinction between on-disk hook consent and loaded-thread acceptance, verified by a disposable native regression without a model turn. Document the two additional exact native app metadata names; preserve the existing installation and permission boundaries. Document app-bundled CLI validation and isolated pinned dependency setup. Require an exact reviewed source commit and document clean-checkout, immutable-tree packaging and private provenance receipts."
+      "candidate_sha256": "d21e7a7cf3ba06a6b84fef7414109d399189b2b6bf904606e1a90b4f9c6854e7",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Document the native distinction between on-disk hook consent and loaded-thread acceptance, verified by a disposable native regression without a model turn. Document the two additional exact native app metadata names; preserve the existing installation and permission boundaries. Document app-bundled CLI validation and isolated pinned dependency setup. Require an exact reviewed source commit and document clean-checkout, immutable-tree packaging and private provenance receipts. Document complete-module CircleCI partitioning across two small containers, retained security checks and the separate hosted-timing acceptance requirement."
     },
     {
       "path": "codex/hooks/README.md",
