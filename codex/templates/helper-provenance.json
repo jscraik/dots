@@ -143,7 +143,7 @@
         "public local path literals",
         "fixture-only CLI and Path I/O admission"
       ],
-      "candidate_sha256": "4d9c25c84201431336607c284df38711db5852a5fc733c041b765223966df4d7"
+      "candidate_sha256": "4aea32c620651d36ba44fa18e3d04850b3a107fc822cc3f591ed4cbde263b840"
     },
     {
       "path": "codex/scripts/pr-post-merge-reconciliation.py",
@@ -329,7 +329,7 @@
       "transformations": [
         "public path placeholders; accepted schema/policy content retained"
       ],
-      "candidate_sha256": "8076151e6be0744fdf56ebc72ed9741fdc41782ab6eef4f4dc66d7083e8246bd"
+      "candidate_sha256": "16a58767203e0718f30a922e2a98f81c27592f428a3e63f84dcd4712e249a65a"
     },
     {
       "path": "codex/hooks/README.md",
@@ -564,7 +564,7 @@
         "accepted regression logic; synthetic local paths and fixture I/O confinement",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "9e4be6edbb9e88f1b72d38b52b965be909cb0fc2e939fc74f32980fbe04c6cce"
+      "candidate_sha256": "c39892a178ebae7050e258552d31c6615d60dded8563dc669b71c0ec2984fc96"
     },
     {
       "path": "codex/scripts/tests/test_pr_post_merge_reconciliation.py",

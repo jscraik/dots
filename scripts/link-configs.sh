@@ -1,17 +1,54 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
+# Standalone entrypoint: /bin/bash -p scripts/link-configs.sh
+# A caller may instead supply an allowlisted environment (the packaged installer does).
+# Unsetting below protects children; Bash reads BASH_ENV before this file starts.
 set -euo pipefail
 
-# The installer supplies its selected runtime before bootstrap admission.
-dots_python="${CODEX_VALIDATION_PYTHON:-python3}"
+# Projector children use only root-controlled system lookup directories. The
+# packaged installer supplies its already-running Python by absolute path.
+PATH="/usr/bin:/bin:/usr/sbin:/sbin"
+readonly PATH
+export PATH
+unset BASH_ENV CDPATH ENV PYTHONHOME PYTHONINSPECT PYTHONPATH PYTHONSTARTUP
+unset LD_PRELOAD LD_LIBRARY_PATH DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH
+PYTHONNOUSERSITE=1
+readonly PYTHONNOUSERSITE
+export PYTHONNOUSERSITE
 
 # Fixture admission remains strict. A packaged context has separate validation.
 dots_package_root="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+validate_projector_python() {
+  if [[ "$1" != /* || ! -f "$1" || ! -x "$1" ]]; then
+    printf 'FAIL  projector requires an absolute executable Python\n' >&2
+    exit 78
+  fi
+  if ! "$1" -I -S -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)'; then
+    printf 'FAIL  projector requires Python 3.9 or later\n' >&2
+    exit 78
+  fi
+}
+
+if [[ -f "$dots_package_root/codex/.deployment.json" ]]; then
+  protected_bin="$(/usr/bin/python3 -I -S -B "$dots_package_root/codex/scripts/validate-hook-toolchain.py")"
+  if [[ ! "$protected_bin" =~ ^/opt/dots-hook-tools/[0-9a-f]{64}/bin$ ]]; then
+    printf 'FAIL  protected toolchain returned an invalid versioned path\n' >&2
+    exit 78
+  fi
+  PROJECTOR_PYTHON="$protected_bin/python3"
+elif [[ "${DOTS_PROJECTION_FIXTURE:-}" == "full-policy-v1" && -n "${CODEX_VALIDATION_PYTHON:-}" ]]; then
+  /usr/bin/python3 -B -E -s "$dots_package_root/codex/scripts/admit-hook-fixture.py" '{}'
+  PROJECTOR_PYTHON="$CODEX_VALIDATION_PYTHON"
+else
+  PROJECTOR_PYTHON="/usr/bin/python3"
+fi
+validate_projector_python "$PROJECTOR_PYTHON"
+
 DEPLOYMENT_STATE=""
 if [[ -f "$dots_package_root/codex/.deployment.json" ]]; then
-  "$dots_python" "$dots_package_root/codex/scripts/deployment_scope.py"
-  DEPLOYMENT_STATE="$("$dots_python" "$dots_package_root/codex/scripts/deployment_scope.py" --state-dir)"
+  "$PROJECTOR_PYTHON" "$dots_package_root/codex/scripts/deployment_scope.py"
+  DEPLOYMENT_STATE="$("$PROJECTOR_PYTHON" "$dots_package_root/codex/scripts/deployment_scope.py" --state-dir)"
 else
-"$dots_python" - "$HOME" <<'PYHOME'
+"$PROJECTOR_PYTHON" -I -S - "$HOME" <<'PYHOME'
 import os
 from pathlib import Path
 import pwd
@@ -29,6 +66,8 @@ if os.environ.get('DOTS_PROJECTION_FIXTURE') != 'full-policy-v1':
             raise SystemExit('Migration projector refuses symlinks in disposable HOME')
 PYHOME
 fi
+readonly PROJECTOR_PYTHON
+unset DOTS_PROJECTOR_PYTHON
 
 MODE="check"
 DRY_RUN=0
@@ -51,7 +90,7 @@ PLUGINS_CANON_RESOLVED=""
 
 resolve_projection_source_root() {
   if [[ -n "$DEPLOYMENT_STATE" ]]; then
-    "$dots_python" "$REPO_ROOT/codex/scripts/deployment_scope.py" >/dev/null
+    "$PROJECTOR_PYTHON" "$REPO_ROOT/codex/scripts/deployment_scope.py" >/dev/null
     printf '%s\n' "$REPO_ROOT"
     return 0
   fi
@@ -64,7 +103,7 @@ resolve_projection_source_root() {
     return 78
   fi
 
-  common_dir_abs="$("$dots_python" - "$REPO_ROOT" "$common_dir" <<'PY'
+  common_dir_abs="$("$PROJECTOR_PYTHON" - "$REPO_ROOT" "$common_dir" <<'PY'
 import os
 import sys
 
@@ -97,7 +136,7 @@ plan_count=0
 usage() {
   cat <<'USAGE'
 Usage:
-  scripts/link-configs.sh [--check|--repair] [--dry-run] [--scope all|codex] [--codex-home PATH]... [--help]
+  /bin/bash -p scripts/link-configs.sh [--check|--repair] [--dry-run] [--scope all|codex] [--codex-home PATH]... [--help]
 
 Modes:
   --check         Validate projection state without modifying files (default)
@@ -201,7 +240,7 @@ resolve_tokens_from_map() {
   local section="$1"
   local codex_home="$2"
 
-  "$dots_python" - "$PROJECTION_MAP" "$section" "$REPO_ROOT" "$PROJECTION_SOURCE_ROOT" "$HOME" "$codex_home" "$PLUGINS_CANON_RESOLVED" <<'PY'
+  "$PROJECTOR_PYTHON" - "$PROJECTION_MAP" "$section" "$REPO_ROOT" "$PROJECTION_SOURCE_ROOT" "$HOME" "$codex_home" "$PLUGINS_CANON_RESOLVED" <<'PY'
 import json
 import os
 import sys
@@ -245,7 +284,7 @@ PY
 }
 
 resolve_realpath() {
-  "$dots_python" -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$1"
+  "$PROJECTOR_PYTHON" -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$1"
 }
 
 PROJECTION_SOURCE_ROOT="$(resolve_projection_source_root)"
@@ -278,7 +317,7 @@ link_matches_source() {
   resolved_source="$(resolve_realpath "$source_abs")"
   resolved_target="$(resolve_realpath "$target_abs")"
   [[ "$resolved_source" == "$resolved_target" ]] && return 0
-  "$dots_python" - "$resolved_source" "$resolved_target" <<'PYCASE'
+  "$PROJECTOR_PYTHON" - "$resolved_source" "$resolved_target" <<'PYCASE'
 import os
 import sys
 
@@ -386,7 +425,7 @@ copy_contains_source_prefix() {
   local target_abs="$2"
 
   [[ -f "$target_abs" && ! -L "$target_abs" ]] || return 1
-  "$dots_python" - "$source_abs" "$target_abs" <<'PY'
+  "$PROJECTOR_PYTHON" - "$source_abs" "$target_abs" <<'PY'
 import sys
 from pathlib import Path
 
@@ -446,7 +485,7 @@ check_projection_runtime_copy() {
     mark_fail "${name}: mutable runtime target must be a regular file, not a symlink (${target_abs} -> $(readlink "$target_abs"))"
     return 1
   elif [[ -f "$target_abs" ]]; then
-    if ! check_output="$("$dots_python" "$(dirname "$source_abs")/scripts/repair-runtime-config-drift.py" \
+    if ! check_output="$("$PROJECTOR_PYTHON" "$(dirname "$source_abs")/scripts/repair-runtime-config-drift.py" \
       --config-path "$target_abs" --check --json 2>&1)"; then
       mark_fail "${name}: runtime config differs from canonical policy (${target_abs}): ${check_output}"
       return 1
@@ -530,9 +569,15 @@ repair_projection_runtime_copy() {
   if [[ -f "$target_abs" && ! -L "$target_abs" ]]; then
     if [[ "$DRY_RUN" -eq 1 ]]; then
       local check_output=""
-      if ! check_output="$("$dots_python" "$(dirname "$source_abs")/scripts/repair-runtime-config-drift.py" \
+      if ! check_output="$("$PROJECTOR_PYTHON" "$(dirname "$source_abs")/scripts/repair-runtime-config-drift.py" \
         --config-path "$target_abs" --check --json 2>&1)"; then
-        if "$dots_python" -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("status") == "fail" else 1)' >/dev/null 2>&1 <<<"$check_output"; then
+        if "$PROJECTOR_PYTHON" -c 'import json,sys
+try:
+    value = json.load(sys.stdin)
+except (ValueError, TypeError):
+    raise SystemExit(1)
+raise SystemExit(not (isinstance(value, dict) and value.get("status") == "fail"))' \
+          <<<"$check_output"; then
           mark_plan "reconcile runtime config from canonical source ${target_abs}"
         else
           mark_fail "${name}: runtime config reconciliation would be blocked (${target_abs}): ${check_output}"
@@ -545,7 +590,7 @@ repair_projection_runtime_copy() {
     if [[ -n "$DEPLOYMENT_STATE" ]]; then
       backup_args+=(--backup-path "$DEPLOYMENT_STATE/publisher-backups/config-$STAMP.toml")
     fi
-    if ! "$dots_python" "$(dirname "$source_abs")/scripts/repair-runtime-config-drift.py" \
+    if ! "$PROJECTOR_PYTHON" "$(dirname "$source_abs")/scripts/repair-runtime-config-drift.py" \
       --config-path "$target_abs" --repair "${backup_args[@]}"; then
       mark_fail "${name}: runtime config reconciliation failed (${target_abs})"
       return 1
@@ -557,7 +602,7 @@ repair_projection_runtime_copy() {
   if [[ "${DOTS_PROJECTION_FIXTURE:-}" == "full-policy-v1" || -n "$DEPLOYMENT_STATE" ]]; then
     if [[ "$DRY_RUN" -eq 1 ]]; then
       mark_plan "create validated runtime config ${target_abs}"
-    elif "$dots_python" "${PROJECTION_SOURCE_ROOT}/codex/scripts/admit-policy-fixture.py" --map "$PROJECTION_MAP" --publish-initial-config; then
+    elif "$PROJECTOR_PYTHON" "${PROJECTION_SOURCE_ROOT}/codex/scripts/admit-policy-fixture.py" --map "$PROJECTION_MAP" --publish-initial-config; then
       mark_ok "${name}: published validated runtime snapshot ${target_abs}"
     else
       mark_fail "${name}: initial runtime publication failed"
@@ -634,7 +679,7 @@ run_projection_entry() {
         mark_plan "publish validated regular hook copy ${target_abs}"
         return 0
       fi
-      if "$dots_python" "${PROJECTION_SOURCE_ROOT}/codex/scripts/project-codex-hooks.py" "${hook_args[@]}"; then
+      if "$PROJECTOR_PYTHON" "${PROJECTION_SOURCE_ROOT}/codex/scripts/project-codex-hooks.py" "${hook_args[@]}"; then
         mark_ok "${name}: managed regular hook copy ${target_abs}"
       else
         mark_fail "${name}: managed hook publication/check failed"
@@ -651,7 +696,7 @@ run_projection_entry() {
     copy-managed)
       # The installation transaction owns publication, backups and recovery.
       # The projector checks the exact files, never recreates repository links.
-      "$dots_python" "${PROJECTION_SOURCE_ROOT}/codex/scripts/install-codex.py" \
+      "$PROJECTOR_PYTHON" "${PROJECTION_SOURCE_ROOT}/codex/scripts/install-codex.py" \
         check-copy --state-dir "$DEPLOYMENT_STATE" --name "$name" || return 1
       ;;
     copy)
@@ -750,12 +795,12 @@ fi
 
 # Each route admits one closed map, never a caller-selected live map.
 if [[ "${DOTS_PROJECTION_FIXTURE:-}" == "full-policy-v1" || -n "$DEPLOYMENT_STATE" ]]; then
-  "$dots_python" "${REPO_ROOT}/codex/scripts/admit-policy-fixture.py" --map "$PROJECTION_MAP"
+  "$PROJECTOR_PYTHON" "${REPO_ROOT}/codex/scripts/admit-policy-fixture.py" --map "$PROJECTION_MAP"
 elif [[ -n "${DOTS_PROJECTION_FIXTURE:-}" ]]; then
   echo 'Unknown isolated projection fixture' >&2
   exit 2
 else
-"$dots_python" - "$PROJECTION_MAP" <<'PYMAP'
+"$PROJECTOR_PYTHON" - "$PROJECTION_MAP" <<'PYMAP'
 import json
 from pathlib import Path
 import sys
@@ -809,7 +854,7 @@ fi
 reconcile_retired_profiles() {
   local codex_home="$1"
   local result=""
-  if ! result="$("$dots_python" - "$codex_home" "$PROJECTION_SOURCE_ROOT" "$REPO_ROOT" "$PROJECTION_MAP" "$MODE" "$DRY_RUN" <<'PY'
+  if ! result="$("$PROJECTOR_PYTHON" - "$codex_home" "$PROJECTION_SOURCE_ROOT" "$REPO_ROOT" "$PROJECTION_MAP" "$MODE" "$DRY_RUN" <<'PY'
 import json
 import os
 import stat

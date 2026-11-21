@@ -643,9 +643,8 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
             read_only_pr = subcommand == "pr" and remaining and remaining[0] in {
                 "view", "list", "status", "checks", "diff"
             }
-            protected_gh = (subcommand == "pr" and not read_only_pr) or (
-                subcommand == "api" and "graphql" in [token.lower() for token in remaining]
-            )
+            # Raw API requests retain operation-aware readiness analysis.
+            protected_gh = (subcommand == "pr" and not read_only_pr) or subcommand == "api"
             route["pr"] = route["pr"] or protected_gh
             if indirect and protected_gh:
                 route["unsafe"] = True

@@ -30,6 +30,9 @@ class HookFixture:
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target)
         shutil.copy2(ROOT / 'codex/scripts/admit-hook-fixture.py', self.codex / 'scripts/admit-hook-fixture.py')
+        # These native bootstrap files are not imported Configs handler ports.
+        for relative in ('hooks/hook-runtime-path.sh', 'scripts/validate-hook-toolchain.py'):
+            shutil.copy2(ROOT / 'codex' / relative, self.codex / relative)
         (self.codex / 'hooks/hooks.json').write_bytes(self.source.read_bytes())
         self.runtime = self.target.parent
         (self.runtime / 'hooks').symlink_to(self.codex / 'hooks')

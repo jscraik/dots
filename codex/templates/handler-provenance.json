@@ -10,7 +10,7 @@
         "Share token-level destructive Git worktree detection across hook enforcement layers; fail closed on unsupported global-option layouts.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "8813663cb712516b6ee4ab056e3460e2e2789a145f25462a23b06f96b7b3414f"
+      "candidate_sha256": "2d50b09e5cd8eded803a6497250cadc4e137ce56a6421ed12cd37f0a43d7201f"
     },
     {
       "path": "codex/hooks/lifeos-codex.sh",
@@ -31,7 +31,7 @@
         "fixture scope and event admission before handler actions",
         "Use exact command bytes with the shared token-level destructive Git classifier for approval denials."
       ],
-      "candidate_sha256": "f2f67dd408beb15bef226ef832868b048513eeec763a763705fa31ccc5b22357"
+      "candidate_sha256": "1dde4225d9427af2fccbebfdd1effaa700b0deccce3e9ce4ecc74c0da98b9e36"
     },
     {
       "path": "codex/hooks/post-compact-recorder.sh",
@@ -59,10 +59,10 @@
       "source_sha256": "f29647371bf978add9878e93a039dccb839e47f8d23723978d3bae13081d4fbb",
       "transformations": [
         "fixture scope and event admission before handler actions",
-        "Reject command-local GH_REPO and GH_HOST assignments before protected PR readiness receipt validation.",
+        "Classify raw GitHub API methods and normalized endpoints; bind canonical REST merges to update receipts and fail closed on uninspectable writes.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "193fd13bfbe257c8ddb995cb0dd2817b1a43860304cdcd03a887ffff4484eb7a"
+      "candidate_sha256": "8db930e3e72e6cdfac5de9050aa46a325df2e7fd705a3727d055b2550033a742"
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",
@@ -106,7 +106,7 @@
         "Deny xargs command construction before protected child routing; retain direct-command behavior.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "74101d051b9ae95d3e8e33470513d16b7b9e19014d93c93b82d76d5320839696"
+      "candidate_sha256": "84182d9cfd149cfb31680edbd73158e1b98be7c2134e555b7b224c7830f3a058"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",
@@ -118,7 +118,7 @@
         "Use the shared token-level destructive Git classifier for pre-tool denials.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "90810994cc1e05e24908112454f60f3259fd83126da03b720e97082f0d18834b"
+      "candidate_sha256": "8a084582a15c39492445a9ec82a76c9c19ce8a4e2e327d6bc145bec1a1c13adb"
     },
     {
       "path": "codex/hooks/session-start.sh",
@@ -314,7 +314,7 @@
       "transformations": [
         "fixture admission for shell runtime dependency"
       ],
-      "candidate_sha256": "deaa41c6b4cbf3b561065d9b3ad635189497bbd9e04bebd4b8159b6be97be8f7"
+      "candidate_sha256": "f9ff7ba664be5a29030918592b403f044dd8775527652089ace2e060e7071d13"
     },
     {
       "path": "codex/scripts/codex-validation-python-uv.sh",
@@ -374,7 +374,7 @@
     {
       "path": "codex/hooks/destructive-git-operation.py",
       "origin": "Extracted isolated destructive Git parser from hook-runtime-lib.sh",
-      "candidate_sha256": "125680f187061428ed436670834643316082fdf580fdec409655d381967b5b42"
+      "candidate_sha256": "ef82c9f0bb50772b76b5b52b47456236699231e58edde371a0d0c5559d9576b8"
     }
   ],
   "external_boundaries": [

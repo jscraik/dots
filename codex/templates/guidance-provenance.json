@@ -107,7 +107,7 @@
       "source_sha256": "0774669d8b16ef1505d638ce92ff92ca94be8e6c3b36b564dd78b9f3ed16092e",
       "decision": "Public paths and scoped source recipes; safeguards preserved",
       "deferred_context_pointers": [],
-      "candidate_sha256": "c68770dbd82636166e9e7781d15469a5f3100ce69a4e47e86a16cc3d46171cbe"
+      "candidate_sha256": "a7e4c96e502db2f47595bd3146472bc29de92588ee0d7db30e74223c26245586"
     },
     {
       "path": "codex/instructions/agent-first-scaffold-spec.md",
@@ -207,7 +207,7 @@
       "source_sha256": "dfd4f91164e826bd903b05a2e90d2d83767a8df26a532525089e3498c2e23d94",
       "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "fbbe0be01b2b56e215cfa98ac39340ae58e5be7a1572b98f7624807d8ed67d4e"
+      "candidate_sha256": "901f24b490c14d9fa5661ed6fb1e09290a4fc36f43cfce65251fbb098487357c"
     },
     {
       "path": "codex/instructions/agents/16a-review-reply-parsing.md",
@@ -228,7 +228,7 @@
       "source_sha256": "2cd6c218ec77fe3f05654d872fe488966aef798084646c71c1f13c6f7b808cb1",
       "decision": "Public paths and scoped source recipes; safeguards preserved",
       "deferred_context_pointers": [],
-      "candidate_sha256": "072be1c61f6d0cd7dfc5d4e4f8caa2fecef0504d14516084900e2cf3c76a06a7"
+      "candidate_sha256": "08517b77be3865f17f27fbe1f931de7a01ffed60714414d7ad8ec2520707ce7a"
     },
     {
       "path": "codex/instructions/agents/README.md",

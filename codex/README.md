@@ -417,10 +417,10 @@ The old daemon entrypoint is a no-op so an older installed job cannot restart it
 
 ```bash
 # Check projection state without repairing it
-bash ${DOTS_CHECKOUT}/scripts/link-configs.sh --check
+/bin/bash -p "${DOTS_CHECKOUT}/scripts/link-configs.sh" --check
 
 # Verify ~/.codex symlinks point at this repo
-bash ${CODEX_POLICY_SOURCE}/scripts/audit-codex-symlinks.sh
+/bin/bash -p ${CODEX_POLICY_SOURCE}/scripts/audit-codex-symlinks.sh
 
 # Verify that live schedules are isolated from the repository
 python3 - <<'PY'
@@ -459,7 +459,7 @@ python3 ${CODEX_POLICY_SOURCE}/scripts/hook-governance/rollout_check.py \
 
 Installation and repair are separate, mutating operations. When authorized, use
 `bash scripts/install-codex-hooks.sh` from this subtree for hooks or
-`bash scripts/link-configs.sh --repair` from the repository root for projections.
+`/bin/bash -p scripts/link-configs.sh --repair` from the repository root for projections.
 Do not run them merely to inspect state. Report generators above also write
 their declared output files; preserve unrelated dirty reports.
 

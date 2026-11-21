@@ -27,10 +27,12 @@ fi
 hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 if ! target_fields="$(python3 -I -S - "$raw_command" "$hook_dir/../scripts" <<'PY'
 import base64
+import os
 import shlex
 import sys
 import re
 import runpy
+from urllib.parse import unquote, urlsplit
 policy = runpy.run_path(sys.argv[2] + "/pr-reconciliation.py")
 reconciliation_thread = policy["reconciliation_thread"]
 substitution_commands = policy["substitution_commands"]
@@ -62,28 +64,53 @@ except ValueError:
 
 reject_compound(tokens)
 assignment = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=.*")
+target_override = False
 target_environment = {"GH_HOST", "GH_REPO"}
-target_environment_override = False
+effective_targets = {name for name in target_environment if os.environ.get(name)}
+wrapped_command = False
 for _ in range(4):
     while tokens and assignment.fullmatch(tokens[0]):
-        target_environment_override |= tokens[0].partition("=")[0] in target_environment
+        if tokens[0].partition("=")[0] in target_environment:
+            effective_targets.add(tokens[0].partition("=")[0])
         tokens.pop(0)
     if not tokens or tokens[0].rsplit("/", 1)[-1] not in {"env", "sudo"}:
         break
     prefix = tokens.pop(0).rsplit("/", 1)[-1]
+    wrapped_command = True
     value_options = {"env": {"-u", "--unset", "-C", "--chdir"}, "sudo": {"-u", "--user", "-g", "--group", "-h", "--host", "-p", "--prompt", "-C", "--close-from", "-R", "--chroot", "-D", "--chdir"}}[prefix]
     while tokens and tokens[0].startswith("-"):
         option = tokens.pop(0)
         if (option.startswith(("--chdir", "--chroot"))
             or re.fullmatch(r"-[^-]*" + ("C" if prefix == "env" else "[DR]") + r".*", option)):
             reject_unsupported()
+        if prefix == "env":
+            if option in {"-i", "--ignore-environment", "-"}:
+                effective_targets.clear()
+                continue
+            if option in {"-u", "--unset"}:
+                if not tokens: reject_unsupported()
+                effective_targets.discard(tokens.pop(0))
+                continue
+            if option.startswith("--unset="):
+                effective_targets.discard(option.partition("=")[2])
+                continue
+            if option.startswith("-u"):
+                effective_targets.discard(option[2:])
+                continue
         if option == "--":
             break
         if option in value_options and tokens:
+            if prefix == "env" and option in {"-u", "--unset"} and tokens[0] in {"GH_HOST", "GH_REPO"}:
+                target_override = True
             tokens.pop(0)
+        elif prefix == "env" and option.startswith("--unset=") and option.split("=", 1)[1] in {"GH_HOST", "GH_REPO"}:
+            target_override = True
+target_environment_override = bool(effective_targets)
+target_override = target_environment_override
 for _ in range(4):
     if not tokens or tokens[0].rsplit("/", 1)[-1] not in {"bash", "zsh", "sh"}:
         break
+    wrapped_command = True
     command_index = next(
         (
             index + 1
@@ -116,6 +143,7 @@ if index != 1 or sum(token.rsplit("/", 1)[-1] == "gh" for token in tokens) != 1:
     reject_unsupported()
 
 repo = ""
+hostname = ""
 while index < len(tokens):
     token = tokens[index]
     if token in {"--repo", "-R", "--hostname"}:
@@ -123,10 +151,16 @@ while index < len(tokens):
             raise SystemExit(0)
         if token in {"--repo", "-R"}:
             repo = tokens[index + 1]
+        else:
+            hostname = tokens[index + 1]
         index += 2
         continue
     if token.startswith("--repo="):
         repo = token.split("=", 1)[1]
+        index += 1
+        continue
+    if token.startswith("--hostname="):
+        hostname = token.split("=", 1)[1]
         index += 1
         continue
     if token.startswith("-"):
@@ -200,35 +234,166 @@ if index + 1 < len(tokens) and tokens[index] == "pr":
 elif index < len(tokens) and tokens[index] == "api":
     fields = {}
     api_tokens = tokens[index + 1 :]
-    file_backed = any(option == "--input" or option.startswith("--input=") for option in api_tokens)
+    endpoint = ""
+    explicit_method = ""
+    body_supplied = False
+    file_backed = False
+    ambiguous_api = False
+    value_options = {
+        "--cache", "-H", "--header", "--hostname", "--jq", "-q",
+        "-p", "--preview", "-t", "--template",
+    }
+    flag_options = {
+        "-h", "--help", "-i", "--include", "--paginate", "--silent", "--slurp", "--verbose",
+    }
+
+    def unsafe_api_header(value):
+        name, separator, _header_value = value.partition(":")
+        return bool(separator) and name.strip().casefold() in {"host", "x-http-method-override"}
+
     option_index = 0
     while option_index < len(api_tokens):
         option = api_tokens[option_index]
+        field = None
+        if option in {"-X", "--method"}:
+            if option_index + 1 >= len(api_tokens) or explicit_method:
+                ambiguous_api = True
+                option_index += 1
+                continue
+            explicit_method = api_tokens[option_index + 1]
+            option_index += 2
+            continue
+        if option.startswith("--method=") or option.startswith("-X") and len(option) > 2:
+            if explicit_method:
+                ambiguous_api = True
+            explicit_method = option.split("=", 1)[1] if option.startswith("--method=") else option[2:].removeprefix("=")
+            option_index += 1
+            continue
         if option in {"-f", "--raw-field", "-F", "--field"}:
             if option_index + 1 >= len(api_tokens):
-                break
+                ambiguous_api = True
+                option_index += 1
+                continue
             field = api_tokens[option_index + 1]
+            body_supplied = True
             option_index += 2
         elif option.startswith("--raw-field=") or option.startswith("--field="):
             field = option.split("=", 1)[1]
+            body_supplied = True
             option_index += 1
         elif option.startswith(("-f", "-F")) and len(option) > 2:
             field = option[2:]
+            body_supplied = True
             option_index += 1
-        else:
+        elif option == "--input":
+            if option_index + 1 >= len(api_tokens):
+                ambiguous_api = True
+                option_index += 1
+                continue
+            body_supplied = True
+            file_backed = True
+            option_index += 2
+            continue
+        elif option.startswith("--input="):
+            body_supplied = True
+            file_backed = True
             option_index += 1
             continue
-        if "=" in field:
+        elif option in value_options:
+            if option_index + 1 >= len(api_tokens):
+                ambiguous_api = True
+                option_index += 1
+                continue
+            if option == "--hostname":
+                hostname = api_tokens[option_index + 1]
+            if option in {"-H", "--header"} and unsafe_api_header(api_tokens[option_index + 1]):
+                ambiguous_api = True
+            option_index += 2
+            continue
+        elif option.startswith("--hostname="):
+            hostname = option.split("=", 1)[1]
+            option_index += 1
+            continue
+        elif option.startswith("--header=") or option.startswith("-H") and len(option) > 2:
+            header = option.split("=", 1)[1] if option.startswith("--header=") else option[2:]
+            ambiguous_api |= unsafe_api_header(header)
+            option_index += 1
+            continue
+        elif any(option.startswith(prefix) for prefix in (
+            "--cache=", "--jq=", "--preview=", "--template=",
+        )) or any(option.startswith(prefix) and len(option) > 2 for prefix in ("-q", "-p", "-t")) or option in flag_options:
+            option_index += 1
+            continue
+        elif option.startswith("-"):
+            ambiguous_api = True
+            option_index += 1
+            continue
+        else:
+            if endpoint:
+                ambiguous_api = True
+            else:
+                endpoint = option
+            option_index += 1
+            continue
+        if field is not None and "=" in field:
             name, value = field.split("=", 1)
+            if name in fields and not name.endswith("[]"):
+                ambiguous_api = True
             fields[name] = value
             if value.startswith("@") and (option in {"-F", "--field"} or option.startswith(("-F", "--field="))):
                 file_backed = True
+        elif field is not None and not field.endswith("[]"):
+            ambiguous_api = True
+    method = explicit_method.upper() if explicit_method else "POST" if body_supplied else "GET"
+    if not re.fullmatch(r"[A-Z]+", method):
+        ambiguous_api = True
     query = fields.get("query", "")
-    if "resolveReviewThread" in query or "addPullRequestReviewThreadReply" in query:
-        action = "review_reconciliation"
-        thread_id = reconciliation_thread(tokens)
-    if "graphql" in api_tokens and file_backed:
-        action = "unsupported_command"
+    if endpoint.casefold() == "graphql":
+        # Ignore GraphQL comments and string values when classifying operations.
+        query_code = re.sub(r'"""(?:[^"\\]|\\.|"(?!""))*"""|"(?:[^"\\]|\\.)*"|#[^\r\n]*', ' ', query)
+        if "resolveReviewThread" in query_code or "addPullRequestReviewThreadReply" in query_code:
+            action = "review_reconciliation"
+            thread_id = reconciliation_thread(tokens)
+        if (file_backed or ambiguous_api or action and (target_override or wrapped_command or hostname)
+            or re.search(r"\bmutation\b", query_code) and not action):
+            action = "unsupported_command"
+    else:
+        normalized_endpoint = endpoint
+        absolute_endpoint = "://" in normalized_endpoint
+        if absolute_endpoint:
+            parsed_endpoint = urlsplit(normalized_endpoint)
+            if parsed_endpoint.scheme.casefold() not in {"http", "https"} or not parsed_endpoint.netloc:
+                ambiguous_api = True
+            normalized_endpoint = parsed_endpoint.path
+        else:
+            normalized_endpoint = "/" + normalized_endpoint.lstrip("/")
+        for _ in range(3):
+            decoded_endpoint = unquote(normalized_endpoint)
+            if decoded_endpoint == normalized_endpoint:
+                break
+            normalized_endpoint = decoded_endpoint
+        merge_match = re.fullmatch(
+            r"(?:/api/v3)?/repos/([^/]+)/([^/]+)/pulls/([1-9][0-9]*)/merge/?",
+            normalized_endpoint,
+            re.IGNORECASE,
+        )
+        if ambiguous_api:
+            action = "unsupported_command"
+        elif method not in {"GET", "HEAD"} and (target_override or wrapped_command or hostname or absolute_endpoint):
+            action = "unsupported_command"
+        elif method == "PUT" and merge_match:
+            owner, name, pr_number = merge_match.groups()
+            if "{" not in owner + name and "}" not in owner + name:
+                action = "update"
+                endpoint_repo = f"{owner}/{name}"
+                if repo and repo.casefold() != endpoint_repo.casefold():
+                    action = "target_conflict"
+                else:
+                    repo = endpoint_repo
+            else:
+                action = "unsupported_command"
+        elif method not in {"GET", "HEAD"}:
+            action = "unsupported_command"
 
 if target_environment_override and action in {"create", "update", "review_reconciliation"}:
     action = "target_environment_override"
@@ -256,7 +421,7 @@ if [[ "$readiness_phase" == "unsupported_command" ]]; then
 fi
 
 if [[ "$readiness_phase" == "target_conflict" ]]; then
-  jq -n --arg reason "PR mutation is blocked because --repo and the pull-request URL name different repositories." '
+  jq -n --arg reason "PR mutation is blocked because --repo and the pull-request target name different repositories." '
     {hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}
   '
   exit 0

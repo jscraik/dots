@@ -10,6 +10,8 @@ import tarfile
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("hook_toolchain_prepare", ROOT / "codex/scripts/prepare-hook-toolchain.py")
@@ -18,6 +20,184 @@ SPEC.loader.exec_module(PREPARE)
 
 
 class HookToolchainTests(unittest.TestCase):
+    def test_installer_child_ignores_user_site_environment_and_working_directory(self):
+        spec = importlib.util.spec_from_file_location('isolated_child_installer', ROOT / 'codex/scripts/install-codex.py')
+        installer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(installer)
+        with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as directory:
+            home = Path(directory)
+            marker = home / 'untrusted-startup-ran'
+            poison = 'from pathlib import Path; Path(' + repr(str(marker)) + ').touch()\n'
+            site = home / '.local/lib' / ('python' + '.'.join(map(str, sys.version_info[:2]))) / 'site-packages'
+            site.mkdir(parents=True)
+            (site / 'usercustomize.py').write_text(poison)
+            (home / 'sitecustomize.py').write_text(poison)
+            (home / 'json.py').write_text(poison + 'raise RuntimeError("cwd module loaded")\n')
+            script = home / 'probe.py'
+            script.write_text('import json,sys; print(json.dumps({"isolated":sys.flags.isolated,"ok":True}))\n')
+            with mock.patch.object(installer, 'protected_python_executable', return_value=sys.executable):
+                environment = installer.clean_environment(home, home)
+                environment['PYTHONPATH'] = str(home)
+                result = subprocess.run(installer.protected_python_command(script),
+                    env=environment, cwd=home, capture_output=True, text=True, timeout=15, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout), {'isolated': 1, 'ok': True})
+            self.assertFalse(marker.exists())
+
+    def test_isolated_installer_loads_admission_and_repair_siblings(self):
+        with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as directory:
+            home = Path(directory)
+            (home / 'tmp').mkdir()
+            marker = home / 'untrusted-sibling-ran'
+            (home / 'migration_scope.py').write_text('from pathlib import Path; Path('
+                + repr(str(marker)) + ').touch(); raise RuntimeError("cwd scope loaded")\n')
+            program = home / 'probe.py'
+            program.write_text('import importlib.util, pathlib, sys\n'
+                + 'root = pathlib.Path(' + repr(str(ROOT)) + ')\n'
+                + 'spec = importlib.util.spec_from_file_location("installer", root / "codex/scripts/install-codex.py")\n'
+                + 'installer = importlib.util.module_from_spec(spec); spec.loader.exec_module(installer)\n'
+                + 'for name in ("admit-policy-fixture.py", "repair-runtime-config-drift.py"):\n'
+                + '    installer.module("isolated_" + name, root / "codex/scripts" / name)\n'
+                + 'assert "migration_scope" not in sys.modules\n'
+                + 'print("isolated siblings loaded")\n')
+            result = subprocess.run([sys.executable, '-I', '-B', str(program)],
+                env={'HOME': str(home), 'DOTS_TEST_HOME': str(home), 'TMPDIR': str(home / 'tmp'),
+                     'PATH': '/usr/bin:/bin', 'PYTHONPATH': str(home)}, cwd=home,
+                capture_output=True, text=True, timeout=15, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), 'isolated siblings loaded')
+            self.assertFalse(marker.exists())
+
+    def test_projection_rejects_unadmitted_home_before_fixture_interpreter(self):
+        with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as directory:
+            root = Path(directory)
+            marker = root / 'untrusted-interpreter-ran'
+            interpreter = root / 'python'
+            interpreter.write_text('#!/bin/sh\n/usr/bin/touch "' + str(marker) + '"\nexit 75\n')
+            interpreter.chmod(0o700)
+            result = subprocess.run(['/bin/bash', '-p', str(ROOT / 'scripts/link-configs.sh'), '--check'],
+                cwd=ROOT, env={'PATH': '/usr/bin:/bin', 'HOME': str(Path.home()),
+                    'DOTS_PROJECTION_FIXTURE': 'full-policy-v1', 'CODEX_VALIDATION_PYTHON': str(interpreter)},
+                capture_output=True, text=True, timeout=15, check=False)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('disposable', result.stderr)
+            self.assertFalse(marker.exists())
+
+    def test_machine_bootstrap_never_executes_writable_python_candidates(self):
+        with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as directory:
+            home = Path(directory)
+            scripts = home / 'codex/scripts'
+            scripts.mkdir(parents=True)
+            for name in ('codex-validation-lib.sh', 'admit-hook-fixture.py', 'migration_scope.py',
+                         'deployment_scope.py', 'validate-hook-toolchain.py', 'install-hook-toolchain.py'):
+                shutil.copyfile(ROOT / 'codex/scripts' / name, scripts / name)
+            (scripts.parent / '.deployment.json').write_text('{}')
+            binaries = home / '.venvs/pyyaml/bin'
+            binaries.mkdir(parents=True)
+            marker = home / 'untrusted-python-ran'
+            for name in ('python', 'python3', 'dirname'):
+                path = binaries / name
+                path.write_text('#!/bin/sh\n/usr/bin/touch "' + str(marker) + '"\nexit 75\n')
+                path.chmod(0o700)
+            result = subprocess.run(['/bin/bash', '-p', '-c', '. "$1"', 'bootstrap-probe',
+                                     str(scripts / 'codex-validation-lib.sh')],
+                                    env={'HOME': str(home), 'PATH': str(binaries) + ':/usr/bin:/bin',
+                                         'CODEX_VALIDATION_PYTHON': str(binaries / 'python')},
+                                    capture_output=True, text=True, timeout=30)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(marker.exists())
+
+    def test_installer_binds_toolchain_before_apply_or_check_writes(self):
+        spec = importlib.util.spec_from_file_location('toolchain_binding_installer', ROOT / 'codex/scripts/install-codex.py')
+        installer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(installer)
+        expected = {'schema_version': 1, 'bin_dir': '/opt/dots-hook-tools/' + 'a' * 64 + '/bin',
+                    'payload_sha256': 'a' * 64}
+        changed = {**expected, 'bin_dir': '/opt/dots-hook-tools/' + 'b' * 64 + '/bin',
+                   'payload_sha256': 'b' * 64}
+        with mock.patch.object(installer.subprocess, 'run', return_value=SimpleNamespace(
+                returncode=0, stdout=json.dumps(expected), stderr='')) as run:
+            self.assertEqual(installer.hook_toolchain_snapshot(), expected)
+            self.assertIn('--identity', run.call_args.args[0])
+        with mock.patch.object(installer, 'hook_toolchain_snapshot', return_value=expected):
+            installer.verify_hook_toolchain({'hook_toolchain': expected})
+            with mock.patch.object(sys, 'executable', '/tmp/replaced-venv/python'), \
+                    mock.patch.dict(os.environ, {'PATH': '/tmp/poison-tools', 'PYTHONPATH': '/tmp/poison-modules'}):
+                environment = installer.clean_environment(Path('/tmp/home'), Path('/tmp/payload'))
+                self.assertEqual(environment['CODEX_VALIDATION_PYTHON'], expected['bin_dir'] + '/python3')
+                self.assertEqual(environment['PATH'], expected['bin_dir'] + ':/usr/bin:/bin:/usr/sbin:/sbin')
+                self.assertNotIn('PYTHONPATH', environment)
+        for plan in ({'hook_toolchain': expected}, {}):
+            with mock.patch.object(installer, 'load_plan', return_value=plan), \
+                    mock.patch.object(installer, 'hook_toolchain_snapshot', return_value=changed), \
+                    mock.patch.object(installer, 'installation_lock', side_effect=AssertionError('write boundary reached')), \
+                    mock.patch.object(installer, 'load_result', side_effect=AssertionError('check continued')):
+                for operation in (installer.apply, installer.check):
+                    with self.subTest(operation=operation.__name__, bound=bool(plan)), \
+                            self.assertRaisesRegex(ValueError, 'toolchain changed or was not bound'):
+                        operation(Path('/unused'), 'unused')
+
+    def test_plan_retains_exact_toolchain_binding_and_legacy_readability(self):
+        spec = importlib.util.spec_from_file_location('toolchain_plan_installer', ROOT / 'codex/scripts/install-codex.py')
+        installer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(installer)
+        with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as directory:
+            state = Path(directory)
+            payload = state / 'payload'
+            (payload / 'codex').mkdir(parents=True)
+            snapshot = {'schema_version': 1, 'bin_dir': '/opt/dots-hook-tools/' + 'a' * 64 + '/bin',
+                        'payload_sha256': 'a' * 64}
+            metadata = payload / 'codex/.hook-toolchain.json'
+            metadata.write_text(json.dumps(snapshot))
+            context = {'state_dir': str(state), 'home': str(state / 'home'), 'before': {}, 'package_digest': 'a' * 64}
+            plan = {'schema_version': 1, 'home': context['home'], 'before': {}, 'expected': {},
+                    'package_digest': context['package_digest'], 'hook_toolchain': snapshot}
+            def store(value):
+                raw = json.dumps(value).encode()
+                (state / 'plan.json').write_bytes(raw)
+                return installer.hashlib.sha256(raw).hexdigest()
+            with mock.patch.object(installer, 'ROOT', payload):
+                digest = store(plan)
+                self.assertEqual(installer.load_plan(state, digest, verified_context=context), plan)
+                metadata.write_text(json.dumps({**snapshot, 'payload_sha256': 'b' * 64}))
+                with self.assertRaisesRegex(ValueError, 'packaged hook toolchain identity disagree'):
+                    installer.load_plan(state, digest, verified_context=context)
+                legacy = {name: value for name, value in plan.items() if name != 'hook_toolchain'}
+                self.assertEqual(installer.load_plan(state, store(legacy), verified_context=context), legacy)
+
+    def test_toolchain_identity_detects_payload_edits_and_selection_changes(self):
+        def load(name):
+            spec = importlib.util.spec_from_file_location(name, ROOT / ('codex/scripts/' + name + '.py'))
+            result = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(result)
+            return result
+        validator = load('validate-hook-toolchain')
+        publisher = load('install-hook-toolchain')
+        with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as directory:
+            prefix = Path(directory)
+            payload = prefix / 'staging'
+            (payload / 'bin').mkdir(parents=True)
+            for name in ('python3', 'jq', 'gh'):
+                path = payload / 'bin' / name
+                path.write_text('#!/bin/sh\nexit 0\n')
+                path.chmod(0o700)
+            digest = publisher.digest(publisher.inventory(payload))
+            payload = payload.rename(prefix / digest)
+            (prefix / 'current').symlink_to(payload.name)
+            def protected(path):
+                return path.lstat()
+            with mock.patch.object(validator, 'PREFIX', prefix), mock.patch.object(validator, 'protected', side_effect=protected):
+                identity = validator.identity()
+                self.assertEqual(identity['payload_sha256'], digest)
+                (payload / 'bin/jq').write_text('#!/bin/sh\nexit 1\n')
+                with self.assertRaisesRegex(ValueError, 'contents or selection changed'):
+                    validator.identity()
+                changed_digest = publisher.digest(publisher.inventory(payload))
+                replacement = payload.rename(prefix / changed_digest)
+                (prefix / 'current').unlink()
+                (prefix / 'current').symlink_to(replacement.name)
+                self.assertNotEqual(validator.identity(), identity)
+
     def test_missing_toolchain_blocks_policy_and_stop_retry_terminates(self):
         with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as directory:
             root = Path(directory)

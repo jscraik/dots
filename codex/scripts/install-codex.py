@@ -19,6 +19,35 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 COPY_DIRECTORIES = frozenset({'hooks', 'scripts', 'instructions', 'schemas', 'model-catalogs', 'rules'})
+SYSTEM_PATH = '/usr/bin:/bin:/usr/sbin:/sbin'
+
+
+def system_executable(name):
+    paths = {'git': Path('/usr/bin/git'), 'bash': Path('/bin/bash')}
+    resolved = paths[name].resolve(strict=True)
+    info = resolved.stat()
+    if (not stat.S_ISREG(info.st_mode) or not os.access(resolved, os.X_OK)
+            or any(path.stat().st_uid != 0 or path.stat().st_mode & 0o022
+                   for path in (resolved, *resolved.parents))):
+        raise ValueError('Required system executable is not root-controlled: ' + name)
+    return str(resolved)
+
+
+def child_environment():
+    environment = {name: value for name, value in os.environ.items()
+                   if name in {'LANG', 'LC_ALL', 'LC_CTYPE'}}
+    environment['PATH'] = SYSTEM_PATH
+    return environment
+
+
+def protected_python_executable():
+    return hook_toolchain_snapshot()['bin_dir'] + '/python3'
+
+
+def protected_python_command(script, *arguments):
+    return [protected_python_executable(), '-I', '-B', str(script), *map(str, arguments)]
+
+
 BRAID_STORE_PREFIX = 'braid-'
 # Exact source-only differences in the reviewed 21ff7a3 installation. These
 # exceptions never change the package, normal dispatch or runtime policy.
@@ -30,9 +59,25 @@ FORMATTING_REVIEW_BASELINE = {
 
 
 def module(name, path):
+    path = Path(path)
+    previous_scope = sys.modules.get('migration_scope')
+    needs_scope = path.name in {'admit-policy-fixture.py', 'repair-runtime-config-drift.py'}
+    replace_scope = needs_scope and (previous_scope is None or
+        Path(getattr(previous_scope, '__file__', '')).resolve() != path.with_name('migration_scope.py').resolve())
+    if replace_scope:
+        # Isolated children have no script-directory lookup. Import only the
+        # authenticated sibling, preserving an explicitly bound matching scope.
+        sys.modules['migration_scope'] = module('installation_migration_scope', path.with_name('migration_scope.py'))
     spec = importlib.util.spec_from_file_location(name, path)
     result = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(result)
+    try:
+        spec.loader.exec_module(result)
+    finally:
+        if replace_scope:
+            if previous_scope is None:
+                sys.modules.pop('migration_scope', None)
+            else:
+                sys.modules['migration_scope'] = previous_scope
     return result
 
 
@@ -621,6 +666,113 @@ def verify_previous(home, descriptor=None):
             raise ValueError('Runtime drift must be reviewed before update')
 
 
+def git_output(root, *arguments, text=True, stdin=None):
+    environment = child_environment()
+    environment.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM='1',
+                       GIT_NO_REPLACE_OBJECTS='1')
+    return subprocess.run([system_executable('git'), '--no-replace-objects', '--no-optional-locks',
+        '-c', 'core.fsmonitor=false', *arguments],
+        cwd=root, env=environment, input=stdin, capture_output=True,
+        text=text, check=True, timeout=15).stdout
+
+
+def git_object_id(value):
+    return (isinstance(value, str) and len(value) in {40, 64}
+            and value == value.lower() and all(character in '0123456789abcdef' for character in value))
+
+
+def source_blobs(root, rows):
+    request = b''.join((row['git_object'] + '\n').encode('ascii') for row in rows)
+    details = git_output(root, 'cat-file', '--batch-check', text=False, stdin=request).splitlines()
+    if len(details) != len(rows):
+        raise ValueError('Reviewed Git object inventory is incomplete')
+    for row, detail in zip(rows, details):
+        try:
+            object_id, kind, encoded_size = detail.decode('ascii').split(' ')
+            size = int(encoded_size)
+        except (UnicodeDecodeError, ValueError) as error:
+            raise ValueError('Reviewed Git object metadata is invalid') from error
+        if (object_id != row['git_object'] or kind != 'blob'
+                or size < 0 or size > 16 * 1024 * 1024):
+            raise ValueError('Reviewed Git object changed or exceeds the source limit')
+    output = git_output(root, 'cat-file', '--batch', text=False, stdin=request)
+    blobs = []
+    offset = 0
+    for row in rows:
+        header_end = output.find(b'\n', offset)
+        if header_end < offset:
+            raise ValueError('Reviewed Git object response is incomplete')
+        try:
+            object_id, kind, encoded_size = output[offset:header_end].decode('ascii').split(' ')
+            size = int(encoded_size)
+        except (UnicodeDecodeError, ValueError) as error:
+            raise ValueError('Reviewed Git object response is invalid') from error
+        content_end = header_end + 1 + size
+        raw = output[header_end + 1:content_end]
+        if (object_id != row['git_object'] or kind != 'blob'
+                or size < 0 or size > 16 * 1024 * 1024 or len(raw) != size
+                or output[content_end:content_end + 1] != b'\n'
+                or ('sha256' in row and hashlib.sha256(raw).hexdigest() != row['sha256'])):
+            raise ValueError('Reviewed Git object content changed')
+        blobs.append(raw)
+        offset = content_end + 1
+    if offset != len(output):
+        raise ValueError('Reviewed Git object response has trailing data')
+    return blobs
+
+
+def source_blob(root, row):
+    return source_blobs(root, [row])[0]
+
+
+def source_candidate(root, revision):
+    """Bind preparation to one clean checkout and its immutable commit tree."""
+    root = root.resolve()
+    top = Path(git_output(root, 'rev-parse', '--show-toplevel').strip()).resolve()
+    if top != root:
+        raise ValueError('Installation source must be the Git worktree root')
+    if not git_object_id(revision):
+        raise ValueError('Source revision must be an exact full commit ID')
+    commit = git_output(root, 'rev-parse', '--verify', f'{revision}^{{commit}}').strip()
+    if commit != revision:
+        raise ValueError('Source revision does not resolve to itself as a commit')
+    head = git_output(root, 'rev-parse', '--verify', 'HEAD').strip()
+    if head != commit:
+        raise ValueError('Source revision must equal the checked-out HEAD')
+    if git_output(root, 'status', '--porcelain=v1', '-z', '--untracked-files=all', text=False):
+        raise ValueError('Source checkout must have no tracked or untracked changes')
+    tree = git_output(root, 'rev-parse', '--verify', f'{commit}^{{tree}}').strip()
+    if not git_object_id(tree) or len(tree) != len(commit):
+        raise ValueError('Source tree did not resolve to a full object ID')
+    output = git_output(root, 'ls-tree', '-rz', '--full-tree', tree, text=False)
+    rows = []
+    paths = set()
+    for record in output.split(b'\0'):
+        if not record:
+            continue
+        try:
+            metadata, encoded = record.split(b'\t', 1)
+            mode, kind, object_id = metadata.decode('ascii').split(' ')
+            name = encoded.decode('utf-8')
+        except (UnicodeDecodeError, ValueError) as error:
+            raise ValueError('Source tree contains an invalid entry') from error
+        if (mode not in {'100644', '100755'} or kind != 'blob' or not git_object_id(object_id)
+                or len(object_id) != len(commit)
+                or name.startswith('/') or any(part in {'', '.', '..'} for part in name.split('/'))
+                or name in paths):
+            raise ValueError('Source tree must contain unique regular repository paths')
+        paths.add(name)
+        row = {'path': name, 'git_object': object_id,
+               'mode': 0o755 if mode == '100755' else 0o644}
+        rows.append(row)
+    rows.sort(key=lambda row: row['path'])
+    if 'scripts/install-codex.py' not in paths:
+        raise ValueError('Installation source is not in the reviewed public allowlist')
+    rows = [row | {'sha256': hashlib.sha256(raw).hexdigest()}
+            for row, raw in zip(rows, source_blobs(root, rows))]
+    return {'root': str(root), 'revision': commit, 'tree': tree, 'files': rows}
+
+
 @contextlib.contextmanager
 def transition_inspector(state, package_digest, marker_digest, usage_repair=None):
     """Inspect an exactly pinned old package using the trusted current installer."""
@@ -868,27 +1020,20 @@ def build_policy_transition(args, home, generated, bindings_raw):
 
 
 def public_files(root):
-    names = subprocess.run(['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
-        cwd=root, capture_output=True, text=True, check=True, timeout=15).stdout.split('\0')
-    result = []
-    for name in sorted(set(filter(None, names))):
-        path = root / name
-        raw = SCOPE.read_regular(path)
-        result.append({'path': name, 'sha256': hashlib.sha256(raw).hexdigest(),
-                       'mode': stat.S_IMODE(path.stat().st_mode)})
-    if 'scripts/install-codex.py' not in {row['path'] for row in result}:
-        raise ValueError('Installation source is not in the reviewed public allowlist')
-    return result
+    revision = git_output(root, 'rev-parse', '--verify', 'HEAD').strip()
+    return source_candidate(root, revision)['files']
 
 
 def clean_environment(home, payload):
-    env = {name: value for name, value in os.environ.items()
-           if name in {'PATH', 'LANG', 'LC_ALL', 'LC_CTYPE'}}
+    env = child_environment()
+    python = protected_python_executable()
+    env['PATH'] = str(Path(python).parent) + os.pathsep + SYSTEM_PATH
     env.update(HOME=str(home), CODEX_HOME=str(home / '.codex'), TMPDIR=str(home / 'tmp'),
         XDG_CONFIG_HOME=str(home / '.config'), XDG_DATA_HOME=str(home / '.local/share'),
         XDG_CACHE_HOME=str(home / '.cache'), PYTHONDONTWRITEBYTECODE='1', UV_OFFLINE='1',
         CODEX_SESSION_REPAIR_MODE='check', CODEX_CONFIG_SOURCE_ROOT=str(payload / 'codex'),
-        CODEX_VALIDATION_PYTHON=sys.executable, CODEX_VALIDATION_UV_PYTHON=sys.executable)
+        CODEX_VALIDATION_PYTHON=python, CODEX_VALIDATION_UV_PYTHON=python,
+        PYTHONNOUSERSITE='1')
     return env
 
 
@@ -909,9 +1054,13 @@ def installation_lock(home):
 
 def projector(state, *args, lock_fd=None):
     context = SCOPE.context()
-    command = ['bash', str(ROOT / 'scripts/link-configs.sh'), *args,
+    env = clean_environment(Path(context['home']), ROOT)
+    for name in ('DOTS_DESKTOP_REVIEW_STATE', 'DOTS_DESKTOP_REVIEW_SHA256'):
+        if name in os.environ:
+            env[name] = os.environ[name]
+    command = [system_executable('bash'), '-p', str(ROOT / 'scripts/link-configs.sh'), *args,
                '--scope', 'codex', '--codex-home', str(Path(context['home']) / '.codex')]
-    result = subprocess.run(command, env=os.environ, cwd=ROOT, capture_output=True, text=True,
+    result = subprocess.run(command, env=env, cwd=ROOT, capture_output=True, text=True,
         timeout=120, check=False, pass_fds=() if lock_fd is None else (lock_fd,))
     if result.returncode:
         save(state / 'projector-diagnostic.json', {'exit_code': result.returncode,
@@ -919,15 +1068,34 @@ def projector(state, *args, lock_fd=None):
         raise ValueError('Projector refused; see the private diagnostic')
 
 
-def assemble(args, *, policy_update=False):
+def hook_toolchain_snapshot():
+    """Inspect the external admin selection without executing its binaries."""
     trusted_tools = subprocess.run(
-        ['/usr/bin/python3', '-I', '-S', str(ROOT / 'codex/scripts/validate-hook-toolchain.py')],
+        ['/usr/bin/python3', '-I', '-S', '-B', str(ROOT / 'codex/scripts/validate-hook-toolchain.py'), '--identity'],
         env={'PATH': '/usr/bin:/bin:/usr/sbin:/sbin'},
         capture_output=True, text=True, timeout=30, check=False,
     )
     if trusted_tools.returncode:
         raise ValueError('Provision and select the protected hook toolchain before preparation: '
                          + trusted_tools.stderr.strip())
+    snapshot = json.loads(trusted_tools.stdout, object_pairs_hook=SCOPE.unique)
+    if (not isinstance(snapshot, dict) or set(snapshot) != {'schema_version', 'bin_dir', 'payload_sha256'}
+            or type(snapshot['schema_version']) is not int or snapshot['schema_version'] != 1
+            or not isinstance(snapshot['payload_sha256'], str) or len(snapshot['payload_sha256']) != 64
+            or any(char not in '0123456789abcdef' for char in snapshot['payload_sha256'])
+            or snapshot['bin_dir'] != '/opt/dots-hook-tools/' + snapshot['payload_sha256'] + '/bin'):
+        raise ValueError('Invalid protected hook toolchain identity')
+    return snapshot
+
+
+def verify_hook_toolchain(plan):
+    expected = plan.get('hook_toolchain')
+    if expected is None or hook_toolchain_snapshot() != expected:
+        raise ValueError('Prepared hook toolchain changed or was not bound; prepare a new plan')
+
+
+def assemble(args, *, policy_update=False):
+    toolchain = hook_toolchain_snapshot()
     home = SCOPE.target_home(args.home, args.mode)
     state = SCOPE.physical(args.state_dir)
     if (not state.is_relative_to(home) or state == home
@@ -958,14 +1126,17 @@ def assemble(args, *, policy_update=False):
             'review_sha256': args.previous_desktop_review_sha256}
     if not transition:
         verify_previous(home, previous_descriptor)
-    files = public_files(ROOT)
+    source = source_candidate(ROOT, args.source_revision)
+    files = source['files']
     state.mkdir(mode=0o700, parents=True)
     payload = state / 'payload'
     payload.mkdir(mode=0o700)
-    for row in files:
+    for row, raw in zip(files, source_blobs(ROOT, files)):
         target = payload / row['path']
         target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        write(target, SCOPE.read_regular(ROOT / row['path']), 0o700 if row['mode'] & 0o111 else 0o600)
+        write(target, raw, 0o700 if row['mode'] & 0o111 else 0o600)
+    if source != source_candidate(ROOT, args.source_revision):
+        raise ValueError('Source candidate changed during package assembly')
     if previous_descriptor:
         write(payload / 'codex/.previous-desktop-review.json',
               json.dumps(previous_descriptor, sort_keys=True).encode())
@@ -1015,6 +1186,7 @@ def assemble(args, *, policy_update=False):
         path = home / '.codex' / name
         retained[name] = {'type': 'symlink', 'target': os.readlink(path)} if path.is_symlink() else {
             'type': 'directory' if path.is_dir() else 'absent' if not path.exists() else 'conflict'}
+    write(payload / 'codex/.hook-toolchain.json', json.dumps(toolchain, sort_keys=True).encode())
     for path in payload.rglob('*'):
         if path.is_file():
             path.chmod(0o500 if path.stat().st_mode & 0o111 else 0o400)
@@ -1027,11 +1199,11 @@ def assemble(args, *, policy_update=False):
         if path.is_dir():
             path.chmod(0o500)
     payload.chmod(0o500)
-    save(state / 'origin.json', {'root': str(ROOT), 'files': files})
+    save(state / 'origin.json', source)
     env = clean_environment(home, payload)
     (home / 'tmp').mkdir(mode=0o700, exist_ok=True)
-    result = subprocess.run([sys.executable, '-B', str(payload / 'scripts/install-codex.py'),
-        'prepare', '--state-dir', str(state)], env=env, cwd=payload, capture_output=True, text=True, timeout=120, check=False)
+    result = subprocess.run(protected_python_command(payload / 'scripts/install-codex.py',
+        'prepare', '--state-dir', state), env=env, cwd=payload, capture_output=True, text=True, timeout=120, check=False)
     if result.returncode:
         save(state / 'diagnostic.json', {'stdout': result.stdout, 'stderr': result.stderr})
         raise ValueError('Preparation refused; see the private diagnostic')
@@ -1043,6 +1215,8 @@ def finish_prepare(state):
     home = Path(context['home'])
     admission = module('installation_preflight', ROOT / 'codex/scripts/admit-policy-fixture.py')
     with installation_lock(home):
+        toolchain = read_json(ROOT / 'codex/.hook-toolchain.json')
+        verify_hook_toolchain({'hook_toolchain': toolchain})
         descriptor_path = ROOT / 'codex/.previous-desktop-review.json'
         descriptor = read_json(descriptor_path) if descriptor_path.exists() else None
         transition = policy_transition()
@@ -1087,7 +1261,7 @@ def finish_prepare(state):
                     raise ValueError('Managed directory changed during backup')
         (state / 'publisher-backups').mkdir(mode=0o700)
         plan = {'schema_version': 1, 'home': str(home), 'package_digest': context['package_digest'],
-                'before': context['before'], 'expected': after}
+                'before': context['before'], 'expected': after, 'hook_toolchain': toolchain}
         save(state / 'plan.json', plan)
         digest = hashlib.sha256(SCOPE.read_regular(state / 'plan.json')).hexdigest()
         save(state / 'result.json', {'status': 'prepared', 'after': {}})
@@ -1102,12 +1276,14 @@ def load_plan(state, digest, *, verified_context=None):
     if hashlib.sha256(raw).hexdigest() != digest:
         raise ValueError('Plan digest mismatch')
     plan = json.loads(raw, object_pairs_hook=SCOPE.unique)
-    if (not isinstance(plan, dict) or set(plan) != {
-            'schema_version', 'home', 'package_digest', 'before', 'expected'}
+    fields = {'schema_version', 'home', 'package_digest', 'before', 'expected'}
+    if (not isinstance(plan, dict) or set(plan) not in (fields, fields | {'hook_toolchain'})
             or type(plan['schema_version']) is not int or plan['schema_version'] != 1
             or plan['package_digest'] != context['package_digest'] or plan['home'] != context['home']
             or plan['before'] != context['before'] or set(plan['expected']) != set(plan['before'])):
         raise ValueError('Plan and package disagree')
+    if 'hook_toolchain' in plan and plan['hook_toolchain'] != read_json(ROOT / 'codex/.hook-toolchain.json'):
+        raise ValueError('Plan and packaged hook toolchain identity disagree')
     return plan
 
 
@@ -1176,6 +1352,7 @@ def reviewed_desktop(state, digest, plan, review_digest):
 
 def apply(state, digest):
     plan = load_plan(state, digest)
+    verify_hook_toolchain(plan)
     runtime = Path(plan['home']) / '.codex'
     with installation_lock(Path(plan['home'])) as fd:
         recover_rename_permissions(state, runtime)
@@ -1216,6 +1393,7 @@ def apply(state, digest):
                     merged.encode()).hexdigest(), 'size': len(merged.encode())}, plan['expected']['config.toml']):
                 raise ValueError('Prepared canonical policy or Desktop state changed: ' + str(error))
             repair._validate_canonical_snapshot(canonical.decode())
+            verify_hook_toolchain(plan)
             if original != merged.encode():
                 repair._write_repair(target, merged, expected=original,
                     unchanged=((ROOT / 'codex/config.toml', canonical),))
@@ -1235,6 +1413,7 @@ def apply(state, digest):
 
 def check(state, digest, review_digest=None):
     plan = load_plan(state, digest)
+    verify_hook_toolchain(plan)
     result = load_result(state, plan)
     runtime = Path(plan['home']) / '.codex'
     review = reviewed_desktop(state, digest, plan, review_digest)
@@ -1406,17 +1585,27 @@ def desktop_check_environment(state, digest):
 def verified_public_payload(state, *, formatting_review=False):
     """Authenticate the package before importing any of its executable files."""
     frozen = read_json(state / 'origin.json')
-    expected = public_files(ROOT)
-    if formatting_review and frozen.get('files') != expected:
-        for row in expected:
-            historical = FORMATTING_REVIEW_BASELINE.get(row['path'])
-            if historical:
-                row['sha256'] = historical
-    if frozen != {'root': str(ROOT), 'files': expected}:
+    if not isinstance(frozen, dict):
+        raise ValueError('Source candidate changed; prepare again')
+    if formatting_review and set(frozen) == {'root', 'files'}:
+        # Retain only the existing exact historical formatting-review route.
+        # Ordinary preparation and recovery require the immutable tree receipt.
+        expected = [{key: value for key, value in row.items() if key != 'git_object'}
+                    for row in public_files(ROOT)]
+        if frozen.get('files') != expected:
+            for row in expected:
+                historical = FORMATTING_REVIEW_BASELINE.get(row['path'])
+                if historical:
+                    row['sha256'] = historical
+        if frozen != {'root': str(ROOT), 'files': expected}:
+            raise ValueError('Source candidate changed; prepare again')
+    elif frozen != source_candidate(ROOT, frozen.get('revision')):
         raise ValueError('Source candidate changed; prepare again')
     payload = state / 'payload'
     generated = {'codex/config.toml', 'codex/projection-map.json', 'codex/requirements.toml',
                  'codex/hooks/hooks.json', 'codex/.public-source.json', 'codex/.runtime-source.json'}
+    if (payload / 'codex/.hook-toolchain.json').exists():
+        generated.add('codex/.hook-toolchain.json')
     if (payload / 'codex/.previous-desktop-review.json').exists():
         generated.add('codex/.previous-desktop-review.json')
     if (payload / 'codex/.policy-transition.json').exists():
@@ -1641,8 +1830,9 @@ def dispatch(args):
     if args.operation == 'prepare-policy-update':
         if (ROOT / 'codex/.deployment.json').exists():
             raise ValueError('Policy updates require the reviewed source entrypoint')
-        if not all((*transition_inputs, args.home, args.bindings, args.braid_bin, args.mode)):
-            raise ValueError('Policy updates require explicit bindings and previous-generation pins')
+        if not all((*transition_inputs, args.home, args.bindings, args.braid_bin, args.mode,
+                    args.source_revision)):
+            raise ValueError('Policy updates require explicit bindings, source revision and previous-generation pins')
         return assemble(args, policy_update=True)
     if any(transition_inputs):
         raise ValueError('Policy transition inputs are valid only for prepare-policy-update')
@@ -1669,16 +1859,19 @@ def dispatch(args):
                 state, args.plan_digest, args.desktop_review_sha256)
         return apply(state, args.plan_digest)
     if args.operation == 'prepare':
-        if not all((args.home, args.bindings, args.braid_bin, args.mode)):
-            raise ValueError('Preparation needs explicit home, bindings, Braid path and mode')
+        if not all((args.home, args.bindings, args.braid_bin, args.mode, args.source_revision)):
+            raise ValueError('Preparation needs explicit home, bindings, Braid path, mode and source revision')
         return assemble(args)
     # Never execute package code merely because a caller supplied its manifest.
     # Every public executable must still equal this trusted source candidate.
+    frozen = read_json(state / 'origin.json')
+    if not isinstance(frozen, dict) or frozen != source_candidate(ROOT, frozen.get('revision')):
+        raise ValueError('Source candidate changed; prepare again')
     marker = verified_public_payload(state)
     payload = state / 'payload'
     env = clean_environment(Path(marker['home']), payload)
-    command = [sys.executable, '-B', str(payload / 'scripts/install-codex.py'),
-        args.operation, '--state-dir', str(state), '--plan-digest', args.plan_digest or '']
+    command = protected_python_command(payload / 'scripts/install-codex.py',
+        args.operation, '--state-dir', state, '--plan-digest', args.plan_digest or '')
     if args.desktop_review_sha256:
         command.extend(('--desktop-review-sha256', args.desktop_review_sha256))
     result = subprocess.run(command,
@@ -1700,6 +1893,7 @@ def main():
     parser.add_argument('--bindings', type=Path)
     parser.add_argument('--braid-bin', type=Path)
     parser.add_argument('--mode', choices=('rehearsal', 'machine'))
+    parser.add_argument('--source-revision')
     parser.add_argument('--plan-digest')
     parser.add_argument('--name')
     parser.add_argument('--desktop-review-sha256')

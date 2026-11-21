@@ -2,6 +2,9 @@
 
 import os
 import stat
+import importlib.util
+import json
+import sys
 from pathlib import Path
 
 
@@ -42,8 +45,27 @@ def resolve():
     return root / "bin"
 
 
+def identity():
+    """Reuse the administrator installer's inventory format to bind contents."""
+    binary_dir = resolve()
+    root = binary_dir.parent
+    spec = importlib.util.spec_from_file_location(
+        'hook_toolchain_inventory', Path(__file__).with_name('install-hook-toolchain.py'))
+    inventory_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(inventory_module)
+    digest = inventory_module.digest(inventory_module.inventory(root))
+    if digest != root.name or resolve() != binary_dir:
+        raise ValueError('Protected toolchain contents or selection changed')
+    return {'schema_version': 1, 'bin_dir': str(binary_dir), 'payload_sha256': digest}
+
+
 if __name__ == "__main__":
     try:
-        print(resolve())
+        if sys.argv[1:] == ['--identity']:
+            print(json.dumps(identity(), sort_keys=True))
+        elif not sys.argv[1:]:
+            print(resolve())
+        else:
+            raise ValueError('Unknown toolchain validation operation')
     except (OSError, ValueError) as error:
         raise SystemExit("Protected hook toolchain unavailable: " + str(error))
