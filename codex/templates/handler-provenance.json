@@ -104,9 +104,10 @@
         "fixture scope and event admission before handler actions",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
         "Deny xargs command construction before protected child routing; retain direct-command behavior.",
+        "Admit only the exact resolver syntax check from a canonical checkout root, including when hooks run from a separate installed payload; retain execution, extra-argument and symlink denials.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "d85ee8f776d301e32b34ebc85c18a78b8607b1e6c59b50acff718894a3d78bba"
+      "candidate_sha256": "789418e9e66ff6dfd25cdcaae531e5dc30838372a864cd99c2820a550f8968af"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",

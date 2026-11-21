@@ -53,8 +53,8 @@
     {
       "path": "codex/hooks/pre-tool-use-dispatch.sh",
       "prior_candidate_sha256": "410160a1e4cf544151c390af3e2f56548926d42cd13cfa942dd7efd87c75c515",
-      "candidate_sha256": "d85ee8f776d301e32b34ebc85c18a78b8607b1e6c59b50acff718894a3d78bba",
-      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Deny xargs command construction before protected child routing; retain direct-command behavior.",
+      "candidate_sha256": "789418e9e66ff6dfd25cdcaae531e5dc30838372a864cd99c2820a550f8968af",
+      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Deny xargs command construction before protected child routing; retain direct-command behavior. Admit the exact resolver syntax check from a canonical checkout root independently of the installed hook payload; preserve execution, extra-argument and symlink denials.",
       "additional_source": {
         "revision": "283db198d281e239524da23563bd3390fa9910c9",
         "sha256": "a2fe193fa5bf198a86910b1ee5c64306142dcd08ef16323842bb86079bef76e9",
@@ -202,8 +202,8 @@
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "26693072fe5ee132b442711067d87dbaff68840a92ac85a48cceb1e7f32195f0",
-      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment. Add automatic SessionStart fsmonitor non-execution and dirty-state regression coverage."
+      "candidate_sha256": "1702cf4b539abb45820a21dc47184b58090d50ed102c7f4e754b3205b0972464",
+      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment. Add automatic SessionStart fsmonitor non-execution and dirty-state regression coverage. Prove exact resolver syntax admission through the actual hook from a separate checkout and preserve execution, extra-argument and symlink denials."
     },
     {
       "path": "tests/test_pending_fixes.py",
