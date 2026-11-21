@@ -28,10 +28,31 @@ def seed_checkout_ref(repository, environment, branch='topic'):
 
 
 class DestructiveGitOperationTests(unittest.TestCase):
+    def test_search_command_options_are_not_inert_data(self):
+        for command in ("rg --pre 'rm -rf /Users/alice' pattern .",
+                        "rg --pre='git reset --hard' pattern .",
+                        'rg -e -- --pre=./payload notes.txt',
+                        'rg -ne -- --hostname-bin=./payload notes.txt',
+                        'rg --regexp -- --pre=./payload notes.txt',
+                        "rg --hostname-bin='git reset --hard' pattern ."):
+            with self.subTest(command=command):
+                self.assertEqual(self.classify(command), 'unsupported')
+        self.assertEqual(self.classify('rg -- --pre notes.txt'), 'safe')
+
+    def test_inert_path_normalization_preserves_auth_prefix(self):
+        command = 'mkdir -p /Users/alice/.codex/auth/{one,two}'
+        result = subprocess.run([sys.executable, '-I', '-S', str(DETECTOR),
+            '--prepare-literals', command], capture_output=True, text=True,
+            timeout=5, check=False, env=self.environment)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        import shlex
+        self.assertEqual(shlex.split(result.stdout), ['mkdir', '-p',
+            '/Users/alice/.codex/auth/{one,two}'])
+
     def test_inert_shell_forms_and_confined_cleanup_remain_safe(self):
         for command in ('mkdir -p /tmp/x/{one,two}', 'printf %s $((1+1))',
                         'rg -n rm .', 'grep rm notes.txt',
-                        'rm --recursive --force /private/tmp/dots-fixture'):
+                        'git status --short'):
             with self.subTest(command=command):
                 self.assertEqual(self.classify(command), 'safe')
 
@@ -64,6 +85,7 @@ class DestructiveGitOperationTests(unittest.TestCase):
             'doas rm -rf /',
             'setsid rm -rf /',
             'rm --recursive --force /etc',
+            'rm --recursive --force /private/tmp/dots-fixture',
             'rm --recursive --force /Applications',
             'ssh host rm -rf /',
             '> /dev/null git reset --hard',

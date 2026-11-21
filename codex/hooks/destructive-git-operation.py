@@ -360,6 +360,32 @@ def inspect_shell(command, depth=0, budget=None, opaque_transport=None):
             if any(char in tokens[executable_index] for char in '$`*?[{~'):
                 raise ValueError('Dynamic executable requires separate inspection')
             executable = tokens[executable_index].rsplit("/", 1)[-1].lower()
+            if executable == 'rg':
+                value_options = {'--regexp', '--file', '--pre-glob', '--dfa-size-limit', '--encoding',
+                    '--engine', '--max-count', '--regex-size-limit', '--threads', '--glob', '--iglob',
+                    '--ignore-file', '--max-depth', '--max-filesize', '--type', '--type-not',
+                    '--type-add', '--type-clear', '--after-context', '--before-context', '--color',
+                    '--colors', '--context', '--context-separator', '--field-context-separator',
+                    '--field-match-separator', '--hyperlink-format', '--max-columns',
+                    '--path-separator', '--replace', '--sort', '--sortr', '--generate'}
+                consume_value = False
+                for operand in tokens[executable_index + 1:]:
+                    if consume_value:
+                        consume_value = False
+                        continue
+                    if operand == '--':
+                        break
+                    if operand.split('=', 1)[0] in {'--pre', '--hostname-bin'}:
+                        raise ValueError('Search utility command execution requires separate inspection')
+                    if operand in value_options:
+                        consume_value = True
+                    elif operand.startswith('-') and not operand.startswith('--'):
+                        for position, flag in enumerate(operand[1:], 1):
+                            if flag in 'efEmjgdtTABCMr':
+                                consume_value = position == len(operand) - 1
+                                break
+                if consume_value:
+                    raise ValueError('Missing search option value')
             if executable in {'find', 'gfind', 'fd', 'fdfind'}:
                 search_tokens = [token.replace(marker, "${__codex_substitution__}")
                                  for token in shell_split(protect_search_literals(context))]
@@ -754,7 +780,12 @@ if len(sys.argv) > 1 and sys.argv[1] == '--prepare-literals':
     try:
         if len(sys.argv[2]) > 1048576:
             raise ValueError('Shell transport input exceeds inspection budget')
-        print('true' if inert_shell_form(sys.argv[2]) else prepare_literals(sys.argv[2]))
+        if inert_shell_form(sys.argv[2]):
+            # Keep path-bearing forms visible to the independent auth scanner.
+            print('mkdir -p ' + shlex.quote(sys.argv[2][9:])
+                  if sys.argv[2].startswith('mkdir -p ') else 'true')
+        else:
+            print(prepare_literals(sys.argv[2]))
     except (ValueError, IndexError):
         raise SystemExit(2)
     raise SystemExit(0)
@@ -807,12 +838,9 @@ for git_index in range(len(command_tokens)):
                 if resolved == Path('/') or resolved == home or resolved in home.parents:
                     print('broad-delete')
                     raise SystemExit(0)
-                # Only a confined disposable subtree may clear this broad form.
-                temporary_roots = (Path('/tmp').resolve(), Path('/private/tmp').resolve())
-                if not any(resolved != root and resolved.is_relative_to(root)
-                           for root in temporary_roots):
-                    print('unsupported')
-                    raise SystemExit(0)
+                # A preflight pathname cannot bind the later raw deletion inode.
+                print('unsupported')
+                raise SystemExit(0)
     if not is_git_command(command_tokens, git_index, segment_start, positions):
         continue
     if has_dynamic_git_config_environment(command_tokens, git_index, segment_start):

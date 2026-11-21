@@ -321,7 +321,7 @@
         "Reuse the validated Python launcher in the nested missing-Computer-Use home",
         "Use the imported Path class in the native hook trust probe"
       ],
-      "candidate_sha256": "d386f80c76887de9752cec5a4b071fcddbc1c1e27d57b44888f600be9810d651"
+      "candidate_sha256": "dcd15c1b889e9f1d291906b4ae6c8b6c465abdd814dcab87a4a0827a54132f20"
     },
     {
       "path": "codex/README.md",
@@ -329,7 +329,7 @@
       "transformations": [
         "public path placeholders; accepted schema/policy content retained"
       ],
-      "candidate_sha256": "8076151e6be0744fdf56ebc72ed9741fdc41782ab6eef4f4dc66d7083e8246bd"
+      "candidate_sha256": "16a58767203e0718f30a922e2a98f81c27592f428a3e63f84dcd4712e249a65a"
     },
     {
       "path": "codex/hooks/README.md",
@@ -731,7 +731,7 @@
       ],
       "source_sha256": "218b9f4398ef58a8604855a5ff82456b80cd33204b27b950146dede8002acb7a",
       "source_path": "codex/scripts/tests/runtime_config_fixture.py",
-      "candidate_sha256": "0b16691da99b8b23539879bee5f6be43070f1c6d159a665f6b888fa64c3fda6b"
+      "candidate_sha256": "e04d0b3d579c141a63b2ffc84b5531523cd60e856be909b9413e75e5d27e391e"
     },
     {
       "path": "codex/scripts/pr-readiness.py",
@@ -818,7 +818,7 @@
         "synthetic fixture resources; original selected checks retained",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
       ],
-      "candidate_sha256": "dcfcf4601197ee0b32cc9fb71f084097e659ed34e0234d506b24ff4f27ae36dd"
+      "candidate_sha256": "cbdb31eef9925199de87d4d89b7863b72f5e976f5cacfb1e7ab97e0fcc7630c5"
     },
     {
       "path": "codex/scripts/tests/test_pr_coderabbit_structured.py",

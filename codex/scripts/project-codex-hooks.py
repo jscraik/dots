@@ -24,7 +24,7 @@ MAX_BRAID_BYTES = 16 * 1024 * 1024
 def guard_manifest() -> dict:
     """The existing guards must survive every hook publication unchanged."""
     def group(script: str, timeout: int = 10, matcher: str | None = None) -> dict:
-        value = {"hooks": [{"type": "command", "command": f"~/.codex/hooks/{script}", "timeout": timeout}]}
+        value = {"hooks": [{"type": "command", "command": f"/bin/bash -p ~/.codex/hooks/{script}", "timeout": timeout}]}
         if matcher is not None:
             value["matcher"] = matcher
         return value

@@ -6,6 +6,7 @@ import json
 import os
 import pwd
 import runpy
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -628,6 +629,78 @@ class HelperDependencyTests(unittest.TestCase):
                 "Nested fixture project leaves its disposable HOME", result.stderr
             )
             self.assertFalse((Path(outside) / "must-not-be-created").exists())
+        fixture.assert_preserved(self)
+
+    def test_allowed_project_audit_preserves_valid_config_and_import_failures(self):
+        fixture = self.fixture
+        scan = fixture.home / 'audit-projects'
+        project = scan / 'lifeOS'
+        project.mkdir(parents=True)
+        subprocess.run(['/usr/bin/git', 'init', '-q', str(project)], env=fixture.env,
+                       capture_output=True, check=True, timeout=10)
+        # Keep discovery deterministic; the behavior under test is the audit's
+        # isolated validator and its decision to preserve or remove this file.
+        finder = fixture.bin / 'fd'
+        finder.write_text('#!/bin/sh\nprintf "%s\\n" ' + shlex.quote(str(project / '.git')) + '\n')
+        finder.chmod(0o755)
+        config = project / '.codex/config.toml'
+        config.parent.mkdir()
+        valid = b'model_verbosity = "low"\n'
+        config.write_bytes(valid)
+        (project / '.gitignore').write_text('.codex/config.toml\n')
+        marker = fixture.home / 'workspace-imported'
+        (fixture.codex / 'migration_scope.py').write_text(
+            'open(' + repr(str(marker)) + ', "w").write("poisoned")\nraise RuntimeError("poison")\n')
+        for mode in ('--check', '--repair'):
+            result = fixture.helper('audit-project-codex-config-overrides.sh', mode, str(scan))
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertNotIn('SKIP', result.stdout, result.stdout + result.stderr)
+            self.assertEqual(config.read_bytes(), valid)
+            self.assertFalse(marker.exists())
+        neighbour = scan / 'neighbour'
+        (neighbour / '.git').mkdir(parents=True)
+        (neighbour / '.codex').mkdir()
+        neighbour_config = neighbour / '.codex/config.toml'
+        neighbour_config.write_text('approval_policy = "never"\n')
+        finder.write_text('#!/bin/sh\nprintf "%s\\n" '
+                          + shlex.quote(str(project / '.git')) + ' '
+                          + shlex.quote(str(neighbour / '.git')) + '\n')
+        repaired = fixture.helper('audit-project-codex-config-overrides.sh', '--repair', str(scan))
+        self.assertEqual(repaired.returncode, 0, repaired.stdout + repaired.stderr)
+        self.assertEqual(config.read_bytes(), valid)
+        self.assertFalse(neighbour_config.exists())
+        fixture.assert_preserved(self)
+        config.write_text('approval_policy = "never"\n')
+        invalid = fixture.helper('audit-project-codex-config-overrides.sh', '--check', str(scan))
+        self.assertNotEqual(invalid.returncode, 0)
+        self.assertTrue(config.exists())
+        removed = fixture.helper('audit-project-codex-config-overrides.sh', '--repair', str(scan))
+        self.assertEqual(removed.returncode, 0, removed.stdout + removed.stderr)
+        self.assertFalse(config.exists())
+        config.write_bytes(valid)
+        validator = fixture.codex / 'scripts/validate-codex-config.py'
+        validator.write_text('raise ImportError("synthetic unavailable validator")\n')
+        unavailable = fixture.helper('audit-project-codex-config-overrides.sh', '--repair', str(scan))
+        self.assertNotEqual(unavailable.returncode, 0)
+        self.assertIn('validator unavailable', unavailable.stderr)
+        self.assertEqual(config.read_bytes(), valid)
+
+    def test_nested_hook_home_does_not_reuse_parent_runtime_aliases(self):
+        fixture = self.fixture
+        projected = fixture.project()
+        self.assertEqual(projected.returncode, 0, projected.stdout + projected.stderr)
+        child = fixture.home / "optional-runtime-home"
+        child.mkdir()
+        inherited = fixture.helper(
+            "admit-hook-fixture.py", "{}", extra_env={"HOME": str(child)}
+        )
+        self.assertNotEqual(inherited.returncode, 0)
+        self.assertIn("Mutable fixture resource directories", inherited.stderr)
+        isolated = fixture.helper(
+            "admit-hook-fixture.py", "{}",
+            extra_env={"HOME": str(child), "CODEX_HOME": ""},
+        )
+        self.assertEqual(isolated.returncode, 0, isolated.stdout + isolated.stderr)
         fixture.assert_preserved(self)
 
     def test_full_hook_harness_and_fast_aggregate(self):

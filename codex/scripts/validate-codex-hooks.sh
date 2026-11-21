@@ -270,6 +270,8 @@ bash scripts/validate-auto-review-scope.sh
 trace_step "auto-review scope check passed"
 
 hooks_json="$(python3 "$script_dir/core-hook-fixture-manifest.py" "$repo_root/hooks/hooks.json")"
+assert_jq "$hooks_json" '([.. | objects | select(.type? == "command") | .command] | all(startswith("/bin/bash -p ~/.codex/hooks/")))' "core hooks must use the privileged system Bash launcher"
+hooks_json="$(jq 'walk(if type == "object" and .type? == "command" then .command |= ltrimstr("/bin/bash -p ") else . end)' <<<"$hooks_json")"
 assert_jq "$hooks_json" '(.hooks | type) == "object"' "hooks.json must contain a top-level hooks object"
 assert_jq "$hooks_json" '(.hooks | keys | sort) == ["PermissionRequest", "PostCompact", "PostToolUse", "PreCompact", "PreToolUse", "SessionStart", "Stop", "SubagentStart", "SubagentStop", "UserPromptSubmit"]' "hooks.json event keys must match the canonical runtime hook event set"
 assert_jq "$hooks_json" '([.hooks.PreToolUse, .hooks.PermissionRequest, .hooks.PostToolUse, .hooks.SessionStart, .hooks.PreCompact, .hooks.PostCompact, .hooks.SubagentStart, .hooks.SubagentStop, .hooks.UserPromptSubmit, .hooks.Stop] | all((type == "array") and (length > 0)))' "each configured hook event must have at least one hook group"
@@ -313,7 +315,7 @@ trace_step "nested hook orchestration check passed"
 for hook_script in hooks/*.sh; do
   bash -n "$hook_script"
   shebang_line="$(head -n 1 "$hook_script")"
-  if [[ "$shebang_line" != "#!/usr/bin/env bash" ]]; then
+  if [[ "$shebang_line" != "#!/bin/bash -p" && "$shebang_line" != "#!/usr/bin/env bash" ]]; then
     echo "[validate-codex-hooks] hook script must use bash shebang: $hook_script" >&2
     exit 1
   fi
@@ -1960,6 +1962,18 @@ if [[ "$lifeos_leak_probe_output" != *"CONTEXT7_API_KEY_PRESENT=true"* || "$life
 fi
 lifeos_probe_home="$lifeos_test_root/home"
 mkdir -p "$lifeos_probe_home/.local/bin"
+lifeos_untrusted_bun_marker="$lifeos_test_root/untrusted-bun-invoked"
+printf '#!/bin/sh\nprintf invoked > %q\n' "$lifeos_untrusted_bun_marker" > "$lifeos_probe_home/.local/bin/bun"
+chmod +x "$lifeos_probe_home/.local/bin/bun"
+lifeos_missing_bun_output="$(
+  printf '%s' '{"hook_event_name":"UserPromptSubmit","cwd":"'"$lifeos_project_root"'","prompt":"Optional runtime unavailable."}' \
+    | HOME="$lifeos_probe_home" CODEX_HOME="" CODEX_LIFEOS_DIR="$lifeos_test_root" CODEX_LIFEOS_PROJECT_ROOT="$lifeos_project_root" CODEX_LIFEOS_BUN="" run_fixture_hook hooks/lifeos-codex.sh
+)"
+assert_jq "$lifeos_missing_bun_output" '.continue == true and (has("hookSpecificOutput") | not)' "LifeOS without a protected default Bun should return no context"
+if [[ -e "$lifeos_untrusted_bun_marker" ]]; then
+  echo "[validate-codex-hooks] LifeOS executed writable HOME Bun" >&2
+  exit 1
+fi
 printf '#!/usr/bin/env bash\nexec %q "$@"\n' "$validation_python_executable" > "$lifeos_probe_home/.local/bin/python3"
 chmod +x "$lifeos_probe_home/.local/bin/python3"
 lifeos_probe_path="/usr/local/bin:/usr/bin:/bin"
@@ -1969,8 +1983,8 @@ lifeos_env_output="$(
 )"
 assert_jq "$lifeos_env_output" '.hookSpecificOutput.additionalContext | capture("KEYS=(?<keys>[^\\n]+)").keys | split(",") | map(select(. != "LC_CTYPE" and . != "__CF_USER_TEXT_ENCODING" and . != "PWD" and . != "SHLVL" and . != "_")) | sort == ["HOME", "LIFEOS_DIR", "PATH"]' "LifeOS retriever should receive only its three required environment variables apart from interpreter locale and Bash launcher markers"
 assert_jq "$lifeos_env_output" '.hookSpecificOutput.additionalContext | capture("\nHOME=(?<home>[^\\n]*)\n").home == '"$(printf '%s' "$lifeos_probe_home" | jq -Rs .)" "LifeOS retriever should preserve the supplied HOME"
-lifeos_expected_path="$lifeos_probe_home/.local/share/mise/shims:$lifeos_probe_home/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$lifeos_probe_path"
-assert_jq "$lifeos_env_output" '.hookSpecificOutput.additionalContext | capture("\nPATH=(?<path>[^\\n]*)\n").path == '"$(printf '%s' "$lifeos_expected_path" | jq -Rs .)" "LifeOS retriever should preserve the adapter PATH"
+lifeos_expected_path="$(/usr/bin/python3 -I -S "$script_dir/validate-hook-toolchain.py"):/usr/bin:/bin:/usr/sbin:/sbin"
+assert_jq "$lifeos_env_output" '.hookSpecificOutput.additionalContext | capture("\nPATH=(?<path>[^\\n]*)\n").path == '"$(printf '%s' "$lifeos_expected_path" | jq -Rs .)" "LifeOS retriever should receive only the verified protected toolchain and system PATH"
 assert_jq "$lifeos_env_output" '.hookSpecificOutput.additionalContext | contains("LIFEOS_DIR='"$lifeos_test_root"'")' "LifeOS retriever should receive its selected root"
 assert_jq "$lifeos_env_output" '.hookSpecificOutput.additionalContext | contains("CONTEXT7_API_KEY_PRESENT=false") and contains("MCP_AUTH_TOKEN_PRESENT=false")' "LifeOS retriever should not receive unrelated secret variables"
 assert_jq "$lifeos_env_output" '.hookSpecificOutput.additionalContext | contains("secret-value") | not' "LifeOS retriever probe must not disclose fixture secret values"

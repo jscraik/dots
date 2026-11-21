@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.codex/hooks/pre-tool-use-dispatch.sh",
+            "command": "/bin/bash -p ~/.codex/hooks/pre-tool-use-dispatch.sh",
             "timeout": 130
           }
         ]
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.codex/hooks/pre-tool-use-guard.sh",
+            "command": "/bin/bash -p ~/.codex/hooks/pre-tool-use-guard.sh",
             "timeout": 10
           }
         ]
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.codex/hooks/post-tool-use-review.sh",
+            "command": "/bin/bash -p ~/.codex/hooks/post-tool-use-review.sh",
             "timeout": 10
           }
         ]
@@ -47,7 +47,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.codex/hooks/post-tool-use-review.sh",
+            "command": "/bin/bash -p ~/.codex/hooks/post-tool-use-review.sh",
             "timeout": 10
           }
         ]
@@ -68,7 +68,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.codex/hooks/session-start.sh",
+            "command": "/bin/bash -p ~/.codex/hooks/session-start.sh",
             "timeout": 10
           }
         ]
@@ -94,7 +94,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.codex/hooks/pre-compact-guard.sh",
+            "command": "/bin/bash -p ~/.codex/hooks/pre-compact-guard.sh",
             "timeout": 5
           }
         ]
@@ -115,7 +115,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.codex/hooks/post-compact-recorder.sh",
+            "command": "/bin/bash -p ~/.codex/hooks/post-compact-recorder.sh",
             "timeout": 5
           }
         ]
@@ -135,7 +135,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.codex/hooks/subagent-start.sh",
+            "command": "/bin/bash -p ~/.codex/hooks/subagent-start.sh",
             "timeout": 10
           }
         ]
@@ -159,7 +159,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.codex/hooks/subagent-stop.sh",
+            "command": "/bin/bash -p ~/.codex/hooks/subagent-stop.sh",
             "timeout": 10
           }
         ]
@@ -179,7 +179,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.codex/hooks/permission-request-guard.sh",
+            "command": "/bin/bash -p ~/.codex/hooks/permission-request-guard.sh",
             "timeout": 10
           }
         ]
@@ -189,7 +189,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.codex/hooks/permission-request-guard.sh",
+            "command": "/bin/bash -p ~/.codex/hooks/permission-request-guard.sh",
             "timeout": 10
           }
         ]
@@ -209,12 +209,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.codex/hooks/user-prompt-submit.sh",
+            "command": "/bin/bash -p ~/.codex/hooks/user-prompt-submit.sh",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "~/.codex/hooks/lifeos-codex.sh",
+            "command": "/bin/bash -p ~/.codex/hooks/lifeos-codex.sh",
             "timeout": 10
           }
         ]
@@ -238,7 +238,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.codex/hooks/stop-guard.sh",
+            "command": "/bin/bash -p ~/.codex/hooks/stop-guard.sh",
             "timeout": 10
           }
         ]

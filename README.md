@@ -124,6 +124,63 @@ containment; session and credential stores remain protected.
 
 ## First-machine installation candidate
 
+### Protected hook tools prerequisite
+
+Prepare the complete Python, jq and GitHub CLI payload on its native platform
+using the reviewed artifact lock. Supported targets are macOS ARM64 and Linux
+amd64. The protected bootstrap requires `/usr/bin/python3` version 3.9 or newer
+(Command Line Tools Python on macOS). Installation preparation checks this
+route before publishing hooks. Preparation uses disposable storage and installs the hash-locked Python
+validation dependencies inside that payload.
+
+```sh
+python3 -I codex/scripts/prepare-hook-toolchain.py --platform darwin-arm64 --output /tmp/dots-hook-tools
+python3 -I codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-tools --inspect
+```
+
+Review the payload and the printed inventory digest before the separate admin
+step. Supply that exact digest as `REVIEWED_DIGEST`. Provisioning requires
+system Python with isolated mode and publishes a root-owned version under
+`/opt/dots-hook-tools`. `--select` explicitly selects that version for hooks.
+
+```sh
+sudo /usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-tools --reviewed-sha256 REVIEWED_DIGEST --select
+```
+
+Complete this prerequisite before preparing a new Codex installation. New
+preparation captures the selected version and its complete inventory digest in
+the sealed package and plan. Apply rechecks it before any runtime publication,
+and check refuses a changed, missing or unbound selection. An administrator
+changing the selection requires a fresh preparation. Historical unbound plans
+remain readable for recovery through their exact previously prepared package
+entrypoint, state directory and plan digest (see recovery below). The updated
+checkout dispatcher does not authenticate legacy origin receipts and refuses
+them; it must not execute historical payloads on an unverified caller manifest.
+Legacy plans do not provide new apply/check readiness through this installer.
+
+Installer children and packaged projection use the verified versioned Python
+from this protected toolchain. They do not reuse a mutable caller venv launcher.
+Machine wrappers ignore caller Python overrides and writable mise/venv fallback
+roots. Disposable fixture resources have a separate system-Python admission
+before their explicit test interpreter is used; that route grants no live-home
+installation or activation authority.
+
+Existing mise-only installations need this admin step before adopting these hook
+launchers. Full installation and Linux CI verification of this candidate are
+pending.
+
+LifeOS retrieval also needs its separately administered Bun runtime and private
+retriever. Before adopting these launchers on a LifeOS machine, provision and
+verify Bun in an administrator-owned directory outside sandbox-writable roots,
+then set `CODEX_LIFEOS_BUN` to that exact absolute executable in the owning app's
+launch environment. Every directory component and the executable must remain
+protected from workspace writes; an absolute path alone does not prove this.
+The adapter passes this executable directly as an argument and does not restore
+mise, Homebrew or inherited PATH discovery. Bun and the private retriever remain
+external to the mandatory Python/jq/gh package. Without an explicitly available
+runtime, optional retrieval returns no context; it does not clear a security
+decision. The retained LifeOS harness covers the explicit executable route and
+the minimal child environment.
 Readiness helpers use a separate repository-scoped contract for verified managed
 worktrees. It admits contained scope and waiver inputs without adding general
 resource roots. Receipts use regular JSON leaves in an existing owned `.tmp`

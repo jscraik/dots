@@ -1,13 +1,14 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
 set -euo pipefail
-export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
+# shellcheck source=codex/hooks/hook-runtime-path.sh
+. "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh" || exit 2
 input_json="$(cat)"
 dots_hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 python3 "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit $?
 hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 codex_repo_root="$(cd -P "$hook_dir/.." && pwd -P)"
 # shellcheck source=codex/hooks/hook-runtime-lib.sh
-. "$hook_dir/hook-runtime-lib.sh"
+. "$hook_dir/hook-runtime-lib.sh" || exit 2
 runtime_policy_script="$codex_repo_root/scripts/hook-governance/hook_runtime_policy.py"
 timeout_class="pre_safety_fail_closed"
 if [[ -f "$runtime_policy_script" ]]; then
@@ -95,7 +96,7 @@ run_block() {
     }'
 }
 tokenize_command() {
-  python3 - "$1" <<'PY'
+  python3 -I -S - "$1" <<'PY'
 import shlex
 import sys
 import re
@@ -666,7 +667,7 @@ is_git_no_verify_bypass=false
 canonicalize_edit_target() {
   local target="$1"
   local base_dir="${_command_cwd:-$PWD}"
-  python3 - "$base_dir" "$target" <<'PY'
+  python3 -I -S - "$base_dir" "$target" <<'PY'
 import sys
 from pathlib import Path
 

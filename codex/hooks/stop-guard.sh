@@ -1,21 +1,38 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
 
 set -euo pipefail
-export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
-
-input_json="$(cat)"
+unset PYTHONPATH PYTHONHOME PYTHONSTARTUP PYTHONUSERBASE BASH_ENV ENV
+unset LD_PRELOAD LD_LIBRARY_PATH DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH
+input_json="$(/bin/cat)"
 # Native Stop retries are a termination signal, not a resource operation.
 # Parse strictly and return before admission, libraries or receipt access.
-stop_hook_active="$(printf '%s' "$input_json" | jq -r 'if type != "object" then error("Stop input must be an object") else .stop_hook_active == true end')"
+stop_hook_active="$(/usr/bin/python3 -I -S -c '
+import json
+import sys
+try:
+    event = json.load(sys.stdin)
+    if type(event) is not dict:
+        raise ValueError("Stop input must be an object")
+except (ValueError, TypeError, RecursionError):
+    print("Security hook blocked: invalid Stop input.", file=sys.stderr)
+    raise SystemExit(2)
+print("true" if event.get("stop_hook_active") is True else "false")
+' <<<"$input_json")" || {
+  printf '%s\n' 'Security hook blocked: Stop input validation failed.' >&2
+  exit 2
+}
 if [[ "$stop_hook_active" == "true" ]]; then
-  jq -n '{continue: true}'
+  printf '%s\n' '{"continue":true}'
   exit 0
 fi
+# shellcheck source=codex/hooks/hook-runtime-path.sh
+. "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh" || exit 2
+
 dots_hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 python3 "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit $?
 hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=codex/hooks/hook-runtime-lib.sh
-. "$hook_dir/hook-runtime-lib.sh"
+. "$hook_dir/hook-runtime-lib.sh" || exit 2
 last_message="$(printf '%s' "$input_json" | jq -r '.last_assistant_message // ""')"
 
 normalized_message="$(printf '%s' "$last_message" | tr '[:upper:]' '[:lower:]')"
