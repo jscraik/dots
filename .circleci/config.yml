@@ -70,10 +70,15 @@ jobs:
             /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_hook_handlers.py -k raw_api_merge_accepts_only_the_receipt_target -v --failfast
             /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_installation_route.py -k partial_cutover_rolls_back_without_resuming_activation -v --failfast
             /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_installation_route.py -k policy_transition_preserves_selected_preferences_and_exact_rollback -v --failfast
-            # Keep complete module coverage within the one-hour job limit.
+            # Hosted timings put installation alone on the second runner;
+            # grouping it with the hook/helper suites exceeds the job budget.
             test_files=(tests/test_*.py)
             for index in "${!test_files[@]}"; do
-              if (( index % CIRCLE_NODE_TOTAL == CIRCLE_NODE_INDEX )); then
+              node=0
+              if [[ "${test_files[index]}" = tests/test_installation_route.py ]]; then
+                node=1
+              fi
+              if (( node == CIRCLE_NODE_INDEX )); then
                 /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p "${test_files[index]##*/}" -v --failfast
               fi
             done
