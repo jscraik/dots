@@ -37,7 +37,7 @@ class HookToolchainTests(unittest.TestCase):
                 + 'state=pathlib.Path(os.environ["XDG_STATE_HOME"])/"gh"; state.mkdir(parents=True,exist_ok=True)\n'
                 + '(state/"device-id").write_text("fixture")\n'
                 + 'with open(' + repr(str(receipt)) + ',"a") as stream: stream.write(str(home)+"\\n")\n')
-            for name in ('python3', 'jq', 'gh'):
+            for name in ('python3', 'jq', 'gh', 'bun'):
                 path = payload / 'bin' / name
                 path.write_text(script)
                 path.chmod(0o700)
@@ -46,8 +46,12 @@ class HookToolchainTests(unittest.TestCase):
                 publisher.check_runtime(payload)
             self.assertEqual(publisher.inventory(payload), before)
             homes = receipt.read_text().splitlines()
-            self.assertEqual(len(homes), 3)
+            self.assertEqual(len(homes), 4)
             self.assertTrue(all(not Path(home).exists() for home in homes))
+            # Optional providers participate in the same immutable inventory.
+            identity = publisher.digest(before)
+            (payload / 'bin/bun').write_text('#!/bin/sh\nexit 0\n')
+            self.assertNotEqual(publisher.digest(publisher.inventory(payload)), identity)
 
     def test_runtime_selection_must_match_packaged_binding(self):
         spec = importlib.util.spec_from_file_location('runtime_selection', ROOT / 'codex/scripts/validate-hook-toolchain.py')

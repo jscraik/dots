@@ -21,7 +21,7 @@
         "fixed root-owned hook dependency path and absolute Bash launch",
         "check bootstrap failure before Python or retrieval; preserve owner failure posture"
       ],
-      "candidate_sha256": "ba78d066c462bcacb06785ffb4d7a38ba214da141a879d7a85a9e598a2dd3c02"
+      "candidate_sha256": "71663b06651a53d77bdcd3c8adc300fbaf492dc4599ce8c08253dded9c1e7ded"
     },
     {
       "path": "codex/hooks/permission-request-guard.sh",

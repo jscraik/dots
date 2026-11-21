@@ -25,7 +25,9 @@ if ! . "$hook_dir/hook-runtime-lib.sh"; then
 fi
 lifeos_root="${CODEX_LIFEOS_DIR:-${LIFEOS_DIR:-$HOME/.codex/LIFEOS}}"
 retriever="${CODEX_LIFEOS_RETRIEVER:-$lifeos_root/TOOLS/MemoryRetriever.ts}"
-bun_bin="${CODEX_LIFEOS_BUN:-$(command -v bun 2>/dev/null || true)}"
+# Optional providers share the already validated, installation-bound inventory.
+# Neither an inherited override nor PATH may choose a different executable.
+bun_bin="${CODEX_VALIDATION_PYTHON%/*}/bun"
 data_project_root="${CODEX_LIFEOS_PROJECT_ROOT:-$HOME/dev/lifeOS}"
 retriever_timeout_seconds="${CODEX_LIFEOS_RETRIEVER_TIMEOUT_SECONDS:-3}"
 
@@ -49,7 +51,7 @@ if [[ "$canonical_prompt_cwd" != "$canonical_project_root" && "$canonical_prompt
   jq -n '{continue: true}'
   exit 0
 fi
-if [[ -z "$prompt" || -z "$bun_bin" || ! -f "$retriever" || ! "$retriever_timeout_seconds" =~ ^[1-9][0-9]*$ ]] || ! command -v python3 >/dev/null 2>&1; then
+if [[ -z "$prompt" || ! -f "$bun_bin" || ! -x "$bun_bin" || ! -f "$retriever" || ! "$retriever_timeout_seconds" =~ ^[1-9][0-9]*$ ]] || ! command -v python3 >/dev/null 2>&1; then
   jq -n '{continue: true}'
   exit 0
 fi

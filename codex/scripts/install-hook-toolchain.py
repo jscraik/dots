@@ -27,6 +27,10 @@ def check_runtime(root):
         [str(root / "bin/jq"), "--version"],
         [str(root / "bin/gh"), "--version"],
     )
+    if (root / 'bin/bun').exists() or (root / 'bin/bun').is_symlink():
+        if not (root / 'bin/bun').is_file() or not os.access(root / 'bin/bun', os.X_OK):
+            raise ValueError('Optional Bun provider must be executable')
+        commands += ([str(root / 'bin/bun'), '--version'],)
     with tempfile.TemporaryDirectory(prefix='dots-hook-runtime-check-', dir=Path('/tmp').resolve()) as temporary:
         home = Path(temporary).resolve()
         environment = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "PYTHONNOUSERSITE": "1",

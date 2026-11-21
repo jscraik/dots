@@ -13,6 +13,42 @@ from hook_fixture import HookFixture
 
 
 class HookHandlerTests(unittest.TestCase):
+    def test_lifeos_selects_only_optional_provider_in_validated_payload(self):
+        tools = self.fixture.home / '.fixture-hook-tools/bin'
+        provider = tools / 'bun'
+        corpus = self.fixture.runtime / 'LIFEOS'
+        (corpus / 'TOOLS').mkdir(parents=True)
+        retriever = corpus / 'TOOLS/MemoryRetriever.ts'
+        retriever.write_text('// synthetic retriever input\n')
+        marker = self.fixture.home / 'unexpected-provider'
+        poison = self.fixture.bin / 'bun'
+        poison.write_text('#!/bin/sh\ntouch "' + str(marker) + '"\n')
+        poison.chmod(0o700)
+        event = {'prompt': 'literal $(touch SHOULD_NOT_RUN)', 'cwd': str(self.fixture.repo)}
+        environment = {'CODEX_LIFEOS_DIR': str(corpus),
+                       'CODEX_LIFEOS_PROJECT_ROOT': str(self.fixture.repo)}
+        self.assertEqual(self.output('lifeos-codex.sh', event, environment), {'continue': True})
+        self.assertFalse(marker.exists())
+        provider.write_text('#!/bin/sh\n[ "$2" = --raw ] && [ "$3" = --top ] '
+            '&& [ "$4" = 5 ] && [ "$5" = -- ] || exit 91\n'
+            '[ -z "${LIFEOS_TEST_SENTINEL+x}" ] || exit 92\nprintf "fixture bound retrieval\\n"\n')
+        provider.chmod(0o700)
+        output = self.output('lifeos-codex.sh', event, environment | {'LIFEOS_TEST_SENTINEL': 'synthetic'})
+        self.assertIn('fixture bound retrieval', output['hookSpecificOutput']['additionalContext'])
+        self.assertFalse(marker.exists())
+        self.assertFalse((self.fixture.repo / 'SHOULD_NOT_RUN').exists())
+        # A legacy in-scope override is inert; an external resource is rejected.
+        output = self.output('lifeos-codex.sh', event, environment | {'CODEX_LIFEOS_BUN': str(poison)})
+        self.assertIn('fixture bound retrieval', output['hookSpecificOutput']['additionalContext'])
+        self.assertFalse(marker.exists())
+        for override in ({'CODEX_LIFEOS_BUN': '/usr/bin/true'},
+                         {'CODEX_LIFEOS_RETRIEVER': '/etc/passwd'}):
+            rejected = self.fixture.run('lifeos-codex.sh', event, environment | override)
+            self.assertEqual(rejected.returncode, 2, rejected.stdout + rejected.stderr)
+            self.assertNotIn('fixture bound retrieval', rejected.stdout)
+        provider.chmod(0o600)
+        self.assertEqual(self.output('lifeos-codex.sh', event, environment), {'continue': True})
+
     def test_inherited_bytecode_cache_cannot_replace_admission_modules(self):
         import importlib.util
         import py_compile

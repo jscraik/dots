@@ -49,15 +49,15 @@ Codex home. Review the staged result before designing a live installation path.
 ## LifeOS hook installation migration
 
 The protected hook bootstrap restricts PATH to its selected toolchain and system
-binaries. Before enabling LifeOS retrieval, set `CODEX_LIFEOS_BUN` to the absolute
-Bun executable path in the environment inherited by Codex. For an Apple Silicon
-Homebrew installation this is normally `/opt/homebrew/bin/bun`; verify the path
-and its ownership on the target machine. Bun and every directory component
-must be administrator-owned and protected from workspace writes, as README.md
-requires. An absolute path alone is insufficient; do not use a user runtime
-manager or another user-writable Bun installation. The hook does not discover Bun through the caller's
-PATH. Missing Bun leaves this optional context lookup unavailable and continues
-the prompt.
+binaries. Remove the former `CODEX_LIFEOS_BUN` launch override. Before reviewing
+the toolchain inventory digest, stage a separately verified Bun artifact at
+`bin/bun` inside the prepared payload, then use the documented separate admin
+installation. The optional executable participates in the same protected,
+versioned inventory and package binding as Python/jq/gh; there is no Homebrew or
+user-runtime fallback. This repository supplies no Bun artifact pin. Review its
+provenance and platform compatibility separately. Private retriever and corpus
+paths still require admission. Missing optional Bun returns no context and
+continues the prompt; it never supplies a security clearance.
 
 ## CI boundary
 

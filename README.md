@@ -179,17 +179,19 @@ Existing mise-only installations need this admin step before adopting these hook
 launchers. Full installation and Linux CI verification of this candidate are
 pending.
 
-LifeOS retrieval also needs its separately administered Bun runtime and private
-retriever. Before adopting these launchers on a LifeOS machine, provision and
-verify Bun in an administrator-owned directory outside sandbox-writable roots,
-then set `CODEX_LIFEOS_BUN` to that exact absolute executable in the owning app's
-launch environment. Every directory component and the executable must remain
-protected from workspace writes; an absolute path alone does not prove this.
-The adapter passes this executable directly as an argument and does not restore
-mise, Homebrew or inherited PATH discovery. Bun and the private retriever remain
-external to the mandatory Python/jq/gh package. Without an explicitly available
-runtime, optional retrieval returns no context; it does not clear a security
-decision. The retained LifeOS harness covers the explicit executable route and
+LifeOS retrieval needs an optional Bun executable in the protected toolchain
+and a separately admitted private retriever. Before calculating the payload's
+reviewed inventory digest, stage an independently verified, platform-compatible
+Bun artifact at `bin/bun` beside Python/jq/gh. This repository does not supply a
+Bun download pin: artifact identity and provenance need separate review. The
+normal admin installation inventories and checks this optional provider, and
+the installed package binds its exact toolchain version. Changing Bun requires
+a newly reviewed payload and installation; no live-home activation is implied.
+The adapter selects only that bound `bin/bun`. `CODEX_LIFEOS_BUN`, Homebrew,
+mise and inherited PATH no longer select providers. Remove the legacy override
+from the launch environment. The private retriever and data paths retain their
+existing resource admission. Without optional Bun, retrieval returns no context;
+it does not clear a security decision. The retained LifeOS harness covers synthetic provider routing and
 the minimal child environment.
 Readiness helpers use a separate repository-scoped contract for verified managed
 worktrees. It admits contained scope and waiver inputs without adding general

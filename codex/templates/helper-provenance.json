@@ -321,7 +321,7 @@
         "Reuse the validated Python launcher in the nested missing-Computer-Use home",
         "Use the imported Path class in the native hook trust probe"
       ],
-      "candidate_sha256": "dcd15c1b889e9f1d291906b4ae6c8b6c465abdd814dcab87a4a0827a54132f20"
+      "candidate_sha256": "c60f567e473aaf87210752073f70346609d09344a431e0db89fdfa53c557bd39"
     },
     {
       "path": "codex/README.md",
@@ -818,7 +818,7 @@
         "synthetic fixture resources; original selected checks retained",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
       ],
-      "candidate_sha256": "cbdb31eef9925199de87d4d89b7863b72f5e976f5cacfb1e7ab97e0fcc7630c5"
+      "candidate_sha256": "68ce14cee5888454e61e68d3e2df14fec608f3c0187e0a93341f4a54f16871da"
     },
     {
       "path": "codex/scripts/tests/test_pr_coderabbit_structured.py",
