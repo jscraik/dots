@@ -14,7 +14,7 @@ fi
 set -euo pipefail
 
 dots_helper_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python3 "$dots_helper_dir/admit-hook-fixture.py" '{}' || exit $?
+python3 -I -S -B "$dots_helper_dir/admit-hook-fixture.py" '{}' || exit $?
 
 script_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 repo_root="$(python3 "$script_dir/migration_scope.py" --source-root)"

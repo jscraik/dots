@@ -6,7 +6,7 @@ set -euo pipefail
 . "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh" || exit 2
 input_json="$(cat)"
 dots_hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python3 "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit $?
+python3 -I -S -B "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit $?
 printf '%s' "$input_json" | jq '
   if .tool_name == "Bash" then
     {

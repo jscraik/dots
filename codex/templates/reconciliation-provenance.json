@@ -36,8 +36,8 @@
     {
       "path": "README.md",
       "prior_candidate_sha256": "ced157af36e675f8d6c890a5b04a70805e0835432efc957efc85c92f1e98ab01",
-      "candidate_sha256": "9762d6e77dc4d41c11288d651cae41aaa9af238a0d0806da40775ff8859586fa",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Document the native distinction between on-disk hook consent and loaded-thread acceptance, verified by a disposable native regression without a model turn. Document the two additional exact native app metadata names; preserve the existing installation and permission boundaries. Document app-bundled CLI validation and isolated pinned dependency setup. Require an exact reviewed source commit and document clean-checkout, immutable-tree packaging and private provenance receipts. Document complete-module CircleCI partitioning across two small containers, retained security checks and the separate hosted-timing acceptance requirement."
+      "candidate_sha256": "5c0a961df0c1b0ca8b13da61fb3e685fd7f81186cc927da9d63b5257ed991a23",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Document the native distinction between on-disk hook consent and loaded-thread acceptance, verified by a disposable native regression without a model turn. Document the two additional exact native app metadata names; preserve the existing installation and permission boundaries. Document app-bundled CLI validation and isolated pinned dependency setup. Require an exact reviewed source commit and document clean-checkout, immutable-tree packaging and private provenance receipts. Document complete discovered test-case CircleCI partitioning plus repeated diagnostic checks across two small containers, retained security checks and the separate hosted-timing acceptance requirement."
     },
     {
       "path": "codex/hooks/README.md",
@@ -47,13 +47,13 @@
     {
       "path": "codex/hooks/pre-commit-tests.sh",
       "prior_candidate_sha256": "da8c32b3ee00003e38fabaea57151d518935326235741e2cbc4ac92a2bb5eb7b",
-      "candidate_sha256": "6dec4cca10ea5c790a5d5e6e3f42edadebf48cd9b78c3871ecf782711d36d4bf",
+      "candidate_sha256": "e6d9a165758987f5572ae3d2f3e814d6278be484cb0f3c7bd68fd86283806cfb",
       "transformation": "Use the fixed root-owned hook dependency path and absolute Bash launch."
     },
     {
       "path": "codex/hooks/pre-tool-use-dispatch.sh",
       "prior_candidate_sha256": "410160a1e4cf544151c390af3e2f56548926d42cd13cfa942dd7efd87c75c515",
-      "candidate_sha256": "789418e9e66ff6dfd25cdcaae531e5dc30838372a864cd99c2820a550f8968af",
+      "candidate_sha256": "4d42a16ad7f2aec1481afe95fb626eeedd442e8a39e8a95936c3460e3a630ace",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Deny xargs command construction before protected child routing; retain direct-command behavior. Admit the exact resolver syntax check from a canonical checkout root independently of the installed hook payload; preserve execution, extra-argument and symlink denials.",
       "additional_source": {
         "revision": "283db198d281e239524da23563bd3390fa9910c9",
@@ -202,7 +202,7 @@
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "6b8816daf534198608fb3ead6212c06915657f21c097bb3821aba79868a0ca42",
+      "candidate_sha256": "bba011ea43d984c0114960a49c7a6170756a2c6621d6a4eb0eeb7555f595acca",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment. Add automatic SessionStart fsmonitor non-execution and dirty-state regression coverage. Prove exact resolver syntax admission through the actual hook from a separate checkout and preserve execution, extra-argument and symlink denials."
     },
     {

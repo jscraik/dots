@@ -20,7 +20,7 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "ab1e5356f1ca50a7f895fb55c8f0a95dba37834b82a63542c010316e9cea1697",
       "transformation": "explicit disposable-home admission; original checks retained",
-      "candidate_sha256": "bd815ba2889fba4efef04dbd2a6cbd67efb89c08328dc59879c7e61e3d46e64f"
+      "candidate_sha256": "c0d913ed2cc94fd20c0cd7df528117e9f47731409423019a79bff05dd3bd6cf7"
     },
     {
       "path": "codex/model-catalogs/oss-local-qwen35.json",
@@ -55,7 +55,7 @@
       "source_revision": null,
       "source_sha256": null,
       "transformation": "New local prepare/apply/check/rollback procedure reusing existing validators and publishers.; Add fixed packaged-context admission; retain default disposable admission and original checks. Apply inode-journalled temporary rename modes on Linux as well as macOS.",
-      "candidate_sha256": "9cccea34ec05e030bbd5a6f5912b3c03168b8fa604c590ec6323596ce8ebf154"
+      "candidate_sha256": "6421fa360c8840114db9f1633c77ed34fd2f631f2d3f96b0f0d4774af06878c6"
     }
   ],
   "fixture_kind": "full-policy-v1",

@@ -811,7 +811,9 @@ Configs' existing checks. Local installation records and recovery artifacts stay
 outside this public repository; they are not included in hosted validation.
 The validation job installs the already-declared validation dependency pins
 before running the suite. It partitions the complete discovered test set across
-two small containers; every case runs once, and a failure fails validation. The workflow
+two small containers; each discovered case runs once in that partitioned suite,
+in addition to the three diagnostic regressions repeated on both nodes.
+A failure fails validation. The workflow
 keeps the `validate` and `secret-scan` jobs, small resource classes, checksum
 verification and both secret scans. Hosted timing must confirm that validation
 finishes within the job limit; local partition checks do not establish hosted

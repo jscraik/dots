@@ -1,5 +1,6 @@
 """Exercise toolchain archive containment without privileged installation."""
 import importlib.util
+import hashlib
 import io
 import json
 import os
@@ -213,6 +214,71 @@ class HookToolchainTests(unittest.TestCase):
                     with self.subTest(operation=operation.__name__, bound=bool(plan)), \
                             self.assertRaisesRegex(ValueError, 'toolchain changed or was not bound'):
                         operation(Path('/unused'), 'unused')
+
+    def test_source_dispatch_rejects_changed_toolchain_before_child_start(self):
+        spec = importlib.util.spec_from_file_location('prelaunch_binding_installer', ROOT / 'codex/scripts/install-codex.py')
+        installer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(installer)
+        expected = {'schema_version': 1, 'bin_dir': '/opt/dots-hook-tools/' + 'a' * 64 + '/bin',
+                    'payload_sha256': 'a' * 64}
+        changed = {**expected, 'bin_dir': '/opt/dots-hook-tools/' + 'b' * 64 + '/bin',
+                   'payload_sha256': 'b' * 64}
+        with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as directory:
+            home = Path(directory)
+            state = home / 'state'
+            scripts = state / 'payload/codex/scripts'
+            scripts.mkdir(parents=True)
+            (scripts / '.hook-toolchain.json').write_text(json.dumps(expected))
+            frozen = {'revision': 'a' * 40}
+            (state / 'origin.json').write_text(json.dumps(frozen))
+            marker = {'home': str(home), 'state_dir': str(state), 'before': {},
+                      'package_digest': installer.SCOPE.identity(installer.SCOPE.fingerprint(state / 'payload'))}
+            plan = {'schema_version': 1, 'home': str(home), 'before': {}, 'expected': {},
+                    'package_digest': marker['package_digest'], 'hook_toolchain': expected}
+            raw_plan = json.dumps(plan).encode()
+            (state / 'plan.json').write_bytes(raw_plan)
+            args = SimpleNamespace(state_dir=state, previous_desktop_review_sha256=None,
+                desktop_review_sha256=None, bindings_sha256=None, previous_plan_digest=None,
+                previous_package_digest=None, previous_marker_sha256=None,
+                previous_expected_config_sha256=None, previous_observed_config_sha256=None,
+                usage_directory_repair=None, plan_digest=hashlib.sha256(raw_plan).hexdigest())
+            with (mock.patch.object(installer.SCOPE, 'physical', side_effect=lambda path: path),
+                  mock.patch.object(installer, 'source_candidate', return_value=frozen),
+                  mock.patch.object(installer, 'verified_public_payload', return_value=marker),
+                  mock.patch.object(installer, 'hook_toolchain_snapshot', return_value=changed),
+                  mock.patch.object(installer.subprocess, 'run', side_effect=AssertionError('child started'))):
+                for operation in ('apply', 'check'):
+                    args.operation = operation
+                    with self.subTest(operation=operation), self.assertRaisesRegex(ValueError, 'toolchain changed'):
+                        installer.dispatch(args)
+            # A matching selection reaches the legitimate child; an admin
+            # selection change between environment and command construction
+            # must still stop before spawn. Rollback retains its recovery path.
+            with (mock.patch.object(installer.SCOPE, 'physical', side_effect=lambda path: path),
+                  mock.patch.object(installer, 'source_candidate', return_value=frozen),
+                  mock.patch.object(installer, 'verified_public_payload', return_value=marker)):
+                for operation in ('apply', 'check', 'rollback'):
+                    args.operation = operation
+                    selected = changed if operation == 'rollback' else expected
+                    with (mock.patch.object(installer, 'hook_toolchain_snapshot', return_value=selected),
+                          mock.patch.object(installer.subprocess, 'run', return_value=SimpleNamespace(
+                              returncode=0, stdout='{"ok": true}', stderr='')) as child):
+                        self.assertEqual(installer.dispatch(args), {'ok': True})
+                        self.assertEqual(child.call_args.args[0][0], selected['bin_dir'] + '/python3')
+                        self.assertEqual(child.call_args.kwargs['env']['CODEX_VALIDATION_PYTHON'],
+                                         selected['bin_dir'] + '/python3')
+                args.operation = 'apply'
+                with (mock.patch.object(installer, 'hook_toolchain_snapshot', side_effect=[expected, changed]),
+                      mock.patch.object(installer.subprocess, 'run', side_effect=AssertionError('child started')),
+                      self.assertRaisesRegex(ValueError, 'toolchain changed')):
+                    installer.dispatch(args)
+                for replaced in (changed, None):
+                    (scripts / '.hook-toolchain.json').write_text(json.dumps(replaced))
+                    with (mock.patch.object(installer, 'hook_toolchain_snapshot', return_value=changed),
+                          mock.patch.object(installer.subprocess, 'run', side_effect=AssertionError('child started')),
+                          self.subTest(tampered_binding=replaced),
+                          self.assertRaisesRegex(ValueError, 'toolchain|package')):
+                        installer.dispatch(args)
 
     def test_plan_retains_exact_toolchain_binding_and_legacy_readability(self):
         spec = importlib.util.spec_from_file_location('toolchain_plan_installer', ROOT / 'codex/scripts/install-codex.py')

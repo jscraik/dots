@@ -13,7 +13,7 @@ fi
 
 set -euo pipefail
 dots_script_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python3 "$dots_script_dir/admit-hook-fixture.py" '{}' || exit $?
+python3 -I -S -B "$dots_script_dir/admit-hook-fixture.py" '{}' || exit $?
 
 script_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
@@ -78,7 +78,7 @@ if [[ ! -d "$DEV_ROOT" ]]; then
 fi
 
 DEV_ROOT="$(cd -P "$DEV_ROOT" && pwd -P)"
-python3 "$script_dir/admit-hook-fixture.py" "$(jq -cn --arg cwd "$DEV_ROOT" '{cwd:$cwd}')" || exit $?
+python3 -I -S -B "$script_dir/admit-hook-fixture.py" "$(jq -cn --arg cwd "$DEV_ROOT" '{cwd:$cwd}')" || exit $?
 ALLOWED_LIFEOS_CONFIG="${DEV_ROOT}/lifeOS/.codex/config.toml"
 
 if [[ ! -f "$CANONICAL_CONFIG" ]]; then

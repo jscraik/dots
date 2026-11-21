@@ -16,7 +16,7 @@ fi
 # the current prompt through its deterministic retriever and returns context.
 input_json="$(cat)"
 dots_hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python3 "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit $?
+python3 -I -S -B "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit $?
 hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=codex/hooks/hook-runtime-lib.sh
 if ! . "$hook_dir/hook-runtime-lib.sh"; then

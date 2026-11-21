@@ -12,7 +12,7 @@ if [[ -n "${DOTS_TEST_HOME:-}" && ! -e "$dots_script_dir/../.deployment.json" &&
       && ! -e "$dots_script_dir/../.dots-package.json" && ! -L "$dots_script_dir/../.dots-package.json" ]]; then
   # This exception admits disposable resources with system Python before any
   # caller-selected fixture interpreter can execute. It grants no live route.
-  /usr/bin/python3 -B -E -s "$dots_script_dir/admit-hook-fixture.py" '{}' || return $?
+  /usr/bin/python3 -I -S -B "$dots_script_dir/admit-hook-fixture.py" '{}' || return $?
   dots_bootstrap_python="${CODEX_VALIDATION_PYTHON:-}"
 else
   dots_protected_bin="$(/usr/bin/python3 -I -S -B "$dots_script_dir/validate-hook-toolchain.py")" || return $?
@@ -28,7 +28,7 @@ if [[ "$dots_bootstrap_python" != /* || ! -f "$dots_bootstrap_python" || ! -x "$
 fi
 CODEX_VALIDATION_PYTHON="$dots_bootstrap_python"
 export CODEX_VALIDATION_PYTHON
-"$dots_bootstrap_python" -B -E -s "$dots_script_dir/admit-hook-fixture.py" '{}' || return $?
+"$dots_bootstrap_python" -I -S -B "$dots_script_dir/admit-hook-fixture.py" '{}' || return $?
 
 _codex_python_candidates() {
   printf '%s\n' "$dots_bootstrap_python"

@@ -12,7 +12,7 @@ fi
 
 set -euo pipefail
 dots_script_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python3 "$dots_script_dir/admit-hook-fixture.py" '{}' || exit $?
+python3 -I -S -B "$dots_script_dir/admit-hook-fixture.py" '{}' || exit $?
 
 if [[ $# -ne 1 ]]; then
   printf 'Usage: bash codex/scripts/check-runtime-config-path.sh PATH\n' >&2

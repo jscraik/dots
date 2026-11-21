@@ -44,12 +44,15 @@ def child_environment():
     return environment
 
 
-def protected_python_executable():
-    return hook_toolchain_snapshot()['bin_dir'] + '/python3'
+def protected_python_executable(toolchain=None):
+    selected = hook_toolchain_snapshot()
+    if toolchain is not None and selected != toolchain:
+        raise ValueError('Prepared hook toolchain changed; refuse child execution')
+    return selected['bin_dir'] + '/python3'
 
 
-def protected_python_command(script, *arguments):
-    return [protected_python_executable(), '-I', '-B', str(script), *map(str, arguments)]
+def protected_python_command(script, *arguments, toolchain=None):
+    return [protected_python_executable(toolchain), '-I', '-B', str(script), *map(str, arguments)]
 
 
 BRAID_STORE_PREFIX = 'braid-'
@@ -1028,9 +1031,9 @@ def public_files(root):
     return source_candidate(root, revision)['files']
 
 
-def clean_environment(home, payload):
+def clean_environment(home, payload, *, toolchain=None):
     env = child_environment()
-    python = protected_python_executable()
+    python = protected_python_executable(toolchain)
     env['PATH'] = str(Path(python).parent) + os.pathsep + SYSTEM_PATH
     env.update(HOME=str(home), CODEX_HOME=str(home / '.codex'), TMPDIR=str(home / 'tmp'),
         XDG_CONFIG_HOME=str(home / '.config'), XDG_DATA_HOME=str(home / '.local/share'),
@@ -1204,10 +1207,10 @@ def assemble(args, *, policy_update=False):
             path.chmod(0o500)
     payload.chmod(0o500)
     save(state / 'origin.json', source)
-    env = clean_environment(home, payload)
+    env = clean_environment(home, payload, toolchain=toolchain)
     (home / 'tmp').mkdir(mode=0o700, exist_ok=True)
     result = subprocess.run(protected_python_command(payload / 'scripts/install-codex.py',
-        'prepare', '--state-dir', state), env=env, cwd=payload, capture_output=True, text=True, timeout=120, check=False)
+        'prepare', '--state-dir', state, toolchain=toolchain), env=env, cwd=payload, capture_output=True, text=True, timeout=120, check=False)
     if result.returncode:
         save(state / 'diagnostic.json', {'stdout': result.stdout, 'stderr': result.stderr})
         raise ValueError('Preparation refused; see the private diagnostic')
@@ -1272,7 +1275,7 @@ def finish_prepare(state):
     return {'schema_version': 1, 'status': 'prepared', 'plan_digest': digest, 'targets': len(after)}
 
 
-def load_plan(state, digest, *, verified_context=None):
+def load_plan(state, digest, *, verified_context=None, package_root=None):
     context = SCOPE.context() if verified_context is None else verified_context
     if state != Path(context['state_dir']):
         raise ValueError('State directory does not belong to this package')
@@ -1286,7 +1289,8 @@ def load_plan(state, digest, *, verified_context=None):
             or plan['package_digest'] != context['package_digest'] or plan['home'] != context['home']
             or plan['before'] != context['before'] or set(plan['expected']) != set(plan['before'])):
         raise ValueError('Plan and package disagree')
-    if 'hook_toolchain' in plan and plan['hook_toolchain'] != read_json(ROOT / 'codex/scripts/.hook-toolchain.json'):
+    package_root = ROOT if package_root is None else package_root
+    if 'hook_toolchain' in plan and plan['hook_toolchain'] != read_json(package_root / 'codex/scripts/.hook-toolchain.json'):
         raise ValueError('Plan and packaged hook toolchain identity disagree')
     return plan
 
@@ -1873,9 +1877,19 @@ def dispatch(args):
         raise ValueError('Source candidate changed; prepare again')
     marker = verified_public_payload(state)
     payload = state / 'payload'
-    env = clean_environment(Path(marker['home']), payload)
+    # Rollback keeps its separate reviewed recovery route. Ordinary children
+    # must never start a different selection before their plan checks run.
+    toolchain = None
+    if args.operation != 'rollback':
+        plan = load_plan(state, args.plan_digest, verified_context=marker, package_root=payload)
+        toolchain = plan.get('hook_toolchain')
+        if not isinstance(toolchain, dict):
+            raise ValueError('Prepared hook toolchain identity is missing or malformed')
+        if SCOPE.identity(SCOPE.fingerprint(payload)) != plan['package_digest']:
+            raise ValueError('Prepared package changed; refuse child execution')
+    env = clean_environment(Path(marker['home']), payload, toolchain=toolchain)
     command = protected_python_command(payload / 'scripts/install-codex.py',
-        args.operation, '--state-dir', state, '--plan-digest', args.plan_digest or '')
+        args.operation, '--state-dir', state, '--plan-digest', args.plan_digest or '', toolchain=toolchain)
     if args.desktop_review_sha256:
         command.extend(('--desktop-review-sha256', args.desktop_review_sha256))
     result = subprocess.run(command,

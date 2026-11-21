@@ -284,7 +284,7 @@
         "Original check selection and assertions retained; disposable admission and required helper inventory before execution",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "63b24f7ec67877edeb222a21d5e401dc006d9a4b435fcfdb8f0949eee07a183b"
+      "candidate_sha256": "6c59ca8ed63fbba562d7038bc1b45425e7cb56ba0da6c44898838f218ae57b8c"
     },
     {
       "path": "codex/scripts/codex-preflight.sh",
@@ -293,7 +293,7 @@
         "fixture admission before shell helper execution",
         "public local paths"
       ],
-      "candidate_sha256": "806c750dd648c49b33ed140890104341c7f676a7e33579fd52e597de490b1ea4"
+      "candidate_sha256": "2512f2ff529460dfe43f951bd4717a7232a2ce3f9342a3d5c8f49dcce7162254"
     },
     {
       "path": "codex/scripts/with-writable-tmpdir.sh",
@@ -302,7 +302,7 @@
         "fixture admission before shell helper execution",
         "public local paths"
       ],
-      "candidate_sha256": "7d39a2af545edc210d19a3c1b80832e426b1b74dfc3d3dbce95a87a6e81c649d"
+      "candidate_sha256": "bce85ccb2c620c0cec80ccf25793ef6240cd865194ac15ac94dfbf20feda66df"
     },
     {
       "path": "codex/scripts/validate-auto-review-scope.sh",
@@ -311,7 +311,7 @@
         "fixture admission before shell helper execution",
         "public local paths"
       ],
-      "candidate_sha256": "e416c176fea381a74572d1fa9101f892fe2948ecfe95c65b4ba44086921a2ae1"
+      "candidate_sha256": "8b4fd44010c314e56b505eb14b6d5876817d9fede834dcfaf7f4fb4aa7f0db47"
     },
     {
       "path": "codex/scripts/validate-codex-hooks.sh",
@@ -321,7 +321,7 @@
         "Reuse the validated Python launcher in the nested missing-Computer-Use home",
         "Use the imported Path class in the native hook trust probe"
       ],
-      "candidate_sha256": "c60f567e473aaf87210752073f70346609d09344a431e0db89fdfa53c557bd39"
+      "candidate_sha256": "af6eea24174823494f68f5ba73b492aac17f18c0e797d184435051048cd0955d"
     },
     {
       "path": "codex/README.md",

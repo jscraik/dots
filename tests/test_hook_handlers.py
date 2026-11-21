@@ -13,6 +13,17 @@ from hook_fixture import HookFixture
 
 
 class HookHandlerTests(unittest.TestCase):
+    def test_admission_ignores_modules_beside_its_entrypoint(self):
+        marker = self.fixture.home / 'shadow-json-ran'
+        shadow = self.fixture.codex / 'scripts/json.py'
+        shadow.write_text('from pathlib import Path\nPath(' + repr(str(marker))
+                          + ').touch()\nraise RuntimeError("shadow module ran")\n')
+        result = self.fixture.run('pre-tool-use-guard.sh',
+                                  {'tool_input': {'command': 'git status --short'}})
+        self.assertFalse(marker.exists(), result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotEqual(json.loads(result.stdout).get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+
     def test_lifeos_selects_only_optional_provider_in_validated_payload(self):
         tools = self.fixture.home / '.fixture-hook-tools/bin'
         provider = tools / 'bun'

@@ -278,7 +278,10 @@ def protect_search_literals(command):
             continue
         if char in "'\"":
             quote = None if quote == char else char if quote is None else quote
-        if char in markers and (quote == "'" or quote == '"' and char not in '$`'):
+        following = command[index + 1:index + 2]
+        literal_dollar = (char == '$' and not (quote is None and following in {'"', "'"}) and not (
+            following and (following.isalnum() or following in '_({@*#?$!-')))
+        if char in markers and (quote == "'" or quote == '"' and char not in '$`' or literal_dollar):
             output.append(markers[char])
         else:
             output.append(char)
