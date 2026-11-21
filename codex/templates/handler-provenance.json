@@ -99,7 +99,7 @@
         "Deny xargs command construction before protected child routing; retain direct-command behavior.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "ec8d58c54af347af8286d12389635732d7ed86c17fdd003e5d96511bd24bb8d6"
+      "candidate_sha256": "2e0c252c46bab3badcd97661f8ac53bd4939075ef5d5e693588bf56af2750fea"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",
