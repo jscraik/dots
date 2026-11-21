@@ -7,9 +7,10 @@
       "source_sha256": "0a614a1764c7a5c97ebd568bb81f98407c99f97908bd4231f0008ca1b1bce671",
       "transformations": [
         "sourced-library fixture admission",
+        "Share token-level destructive Git worktree detection across hook enforcement layers; fail closed on unsupported global-option layouts.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "d5465b25d9f6545dd219c8b638b6caace7d47f8742734a65ab229d3ae962a3db"
+      "candidate_sha256": "8813663cb712516b6ee4ab056e3460e2e2789a145f25462a23b06f96b7b3414f"
     },
     {
       "path": "codex/hooks/lifeos-codex.sh",
@@ -25,9 +26,10 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "7863e7e1c74a1d51e15b65deb001dacf239696368e751552f61f684dced484db",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "Use exact command bytes with the shared token-level destructive Git classifier for approval denials."
       ],
-      "candidate_sha256": "dc755f5d554f6614a3df7f30d6e1557e12b6ba141dddd2994884659ff6db1f7d"
+      "candidate_sha256": "f2f67dd408beb15bef226ef832868b048513eeec763a763705fa31ccc5b22357"
     },
     {
       "path": "codex/hooks/post-compact-recorder.sh",
@@ -53,9 +55,10 @@
       "source_sha256": "f29647371bf978add9878e93a039dccb839e47f8d23723978d3bae13081d4fbb",
       "transformations": [
         "fixture scope and event admission before handler actions",
+        "Reject command-local GH_REPO and GH_HOST assignments before protected PR readiness receipt validation.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "b358fa1ef9275ade7032a60d30494b9eb32ebfe00f8553a647a6fd24cbac1d4b"
+      "candidate_sha256": "193fd13bfbe257c8ddb995cb0dd2817b1a43860304cdcd03a887ffff4484eb7a"
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",
@@ -105,9 +108,10 @@
       "transformations": [
         "canonical auth wrapper identity is derived from the ported helper",
         "fixture scope and event admission before handler actions",
+        "Use the shared token-level destructive Git classifier for pre-tool denials.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "a090361b0bc6a4ce2820d5ff61133e5fb942543a20d956ffd32c1b1f23f95e48"
+      "candidate_sha256": "90810994cc1e05e24908112454f60f3259fd83126da03b720e97082f0d18834b"
     },
     {
       "path": "codex/hooks/session-start.sh",
@@ -355,6 +359,11 @@
         "Retain pinned local binary and 1Password execution; admit fixture or fixed packaged context and each provider path before execution."
       ],
       "candidate_sha256": "83c374937bbf77514861cf5c3abcf26adec3b1b2f3b6700014bf84fe65c02f77"
+    },
+    {
+      "path": "codex/hooks/destructive-git-operation.py",
+      "origin": "Extracted isolated destructive Git parser from hook-runtime-lib.sh",
+      "candidate_sha256": "125680f187061428ed436670834643316082fdf580fdec409655d381967b5b42"
     }
   ],
   "external_boundaries": [

@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 import pwd
+import shlex
 import shutil
 import subprocess
 import sys
