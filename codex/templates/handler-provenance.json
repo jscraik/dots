@@ -100,7 +100,7 @@
         "Admit only the exact resolver syntax check from a canonical checkout root, including when hooks run from a separate installed payload; retain execution, extra-argument and symlink denials.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "1805c0f9d581a02e4a972293a2fca608e854dbd0c74e283d3bc655e8259bd45c"
+      "candidate_sha256": "8c820875525739c4eaced0a1479dcebfc40e8af8cfa87420e2010dc79c47c13a"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",
@@ -304,7 +304,7 @@
       "transformations": [
         "fixture admission for shell runtime dependency"
       ],
-      "candidate_sha256": "6d1411c3c54a635fea15ce1210bb5937ff69d6b8dbba42a4d2c5d2f012eec5f3"
+      "candidate_sha256": "bb7ba57a4322e8a359764099b4367bdf52aae44de28555a2f074103c75781e1c"
     },
     {
       "path": "codex/scripts/codex-validation-python-uv.sh",
@@ -350,7 +350,7 @@
       "source_revision": null,
       "source_sha256": null,
       "transformation": "New fixed private-package identity and resource adapter; fixture defaults retained.; Add fixed packaged-context admission; retain default disposable admission and original checks. Classify only the two unused native app metadata fields separately in machine mode; retain resource/output and rehearsal checks. Attach fixed stage and field diagnostics to existing admission rejections without changing guards or exception behaviour. Extend only the machine-mode unused metadata set with CODEX_APP_RUNTIME_CLI_PATH and CODEX_MCP_NODE_PATH after names-only native-parent replay; retain direct resource/output checks, strict rehearsals and unknown-name denials. Admit only event working directories of verified managed Git worktrees linked to trusted project roots; retain all other resource and output checks. Reject session stores as event working directories while preserving transcript admission.",
-      "candidate_sha256": "85f3332f1a21d6f06d345cc87584fdb4a52a7c73621adadc3f8b2bb26d9963ab"
+      "candidate_sha256": "aa84901c64fc35e90c1df583e004e96249f6e1342f56952bae7875d96a62eba6"
     },
     {
       "path": "codex/scripts/aikido-mcp.sh",
@@ -364,7 +364,7 @@
     {
       "path": "codex/hooks/destructive-git-operation.py",
       "origin": "Extracted isolated destructive Git parser from hook-runtime-lib.sh",
-      "candidate_sha256": "b7b21d694190c9526a79e21be1c5268d6fedfa134305d277004be2ec66fad5ca"
+      "candidate_sha256": "7c6d138c43a82617f93a5f09a448c81220280a26552483254a46c5a424739ac8"
     }
   ],
   "external_boundaries": [

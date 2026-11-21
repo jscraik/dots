@@ -94,17 +94,17 @@ def tokenize(command_text):
         return []
 
 
-def has_expandable_dollar(command_text):
+def has_expandable_dollar(command_text, *, quote_aware=True):
     # Regex anchors are data. Other dollars outside single quotes remain
     # conservative, including parameter expansions and dynamic executables.
     quote = None
     index = 0
     while index < len(command_text):
         char = command_text[index]
-        if char == "\\" and quote != chr(39):
+        if quote_aware and char == "\\" and quote != chr(39):
             index += 2
             continue
-        if char in {chr(39), chr(34)}:
+        if quote_aware and char in {chr(39), chr(34)}:
             quote = None if quote == char else char if quote is None else quote
         elif char == "$" and quote != chr(39):
             # A terminal dollar or one immediately before its closing double
@@ -284,19 +284,30 @@ def git_subcommand(tokens, index):
 def gh_subcommand(tokens, index):
     index += 1
     options_with_values = {"-R", "--repo", "--hostname"}
+    selectors = []
     while index < len(tokens):
         token = tokens[index]
         if token in options_with_values:
+            selectors.extend(tokens[index + 1 : index + 2])
             index += 2
             continue
         if token.startswith(("--repo=", "--hostname=")):
+            selectors.append(token.split("=", 1)[1])
+            index += 1
+            continue
+        if token.startswith("-R") and len(token) > 2:
+            selectors.append(token[2:])
             index += 1
             continue
         if token.startswith("-"):
+            # Cobra can forward API flags placed before the subcommand.
+            # Never discard an unknown prefix and infer an option-free GET.
+            if token not in {"--help", "-h", "--version"}:
+                route["unsafe"] = True
             index += 1
             continue
-        return token, tokens[index + 1 :]
-    return "", []
+        return token, tokens[index + 1 :], selectors
+    return "", [], selectors
 
 
 def same_owned_path(candidate, canonical):
@@ -632,7 +643,7 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                 and subcommand in {"status", "rev-parse", "for-each-ref", "ls-files", "rev-list"}
             )
         elif executable == "gh":
-            subcommand, remaining = gh_subcommand(segment, index)
+            subcommand, remaining, selectors = gh_subcommand(segment, index)
             # A variable command name can otherwise hide a protected PR action.
             if has_expandable_dollar(decode_protected_punctuation(subcommand)):
                 route.update({"pr": True, "unsafe": True})
@@ -644,7 +655,16 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                 "view", "list", "status", "checks", "diff"
             }
             # Raw API requests retain operation-aware readiness analysis.
-            protected_gh = (subcommand == "pr" and not read_only_pr) or subcommand == "api"
+            # With exactly one literal REST endpoint and no options, gh uses
+            # GET. Selector values must also be literal. Tokenization has
+            # removed shell quoting, so treat any remaining quotes as data.
+            read_only_api = (subcommand == "api" and len(remaining) == 1
+                             and not any((substitutions and marker in value)
+                                         or has_expandable_dollar(value, quote_aware=False)
+                                         for value in selectors)
+                             and re.fullmatch(r"/?repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_./-]+)?", remaining[0]))
+            protected_gh = ((subcommand == "pr" and not read_only_pr)
+                            or subcommand == "api" and not read_only_api)
             route["pr"] = route["pr"] or protected_gh
             if indirect and protected_gh:
                 route["unsafe"] = True

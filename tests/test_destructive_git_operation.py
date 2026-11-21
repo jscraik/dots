@@ -31,7 +31,7 @@ class DestructiveGitOperationTests(unittest.TestCase):
     def test_inert_shell_forms_and_confined_cleanup_remain_safe(self):
         for command in ('mkdir -p /tmp/x/{one,two}', 'printf %s $((1+1))',
                         'rg -n rm .', 'grep rm notes.txt',
-                        'rm --recursive --force /private/tmp/dots-fixture'):
+                        'git status --short'):
             with self.subTest(command=command):
                 self.assertEqual(self.classify(command), 'safe')
 
@@ -64,6 +64,7 @@ class DestructiveGitOperationTests(unittest.TestCase):
             'doas rm -rf /',
             'setsid rm -rf /',
             'rm --recursive --force /etc',
+            'rm --recursive --force /private/tmp/dots-fixture',
             'rm --recursive --force /Applications',
             'ssh host rm -rf /',
             '> /dev/null git reset --hard',

@@ -12,12 +12,38 @@ from hook_fixture import HookFixture
 
 
 class HookHandlerTests(unittest.TestCase):
+    def test_read_only_rest_pipeline_preserves_mutation_denial(self):
+        for command in ('gh api repos/example/repo/pulls/349 | jq .state',
+                        'gh --repo example/repo api repos/example/repo/pulls/349 | jq .state',
+                        'gh --hostname github.com api repos/example/repo/pulls/349 | jq .state'):
+            output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
+            self.assertNotIn('hookSpecificOutput', output)
+        for command in ('gh api repos/example/repo/pulls/349 -X PATCH | jq .state',
+                        'gh api repos/example/repo/pulls/349 | gh pr merge 349',
+                        'gh --method=PUT api repos/example/repo/pulls/349/merge | cat',
+                        'gh -XPUT api repos/example/repo/pulls/349/merge | cat',
+                        'gh -X PUT api repos/example/repo/pulls/349/merge | cat',
+                        'gh -F body=data api repos/example/repo/pulls/349 | cat'):
+            with self.subTest(command=command):
+                output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
+                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+
+    def test_rest_pipeline_requires_literal_selectors(self):
+        for selector in ('--hostname "$HOST"', '--hostname="${HOST}"',
+                         '--repo "$REPO"', '--repo="$REPO"',
+                         '-R "$REPO"', '-R"$REPO"'):
+            with self.subTest(selector=selector):
+                command = f'gh {selector} api repos/example/repo/pulls/349 | jq .state'
+                output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
+                self.assertEqual(output.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+
     def test_shared_classifier_boundaries_through_both_guards(self):
         blocked = ('rm --recursive --force "${HOME:?}"',
                    'TARGET=/; rm --recursive --force "$TARGET"',
-                   'setsid rm -rf /', 'cat <(git reset --hard)')
+                   'setsid rm -rf /', 'cat <(git reset --hard)',
+                   'rm --recursive --force /private/tmp/dots-fixture')
         allowed = ('mkdir -p /tmp/x/{one,two}', 'printf %s $((1+1))',
-                   'cat <(printf hello)', 'rm --recursive --force /private/tmp/dots-fixture')
+                   'cat <(printf hello)')
         for hook in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
             for command in blocked:
                 with self.subTest(hook=hook, command=command):
