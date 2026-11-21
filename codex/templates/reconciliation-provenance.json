@@ -52,7 +52,7 @@
     {
       "path": "codex/hooks/pre-tool-use-dispatch.sh",
       "prior_candidate_sha256": "410160a1e4cf544151c390af3e2f56548926d42cd13cfa942dd7efd87c75c515",
-      "candidate_sha256": "59dec76beadc5eb652b0e872708910b474395bcd3b2006b12c793764a499bf9c",
+      "candidate_sha256": "6eef575f4b98dceaa03a13faddcb856a86010edb690b09834d48cc53300b8f33",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Deny xargs command construction before protected child routing; retain direct-command behavior.",
       "additional_source": {
         "revision": "283db198d281e239524da23563bd3390fa9910c9",
@@ -201,7 +201,7 @@
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "8fdb05dc5021ccaf5d4afa69750c55cfb8d6acc147728fce47105a7930201630",
+      "candidate_sha256": "c84e9a78f4eff0e65cb5d076bb90c5a0abd36cc15a5822d20dabb3af083c65ea",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment. Add automatic SessionStart fsmonitor non-execution and dirty-state regression coverage."
     },
     {

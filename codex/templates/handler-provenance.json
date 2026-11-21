@@ -99,7 +99,7 @@
         "Deny xargs command construction before protected child routing; retain direct-command behavior.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "59dec76beadc5eb652b0e872708910b474395bcd3b2006b12c793764a499bf9c"
+      "candidate_sha256": "6eef575f4b98dceaa03a13faddcb856a86010edb690b09834d48cc53300b8f33"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",
@@ -349,7 +349,7 @@
       "source_revision": null,
       "source_sha256": null,
       "transformation": "New fixed private-package identity and resource adapter; fixture defaults retained.; Add fixed packaged-context admission; retain default disposable admission and original checks. Classify only the two unused native app metadata fields separately in machine mode; retain resource/output and rehearsal checks. Attach fixed stage and field diagnostics to existing admission rejections without changing guards or exception behaviour. Extend only the machine-mode unused metadata set with CODEX_APP_RUNTIME_CLI_PATH and CODEX_MCP_NODE_PATH after names-only native-parent replay; retain direct resource/output checks, strict rehearsals and unknown-name denials. Admit only event working directories of verified managed Git worktrees linked to trusted project roots; retain all other resource and output checks. Reject session stores as event working directories while preserving transcript admission.",
-      "candidate_sha256": "7a638bf93f77683fead1e7ec09500bd9af748fd17c5b641656a882afd3e6dcd1"
+      "candidate_sha256": "aa84901c64fc35e90c1df583e004e96249f6e1342f56952bae7875d96a62eba6"
     },
     {
       "path": "codex/scripts/aikido-mcp.sh",

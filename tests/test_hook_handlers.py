@@ -28,6 +28,15 @@ class HookHandlerTests(unittest.TestCase):
                 output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
                 self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
 
+    def test_rest_pipeline_requires_literal_selectors(self):
+        for selector in ('--hostname "$HOST"', '--hostname="${HOST}"',
+                         '--repo "$REPO"', '--repo="$REPO"',
+                         '-R "$REPO"', '-R"$REPO"'):
+            with self.subTest(selector=selector):
+                command = f'gh {selector} api repos/example/repo/pulls/349 | jq .state'
+                output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
+                self.assertEqual(output.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+
     def test_shared_classifier_boundaries_through_both_guards(self):
         blocked = ('rm --recursive --force "${HOME:?}"',
                    'TARGET=/; rm --recursive --force "$TARGET"',
