@@ -28,6 +28,9 @@ class StructuredCodeRabbitTests(unittest.TestCase):
     def setUp(self) -> None:
         self.head, self.base = "a" * 40, "b" * 40
         self.slug = "example/project"
+        if self._testMethodName.startswith("test_dots_notifier_assertion"):
+            self.head = "0246dcea7306d2fc88e064a6131edce786370353"
+            self.slug = "jscraik/dots"
         if self._testMethodName in {
             "test_observed_grammar_note_and_placeholder_controls_keep_native_binding",
             "test_observed_grammar_and_controls_reject_changed_or_unknown_findings",
@@ -401,6 +404,57 @@ class StructuredCodeRabbitTests(unittest.TestCase):
         ):
             with self.subTest(changed=changed):
                 self.assertIsNone(self.candidate(body=changed, paths=["tests/ci-policy.test.ts"])[0])
+
+    def dots_notifier_assertions(self):
+        return details("Additional comments: 3",
+            details("tests/policy_fixture.py: 1", "`22-22`: LGTM!\n\n<!-- cr-comment:v1:" + "a" * 24 + " -->")
+            + details("tests/test_governance_port.py: 1", "`34-34`: LGTM!\n\n<!-- cr-comment:v1:" + "b" * 24 + " -->")
+            + details("tests/test_policy_projection.py: 1",
+                "`70-72`: **Maintainability & Code Quality**\n\n"
+                "**The notifier-cutover path does not run canonical validation first.**\n\n"
+                "For the notifier-only cleanup, `main` calls `_validate_notifier_cutover_snapshot` before any backup or write. That function invokes the runtime validator (`--runtime-config-stdin`), not `--config-stdin`. The canonical validator is not called anywhere in the repair script. The exit-75 stub therefore reaches the notifier-cutover check first, so the assertions test that check directly.\n\n"
+                "<!-- cr-comment:v1:" + "c" * 24 + " -->"))
+
+    def dots_notifier_body(self):
+        paths = ["tests/policy_fixture.py", "tests/test_governance_port.py", "tests/test_policy_projection.py"]
+        body = self.body.replace("Files selected for processing: 1", "Files selected for processing: 3")
+        body = body.replace("* `code.py`", "\n".join("* `" + path + "`" for path in paths))
+        body = body.replace("\n</dd></dl></details>\n<!-- review_details_end -->",
+            "\n" + self.dots_notifier_assertions() + "\n</dd></dl></details>\n<!-- review_details_end -->")
+        return body, paths
+
+    def test_dots_notifier_assertion_retains_authenticated_completion(self):
+        body, paths = self.dots_notifier_body()
+        result, error = self.candidate(body=body, paths=paths)
+        self.assertIsNone(error)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["completion_evidence"]["summary_body"], body)
+        for checks in ([], [{**self.check, "head_sha": self.base}],
+                       [{**self.check, "conclusion": "failure"}],
+                       [{**self.check, "status": "in_progress"}],
+                       [{**self.check, "app": {"id": 99, "slug": "coderabbitai"}}]):
+            with self.subTest(checks=checks):
+                self.assertIsNone(self.candidate(body=body, paths=paths, checks=checks)[0])
+        self.assertIsNone(self.candidate(body=body, paths=paths, snapshot=False)[0])
+
+    def test_dots_notifier_assertion_rejects_changed_or_unbound_explanation(self):
+        body, paths = self.dots_notifier_body()
+        for changed in (body.replace("Additional comments: 3", "Additional comments: 4"),
+                        body.replace("before any backup or write", "after a backup or write"),
+                        body.replace("so the assertions test that check directly.",
+                                     "so the assertions test that check directly. Fix a security issue."),
+                        body.replace("`22-22`: LGTM!", "`22-22`: A concern remains."),
+                        body.replace("tests/test_policy_projection.py: 1", "other.py: 1"),
+                        body.replace("<!-- cr-comment:v1:" + "c" * 24 + " -->", "<!-- unknown -->")):
+            with self.subTest(changed=changed):
+                self.assertIsNone(self.candidate(body=changed, paths=paths)[0])
+        self.assertIsNone(self.candidate(body=body, paths=["other.py"])[0])
+        adapter = MODULE._coderabbit_summary_adapter()
+        title, content = adapter._wrapper(self.dots_notifier_assertions())
+        selected = "\n".join("* `" + path + "`" for path in paths)
+        for slug, head in (("other/project", self.head), (self.slug, self.base)):
+            with self.subTest(slug=slug, head=head):
+                self.assertFalse(adapter._known_provider_assertion(title, content, selected, slug=slug, head=head))
 
     def test_unclassified_additional_comments_stay_blocked(self):
         extra = details("Additional comments: 1", details("code.py: 1", "An unmarked concern may remain."))

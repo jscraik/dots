@@ -68,7 +68,7 @@
     {
       "path": "codex/instructions/agents/16a-review-reply-parsing.md",
       "prior_candidate_sha256": "3161d0862dfd778f43b309e4f862371fe24988b2fb05f3a8963c98a3148e4d07",
-      "candidate_sha256": "d5ba85a049f28b3d2160512fead9e3f0c27ebb7cabc4f0c7f8589443f9431ea4"
+      "candidate_sha256": "9a788df788e291903ab0bd0a532b36f2bbbf73bce5011d81981e8bd19157bfef"
     },
     {
       "path": "codex/instructions/managed-configuration.md",
@@ -106,7 +106,7 @@
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "03783c39f6e560d73ef2b3f140808eee272611645ac9a8af53e03ae50b22fe00",
+      "candidate_sha256": "c832835fbd0a72e6d1006bad3f840e854fcdc6a24cfd24377fe8591baef2eee5",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
@@ -153,7 +153,7 @@
     {
       "path": "codex/scripts/tests/test_pr_coderabbit_structured.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "5d49886f620943b9ea618da10c9fa7b1ace2515a29a4a29d912ed4647784880e"
+      "candidate_sha256": "07d73888993ffe55a0a75c6e363b5d8fe2311ce9de6c356487d416db0acbd2e0"
     },
     {
       "path": "codex/scripts/tests/test_pr_codex_completion.py",
