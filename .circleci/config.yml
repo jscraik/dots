@@ -58,7 +58,7 @@ jobs:
             echo 'Linux pinned CLI compatibility only; Desktop app-runtime proof is a separate local check.'
             "$DOTS_CODEX_BIN" --version
             # Share the long installation module across both small runners.
-            /tmp/dots-validation-venv/bin/python -B - "$CIRCLE_NODE_INDEX" "$CIRCLE_NODE_TOTAL" <<'PY'
+            /tmp/dots-validation-venv/bin/python -B - "$CIRCLE_NODE_INDEX" "$CIRCLE_NODE_TOTAL" \<<'PY'
             import sys
             import unittest
 
