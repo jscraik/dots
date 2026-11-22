@@ -323,7 +323,8 @@
         "Reuse the validated Python launcher in the nested missing-Computer-Use home",
         "Use the imported Path class in the native hook trust probe",
         "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
-        "Verify that required names matching launcher state fail when missing and retain their values when present."
+        "Verify that required names matching launcher state fail when missing and retain their values when present.",
+        "Exercise explicit push destinations while preserving the existing force and bypass controls."
       ],
       "candidate_sha256": "6d85ea6b577ddaf249bc6dff96ec38c8b5475bacd6e92185d621591dd1935e15"
     },
@@ -866,7 +867,7 @@
         "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
         "Exercise supersession close races and verify the blocked CLI result."
       ],
-      "candidate_sha256": "1038cf75516ef582a4e04701d68a98f51c001ea1b4945bb80b050fbda830c163"
+      "candidate_sha256": "9be4526d42bbf23b96405ef8aa90cacd38fbb5bd5164f350f42d6933eceb6bcc"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",

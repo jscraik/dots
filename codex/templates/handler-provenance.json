@@ -124,9 +124,10 @@
         "Use the shared token-level destructive Git classifier for pre-tool denials.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
         "Reject implicit or ambiguous push destinations and uninspectable auth-path expansions while retaining literal data and the protected toolchain.",
-        "Restore literal dollar signs and backticks before inspecting auth path operands."
+        "Restore literal dollar signs and backticks before inspecting auth path operands.",
+        "Require an explicit push refspec destination to avoid relying on configured push mappings."
       ],
-      "candidate_sha256": "9614ca9d4b37cbfa70e0a7ce65fe3cfa7d3bccf158a6ac0eae27a42acffbe48c"
+      "candidate_sha256": "46b408c817c347e3457adaad8d437d52b3c7c110300ad754e3223a0231803a58"
     },
     {
       "path": "codex/hooks/session-start.sh",

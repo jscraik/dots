@@ -175,7 +175,7 @@
     {
       "path": "codex/scripts/tests/test_pr_readiness.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "1038cf75516ef582a4e04701d68a98f51c001ea1b4945bb80b050fbda830c163",
+      "candidate_sha256": "9be4526d42bbf23b96405ef8aa90cacd38fbb5bd5164f350f42d6933eceb6bcc",
       "transformation": "Preserve selected checks and add synthetic missing-check and dismissed historical-review scenarios from the coordinated follow-up; production policy is unchanged. Exercise the observed Keep it up! report through existing author, head, review-state, footer and appended-failure rejection controls. Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection. Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
       "additional_source": {
         "revision": "d3b8f231dc659bde32ebac5e5c305b75b7589d4e",
@@ -207,7 +207,7 @@
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "4149fb2bc63613c953eb4063bdd6118d7f9edc13df79f9bffaefd812f4fce134",
+      "candidate_sha256": "07fb70afa1d41060932c8619489ee95cd89cb129686fc7c28139508988564780",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment. Add automatic SessionStart fsmonitor non-execution and dirty-state regression coverage. Prove exact resolver syntax admission through the actual hook from a separate checkout and preserve execution, extra-argument and symlink denials. Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
