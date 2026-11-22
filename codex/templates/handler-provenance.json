@@ -263,9 +263,10 @@
       "transformations": [
         "fixture admission for shell runtime dependency",
         "Deliver only explicitly requested injected credentials plus pre-injection runtime context to the child.",
-        "Keep child launcher state positional so requested names retain their environment values."
+        "Keep shell launcher counts positional and look up requested names in the injected environment without shadowing them.",
+        "Pass injected values directly in the child environment without exposing them in process arguments."
       ],
-      "candidate_sha256": "6f0eb44aa755d94016cbc8bc669946381ff32a7714427318a55d7c730855d4ff"
+      "candidate_sha256": "83c1e28749252f4e8b0e7bfdf7ee053159a7016f9265398a43476fbd880400b3"
     },
     {
       "path": "codex/scripts/hook-governance/hook_runtime_policy.py",

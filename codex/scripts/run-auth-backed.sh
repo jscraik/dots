@@ -345,7 +345,7 @@ fi
 
 # Capture only the benign process context needed by ordinary command-line
 # children before 1Password can add or replace environment values. The trusted
-# post-injection shell below reconstructs the child environment from this list
+# post-injection launcher below reconstructs the child environment from this list
 # and the explicitly requested names, so unrelated credentials cannot survive.
 declare -a child_runtime_env=("PATH=${PATH:-/usr/bin:/bin}")
 for env_name in HOME TMPDIR USER LOGNAME SHELL LANG LC_ALL LC_CTYPE TERM CODEX_HOME; do
@@ -354,23 +354,59 @@ for env_name in HOME TMPDIR USER LOGNAME SHELL LANG LC_ALL LC_CTYPE TERM CODEX_H
   fi
 done
 
-declare -a child_launch_args=("$(required_env_count)")
+# Keep the count positional so an inherited variable of the same name is untouched.
+declare -a child_launch_args=("$(required_env_count)" "${#child_runtime_env[@]}")
 if [[ "${child_launch_args[0]}" -gt 0 ]]; then
   child_launch_args+=("${required_env[@]}")
 fi
 child_launch_args+=("${child_runtime_env[@]}" "$@")
 
-exec "$op_bin" run "${run_source_args[@]}" -- /bin/bash -p -c '
-  set -euo pipefail
-  # Keep bookkeeping positional so it cannot shadow a requested name.
-  # Arguments are the remaining count and names, then assignments and command.
-  while (( $1 > 0 )); do
-    if [[ -z "${!2:-}" ]]; then
-      printf "run-auth-backed.sh: required env var is missing after auth load: %s\n" "$2" >&2
-      exit 67
-    fi
-    set -- "$(( $1 - 1 ))" "${@:3:$1 - 1}" "$2=${!2}" "${@:$1 + 2}"
-  done
-  shift
-  exec /usr/bin/env -i -- "$@"
-' bash "${child_launch_args[@]}"
+# Keep injected values in the environment through the final exec. The launcher
+# receives only names, pre-injection runtime context and the command in argv.
+exec "$op_bin" run "${run_source_args[@]}" -- /usr/bin/python3 -I -S -B -c '
+import errno
+import os
+import signal
+import sys
+
+required_count, runtime_count = map(int, sys.argv[1:3])
+runtime_start = 3 + required_count
+command_start = runtime_start + runtime_count
+child_env = dict(entry.split("=", 1) for entry in sys.argv[runtime_start:command_start])
+for name in sys.argv[3:runtime_start]:
+    value = os.environ.get(name)
+    if not value:
+        print(
+            f"run-auth-backed.sh: required env var is missing after auth load: {name}",
+            file=sys.stderr,
+        )
+        sys.exit(67)
+    child_env[name] = value
+
+command = sys.argv[command_start:]
+program = command[0]
+# Match the previous PATH lookup and shell fallback for executable text files.
+candidates = [program] if "/" in program else [
+    os.path.join(directory, program) for directory in os.get_exec_path(child_env)
+]
+# Python ignores SIGPIPE at startup; do not pass that disposition to the child.
+signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+status = 127
+for candidate in candidates:
+    try:
+        os.execve(candidate, command, child_env)
+    except OSError as error:
+        if error.errno == errno.ENOEXEC:
+            try:
+                os.execve("/bin/sh", ["/bin/sh", candidate, *command[1:]], child_env)
+            except OSError:
+                status = 126
+                break
+        if error.errno == errno.EACCES:
+            status = 126
+        elif error.errno not in (errno.ENOENT, errno.ENOTDIR):
+            status = 126
+            break
+print(f"run-auth-backed.sh: could not execute command: {program}", file=sys.stderr)
+sys.exit(status)
+' "${child_launch_args[@]}"
