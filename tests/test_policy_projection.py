@@ -48,12 +48,13 @@ assert not list(target.parent.glob("."+target.name+".recovery-*")),"Empty recove
 
     def hostile_user_site_startup(self):
         fixture = self.fixture
-        version = f'python{sys.version_info.major}.{sys.version_info.minor}'
-        if sys.platform == 'darwin' and getattr(sys, '_framework', ''):
-            user_site = (fixture.home / 'Library/Python' / version.removeprefix('python')
-                         / 'lib/python/site-packages')
-        else:
-            user_site = fixture.home / '.local/lib' / version / 'site-packages'
+        result = self.success(subprocess.run(
+            [fixture.env['CODEX_VALIDATION_PYTHON'], '-S', '-c',
+             'import site; print(site.getusersitepackages())'],
+            env=fixture.env, cwd=fixture.repo, capture_output=True, text=True,
+            timeout=30, check=False))
+        user_site = Path(result.stdout.strip()).resolve()
+        self.assertIn(fixture.home.resolve(), user_site.parents)
         user_site.mkdir(parents=True)
         markers = []
         for startup_name in ('fixture-startup.pth', 'sitecustomize.py', 'usercustomize.py'):
@@ -155,6 +156,13 @@ assert not list(target.parent.glob("."+target.name+".recovery-*")),"Empty recove
         runtime.write_text(original.replace('approval_policy = "on-request"',
                                             'approval_policy = "never"', 1))
         markers = self.hostile_user_site_startup()
+        validator = fixture.codex / 'scripts/validate-codex-config.py'
+        source = validator.read_text()
+        future = 'from __future__ import annotations\n'
+        self.assertIn(future, source)
+        validator.write_text(source.replace(future,
+            future + 'import sys\n'
+            'assert sys.flags.isolated, "nested snapshot validator must run in isolated mode"\n', 1))
         loader = '''import runpy,sys
 from pathlib import Path
 script = Path(sys.argv[1]).resolve(strict=True)
@@ -386,19 +394,29 @@ raise SystemExit(module.main(["--config-path",sys.argv[2],"--repair","--json","-
         self.success(fixture.project())
         child = '''import importlib.util,sys
 from pathlib import Path
+from unittest.mock import patch
 sys.path.insert(0, str(Path(sys.argv[1]).parent))
 spec = importlib.util.spec_from_file_location("absent_repair", sys.argv[1])
 module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
 target = Path(sys.argv[2])
-target.write_bytes(b"concurrent native save\\n")
-try:
-    module._write_repair(target, "repair\\n", expected=None)
-except FileExistsError:
-    pass
-else:
-    raise AssertionError("absent-only publication replaced an existing config")
+installer = module._installer()
+publish = installer.rename_absent
+def publish_with_competitor(staged, destination):
+    assert staged.read_bytes() == b"repair\\n"
+    assert destination == target and not destination.exists()
+    destination.write_bytes(b"concurrent native save\\n")
+    publish(staged, destination)
+with patch.object(module, "_installer", return_value=installer), \\
+     patch.object(installer, "rename_absent", side_effect=publish_with_competitor) as competing_publish:
+    try:
+        module._write_repair(target, "repair\\n", expected=None)
+    except FileExistsError:
+        pass
+    else:
+        raise AssertionError("absent-only publication replaced a competing config")
+    competing_publish.assert_called_once()
 assert target.read_bytes() == b"concurrent native save\\n"
-target.unlink()
+target = target.with_name("absent-without-competitor.toml")
 module._write_repair(target, "repair\\n", expected=None)
 assert target.read_bytes() == b"repair\\n"
 assert target.stat().st_nlink == 1
@@ -504,6 +522,7 @@ raise SystemExit(module.main(["--config-path",sys.argv[2],"--repair","--json"]))
         payload = json.loads(result.stdout)
         self.assertEqual(payload['reason'], 'config_write_failed')
         retained = Path(payload['retained_generation_path'])
+        self.assertEqual(payload['error'].count(str(retained)), 1)
         self.assertTrue(retained.is_relative_to(fixture.runtime))
         self.assertEqual(retained.read_bytes(), original)
         self.assertIn('# save after publication', runtime.read_text())

@@ -383,8 +383,10 @@ def worktree_lane(root: Path) -> dict[str, Any]:
 
 
 def dirty_lane(root: Path) -> dict[str, Any]:
-    output = git(root, "status", "--porcelain=v1", check=False)
-    paths = [line[3:] for line in output.splitlines() if len(line) >= 4]
+    result = run_command(["git", "status", "--porcelain=v1"], root, check=False)
+    if result.returncode:
+        return lane("blocked", "worktree status is unavailable")
+    paths = [line[3:] for line in result.stdout.splitlines() if len(line) >= 4]
     if paths:
         return lane("fail", f"worktree has {len(paths)} dirty path(s)", paths=paths)
     return lane("pass", "worktree is clean", paths=[])
@@ -438,8 +440,9 @@ def gh_pr(root: Path, *, for_export: bool = False, number: int | None = None) ->
         return None, f"gh pr view returned invalid JSON: {exc.msg}"
 
 
-def repository_slug(root: Path) -> tuple[str | None, str | None]:
-    result = run_command(["gh", "repo", "view", "--json", "nameWithOwner"], root, check=False)
+def repository_slug(root: Path, *, required_host: str | None = None) -> tuple[str | None, str | None]:
+    fields = "nameWithOwner,url" if required_host else "nameWithOwner"
+    result = run_command(["gh", "repo", "view", "--json", fields], root, check=False)
     if result.returncode != 0:
         return None, (result.stderr or result.stdout or "gh repo view failed").strip().splitlines()[0]
     try:
@@ -451,6 +454,8 @@ def repository_slug(root: Path) -> tuple[str | None, str | None]:
         return None, f"gh repo view returned invalid JSON: {exc.msg}"
     if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value) or any(segment in {".", ".."} for segment in value.split("/")):
         return None, "gh repo view returned an invalid repository identity"
+    if required_host and payload.get("url") != f"https://{required_host}/{value}":
+        return None, "gh repo view returned a repository on an unexpected host"
     return value, None
 
 
@@ -666,13 +671,19 @@ def _required_check_policy(
 
         required: list[dict[str, Any]] = []
         protection = branch.get("protection")
+        summary_required = protection.get("required_status_checks") if isinstance(protection, dict) else None
+        summary_contexts = summary_required.get("contexts") if isinstance(summary_required, dict) else None
+        fetched_classic = False
         # An authenticated unprotected branch plus the complete active-rule
         # inventory proves that no classic protection contributes checks.
         if branch['protected'] is False and protection is None:
             protection = {'required_status_checks': None}
-        elif (protection is None or isinstance(protection, dict)
-              and ('required_status_checks' not in protection
-                   or protection['required_status_checks'] is None)):
+        elif protection is None or (
+            isinstance(protection, dict)
+            and (not isinstance(summary_required, dict)
+                 or not isinstance(summary_required.get("checks"), list))
+        ):
+            fetched_classic = True
             classic = run_command(['gh', 'api', branch_path + '/protection', *host_args],
                                   root, check=False)
             if classic.returncode:
@@ -709,12 +720,14 @@ def _required_check_policy(
             branch_source["enforcement_level"] = enforcement_level
             branch_checks = []
             for check in checks:
-                if not isinstance(check, dict):
+                if not isinstance(check, dict) or "app_id" not in check:
                     raise ValueError("branch required-status check is malformed")
-                branch_checks.append(_required_check_record(check.get("context"), check.get("app_id")))
+                branch_checks.append(_required_check_record(check.get("context"), check["app_id"]))
             represented = {item["context"] for item in branch_checks}
             for context in contexts:
                 if context not in represented:
+                    if fetched_classic:
+                        raise ValueError("classic protection is missing a required App identity")
                     branch_checks.append(_required_check_record(context, None))
             branch_checks = sorted(
                 {(_required_check_sort_key(item)): item for item in branch_checks}.values(),
@@ -722,6 +735,10 @@ def _required_check_policy(
             )
             branch_source["required_status_checks"] = branch_checks
             required.extend(branch_checks)
+        if isinstance(summary_contexts, list) and any(
+            not any(item["context"] == context for item in required) for context in summary_contexts
+        ):
+            raise ValueError("branch protection details do not cover the summary contexts")
 
         ruleset_sources: list[dict[str, Any]] = []
         for rule in (rule for page in pages for rule in page):
@@ -1183,6 +1200,22 @@ def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
     """Require the provider's complete policy and retain every observed check gate."""
     policy, error = _validated_required_check_policy(pr)
     if error or policy is None:
+        reason = pr.get("requiredCheckPolicyError")
+        # Surface only diagnostics owned by the collector, never tool output.
+        if reason in (
+            "required-check policy requires an exact PR base branch and commit",
+            "required-check branch policy inventory unavailable",
+            "required-check ruleset inventory unavailable",
+            "required workflow policy cannot be authenticated by the required-check lane",
+            "required-check evidence requires an exact PR head",
+            "current-head check-run inventory unavailable",
+            "current-head status-context inventory unavailable",
+            "current-head check inventory has duplicate node identities",
+            "required-check workflow identity inventory unavailable",
+            "required-check workflow identity inventory malformed or unstable",
+            "required-check policy changed during evidence collection",
+        ):
+            error = reason
         return lane("blocked", error or "required-check policy is unavailable", head_sha=head_sha)
     evidence = pr.get("requiredCheckEvidence")
     if not isinstance(evidence, list) or any(not isinstance(item, dict) for item in evidence):
@@ -1193,20 +1226,21 @@ def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
     if missing:
         return lane("blocked", "required checks are absent: " + ", ".join(missing),
                     head_sha=head_sha, policy_digest=policy["digest"], missing=missing)
-    selected = [item for item in evidence if any(
-        _check_matches_requirement(item, requirement, head_sha)
-        for requirement in policy['required_checks'])]
-    required = (observed_checks_lane({'statusCheckRollup': selected}, head_sha, attempt_order=True) if selected
-                else lane('pass', 'authenticated policy requires no additional status identities'))
+    if not evidence or any(item.get("head_sha") != head_sha for item in evidence):
+        return lane("blocked", "authenticated execution inventory lacks current-head evidence",
+                    head_sha=head_sha, policy_digest=policy["digest"])
+    inventory = observed_checks_lane({'statusCheckRollup': evidence}, head_sha, attempt_order=True)
     # Evaluate both snapshots. A later REST failure or queued rerun must not be
     # hidden by an earlier successful GraphQL rollup; neither can clear the other.
     observed = observed_checks_lane(pr, head_sha)
-    if required['status'] == 'fail' or (required['status'] == 'blocked' and observed['status'] != 'fail'):
-        observed = required
+    if observed.get('details', {}).get('checks') != [] and (
+        inventory['status'] == 'fail' or (inventory['status'] == 'blocked' and observed['status'] != 'fail')
+    ):
+        observed = inventory
     observed.setdefault("details", {}).update(policy_digest=policy["digest"],
         required_checks=policy["required_checks"], missing=[],
         unknown_required=any(_check_lifecycle(item) not in SUCCESS_CHECKS | PENDING_CHECKS | FAILED_CHECKS
-                             for item in selected))
+                             for item in evidence))
     return observed
 
 
@@ -4539,12 +4573,29 @@ def _lifecycle_local_context(root: Path, args: argparse.Namespace) -> dict[str, 
             'scope_digest': digest, 'declared_paths': scope}
 
 
+def _lifecycle_origin_matches(root: Path, repo: str) -> bool:
+    # gh may prefer a GitHub upstream over the checkout's origin.
+    origin = run_command(['git', 'remote', 'get-url', TRUSTED_REMOTE], root, check=False)
+    if origin.returncode:
+        return False
+    match = re.fullmatch(
+        r'(?:https?://github\.com(?::443)?/|ssh://git@github\.com(?::22)?/|git@github\.com:)'
+        r'([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/?',
+        origin.stdout.rstrip('\n'),
+        re.IGNORECASE,
+    )
+    return match is not None and match[1].removesuffix('.git').casefold() == repo.casefold()
+
+
 def _lifecycle_snapshot(root: Path, args: argparse.Namespace) -> dict[str, Any]:
-    repo, error = repository_slug(root)
-    if (error or repo != args.expected_repo or type(args.expected_pr) is not int
-            or args.expected_pr <= 0 or not isinstance(args.lifecycle_head, str)
-            or not SHA_RE.fullmatch(args.lifecycle_head)
-            or os.environ.get('GH_REPO') or os.environ.get('GH_HOST')):
+    if (type(args.expected_pr) is not int or args.expected_pr <= 0
+            or not isinstance(args.lifecycle_head, str) or not SHA_RE.fullmatch(args.lifecycle_head)
+            or os.environ.get('GH_REPO') or os.environ.get('GH_HOST')
+            or not isinstance(args.expected_repo, str)
+            or not _lifecycle_origin_matches(root, args.expected_repo)):
+        raise ValueError('Lifecycle operations need an explicit unchanged repository, PR and head')
+    repo, error = repository_slug(root, required_host='github.com')
+    if error or not repo or repo != args.expected_repo:
         raise ValueError('Lifecycle operations need an explicit unchanged repository, PR and head')
     target, raw = _lifecycle_request(root, repo, args.expected_pr)
     if target['head'] != args.lifecycle_head or (args.base and args.base != target['base']):
@@ -4638,9 +4689,13 @@ def _lifecycle_execute(root: Path, args: argparse.Namespace, identity: Any) -> d
     checked = datetime.fromisoformat(receipt['checked_at'])
     if checked.tzinfo is None:
         raise ValueError('Lifecycle receipt has no timezone')
-    age = (datetime.now(UTC) - checked).total_seconds()
-    if not 0 <= age <= 300:
-        raise ValueError('Lifecycle receipt is stale')
+
+    def require_fresh() -> None:
+        age = (datetime.now(UTC) - checked).total_seconds()
+        if not 0 <= age <= 300:
+            raise ValueError('Lifecycle receipt is stale')
+
+    require_fresh()
     recorded = receipt['snapshot']
     expected_after = _lifecycle_transition(args.lifecycle, recorded['target'])
     if receipt['after'] != expected_after:
@@ -4667,6 +4722,7 @@ def _lifecycle_execute(root: Path, args: argparse.Namespace, identity: Any) -> d
         command = ['gh', 'api', '--hostname', 'github.com', '--method', 'PATCH',
                    f'repos/{args.expected_repo}/pulls/{args.expected_pr}',
                    '-f', 'state=' + expected_after['state']]
+    require_fresh()
     response = run_command(command, root, check=False)
     after, _raw = _lifecycle_request(root, args.expected_repo, args.expected_pr)
     expected = {**recorded['target'], **expected_after}

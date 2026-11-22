@@ -32,7 +32,7 @@
         "base_sha": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
         "remote": { "const": "origin" },
         "remote_base_sha": { "type": ["string", "null"] },
-        "remote_head_sha": { "type": ["string", "null"] }
+        "remote_head_sha": { "type": ["string", "null"], "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})(?![\\s\\S])" }
       }
     },
     "lanes": {
@@ -43,7 +43,22 @@
         "remote_ancestry": { "$ref": "#/$defs/lane" },
         "dirty_worktree": { "$ref": "#/$defs/lane" },
         "worktree_boundary": { "$ref": "#/$defs/lane" },
-        "scope": { "$ref": "#/$defs/lane" },
+        "scope": {
+          "$ref": "#/$defs/lane",
+          "required": ["details"],
+          "properties": {
+            "details": {
+              "required": ["declared_paths"],
+              "properties": {
+                "declared_paths": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        },
         "pull_request": { "$ref": "#/$defs/lane" },
         "required_checks": { "$ref": "#/$defs/lane" },
         "reviews": { "$ref": "#/$defs/lane" }
@@ -97,7 +112,7 @@
           "repo": {
             "properties": {
               "remote_base_sha": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
-              "remote_head_sha": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" }
+              "remote_head_sha": { "type": "string" }
             }
           }
         }

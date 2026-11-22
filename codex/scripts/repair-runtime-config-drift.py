@@ -1622,8 +1622,12 @@ def _main_locked(args) -> int:
         if isinstance(exc, RepairPublicationError):
             recovery_path = exc.recovery_path
         reason = 'config_size_limit_exceeded' if isinstance(exc, RepairSizeLimitError) else 'config_write_failed'
-        payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason=reason, error=str(exc), backup_path=args.backup_path, backup_sha256=backup_sha256, backup_bytes=backup_bytes)
-        payload['retained_generation_path'] = str(recovery_path) if recovery_path is not None else None
+        error = str(exc)
+        retained = str(recovery_path) if recovery_path is not None else None
+        if retained is not None and retained not in error:
+            error += f'; retained generation remains at {retained}'
+        payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason=reason, error=error, backup_path=args.backup_path, backup_sha256=backup_sha256, backup_bytes=backup_bytes)
+        payload['retained_generation_path'] = retained
         _emit(payload, args.json)
         return 1
     payload = _payload(status='blocked' if notifier_only_cutover else 'repaired', path=config_path, drift=remaining_drift if notifier_only_cutover else drift, repairs=repairs, reason='legacy_repository_pinned_cua_cutover_required' if notifier_only_cutover else None, error='Retired notifier removed; ' + LEGACY_CUA_CUTOVER if notifier_only_cutover else None, backup_path=args.backup_path, backup_sha256=backup_sha256, backup_bytes=backup_bytes)
