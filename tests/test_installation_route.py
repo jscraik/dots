@@ -463,6 +463,8 @@ class InstallationRouteTests(unittest.TestCase):
         path.write_text(GEN.toml_document(data))
         first = self.success(self.operation('prepare-desktop-review', digest))['review_sha256']
         original_proposal = (self.state / 'desktop-review.json').read_bytes()
+        self.assertEqual(self.success(self.operation('prepare-desktop-review', digest))['review_sha256'], first)
+        self.assertFalse((self.state / f'desktop-review-{first}.json').exists())
         self.success(self.run_cli('check', '--state-dir', self.state,
             '--plan-digest', digest, '--desktop-review-sha256', first))
         data['hooks']['state'] = {}
@@ -470,7 +472,10 @@ class InstallationRouteTests(unittest.TestCase):
         revoked = path.read_bytes()
         second = self.success(self.operation('prepare-desktop-review', digest))['review_sha256']
         self.assertNotEqual(first, second)
+        addressed = self.state / f'desktop-review-{second}.json'
+        published = addressed.stat()
         self.assertEqual(self.success(self.operation('prepare-desktop-review', digest))['review_sha256'], second)
+        self.assertEqual(addressed.stat().st_ino, published.st_ino)
         self.assertEqual((self.state / 'desktop-review.json').read_bytes(), original_proposal)
         arguments = ('--state-dir', self.state, '--plan-digest', digest,
                      '--desktop-review-sha256', second)
@@ -481,6 +486,24 @@ class InstallationRouteTests(unittest.TestCase):
         self.success(self.run_cli('rollback', *arguments))
         self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], {})
         self.assertEqual((self.state / 'desktop-review.json').read_bytes(), original_proposal)
+
+    def test_review_publication_leaves_concurrent_proposal_untouched(self):
+        installer = self.import_installer(ROOT)
+        target = self.home / f'desktop-review-{"a" * 64}.json'
+        raw = b'complete proposal'
+        sync = os.fsync
+
+        def finish_staging(fd):
+            self.assertFalse(target.exists())
+            self.assertEqual(os.fstat(fd).st_mode & 0o777, 0o600)
+            sync(fd)
+            with target.open('xb') as stream:
+                stream.write(b'concurrent proposal')
+
+        with mock.patch.object(installer.os, 'fsync', side_effect=finish_staging):
+            installer.publish_desktop_review(target, raw)
+        self.assertEqual(target.read_bytes(), b'concurrent proposal')
+        self.assertEqual(list(self.home.glob('.desktop-review-*')), [])
 
     def test_digest_named_pending_review_blocks_both_repair_helpers(self):
         digest = self.success(self.prepare())['plan_digest']
