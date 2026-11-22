@@ -2376,11 +2376,11 @@ with installer.renameable_directories(state, staged, target):
         self.assertEqual((self.runtime / 'scripts').is_symlink(), False)
         self.success(self.operation('rollback', digest))
         self.assert_restored_snapshot(first_snapshot)
-        first_rollback_retained = {name: value for name, value in self.snapshot().items()
-                                   if value[0] == 'retained_generation'}
+        retained = {name: value for name, value in self.snapshot().items()
+                    if value[0] == 'retained_generation'}
         self.success(self.run_cli('check', '--state-dir', first_state, '--plan-digest', first_digest))
         self.success(self.run_cli('rollback', '--state-dir', first_state, '--plan-digest', first_digest))
-        self.assert_restored_snapshot({**self.before, **first_rollback_retained})
+        self.assert_restored_snapshot(self.before | retained)
 
     def test_update_stops_on_directory_drift_and_keeps_private_state(self):
         digest = self.success(self.prepare())['plan_digest']

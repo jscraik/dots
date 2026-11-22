@@ -79,8 +79,10 @@ candidates; publication and exact-content acceptance retain separate authority.
 
 Use Python 3.12 or newer in an existing validation environment containing the
 pins in `requirements/codex-validation.txt`. The instruction-pointer checker
-uses the already-declared `markdown-it-py==4.2.0`. No online bootstrap or new
-dependency is added by this migration.
+uses the already-declared `markdown-it-py==4.2.0`. For the full test suite, use
+[the CI validation lock](requirements/codex-validation-ci.lock), which also
+pins the validator used for readiness receipt schema parity. The schema
+validator is a test dependency.
 
 Without the separately administered `/opt/dots-hook-tools` installation, local
 installation-route operator tests report an explicit skipped prerequisite.

@@ -322,9 +322,10 @@
         "Original core assertions retained; canonical publisher core view, disposable event/resource plumbing and isolated synthetic FIFO canary",
         "Reuse the validated Python launcher in the nested missing-Computer-Use home",
         "Use the imported Path class in the native hook trust probe",
-        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
+        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
+        "Verify that required names matching launcher state fail when missing and retain their values when present."
       ],
-      "candidate_sha256": "91232ceb23848826fbc0d2a2c6ec530d2d2948a08dbbbcece693ffad7303bdcd"
+      "candidate_sha256": "6d85ea6b577ddaf249bc6dff96ec38c8b5475bacd6e92185d621591dd1935e15"
     },
     {
       "path": "codex/README.md",
@@ -751,9 +752,10 @@
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
         "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection.",
         "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository.",
-        "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance."
+        "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance.",
+        "Report a supersession close on a head outside the receipt using the mutation response or readback."
       ],
-      "candidate_sha256": "b1d481e0f1ee413a09ffe46935976528df6c41eb89621519ef6d2039a7450815"
+      "candidate_sha256": "73bd9302ab9c5ca31b2262ee1306a56844314c1e044ce205fe5531bf21a3188f"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
@@ -861,9 +863,10 @@
         "Add missing-check and dismissed historical-review scenarios from the coordinated follow-up.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
         "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection.",
-        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
+        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
+        "Exercise supersession close races and verify the blocked CLI result."
       ],
-      "candidate_sha256": "9f290b9e643ac2bfa26a26f6a344f41ead79d164f8b9ca52b945338eeb6e150e"
+      "candidate_sha256": "1038cf75516ef582a4e04701d68a98f51c001ea1b4945bb80b050fbda830c163"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",
@@ -879,7 +882,7 @@
       "path": "codex/schemas/pr-readiness.v1.schema.json",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "f8ca2c7202842e2175d1abb6c8160b6b2e4ac321798d8c6190e4f2c4813d70b1",
-      "candidate_sha256": "c14a059e8f2536583d276c9d2788147c44239277ba5c6f83141b5687544f0b5c",
+      "candidate_sha256": "d5a1c36410a62b30420dcc76bab5f8f2afc846cbc34bd08e51c7eec6872c6aeb",
       "transformations": [
         "unchanged receipt schema; original phase/authority assertions retained",
         "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."

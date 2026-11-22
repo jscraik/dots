@@ -909,8 +909,15 @@ def command_segments(command: str, depth: int = 0, inherited_functions=frozenset
                 index += 1
 
 
-def expanded_token(token: str) -> str:
-    token = token.strip(" \t\r\n'\";,()").replace("${HOME}", home).replace("$HOME", home)
+def expanded_token(token: str, *, restore_literals: bool = False) -> str:
+    token = token.strip(" \t\r\n'\";,()")
+    if restore_literals:
+        # Decode command bytes separately from the actual home pathname.
+        parts = re.split(r"(\$\{HOME\}|\$HOME)", token)
+        token = "".join(home if index % 2 else restore_inert_expansions(part)
+                        for index, part in enumerate(parts))
+    else:
+        token = token.replace("${HOME}", home).replace("$HOME", home)
     return f"{home}/{token[2:]}" if token.startswith("~/") else token
 
 
@@ -973,7 +980,7 @@ def pattern_recipients(path: str) -> list[str] | None:
 
 
 def is_auth_path(token: str) -> bool:
-    expanded = restore_inert_expansions(expanded_token(token))
+    expanded = expanded_token(token, restore_literals=True)
     # An unresolved pattern may select a symlink. Collapsing a later '..'
     # would discard its protected destination, so reject that ambiguity.
     unresolved_pattern = False

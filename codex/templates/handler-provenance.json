@@ -50,9 +50,10 @@
       "transformations": [
         "fixture scope and event admission before handler actions",
         "fixed root-owned hook dependency path and absolute Bash launch",
-        "Omit raw failed-tool output from advisory context and persisted receipts."
+        "Omit raw failed-tool output from advisory context and persisted receipts.",
+        "Include unclassified failure output only in the hashed deduplication key."
       ],
-      "candidate_sha256": "3c709efb3a1de7edf8bbe88c727e295c4a9e7675e812f0a3633db9b4fc2f150d"
+      "candidate_sha256": "1e280973b973fe4b5ce1b9824e0f53774b3c79302db9ea9158ab444bd22a8f9f"
     },
     {
       "path": "codex/hooks/pr-readiness-guard.sh",
@@ -122,9 +123,10 @@
         "fixture scope and event admission before handler actions",
         "Use the shared token-level destructive Git classifier for pre-tool denials.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
-        "Reject implicit or ambiguous push destinations and uninspectable auth-path expansions while retaining literal data and the protected toolchain."
+        "Reject implicit or ambiguous push destinations and uninspectable auth-path expansions while retaining literal data and the protected toolchain.",
+        "Restore literal dollar signs and backticks before inspecting auth path operands."
       ],
-      "candidate_sha256": "75509e0bd8fdc9d1c3f02269c030412556a5b8924f90c2842f3322dc1030fd8f"
+      "candidate_sha256": "9614ca9d4b37cbfa70e0a7ce65fe3cfa7d3bccf158a6ac0eae27a42acffbe48c"
     },
     {
       "path": "codex/hooks/session-start.sh",
@@ -260,9 +262,11 @@
       "source_sha256": "0934dbfd2eef51942db405f7e0439d4b0e58c171606ba991b7fafcf832646c2c",
       "transformations": [
         "fixture admission for shell runtime dependency",
-        "Deliver only explicitly requested injected credentials plus pre-injection runtime context to the child."
+        "Deliver only explicitly requested injected credentials plus pre-injection runtime context to the child.",
+        "Keep shell launcher counts positional and look up requested names in the injected environment without shadowing them.",
+        "Pass injected values directly in the child environment without exposing them in process arguments."
       ],
-      "candidate_sha256": "8d422e39ad5725d3254b63a39d05386e352336798bec115580c2201f2aed4edb"
+      "candidate_sha256": "f43cf9c35139248419178d8207d1d67a2ca2cc4d1b5a2ab1eecb415b5437ca71"
     },
     {
       "path": "codex/scripts/hook-governance/hook_runtime_policy.py",
@@ -287,9 +291,10 @@
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
         "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection.",
         "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository.",
-        "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance."
+        "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance.",
+        "Report a supersession close on a head outside the receipt using the mutation response or readback."
       ],
-      "candidate_sha256": "b1d481e0f1ee413a09ffe46935976528df6c41eb89621519ef6d2039a7450815"
+      "candidate_sha256": "73bd9302ab9c5ca31b2262ee1306a56844314c1e044ce205fe5531bf21a3188f"
     },
     {
       "path": "codex/scripts/pr_repair_ci.py",

@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -135,7 +136,8 @@ class PrReadinessTests(unittest.TestCase):
               'requiredCheckPolicyError': 'current-head check-run inventory unavailable'}
         result = MODULE.checks_lane(pr, 'a' * 40)
         self.assertEqual(result['status'], 'blocked')
-        self.assertIn('execution collection', result['evidence'])
+        self.assertEqual(result['details']['collection_stage'], 'execution')
+        self.assertIn('check-run inventory unavailable', result['evidence'])
 
     def test_failed_status_probe_never_reports_clean(self):
         for status in (1, 128):
@@ -151,7 +153,7 @@ class PrReadinessTests(unittest.TestCase):
                               ('https://github.com/other/repo', False)]:
             with self.subTest(url=url), patch.object(MODULE, 'run_command', return_value=
                     subprocess.CompletedProcess([], 0, json.dumps({'nameWithOwner': 'o/r', 'url': url}), '')):
-                repo, error = MODULE.repository_slug(Path('/fixture'), require_github_com=True)
+                repo, error = MODULE.repository_slug(Path('/fixture'), required_host="github.com")
                 self.assertEqual(error is None, accepted)
                 self.assertEqual(repo, 'o/r' if accepted else None)
 
@@ -227,6 +229,12 @@ class PrReadinessTests(unittest.TestCase):
                     'observed': {'ci': 'failure', 'reviews': 'CHANGES_REQUESTED'}}
         return args, snapshot
 
+    def lifecycle_response(self, target):
+        payload = {key: target[key] for key in ('number', 'node_id', 'state', 'draft', 'merged_at')}
+        payload.update(html_url=target['url'], head={'sha': target['head']},
+                       base={'ref': target['base'], 'sha': target['base_sha'], 'repo': {'full_name': 'o/r'}})
+        return subprocess.CompletedProcess([], 0, json.dumps(payload), '')
+
     def test_lifecycle_receipt_performs_only_its_exact_transition_without_clearance(self):
         for operation in ('close', 'ready', 'reopen'):
             args, snapshot = self.lifecycle_data(operation)
@@ -242,6 +250,8 @@ class PrReadinessTests(unittest.TestCase):
                 self.assertEqual(json.loads(write.call_args.args[2]), receipt)
                 args.write_receipt, args.apply_lifecycle = False, True
                 after = {**snapshot['target'], **receipt['after']}
+                if operation == 'close':
+                    mutate.return_value = self.lifecycle_response(after)
                 with patch.object(MODULE._scope, 'policy_repository_read', return_value=json.dumps(receipt).encode()), \
                         patch.object(MODULE, '_lifecycle_request', return_value=(after, {})):
                     result = MODULE._lifecycle_execute(Path('/fixture'), args, 'identity')
@@ -306,6 +316,124 @@ class PrReadinessTests(unittest.TestCase):
                 MODULE._lifecycle_execute(Path('/fixture'), args, 'identity')
             mutate.assert_called_once()
 
+    def test_lifecycle_rejects_receipt_that_expires_during_final_snapshot(self):
+        args, snapshot = self.lifecycle_data()
+        checked = MODULE.datetime.now(MODULE.UTC)
+        receipt = {'schema_version': 'pr-lifecycle/v1', 'status': 'pass', 'operation': 'ready',
+                   'checked_at': checked.isoformat(), 'acceptance_claims_proven': False,
+                   'snapshot': snapshot, 'after': {'state': 'open', 'draft': False}}
+        args.write_receipt, args.apply_lifecycle = False, True
+        for final_age in (300, 301):
+            with (
+                self.subTest(final_age=final_age),
+                patch.object(MODULE, '_lifecycle_snapshot', return_value=snapshot),
+                patch.object(MODULE._scope, 'require_policy_repository_path'),
+                patch.object(MODULE._scope, 'require_policy_repository_identity'),
+                patch.object(MODULE._scope, 'policy_repository_read', return_value=json.dumps(receipt).encode()),
+                patch.object(MODULE, 'datetime', wraps=MODULE.datetime) as clock,
+                patch.object(MODULE, 'run_command', return_value=subprocess.CompletedProcess([], 0, '{}', '')) as mutate,
+                patch.object(MODULE, '_lifecycle_request', return_value=({**snapshot['target'], 'draft': False}, {})),
+            ):
+                clock.now.side_effect = [checked + timedelta(seconds=299),
+                                         checked + timedelta(seconds=final_age),
+                                         checked + timedelta(seconds=final_age)]
+                if final_age == 300:
+                    self.assertTrue(MODULE._lifecycle_execute(Path('/fixture'), args, 'identity')['transition_verified'])
+                    mutate.assert_called_once()
+                else:
+                    with self.assertRaisesRegex(ValueError, 'receipt is stale'):
+                        MODULE._lifecycle_execute(Path('/fixture'), args, 'identity')
+                    mutate.assert_not_called()
+
+    def test_lifecycle_admits_only_canonical_github_target(self):
+        args, expected = self.lifecycle_data()
+        for origin, url, accepted in (
+            ('https://github.com/o/r.git', 'https://github.com/o/r', True),
+            ('git@github.com:o/r.git', 'https://github.com/o/r', True),
+            ('https://enterprise.example/o/r.git', 'https://github.com/o/r', False),
+            ('https://github.com/o/r.git', 'https://enterprise.example/o/r', False),
+            ('https://github.com/o/other.git', 'https://github.com/o/r', False),
+        ):
+            responses = [
+                subprocess.CompletedProcess([], 0, origin + '\n', ''),
+                subprocess.CompletedProcess([], 0, json.dumps({'nameWithOwner': 'o/r', 'url': url}), ''),
+            ]
+            with (
+                self.subTest(origin=origin, url=url),
+                patch.dict(MODULE.os.environ, {}, clear=True),
+                patch.object(MODULE, 'run_command', side_effect=responses),
+                patch.object(MODULE, '_lifecycle_request', return_value=(expected['target'], {})) as request,
+                patch.object(MODULE, '_lifecycle_local_context', return_value=expected['local']),
+            ):
+                if accepted:
+                    self.assertEqual(MODULE._lifecycle_snapshot(Path('/fixture'), args)['target'], expected['target'])
+                    request.assert_called_once()
+                else:
+                    with self.assertRaisesRegex(ValueError, 'repository'):
+                        MODULE._lifecycle_snapshot(Path('/fixture'), args)
+                    request.assert_not_called()
+
+    def test_lifecycle_clean_checkout_requires_successful_status_probe(self):
+        args, _ = self.lifecycle_data()
+        for code in (0, 1):
+            with (
+                self.subTest(code=code),
+                patch.object(MODULE, 'current_worktree', return_value=('candidate', 'a' * 40, '', '', '')),
+                patch.object(MODULE, 'worktree_lane', return_value={'status': 'pass'}),
+                patch.object(MODULE, 'parse_scope', return_value=(['source.py'], 'e' * 64)),
+                patch.object(MODULE, 'run_command', return_value=subprocess.CompletedProcess([], code, '', '')),
+            ):
+                if code:
+                    with self.assertRaisesRegex(ValueError, 'clean registered checkout'):
+                        MODULE._lifecycle_local_context(Path('/fixture'), args)
+                else:
+                    self.assertEqual(MODULE._lifecycle_local_context(Path('/fixture'), args)['declared_paths'], ['source.py'])
+
+    def test_supersession_close_reports_unreviewed_head_from_patch_or_readback(self):
+        args, snapshot = self.lifecycle_data('close')
+        args.repo_root = Path('/fixture')
+        args.write_receipt, args.apply_lifecycle = False, True
+        receipt = {'schema_version': 'pr-lifecycle/v1', 'status': 'pass', 'operation': 'close',
+                   'checked_at': MODULE.datetime.now(MODULE.UTC).isoformat(),
+                   'acceptance_claims_proven': False, 'snapshot': snapshot,
+                   'after': {'state': 'closed', 'draft': True}}
+        closed = snapshot['target'] | receipt['after']
+        changed = closed | {'head': 'f' * 40}
+        changed_response = self.lifecycle_response(changed)
+        failed_response = subprocess.CompletedProcess([], 1, '', '')
+        cases = {
+            'patch': ([changed_response], True),
+            'readback': ([self.lifecycle_response(closed), changed_response], True),
+            'readback after patch failure': ([failed_response, changed_response], True),
+            'unusable patch response': ([subprocess.CompletedProcess([], 0, '{}', ''),
+                                         self.lifecycle_response(closed)], False),
+        }
+        for case, (responses, unreviewed) in cases.items():
+            with self.subTest(case=case), \
+                    patch.object(MODULE, 'parse_args', return_value=args), \
+                    patch.object(MODULE, 'resolve_root', return_value=args.repo_root), \
+                    patch.object(MODULE, '_lifecycle_snapshot', return_value=snapshot), \
+                    patch.object(MODULE._scope, 'require_policy_repository_path'), \
+                    patch.object(MODULE._scope, 'policy_repository_identity', return_value='identity'), \
+                    patch.object(MODULE._scope, 'require_policy_repository_identity'), \
+                    patch.object(MODULE._scope, 'policy_repository_read', return_value=json.dumps(receipt).encode()), \
+                    patch.object(MODULE, 'run_command', side_effect=responses) as hosted, \
+                    patch('sys.stdout', new_callable=io.StringIO) as output:
+                self.assertEqual(MODULE.main(), 2)
+                report = json.loads(output.getvalue())
+                self.assertEqual(report['status'], 'blocked')
+                self.assertFalse(report['acceptance_claims_proven'])
+                if unreviewed:
+                    self.assertIn('closed on an unreviewed head', report['error'])
+                    self.assertEqual(report['expected_head'], closed['head'])
+                    self.assertEqual(report['target'], changed)
+                else:
+                    self.assertIn('transition may have occurred', report['error'])
+                self.assertEqual(hosted.call_count, len(responses))
+                self.assertIn('state=closed', hosted.call_args_list[0].args[0])
+                if len(responses) == 2:
+                    self.assertNotIn('--method', hosted.call_args_list[1].args[0])
+
     def test_supersession_close_requires_verified_merged_replacement_and_original_mapping(self):
         args, expected = self.lifecycle_data('close')
         def raw(number):
@@ -336,6 +464,7 @@ class PrReadinessTests(unittest.TestCase):
             with self.subTest(changes=changes, ancestry=ancestry), \
                     patch.dict(MODULE.os.environ, {}, clear=True), \
                     patch.object(MODULE, 'repository_slug', return_value=('o/r', None)), \
+                    patch.object(MODULE, '_lifecycle_origin_matches', return_value=True), \
                     patch.object(MODULE, '_lifecycle_local_context', return_value=expected['local']), \
                     patch.object(MODULE, 'hosted_remote_sha', return_value='b' * 40), \
                     patch.object(MODULE, 'run_command', side_effect=responses):
@@ -2557,7 +2686,7 @@ class PrReadinessTests(unittest.TestCase):
         )
         self.assertFalse(authority["acceptance_claims_proven"]["const"])
 
-    def test_receipt_schema_rejects_untrusted_remote_before_commands(self) -> None:
+    def passing_receipt(self) -> dict:
         head = "a" * 40
         digest = hashlib.sha256(b"\n").hexdigest()
         payload = {
@@ -2585,6 +2714,37 @@ class PrReadinessTests(unittest.TestCase):
         }
         payload["lanes"]["scope"]["details"] = {"declared_paths": []}
 
+        return payload
+
+    def test_published_receipt_schema_matches_python_validation(self):
+        from jsonschema import Draft202012Validator
+
+        schema = json.loads((MODULE_PATH.parents[1] / 'schemas/pr-readiness.v1.schema.json').read_text())
+        Draft202012Validator.check_schema(schema)
+        validator = Draft202012Validator(schema)
+        for status, remote_head, scope_details, accepted in (
+            ('pass', 'a' * 40, {'declared_paths': []}, True),
+            ('pass', 'a' * 40, None, False),
+            ('pass', 'a' * 40, {}, False),
+            ('pass', None, {'declared_paths': []}, False),
+            ('fail', None, {'declared_paths': []}, True),
+            ('blocked', 'a' * 64, {'declared_paths': []}, True),
+            ('fail', 'abc', {'declared_paths': []}, False),
+            ('fail', 'a' * 40 + '\n', {'declared_paths': []}, False),
+        ):
+            with self.subTest(status=status, remote_head=remote_head, scope_details=scope_details):
+                payload = self.passing_receipt()
+                payload['status'] = status
+                payload['repo']['remote_head_sha'] = remote_head
+                if scope_details is None:
+                    del payload['lanes']['scope']['details']
+                else:
+                    payload['lanes']['scope']['details'] = scope_details
+                self.assertEqual(validator.is_valid(payload), accepted)
+                self.assertEqual(MODULE.validate_receipt_schema(payload) is None, accepted)
+
+    def test_receipt_schema_rejects_untrusted_remote_before_commands(self) -> None:
+        payload = self.passing_receipt()
         self.assertIsNone(MODULE.validate_receipt_schema(payload))
         for remote in (
             "--upload-pack=./payload",
@@ -3012,6 +3172,33 @@ class PrReadinessTests(unittest.TestCase):
                 if state == 'MYSTERY':
                     self.assertEqual(MODULE.phase_checks_lane(pr, head, 'review_reconciliation')['status'], 'blocked')
 
+    def test_later_optional_rerun_is_an_independent_check_gate(self):
+        head = 'a' * 40
+        build = {'name': 'build', 'state': 'SUCCESS'}
+        optional = {'name': 'optional', 'state': 'SUCCESS', 'startedAt': '2026-11-22T17:00:00Z'}
+        for state, inventory_head, expected in (
+            ('FAILURE', head, 'fail'), ('SUCCESS', head, 'pass'), ('SUCCESS', 'b' * 40, 'blocked'),
+        ):
+            with self.subTest(state=state, inventory_head=inventory_head):
+                pr = required_check_pr([build, optional, {
+                    **optional, 'state': state, 'startedAt': '2026-11-22T17:01:00Z',
+                }], head, required=[{'context': 'build', 'app_id': None}])
+                pr['statusCheckRollup'] = [build, optional]
+                pr['requiredCheckEvidence'][-1]['head_sha'] = inventory_head
+                self.assertEqual(MODULE.checks_lane(pr, head)['status'], expected)
+
+    def test_policy_block_surfaces_only_known_collection_diagnostics(self):
+        head = 'a' * 40
+        unavailable = 'current-head check-run inventory unavailable'
+        for reason, expected in (
+            (unavailable, unavailable),
+            ('untrusted command output', 'authenticated required-check policy collection is unavailable'),
+        ):
+            with self.subTest(reason=reason):
+                result = MODULE.checks_lane({'requiredCheckPolicy': {}, 'requiredCheckPolicyError': reason}, head)
+                self.assertEqual(result['status'], 'blocked')
+                self.assertEqual(result['evidence'], expected)
+
     def test_required_workflow_join_keeps_failures_and_valid_reruns(self) -> None:
         head = 'a' * 40
         earlier = {'__typename': 'CheckRun', 'name': 'build', 'app': {'id': 42},
@@ -3086,6 +3273,26 @@ class PrReadinessTests(unittest.TestCase):
                 policy, error = MODULE._required_check_policy(Path.cwd(), 'o/r', 'main', 'b' * 40, 'github.com')
                 self.assertEqual(policy, {})
                 self.assertIsNotNone(error)
+
+    def test_branch_summary_without_checks_requires_authoritative_app_identity(self):
+        base = 'b' * 40
+        summary = {'name': 'main', 'commit': {'sha': base}, 'protected': True,
+                   'protection': {'required_status_checks': {'contexts': ['build']}}}
+        for checks, accepted in (([{'context': 'build', 'app_id': 42}], True),
+                                 ([{'context': 'build'}], False), ([], False), (None, False)):
+            details = {'required_status_checks': {'contexts': ['build']}}
+            if checks is not None:
+                details['required_status_checks']['checks'] = checks
+            with self.subTest(checks=checks), patch.object(MODULE, 'run_command', side_effect=[
+                subprocess.CompletedProcess([], 0, json.dumps(summary), ''),
+                subprocess.CompletedProcess([], 0, '[[]]', ''),
+                subprocess.CompletedProcess([], 0, json.dumps(details), ''),
+            ]) as command:
+                policy, error = MODULE._required_check_policy(Path.cwd(), 'o/r', 'main', base, 'github.com')
+                self.assertEqual(error is None, accepted)
+                self.assertIn('repos/o/r/branches/main/protection', command.call_args.args[0])
+                if accepted:
+                    self.assertEqual(policy['required_checks'], checks)
 
     def test_required_check_policy_accepts_only_authenticated_absence_of_classic_checks(self):
         absent = subprocess.CompletedProcess([], 1,

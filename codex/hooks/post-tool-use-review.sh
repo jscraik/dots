@@ -106,7 +106,19 @@ parsed_fields="$(
         elif ($r | type) == "string" then ($r | fromjson? // $r)
         else $r
         end;
+    def response_output($resp):
+      if $resp == null then ""
+      elif ($resp | type) == "object"
+        then (reduce ([$resp.stderr, $resp.output, $resp.stdout, $resp.message, $resp.error, $resp.text]
+                      | map(select(. != null) | tostring | select(length > 0)))[] as $part
+              ([]; if index($part) == null then . + [$part] else . end)
+              | join(" "))
+      elif ($resp | type) == "string"
+        then $resp
+      else ($resp | tostring)
+      end;
     (parse_resp) as $resp
+      | response_output($resp) as $output
       | [
         (.tool_name // ""),
         (.permission_mode // "default"),
@@ -130,17 +142,9 @@ parsed_fields="$(
           )
           else ""
          end),
+        ($output | @json),
         (
-          if $resp == null then ""
-          elif ($resp | type) == "object"
-            then (reduce ([$resp.stderr, $resp.output, $resp.stdout, $resp.message, $resp.error, $resp.text]
-                          | map(select(. != null) | tostring | select(length > 0)))[] as $part
-                  ([]; if index($part) == null then . + [$part] else . end)
-                  | join(" "))
-          elif ($resp | type) == "string"
-            then $resp
-          else ($resp | tostring)
-          end
+          $output
           | gsub("[\\r\\n\\t]+"; " ")
           | .[0:240]
         ),
@@ -150,7 +154,7 @@ parsed_fields="$(
     | join("\u001f")
   '
 )"
-IFS=$'\x1f' read -r tool_name permission_mode exit_code output_excerpt command_excerpt cwd <<<"$parsed_fields"
+IFS=$'\x1f' read -r tool_name permission_mode exit_code output_key_material output_excerpt command_excerpt cwd <<<"$parsed_fields"
 
 if [[ "$tool_name" != "Bash" && "$tool_name" != "apply_patch" && "$tool_name" != "Edit" && "$tool_name" != "Write" ]]; then
   jq -n '{continue: true}'
@@ -186,18 +190,25 @@ else
   context_message="Previous Bash command failed with exit code ${exit_code}. Summarize the failure before retrying and change approach."
 fi
 
+output_is_unclassified=0
 if [[ "$output_lc" == *"operation not permitted"* || "$output_lc" == *"permission denied"* ]]; then
   context_message="${context_message} This looks like a sandbox or approval boundary; request the minimal required permission change instead of retrying unchanged."
 elif [[ "$output_lc" == *"command not found"* ]]; then
   context_message="${context_message} This looks like a missing tool dependency; verify command availability before retrying."
+elif (( is_approval_policy_mismatch == 0 )); then
+  output_is_unclassified=1
 fi
 
 if [[ -n "$output_excerpt" ]]; then
   context_message="${context_message} The failed tool returned output; raw output is omitted from this advisory and its receipt."
 fi
 
-failure_fingerprint="$(printf '%s\037%s' "$command_excerpt" "$output_excerpt" | shasum -a 256 | awk '{print $1}')"
-if ! hook_runtime_should_emit_context "$input_json" "post-tool-use-review" "${context_message} ${failure_fingerprint}"; then
+dedupe_context="$context_message"
+if (( output_is_unclassified == 1 )) && [[ "$output_key_material" != '""' ]]; then
+  # The runtime hashes this key material; receipts and advisories use the message alone.
+  dedupe_context+=$'\037'"${output_key_material}"
+fi
+if ! hook_runtime_should_emit_context "$input_json" "post-tool-use-review" "$dedupe_context"; then
   event_record="$(hook_runtime_event_envelope "$input_json" "post-tool-use" "post-tool-use-review" "suppressed_duplicate" "$context_message")"
   if [[ -n "$event_record" ]]; then
     hook_runtime_append_jsonl "$(hook_runtime_log_path "hook-events")" "$event_record" "post-tool-use-review"
