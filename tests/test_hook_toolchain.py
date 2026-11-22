@@ -127,11 +127,18 @@ class HookToolchainTests(unittest.TestCase):
             home = Path(directory)
             (home / 'tmp').mkdir()
             marker = home / 'untrusted-sibling-ran'
+            source = home / 'source'
+            scripts = source / 'codex/scripts'
+            scripts.mkdir(parents=True)
+            for name in ('install-codex.py', 'migration_scope.py', 'deployment_scope.py',
+                         'admit-policy-fixture.py', 'admit-hook-fixture.py',
+                         'repair-runtime-config-drift.py', 'desktop_compatibility.py'):
+                shutil.copyfile(ROOT / 'codex/scripts' / name, scripts / name)
             (home / 'migration_scope.py').write_text('from pathlib import Path; Path('
                 + repr(str(marker)) + ').touch(); raise RuntimeError("cwd scope loaded")\n')
             program = home / 'probe.py'
             program.write_text('import importlib.util, pathlib, sys\n'
-                + 'root = pathlib.Path(' + repr(str(ROOT)) + ')\n'
+                + 'root = pathlib.Path(' + repr(str(source)) + ')\n'
                 + 'spec = importlib.util.spec_from_file_location("installer", root / "codex/scripts/install-codex.py")\n'
                 + 'installer = importlib.util.module_from_spec(spec); spec.loader.exec_module(installer)\n'
                 + 'for name in ("admit-policy-fixture.py", "repair-runtime-config-drift.py"):\n'

@@ -1,5 +1,6 @@
 """Complete generated-policy projection: actual entrypoints and rejection paths."""
 import json
+import hashlib
 import os
 import subprocess
 import sys
@@ -19,6 +20,65 @@ class PolicyProjectionTests(unittest.TestCase):
     def success(self, result):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return result
+
+    def legacy_notifier_runtime(self, *, enabled=False):
+        fixture = self.fixture
+        self.success(fixture.project())
+        runtime = fixture.runtime / 'config.toml'
+        legacy = {'command': str(fixture.home / 'retired-fixture-node'), 'args': ['fixture-only']}
+        digest = hashlib.sha256(json.dumps(legacy, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        helper = fixture.codex / 'scripts/repair-runtime-config-drift.py'
+        source = helper.read_text()
+        pinned = "LEGACY_PINNED_CUA_SHA256 = '149d490fc3e32e510f3b9d7926334d276315f9d6af78c6fe35edac73dd459b45'"
+        self.assertIn(pinned, source)
+        # Model the historical identity in this owned copy only. No retired
+        # launcher executes, and the production identity pin is unchanged.
+        helper.write_text(source.replace(pinned, f"LEGACY_PINNED_CUA_SHA256 = '{digest}'"))
+        text = ('notify = ["SkyComputerUseClient"]\n' + runtime.read_text()
+                + '\n[mcp_servers.cua_repl]\ncommand = ' + json.dumps(legacy['command'])
+                + '\nargs = ["fixture-only"]\n'
+                + '[plugins."computer-use@openai-bundled"]\n'
+                + f'enabled = {str(enabled).lower()}\n')
+        runtime.write_text(text)
+        return runtime, text.encode()
+
+    def test_legacy_notifier_cleanup_rejects_authority_before_any_write(self):
+        runtime, original = self.legacy_notifier_runtime(enabled=True)
+        backup = self.fixture.home / 'legacy-config-backup.toml'
+        result = self.fixture.script('repair-runtime-config-drift.py', '--config-path', str(runtime),
+                                     '--repair', '--backup-path', str(backup), '--json')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(runtime.read_bytes(), original)
+        self.assertFalse(backup.exists())
+
+    def test_legacy_notifier_cleanup_validates_real_policy_and_retains_launcher(self):
+        runtime, original = self.legacy_notifier_runtime()
+        backup = self.fixture.home / 'legacy-config-backup.toml'
+        result = self.fixture.script('repair-runtime-config-drift.py', '--config-path', str(runtime),
+                                     '--repair', '--backup-path', str(backup), '--json')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)['reason'], 'legacy_repository_pinned_cua_cutover_required')
+        self.assertEqual(backup.read_bytes(), original)
+        expected = tomllib.loads(original.decode())
+        del expected['notify']
+        self.assertEqual(tomllib.loads(runtime.read_text()), expected)
+
+    def test_legacy_notifier_cleanup_requires_snapshot_verdict_before_backup(self):
+        runtime, original = self.legacy_notifier_runtime()
+        marker = self.fixture.home / 'legacy-snapshot-checked'
+        validator = self.fixture.codex / 'scripts/validate-codex-config.py'
+        validator.write_text('import sys\nfrom pathlib import Path\n'
+                             f'Path({str(marker)!r}).write_text(sys.stdin.read())\n'
+                             'raise SystemExit(75)\n')
+        backup = self.fixture.home / 'legacy-config-backup.toml'
+        result = self.fixture.script('repair-runtime-config-drift.py', '--config-path', str(runtime),
+                                     '--repair', '--backup-path', str(backup), '--json')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(marker.exists(), result.stdout + result.stderr)
+        self.assertNotIn('notify', tomllib.loads(marker.read_text()))
+        self.assertEqual(json.loads(result.stdout)['reason'], 'canonical_validation_unavailable')
+        self.assertEqual(runtime.read_bytes(), original)
+        self.assertFalse(backup.exists())
 
     def test_project_audit_validate_repeat(self):
         fixture = self.fixture
@@ -134,8 +194,6 @@ class PolicyProjectionTests(unittest.TestCase):
         self.assertIn('\n[desktop]\n', previous)
         plugin = '''[plugins."computer-use@openai-bundled"]
 enabled = false
-[plugins."computer-use@openai-bundled".mcp_servers.computer-use.tools.click]
-approval_mode = "prompt"
 '''
         previous = previous.replace('\n[desktop]\n', '\n' + plugin + '\n[desktop]\n', 1)
         runtime.write_text(previous)
@@ -153,6 +211,30 @@ approval_mode = "prompt"
         backup = Path(receipts[0]['backup_path'])
         self.assertTrue(backup.is_relative_to(fixture.home))
         self.assertEqual(backup.read_bytes(), previous.encode())
+
+    def test_drift_repair_rejects_desktop_plugin_authority(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        runtime = fixture.runtime / 'config.toml'
+        original = runtime.read_text()
+        plugins = (
+            '[plugins."computer-use@openai-bundled"]\nenabled = true\n',
+            '[plugins."computer-use@openai-bundled"]\nenabled = false\n'
+            '[plugins."computer-use@openai-bundled".mcp_servers.cua_repl]\n'
+            'default_tools_approval_mode = "auto"\n',
+            '[plugins."computer-use@openai-bundled"]\nenabled = false\n'
+            '[plugins."computer-use@openai-bundled".mcp_servers.cua_repl]\n'
+            'enabled_tools = ["click"]\n',
+            '[plugins."computer-use@openai-bundled"]\nenabled = false\n'
+            'command = "/unreviewed"\nenv = { TOKEN = "unreviewed" }\n',
+        )
+        for plugin in plugins:
+            with self.subTest(plugin=plugin):
+                previous = original.replace('\n[desktop]\n', '\n' + plugin + '\n[desktop]\n', 1)
+                runtime.write_text(previous)
+                result = fixture.project()
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(runtime.read_bytes(), previous.encode())
 
     def test_symlink_escape_and_bad_runtime_directory_preserve_targets(self):
         fixture = self.fixture
