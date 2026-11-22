@@ -29,7 +29,11 @@ restart. The ordinary check and rollback continue to reject those newer bytes.
 The isolated compatibility candidate adds `prepare-desktop-review` to the
 installer. It writes a private, create-once proposal in installation state and
 returns its SHA-256; it does not approve the proposal or change runtime files.
-Only twelve named Desktop slots may differ. All remaining parsed policy must
+Later proposals use digest-named files, preserving earlier proposals and pins.
+The explicit digest selects the reviewed snapshot; a changed runtime still
+invalidates an older snapshot. Oversized proposals are rejected before writing.
+Only twelve named Desktop slots and newly granted native user-hook consent
+for this installation may differ. All remaining parsed policy must
 agree with the installed baseline, and every other managed target must match.
 
 After independent review and explicit operator acceptance, `check` or `rollback`
@@ -280,6 +284,22 @@ A successful `config/value/write` or fresh-server listing does not prove that an
 already loaded thread uses the new hooks. The focused `test_hook_discovery.py`
 regression checks this distinction in a disposable home without a model turn.
 
+After granting native hook consent, preserve it through the existing
+`prepare-desktop-review` proposal and explicitly accepted
+`--desktop-review-sha256` check/rollback route. Inspect the proposal's exact
+`hooks.state` identities and hashes against native discovery before accepting
+its digest. Preparing or printing the proposal does not authorise consent.
+Only new consent for this installation's `.codex/hooks.json` can use this route;
+replacement of an existing trusted hash remains blocking. Ordinary projection
+and startup repair stop before changing consent-bearing configuration. Generated
+bindings still cannot install trusted hashes, and any later runtime change
+invalidates the accepted snapshot.
+This review also supports a first installation with no previous config. The
+sealed plan must record that absence and no config backup may appear later.
+An explicitly pinned preserving rollback retains a consent-only config in that
+case, restores the other targets, and leaves the original installation receipts
+and absent backup unchanged.
+
 For an operator-prepared rehearsal, the command sequence is:
 
 ```sh
@@ -372,8 +392,29 @@ only `trust_level = "trusted"`. The exact runtime comparison still rejects
 unselected project registrations and any change to existing trust. With no list,
 all generated policy remains byte-for-byte unchanged.
 
-Operator hook revocations are preserved through preparation, application and
-repair readback. Existing `enabled = false` flags do not authorise changed trust
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:ace8d96a672cc207d19a867e439c04f7cd4abd5c316da51599d1997225313da1 -->
+
+The supported native-consent route starts from generated policy without
+`hooks.state`, followed by a separately accepted installation-bound consent
+proposal. Revocations from that pinned native-consent installation are
+preserved through preparation, application and repair readback.
+
+Older packages whose generated canonical policy already contains `hooks.state`
+are not supported by this update route. The update refuses that baseline rather
+than treating generated hashes as proof of operator consent or silently
+discarding later consent. Adopting the new format requires separately reviewed
+reprovisioning; this PR provides no automatic conversion of the older format.
+An initial installation with unbound state likewise stops without changing it.
+
+For a supported consent-free installation, prepare and apply it, grant fresh
+native consent for the installed hooks, and run `prepare-desktop-review`.
+That command requires an applied installation; it cannot repair an unsupported
+older baseline or resolve unbound consent before installation.
+
+<!-- /coderabbit-ai-generated:v1 -->
+Existing `enabled = false` flags do not authorise changed trust
 hashes or new identities. If every recorded hook was disabled, replacement
 identities also remain disabled. A transition never grants hook consent.
 
@@ -479,10 +520,10 @@ now. Ignore rules protect future additions; they do not prove absence of secrets
 configuration and seven standalone profiles. The reviewed JSON template stores
 the parsed policy, including approval, permissions, profile isolation, hook
 enablement and delivery instructions. Whole-string local slots separate machine
-paths, private endpoint and application identities, consent hashes and personal
-Desktop state. Source revision and file digests are in
-`codex/templates/policy-provenance.json`. JSON is the source format for this
-candidate; generated output is TOML. Comments are not reproduced.
+paths, private endpoint and application identities, and personal Desktop state.
+Persisted hook trust is deliberately excluded. Source revision and file digests
+are in `codex/templates/policy-provenance.json`. JSON is the source format for
+this candidate; generated output is TOML. Comments are not reproduced.
 
 Run the synthetic, local-only generation check:
 
@@ -497,17 +538,18 @@ missing/extra bindings, non-string values and table-key collisions are rejected.
 Quoting prevents binding text from becoming TOML syntax. Bindings are trusted
 local configuration inputs, not a permission-grant mechanism. They can change
 machine-specific keys and values and therefore still require the complete
-governance validation before installation. Never supply credentials as bindings.
+governance validation before installation. The generator rejects any
+`hooks.state` table and treats historical hook-consent bindings as unknown input.
+Never supply credentials as bindings.
 
 The synthetic bindings are invented strings for serialization testing, not
 working endpoints, valid hook consent or a deployable workstation configuration.
 Private reconstruction was compared against the accepted source: all eight
 parsed policies matched before the integration adaptation below. The template
-also retains the newer draw.io registration. Its source path and additional
-hook-consent identities and hashes use local slots with synthetic examples;
-they are not public machine state. Inspect the exact hook definitions and
-establish current consent before activation. The reviewed disabled-transport
-adaptation remains in place.
+also retains the newer draw.io registration with its source path in a local
+slot. Hook definitions remain discoverable, but generated policy starts without
+trusted hashes so the native runtime must obtain fresh consent for the exact
+current hooks. The reviewed disabled-transport adaptation remains in place.
 The accepted validator's schema feature/approval-mode
 parity and seven-profile policy, transport and OSS-isolation checks passed on
 that reconstruction. Negative probes rejected weakened approvals and isolation.
@@ -742,9 +784,35 @@ No approval, network, review or other policy setting was loosened.
 Integration tests repair drift while preserving valid Desktop presentation and
 Computer Use plugin consent. They also inject an exchange failure to verify
 last-state and backup preservation, update an owned canonical fixture and roll
-it back through reconciliation, and check that fresh native hook consent can be
-carried in that fixture's canonical input across projection and restart. They
-never grant a runtime-only consent exception or copy a live config into Git.
+it back through reconciliation, and check that projected hooks begin untrusted.
+Fresh consent remains an explicit native runtime action and is never imported
+from policy bindings or copied from a live config into Git.
+
+Config replacement retains the displaced inode in an adjacent private
+`.config.toml.recovery-*` directory, including after a successful repair. The
+repair JSON and successful installation result identify `retained_generation_path`;
+a failed publication reports its recovery location in the error. A writer with
+an already open file handle may still save into that retained generation.
+These files are local recovery material, not immutable receipts or Git inputs.
+Inspect the active and retained generations before an explicitly authorised
+recovery, and keep them until native writers have closed their handles. There
+is no automatic rollback or cleanup of a generation exposed at the active
+path. A detected publication race fails without a compensating swap; this
+preserves recoverable data but cannot guarantee that every concurrent save
+remains active. Stop native writers before retrying repair or recovering a
+selected generation. Passing readback describes the observed generation only.
+
+Applying and restoring records name the generated recovery slot before an
+exchange is attempted. An interrupted slot can contain either staged candidate
+bytes or the displaced configuration; inspect it before choosing recovery.
+Once a config generation is displaced, retries that skip publication preserve
+its recorded `retained_generation_path`. A never-published inspection candidate
+may be superseded by a newly allocated slot on retry; neither recorded slot
+proves that an exchange occurred. Rollback reports
+`rollback_retained_generation_path` for the config parked in the private
+installation state directory. These fields are
+observational locations and grant no recovery authority. This bookkeeping is
+tested for process interruption; power-loss durability has not been verified.
 
 Browser/pet assets, external adapters and live cutover remain separate migration
 surfaces. Passing this generated-policy integration does not retire Configs
@@ -811,8 +879,8 @@ Configs' existing checks. Local installation records and recovery artifacts stay
 outside this public repository; they are not included in hosted validation.
 The validation job installs the already-declared validation dependency pins
 before running the suite. It partitions the complete discovered test set across
-two small containers; each discovered case runs once in that partitioned suite,
-in addition to the three diagnostic regressions repeated on both nodes.
+three small containers; each discovered case runs once in that partitioned suite,
+in addition to the three diagnostic regressions repeated on each node.
 A failure fails validation. The workflow
 keeps the `validate` and `secret-scan` jobs, small resource classes, checksum
 verification and both secret scans. Hosted timing must confirm that validation

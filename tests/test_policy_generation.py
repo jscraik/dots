@@ -34,6 +34,7 @@ class PolicyGenerationTests(unittest.TestCase):
         self.assertEqual(root['approval_policy'], 'on-request')
         self.assertEqual(root['approvals_reviewer'], 'auto_review')
         self.assertTrue(root['features']['hooks'])
+        self.assertNotIn('hooks', root)
         for name in GEN.NAMES:
             if name.startswith('oss-'):
                 profile = tomllib.loads(result[name])
@@ -99,6 +100,18 @@ class PolicyGenerationTests(unittest.TestCase):
     def test_table_key_collisions_rejected(self):
         with self.assertRaises(ValueError):
             GEN.substitute({'@local:a': True, '@local:b': False}, {'a': 'same', 'b': 'same'}, set())
+
+    def test_persisted_hook_trust_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'persisted hook trust'):
+            GEN.reject_persisted_hook_trust({
+                'hooks': {'state': {'synthetic': {'trusted_hash': 'sha256:' + '0' * 64}}}
+            })
+        self.bindings.update({
+            'value_0082': '/synthetic/hooks.json:pre_tool_use:0:0',
+            'value_0083': 'sha256:' + '0' * 64,
+        })
+        with self.assertRaises(ValueError):
+            self.render()
 
     def test_cli_no_values_or_runtime_writes(self):
         self.render()

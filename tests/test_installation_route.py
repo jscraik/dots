@@ -4,7 +4,6 @@ import importlib.util
 import json
 import os
 import pwd
-import re
 import shlex
 import shutil
 import subprocess
@@ -18,6 +17,67 @@ from unittest import mock
 
 from policy_fixture import PolicyFixture
 from test_governance_port import ROOT, GEN
+
+
+class DesktopProposalPublicationTests(unittest.TestCase):
+    """Publication component checks do not need an installed toolchain."""
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        spec = importlib.util.spec_from_file_location('proposal_publication', ROOT / 'codex/scripts/install-codex.py')
+        self.installer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.installer)
+
+    def test_failed_sync_leaves_final_absent_and_retry_succeeds(self):
+        path = self.root / 'desktop-review.json'
+        with mock.patch.object(self.installer.os, 'fsync', side_effect=OSError('injected sync failure')):
+            with self.assertRaises(OSError):
+                self.installer.publish_desktop_review(path, b'private reviewed proposal')
+        self.assertFalse(path.exists())
+        self.assertEqual(list(self.root.iterdir()), [])
+        self.installer.publish_desktop_review(path, b'private reviewed proposal')
+        self.assertEqual(path.read_bytes(), b'private reviewed proposal')
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(path.stat().st_nlink, 1)
+
+    def test_inherited_installation_lock_preserves_parent_ownership(self):
+        home = self.root.resolve()
+        with self.installer.installation_lock(home) as parent:
+            with self.installer.installation_lock(home, inherited_fd=parent) as child:
+                self.assertNotEqual(child, parent)
+                self.assertEqual(os.fstat(child).st_ino, os.fstat(parent).st_ino)
+            with self.assertRaises(BlockingIOError):
+                with self.installer.installation_lock(home):
+                    self.fail('Child release unlocked the parent')
+        with self.installer.installation_lock(home):
+            pass
+
+    def test_inherited_installation_lock_rejects_another_file(self):
+        home = self.root.resolve()
+        with self.installer.installation_lock(home):
+            pass
+        other = home / 'unrelated'
+        other.write_bytes(b'keep')
+        with other.open('rb') as handle:
+            with self.assertRaises(ValueError):
+                with self.installer.installation_lock(home, inherited_fd=handle.fileno()):
+                    self.fail('Unrelated descriptor admitted')
+        self.assertEqual(other.read_bytes(), b'keep')
+
+    def test_racing_pin_is_preserved_and_partial_bytes_are_not_published(self):
+        path = self.root / 'desktop-review.json'
+        publish = self.installer.rename_absent
+        def race(source, target, **options):
+            self.assertFalse(path.exists())
+            self.assertEqual(Path(source).read_bytes(), b'new proposal')
+            path.write_bytes(b'other reviewed proposal')
+            return publish(source, target, **options)
+        with mock.patch.object(self.installer, 'rename_absent', side_effect=race):
+            self.installer.publish_desktop_review(path, b'new proposal')
+        self.assertEqual(path.read_bytes(), b'other reviewed proposal')
+        self.assertEqual(list(self.root.iterdir()), [path])
 
 
 class InstallationRouteTests(unittest.TestCase):
@@ -34,7 +94,7 @@ class InstallationRouteTests(unittest.TestCase):
             with self.subTest(state=state), self.assertRaises(ValueError):
                 installer.preserve_hook_disables(baseline, {'hooks': {'state': state}})
 
-    def test_update_renderer_keeps_existing_hooks_disabled(self):
+    def test_update_renderer_requires_review_for_unbound_hook_state(self):
         shutil.copy2(ROOT / 'codex/scripts/install-codex.py',
                      self.fixture.repo / 'codex/scripts/install-codex.py')
         shutil.copy2(ROOT / 'scripts/generate-codex-policy.py',
@@ -48,8 +108,30 @@ class InstallationRouteTests(unittest.TestCase):
         with (mock.patch.object(installer, 'effective_previous_review', return_value=None),
               mock.patch.dict(sys.modules, {'migration_scope': scope}),
               mock.patch.dict(os.environ, self.fixture.env, clear=True)):
-            rendered = installer.update_desktop_text(canonical, observed)
-        self.assertEqual(tomllib.loads(rendered), tomllib.loads(observed))
+            with self.assertRaisesRegex(ValueError, 'native hook consent requires'):
+                installer.update_desktop_text(canonical, observed)
+
+    def test_update_renderer_preserves_reviewed_leaf_hook_toggle(self):
+        installer = self.import_installer(self.source_root)
+        compat = installer.module('renderer_test_compat', self.source_root / 'codex/scripts/desktop_compatibility.py')
+        canonical = '[hooks.state.known]\nenabled = false\ntrusted_hash = "sha256:' + 'a' * 64 + '"\n'
+        scope = installer.module('renderer_test_scope', self.source_root / 'codex/scripts/migration_scope.py')
+        for plugin in ('', '\n[plugins."computer-use@openai-bundled"]\nenabled = true\n'):
+            observed = canonical.replace('enabled = false', 'enabled = true') + plugin
+            review = {'canonical': canonical, 'observed': observed,
+                      'state_dir': str(self.state), 'changes': compat.delta(canonical, observed)}
+            with (self.subTest(plugin=bool(plugin)),
+                  mock.patch.object(installer, 'effective_previous_review', return_value=review),
+                  mock.patch.dict(sys.modules, {'migration_scope': scope}),
+                  mock.patch.dict(os.environ, self.fixture.env, clear=True)):
+                updated = installer.update_desktop_text(canonical, observed)
+                self.assertEqual(tomllib.loads(updated), tomllib.loads(observed))
+                with self.assertRaises(ValueError):
+                    installer.update_desktop_text(canonical, observed.replace('a' * 64, 'b' * 64))
+                if plugin:
+                    with self.assertRaisesRegex(ValueError, 'Pinned Desktop plugin'):
+                        installer.update_desktop_text(canonical, observed.replace(plugin,
+                            plugin.replace('enabled = true', 'enabled = false')))
 
     def test_standalone_live_usage_swap_refuses_before_any_state_change(self):
         installer = self.import_installer(ROOT)
@@ -142,7 +224,7 @@ class InstallationRouteTests(unittest.TestCase):
         self.success(self.operation('check', digest))
         self.success(self.operation('rollback', digest))
         self.assertFalse(marker.exists(), 'bootstrap executed a PATH-selected Python shim')
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
 
     def test_selected_interpreter_with_spaces_does_not_shadow_other_tools(self):
         self.require_operator_toolchain()
@@ -365,9 +447,28 @@ class InstallationRouteTests(unittest.TestCase):
             'CODEX_VALIDATION_PYTHON': sys.executable,
         }
 
+    def test_snapshot_detects_new_retained_generation(self):
+        before = self.snapshot()
+        directory = self.runtime / '.config.toml.recovery-synthetic'
+        directory.mkdir(mode=0o700)
+        (directory / 'generation-fixture.toml').write_bytes(b'fixture recovery generation')
+        self.assertNotEqual(self.snapshot(), before)
+
     def snapshot(self):
         result = {}
         for path in self.runtime.iterdir():
+            if path.name.startswith('.config.toml.recovery-'):
+                # Recovery generations deliberately survive managed rollback;
+                # compare caller state separately and validate their boundary.
+                self.assertFalse(path.is_symlink())
+                self.assertEqual(path.stat().st_mode & 0o777, 0o700)
+                generations = list(path.iterdir())
+                self.assertEqual(len(generations), 1)
+                self.assertTrue(generations[0].name.startswith('generation-'))
+                self.assertFalse(generations[0].is_symlink())
+                self.assertTrue(generations[0].is_file())
+                result[path.name] = ('retained_generation', generations[0].name, generations[0].read_bytes())
+                continue
             if path.is_symlink():
                 result[path.name] = ('link', str(path.readlink()))
             elif path.is_file():
@@ -380,6 +481,17 @@ class InstallationRouteTests(unittest.TestCase):
                 else:
                     result[path.name] = ('directory',)
         return result
+
+    def assert_restored_snapshot(self, expected):
+        """Managed rollback preserves caller state and adds recovery material."""
+        observed = self.snapshot()  # Validate and capture recovery entries too.
+        for name, value in expected.items():
+            if value[0] == 'retained_generation':
+                self.assertEqual(observed.get(name), value, 'Existing recovery material changed during rollback')
+        def caller_state(snapshot):
+            return {name: value for name, value in snapshot.items()
+                    if value[0] != 'retained_generation'}
+        self.assertEqual(caller_state(observed), caller_state(expected))
 
     def success(self, result):
         details = ''.join(path.read_text() for path in self.state.glob('*diagnostic.json')) if result.returncode else ''
@@ -433,70 +545,445 @@ class InstallationRouteTests(unittest.TestCase):
         for name in ('plan.json', 'backups/config.toml'):
             self.assertEqual((self.state / name).read_bytes(), records[name])
 
-    def test_quote_pair_blocks_mixed_publication_and_preserves_micro_layout(self):
-        # Replace one deliberately synthetic identity only in this fixture input.
+    def test_preseeded_hook_consent_binding_is_rejected(self):
         bindings = json.loads(self.bindings.read_text())
-        bindings['value_0144'] = str(self.runtime / 'hooks.json') + ':pre_tool_use:2:0'
-        bindings['value_0145'] = 'sha256:' + 'a' * 64
+        bindings['value_0082'] = str(self.runtime / 'hooks.json') + ':pre_tool_use:0:0'
+        bindings['value_0083'] = 'sha256:' + 'a' * 64
         self.bindings.write_text(json.dumps(bindings))
+        self.assertNotEqual(self.prepare().returncode, 0)
+        self.assertEqual(self.snapshot(), self.before)
+
+    def test_post_install_native_consent_is_pinned_and_never_silently_revoked(self):
+        self.check_native_consent_lifecycle()
+
+    def test_complete_native_revocation_can_be_explicitly_reviewed(self):
         digest = self.success(self.prepare())['plan_digest']
         self.success(self.operation('apply', digest))
-        spec = importlib.util.spec_from_file_location(
-            'packaged_pair', self.payload / 'codex/scripts/desktop_compatibility.py')
-        compat = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(compat)
-        config_path, hooks_path = self.runtime / 'config.toml', self.runtime / 'hooks.json'
-        installed, expected_hooks = config_path.read_text(), hooks_path.read_text()
-        declarations = json.loads(expected_hooks)
-        states = tomllib.loads(installed)['hooks']['state']
-        selected = None
-        for event, groups in declarations['hooks'].items():
-            for group_index, group in enumerate(groups):
-                for handler_index, handler in enumerate(group['hooks']):
-                    command = handler.get('command', '')
-                    tokens = shlex.split(command)
-                    for key, state in states.items():
-                        parts = key.rsplit(':', 3)
-                        if (tokens and Path(tokens[0]).name == 'braid' and len(parts) == 4
-                                and parts[0] in {str(hooks_path), 'user:' + str(hooks_path)}
-                                and re.sub('[^a-z]', '', parts[1].lower()) == re.sub('[^a-z]', '', event.lower())
-                                and parts[-2:] == [str(group_index), str(handler_index)]
-                                and re.fullmatch('sha256:[0-9a-f]{64}', state.get('trusted_hash', ''))):
-                            selected = key, handler, tokens
-                            break
-                    if selected:
-                        break
-                if selected:
-                    break
-            if selected:
-                break
-        self.assertIsNotNone(selected, 'Fixture must retain a bound canonical Braid consent entry')
-        key, handler, tokens = selected
-        handler['command'] = '"' + tokens[0] + '" ' + ' '.join(tokens[1:])
-        observed_hooks = json.dumps(declarations)
-        layout = compat.micro_layout()
-        layout['separateMicrophoneKeys'] = True
-        observed = compat.overlay(installed, [
-            {'path': ['desktop', 'codex-micro-layout'], 'after': {'present': True, 'value': layout}},
-            {'path': ['hooks', 'state', key, 'trusted_hash'],
-             'after': {'present': True, 'value': 'sha256:' + 'e' * 64}},
-        ])
-        config_path.write_text(observed)
-        hooks_path.write_text(observed_hooks)
-        proposal = compat.paired_repair_candidate(installed, observed, expected_hooks,
-            observed_hooks, hook_source=str(hooks_path))
-        self.assertEqual(config_path.read_text(), observed)
-        self.assertEqual(hooks_path.read_text(), observed_hooks)
-        config_path.write_text(proposal['candidate'])
-        self.assertNotEqual(self.operation('prepare-desktop-review', digest).returncode, 0)
-        config_path.write_text(observed)
-        hooks_path.write_text(proposal['hooks_candidate'])
-        self.assertNotEqual(self.operation('prepare-desktop-review', digest).returncode, 0)
-        config_path.write_text(proposal['candidate'])
-        review = self.success(self.operation('prepare-desktop-review', digest))
+        path = self.runtime / 'config.toml'
+        data = tomllib.loads(path.read_text())
+        data['hooks'] = {'state': {}}
+        path.write_text(GEN.toml_document(data))
+        self.assertNotEqual(self.operation('check', digest).returncode, 0)
+        proposal = self.success(self.operation('prepare-desktop-review', digest))
+        self.assertEqual(proposal['changed_paths'], [['hooks', 'state']])
+        arguments = ('--state-dir', self.state, '--plan-digest', digest,
+                     '--desktop-review-sha256', proposal['review_sha256'])
+        self.success(self.run_cli('check', *arguments))
+        self.success(self.run_cli('rollback', *arguments))
+        self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], {})
+
+    def test_native_consent_can_be_reviewed_again_on_the_same_installation(self):
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        path = self.runtime / 'config.toml'
+        data = tomllib.loads(path.read_text())
+        key = 'user:' + str(self.runtime / 'hooks.json') + ':pre_tool_use:0:0'
+        data['hooks'] = {'state': {key: {'trusted_hash': 'sha256:' + 'a' * 64}}}
+        path.write_text(GEN.toml_document(data))
+        first = self.success(self.operation('prepare-desktop-review', digest))['review_sha256']
+        original_proposal = (self.state / 'desktop-review.json').read_bytes()
+        self.assertEqual(self.success(self.operation('prepare-desktop-review', digest))['review_sha256'], first)
+        self.assertEqual(list(self.state.glob('desktop-review*.json')), [self.state / 'desktop-review.json'])
         self.success(self.run_cli('check', '--state-dir', self.state,
-            '--plan-digest', digest, '--desktop-review-sha256', review['review_sha256']))
-        self.assertEqual(tomllib.loads(config_path.read_text())['hooks']['state'], states)
+            '--plan-digest', digest, '--desktop-review-sha256', first))
+        data['hooks']['state'] = {}
+        path.write_text(GEN.toml_document(data))
+        revoked = path.read_bytes()
+        second = self.success(self.operation('prepare-desktop-review', digest))['review_sha256']
+        self.assertNotEqual(first, second)
+        addressed = self.state / f'desktop-review-{second}.json'
+        published = addressed.stat()
+        self.assertEqual(self.success(self.operation('prepare-desktop-review', digest))['review_sha256'], second)
+        self.assertEqual(addressed.stat().st_ino, published.st_ino)
+        self.assertEqual((self.state / 'desktop-review.json').read_bytes(), original_proposal)
+        arguments = ('--state-dir', self.state, '--plan-digest', digest,
+                     '--desktop-review-sha256', second)
+        self.success(self.run_cli('check', *arguments))
+        self.assertNotEqual(self.run_cli('check', '--state-dir', self.state,
+            '--plan-digest', digest, '--desktop-review-sha256', first).returncode, 0)
+        self.assertEqual(path.read_bytes(), revoked)
+        self.success(self.run_cli('rollback', *arguments))
+        self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], {})
+        self.assertEqual((self.state / 'desktop-review.json').read_bytes(), original_proposal)
+
+    def test_review_publication_leaves_concurrent_proposal_untouched(self):
+        installer = self.import_installer(ROOT)
+        target = self.home / f'desktop-review-{"a" * 64}.json'
+        raw = b'complete proposal'
+        sync = os.fsync
+
+        def finish_staging(fd):
+            self.assertFalse(target.exists())
+            self.assertEqual(os.fstat(fd).st_mode & 0o777, 0o600)
+            sync(fd)
+            with target.open('xb') as stream:
+                stream.write(b'concurrent proposal')
+
+        with mock.patch.object(installer.os, 'fsync', side_effect=finish_staging):
+            installer.publish_desktop_review(target, raw)
+        self.assertEqual(target.read_bytes(), b'concurrent proposal')
+        self.assertEqual(list(self.home.glob('.desktop-review-*')), [])
+
+    def test_digest_named_pending_review_blocks_both_repair_helpers(self):
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        config = self.runtime / 'config.toml'
+        before = config.read_bytes()
+        pending = self.state / ('desktop-review-' + 'a' * 64 + '.json')
+        self.assertFalse((self.state / 'desktop-review.json').exists())
+        for name in ('repair-runtime-config-drift.py', 'scrub-computer-use-config.py'):
+            command = [sys.executable, '-B', str(self.payload / 'codex/scripts' / name),
+                '--config-path', str(config), '--repair', '--json']
+            allowed = subprocess.run(command, cwd=self.payload,
+                env=self.installed_env(), capture_output=True, text=True, timeout=30, check=False)
+            self.success(allowed)
+            pending.write_text('{}')
+            result = subprocess.run(command, cwd=self.payload,
+                env=self.installed_env(), capture_output=True, text=True, timeout=30, check=False)
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(config.read_bytes(), before)
+            pending.unlink()
+
+    def test_proposal_scan_errors_block_both_repair_helpers(self):
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        config = self.runtime / 'config.toml'
+        before = config.read_bytes()
+        child = '''import importlib.util,os,sys
+from pathlib import Path
+script = Path(sys.argv[1]); sys.path.insert(0, str(script.parent))
+spec = importlib.util.spec_from_file_location("blocked_scan", script)
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+scan = os.scandir
+blocked_state = Path(sys.argv[3])
+def denied(path):
+    if Path(path) == blocked_state:
+        raise PermissionError("synthetic unreadable proposal directory")
+    return scan(path)
+os.scandir = denied
+sys.argv = [str(script), "--config-path", sys.argv[2], "--repair", "--json"]
+raise SystemExit(module.main())
+'''
+        for name in ('repair-runtime-config-drift.py', 'scrub-computer-use-config.py'):
+            with self.subTest(helper=name):
+                result = subprocess.run([sys.executable, '-B', '-c', child,
+                    str(self.payload / 'codex/scripts' / name), str(config), str(self.state)],
+                    cwd=self.payload, env=self.installed_env(), capture_output=True,
+                    text=True, timeout=30, check=False)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(json.loads(result.stdout)['status'], 'blocked')
+                self.assertEqual(config.read_bytes(), before)
+
+    def test_oversized_desktop_review_leaves_no_proposal_and_can_retry(self):
+        path = self.runtime / 'config.toml'
+        path.unlink()
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        data = tomllib.loads(path.read_text())
+        key = 'user:' + str(self.runtime / 'hooks.json') + ':pre_tool_use:0:0'
+        data['hooks'] = {'state': {key: {'trusted_hash': 'sha256:' + 'a' * 64}}}
+        valid = GEN.toml_document(data)
+        path.write_text(valid + '\n#' + 'x' * (2 * 1024 * 1024) + '\n')
+        before = path.read_bytes()
+        self.assertNotEqual(self.operation('prepare-desktop-review', digest).returncode, 0)
+        self.assertEqual(list(self.state.glob('desktop-review*.json')), [])
+        self.assertEqual(path.read_bytes(), before)
+        path.write_text(valid)
+        pin = self.success(self.operation('prepare-desktop-review', digest))['review_sha256']
+        self.success(self.run_cli('check', '--state-dir', self.state,
+            '--plan-digest', digest, '--desktop-review-sha256', pin))
+
+    def test_first_install_native_consent_without_previous_config(self):
+        (self.runtime / 'config.toml').unlink()
+        self.before = self.snapshot()
+        self.check_native_consent_lifecycle()
+        restored = tomllib.loads((self.runtime / 'config.toml').read_text())
+        self.assertEqual(set(restored), {'hooks'})
+        self.assertFalse((self.state / 'backups/config.toml').exists())
+
+    def test_absent_baseline_rollback_records_open_writer_generation(self):
+        config = self.runtime / 'config.toml'
+        config.unlink()
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        installed = config.read_bytes()
+        with config.open('ab') as writer:
+            rolled = self.success(self.operation('rollback', digest))
+            retained = Path(rolled['rollback_retained_generation_path'])
+            self.assertEqual(retained.read_bytes(), installed)
+            writer.write(b'\n# late absent-baseline writer\n')
+            writer.flush()
+        self.assertFalse(config.exists())
+        self.assertTrue(retained.read_bytes().endswith(b'# late absent-baseline writer\n'))
+        repeated = self.success(self.operation('rollback', digest))
+        self.assertEqual(repeated['rollback_retained_generation_path'], str(retained))
+        self.assertFalse(config.exists())
+
+    def test_preserving_rollback_retains_open_native_writer_and_retry_path(self):
+        config = self.runtime / 'config.toml'
+        config.unlink()
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        data = tomllib.loads(config.read_text())
+        key = 'user:' + str(self.runtime / 'hooks.json') + ':pre_tool_use:0:0'
+        data['hooks'] = {'state': {key: {'trusted_hash': 'sha256:' + 'a' * 64}}}
+        config.write_text(GEN.toml_document(data))
+        observed = config.read_bytes()
+        pin = self.success(self.operation('prepare-desktop-review', digest))['review_sha256']
+        arguments = ('rollback', '--state-dir', self.state, '--plan-digest', digest,
+                     '--desktop-review-sha256', pin)
+        with config.open('ab') as writer:
+            rolled = self.success(self.run_cli(*arguments))
+            retained = Path(rolled['rollback_retained_generation_path'])
+            self.assertEqual(retained.read_bytes(), observed)
+            writer.write(b'\n# late native rollback writer\n')
+            writer.flush()
+        self.assertTrue(retained.read_bytes().endswith(b'# late native rollback writer\n'))
+        self.assertEqual(set(tomllib.loads(config.read_text())), {'hooks'})
+        receipt = self.state / ('desktop-' + pin + '-result.json')
+        saved = receipt.read_bytes()
+        invalid = json.loads(saved)
+        invalid['rollback_retained_generation_path'] = str(self.home / 'outside.toml')
+        receipt.write_text(json.dumps(invalid))
+        current = config.read_bytes()
+        self.assertNotEqual(self.run_cli(*arguments).returncode, 0)
+        self.assertEqual(config.read_bytes(), current)
+        receipt.write_bytes(saved)
+        retried = self.success(self.run_cli(*arguments))
+        self.assertEqual(retried['rollback_retained_generation_path'], str(retained))
+        self.assertEqual(config.read_bytes(), current)
+
+    def test_absent_config_review_rejects_empty_and_non_consent_deltas(self):
+        path = self.runtime / 'config.toml'
+        path.unlink()
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        installed = path.read_bytes()
+        self.assertNotEqual(self.operation('prepare-desktop-review', digest).returncode, 0)
+        self.assertFalse((self.state / 'desktop-review.json').exists())
+        data = tomllib.loads(path.read_text())
+        data.setdefault('desktop', {})['selected-avatar-id'] = 'independent-avatar'
+        path.write_text(GEN.toml_document(data))
+        observed = path.read_bytes()
+        self.assertNotEqual(self.operation('prepare-desktop-review', digest).returncode, 0)
+        self.assertEqual(path.read_bytes(), observed)
+        self.assertFalse((self.state / 'desktop-review.json').exists())
+        path.write_bytes(installed)
+        self.success(self.operation('rollback', digest))
+        self.assertFalse(path.exists())
+
+    def test_empty_file_baseline_allows_reviewed_desktop_preference(self):
+        path = self.runtime / 'config.toml'
+        path.write_text('')
+        self.before = self.snapshot()
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        data = tomllib.loads(path.read_text())
+        data.setdefault('desktop', {})['selected-avatar-id'] = 'independent-avatar'
+        path.write_text(GEN.toml_document(data))
+        pin = self.success(self.operation('prepare-desktop-review', digest))['review_sha256']
+        arguments = ('--state-dir', self.state, '--plan-digest', digest,
+                     '--desktop-review-sha256', pin)
+        self.success(self.run_cli('check', *arguments))
+        self.success(self.run_cli('rollback', *arguments))
+        self.assertEqual(tomllib.loads(path.read_text()),
+                         {'desktop': {'selected-avatar-id': 'independent-avatar'}})
+
+    def test_native_consent_survives_reviewed_update_and_rollback(self):
+        self.check_reviewed_native_update()
+
+    def test_incremental_native_consent_review_after_reviewed_update(self):
+        path = self.runtime / 'config.toml'
+        first_digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', first_digest))
+        data = tomllib.loads(path.read_text())
+        previous = {'user:' + str(self.runtime / 'hooks.json') + ':stop:0:0':
+                    {'trusted_hash': 'sha256:' + 'a' * 64}}
+        data['hooks'] = {'state': previous}
+        path.write_text(GEN.toml_document(data))
+        pin = self.success(self.operation('prepare-desktop-review', first_digest))['review_sha256']
+        self.second_installation()
+        digest = self.success(self.run_cli('prepare', '--home', self.home,
+            '--state-dir', self.state, '--bindings', self.bindings,
+            '--braid-bin', self.fixture.bin / 'braid', '--mode', 'rehearsal',
+            '--previous-desktop-review-sha256', pin))['plan_digest']
+        self.success(self.operation('apply', digest))
+        data = tomllib.loads(path.read_text())
+        key = 'user:' + str(self.runtime / 'hooks.json') + ':pre_tool_use:0:0'
+        expected = previous | {key: {'trusted_hash': 'sha256:' + 'b' * 64}}
+        data['hooks']['state'] = expected
+        path.write_text(GEN.toml_document(data))
+        proposal = self.success(self.operation('prepare-desktop-review', digest))
+        arguments = ('--state-dir', self.state, '--plan-digest', digest,
+                     '--desktop-review-sha256', proposal['review_sha256'])
+        self.success(self.run_cli('check', *arguments))
+        second_state, second_payload = self.state, self.payload
+        self.state = self.home / 'installation/three'
+        self.payload = self.state / 'payload'
+        values = json.loads(self.bindings.read_text())
+        self.bindings.write_text(json.dumps({key: value.replace(str(second_payload), str(self.payload))
+                                            for key, value in values.items()}))
+        third = self.success(self.run_cli('prepare', '--home', self.home,
+            '--state-dir', self.state, '--bindings', self.bindings,
+            '--braid-bin', self.fixture.bin / 'braid', '--mode', 'rehearsal',
+            '--previous-desktop-review-sha256', proposal['review_sha256']))['plan_digest']
+        self.success(self.operation('apply', third))
+        self.success(self.operation('check', third))
+        self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], expected)
+        self.success(self.operation('rollback', third))
+        self.state, self.payload = second_state, second_payload
+        self.success(self.run_cli('rollback', *arguments))
+        self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], expected)
+
+    def test_complete_revocation_of_updated_consent_survives_reviewed_rollback(self):
+        self.check_reviewed_native_update(revoke=True)
+
+    def test_complete_revocation_survives_subsequent_update(self):
+        self.check_reviewed_native_update(revoke=True, next_update=True)
+
+    def test_omitted_native_state_revocation_survives_subsequent_update(self):
+        self.check_reviewed_native_update(revoke=True, next_update=True, omit=True)
+
+    def test_updated_native_consent_blocks_drift_repair_without_writes(self):
+        self.check_reviewed_native_update(repair_drift=True)
+
+    def test_fresh_native_consent_after_complete_revocation_is_reviewed(self):
+        self.check_reviewed_native_update(revoke=True, next_update=True, renew=True)
+
+    def check_reviewed_native_update(self, *, revoke=False, next_update=False, renew=False,
+                                    omit=False, repair_drift=False):
+        first_digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', first_digest))
+        path = self.runtime / 'config.toml'
+        data = tomllib.loads(path.read_text())
+        key = 'user:' + str(self.runtime / 'hooks.json') + ':pre_tool_use:0:0'
+        consent = {key: {'enabled': True, 'trusted_hash': 'sha256:' + 'a' * 64}}
+        data['hooks'] = {'state': consent}
+        path.write_text(GEN.toml_document(data))
+        observed = path.read_bytes()
+        pin = self.success(self.operation('prepare-desktop-review', first_digest))['review_sha256']
+        first_state, first_payload = self.state, self.payload
+        self.second_installation()
+        next_digest = self.success(self.run_cli('prepare', '--home', self.home,
+            '--state-dir', self.state, '--bindings', self.bindings,
+            '--braid-bin', self.fixture.bin / 'braid', '--mode', 'rehearsal',
+            '--previous-desktop-review-sha256', pin))['plan_digest']
+        self.success(self.operation('apply', next_digest))
+        self.success(self.operation('check', next_digest))
+        self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], consent)
+        if repair_drift:
+            clean = path.read_bytes()
+            identity = path.stat().st_ino
+            backup = self.home / 'tmp/native-repair-backup.toml'
+            command = [sys.executable, '-B',
+                str(self.payload / 'codex/scripts/repair-runtime-config-drift.py'),
+                '--config-path', str(path), '--repair', '--json', '--backup-path', str(backup)]
+            correct = subprocess.run(command, env=self.installed_env(), cwd=self.payload,
+                capture_output=True, text=True, timeout=60, check=False)
+            self.assertEqual(correct.returncode, 0, correct.stdout + correct.stderr)
+            self.assertEqual(path.read_bytes(), clean)
+            self.assertEqual(path.stat().st_ino, identity)
+            changed = tomllib.loads(path.read_text())
+            changed['approval_policy'] = 'never'
+            path.write_text(GEN.toml_document(changed))
+            drifted = path.read_bytes()
+            rejected = subprocess.run(command, env=self.installed_env(), cwd=self.payload,
+                capture_output=True, text=True, timeout=60, check=False)
+            self.assertNotEqual(rejected.returncode, 0, rejected.stdout + rejected.stderr)
+            self.assertIn('native_hook_consent_preservation_required', rejected.stdout)
+            self.assertEqual(path.read_bytes(), drifted)
+            self.assertFalse(backup.exists())
+            path.write_bytes(clean)
+        if revoke:
+            updated = tomllib.loads(path.read_text())
+            if omit:
+                updated['hooks'].pop('state')
+            else:
+                updated['hooks']['state'] = {}
+            path.write_text(GEN.toml_document(updated))
+            revoked_pin = self.success(self.operation('prepare-desktop-review', next_digest))['review_sha256']
+            args = ('--state-dir', self.state, '--plan-digest', next_digest,
+                    '--desktop-review-sha256', revoked_pin)
+            self.success(self.run_cli('check', *args))
+            if next_update:
+                second_state, second_payload = self.state, self.payload
+                self.state = self.home / 'installation/three'
+                self.payload = self.state / 'payload'
+                values = json.loads(self.bindings.read_text())
+                self.bindings.write_text(json.dumps({key: value.replace(str(second_payload), str(self.payload))
+                                                    for key, value in values.items()}))
+                third_digest = self.success(self.run_cli('prepare', '--home', self.home,
+                    '--state-dir', self.state, '--bindings', self.bindings,
+                    '--braid-bin', self.fixture.bin / 'braid', '--mode', 'rehearsal',
+                    '--previous-desktop-review-sha256', revoked_pin))['plan_digest']
+                self.success(self.operation('apply', third_digest))
+                self.success(self.operation('check', third_digest))
+                self.assertEqual(tomllib.loads(path.read_text()).get('hooks', {}).get('state'),
+                                 None if omit else {})
+                if renew:
+                    fresh = {key: {'enabled': True, 'trusted_hash': 'sha256:' + 'b' * 64}}
+                    updated = tomllib.loads(path.read_text())
+                    updated['hooks']['state'] = fresh
+                    path.write_text(GEN.toml_document(updated))
+                    self.assertNotEqual(self.operation('check', third_digest).returncode, 0)
+                    fresh_pin = self.success(self.operation('prepare-desktop-review', third_digest))['review_sha256']
+                    fresh_args = ('--state-dir', self.state, '--plan-digest', third_digest,
+                                  '--desktop-review-sha256', fresh_pin)
+                    self.success(self.run_cli('check', *fresh_args))
+                    self.success(self.run_cli('rollback', *fresh_args))
+                    self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], fresh)
+                    return
+                self.success(self.operation('rollback', third_digest))
+                self.assertEqual(tomllib.loads(path.read_text()).get('hooks', {}).get('state'),
+                                 None if omit else {})
+                self.state, self.payload = second_state, second_payload
+            self.success(self.run_cli('rollback', *args))
+            self.assertEqual(tomllib.loads(path.read_text()).get('hooks', {}).get('state'),
+                             None if omit else {})
+            return
+        self.success(self.operation('rollback', next_digest))
+        self.assertEqual(path.read_bytes(), observed)
+        self.state, self.payload = first_state, first_payload
+        self.success(self.run_cli('check', '--state-dir', self.state,
+            '--plan-digest', first_digest, '--desktop-review-sha256', pin))
+
+    def check_native_consent_lifecycle(self):
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        path = self.runtime / 'config.toml'
+        data = tomllib.loads(path.read_text())
+        key = 'user:' + str(self.runtime / 'hooks.json') + ':pre_tool_use:0:0'
+        data['hooks'] = {'state': {key: {'enabled': True, 'trusted_hash': 'sha256:' + 'a' * 64}}}
+        path.write_text(GEN.toml_document(data))
+        observed = path.read_bytes()
+        records = {name: ((self.state / name).read_bytes() if (self.state / name).exists() else None)
+                   for name in ('plan.json', 'result.json', 'backups/config.toml')}
+        self.assertNotEqual(self.operation('check', digest).returncode, 0)
+        for mode in ('--check', '--repair'):
+            projection = subprocess.run(['bash', str(self.payload / 'scripts/link-configs.sh'),
+                mode, '--scope', 'codex', '--codex-home', str(self.runtime)],
+                env=self.installed_env(), cwd=self.payload, text=True, capture_output=True,
+                timeout=60, check=False)
+            self.assertNotEqual(projection.returncode, 0, projection.stdout + projection.stderr)
+            self.assertEqual(path.read_bytes(), observed)
+        proposal = self.success(self.operation('prepare-desktop-review', digest))
+        self.assertEqual(proposal['changed_paths'], [['hooks', 'state']])
+        pin = proposal['review_sha256']
+        self.assertNotEqual(self.operation('check', digest).returncode, 0)
+        arguments = ('--state-dir', self.state, '--plan-digest', digest,
+                     '--desktop-review-sha256', pin)
+        self.success(self.run_cli('check', *arguments))
+        path.write_bytes(observed.replace(b'a' * 64, b'b' * 64))
+        changed = path.read_bytes()
+        self.assertNotEqual(self.run_cli('check', *arguments).returncode, 0)
+        self.assertEqual(path.read_bytes(), changed)
+        path.write_bytes(observed)
+        self.success(self.run_cli('check', *arguments))
+        self.success(self.run_cli('rollback', *arguments))
+        self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], data['hooks']['state'])
+        for name in ('plan.json', 'result.json', 'backups/config.toml'):
+            actual = (self.state / name).read_bytes() if (self.state / name).exists() else None
+            self.assertEqual(actual, records[name])
 
     def desktop_restart(self):
         path = self.runtime / 'config.toml'
@@ -728,7 +1215,7 @@ class InstallationRouteTests(unittest.TestCase):
             self.assertEqual(actual, decision)
         rolled = self.success(self.run_cli('rollback', '--state-dir', self.state, '--plan-digest', digest))
         self.assertEqual(rolled['status'], 'rolled_back')
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
         self.success(self.run_cli('rollback', '--state-dir', self.state, '--plan-digest', digest))
 
     def second_installation(self):
@@ -997,7 +1484,7 @@ with installer.renameable_directories(state, staged, target):
                 self.assertFalse(marker.exists())
                 self.assertFalse(list((self.runtime / 'scripts').rglob('*.pyc')))
         self.success(self.operation('rollback', digest))
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
 
     def test_reviewed_desktop_update_preserves_accepted_state_and_rollback(self):
         first_digest = self.success(self.prepare())['plan_digest']
@@ -1042,7 +1529,7 @@ with installer.renameable_directories(state, staged, target):
         self.assertEqual(config.read_bytes(), newer)
         config.write_bytes(accepted)
         self.success(self.operation('rollback', digest))
-        self.assertEqual(self.snapshot(), observed)
+        self.assert_restored_snapshot(observed)
         self.success(self.run_cli('check', '--state-dir', first_state,
             '--plan-digest', first_digest, '--desktop-review-sha256', pin))
 
@@ -1137,7 +1624,7 @@ with installer.renameable_directories(state, staged, target):
         config.write_bytes(reformatted)
         self.success(self.run_cli('rollback', '--state-dir', self.state, '--plan-digest', digest,
                                  '--desktop-review-sha256', review))
-        self.assertEqual(self.snapshot(), previous)
+        self.assert_restored_snapshot(previous)
 
     def formatting_review_args(self, digest):
         import hashlib
@@ -1335,6 +1822,15 @@ with installer.renameable_directories(state, staged, target):
             '--bindings', self.bindings, '--braid-bin', self.fixture.bin / 'braid', '--mode', 'rehearsal'))['plan_digest']
         self.success(self.packaged_operation('apply', digest))
         self.desktop_restart()
+        config = self.runtime / 'config.toml'
+        selected = tomllib.loads(config.read_text())
+        selected['hooks'] = {'state': {
+            str(self.runtime / 'hooks.json') + ':pre_tool_use:0:0':
+                {'enabled': True, 'trusted_hash': 'sha256:' + 'a' * 64},
+            str(self.runtime / 'hooks.json') + ':session_start:0:0':
+                {'enabled': True, 'trusted_hash': 'sha256:' + 'b' * 64},
+        }}
+        config.write_text(GEN.toml_document(selected))
         pin = self.success(self.packaged_operation('prepare-desktop-review', digest))['review_sha256']
         self.second_installation()
         digest = self.success(source_cli('prepare', '--home', self.home, '--state-dir', self.state,
@@ -1497,7 +1993,7 @@ with installer.renameable_directories(state, staged, target):
         for project in projects:
             self.assertEqual(actual['projects'][project], selected['projects'][project])
         self.success(self.operation('rollback', digest))
-        self.assertEqual(self.snapshot(), before)
+        self.assert_restored_snapshot(before)
         old_check = subprocess.run([sys.executable, '-B', str(previous_payload / 'scripts/install-codex.py'),
             'check', '--state-dir', str(previous_state), '--plan-digest', previous_digest],
             cwd=previous_payload, env=self.env | {'CODEX_CONFIG_SOURCE_ROOT': str(previous_payload / 'codex')},
@@ -1575,46 +2071,35 @@ with installer.renameable_directories(state, staged, target):
             '--usage-directory-repair', repair_state / 'proof.json'))['plan_digest']
         return digest, before, repair_state
 
-    def test_initial_install_preserves_partial_hook_disable(self):
+    def test_initial_install_refuses_unbound_partial_hook_disable(self):
         config = self.runtime / 'config.toml'
         selected = tomllib.loads(config.read_text())
-        identity = next(key for key in selected['hooks']['state']
-                        if key.endswith('/hooks.json:pre_tool_use:0:0'))
-        selected['hooks']['state'][identity]['enabled'] = False
+        identity = 'user:' + str(self.runtime / 'hooks.json') + ':pre_tool_use:0:0'
+        other = 'user:' + str(self.runtime / 'hooks.json') + ':session_start:0:0'
+        selected['hooks'] = {'state': {
+            identity: {'trusted_hash': 'sha256:' + 'a' * 64, 'enabled': False},
+            other: {'trusted_hash': 'sha256:' + 'b' * 64, 'enabled': True}}}
         config.write_text(GEN.toml_document(selected))
-        original = config.read_bytes()
-        digest = self.success(self.prepare())['plan_digest']
-        self.success(self.operation('apply', digest))
-        self.success(self.operation('check', digest))
-        states = tomllib.loads(config.read_text())['hooks']['state']
-        self.assertFalse(states[identity]['enabled'])
-        self.assertEqual(states[identity]['trusted_hash'],
-                         selected['hooks']['state'][identity]['trusted_hash'])
-        self.assertTrue(any(row.get('enabled') is not False for key, row in states.items()
-                            if key != identity))
-        self.success(self.operation('rollback', digest))
-        self.assertEqual(config.read_bytes(), original)
+        before = self.snapshot()
+        result = self.prepare()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(json.loads(result.stdout)['status'], 'blocked')
+        self.assertEqual(self.snapshot(), before)
+        self.assertFalse((self.state / 'plan.json').exists())
 
-    def test_initial_install_preserves_all_hook_disables(self):
+    def test_initial_install_refuses_unbound_all_hook_disables(self):
         config = self.runtime / 'config.toml'
         selected = tomllib.loads(config.read_text())
-        for value in selected['hooks']['state'].values():
-            value['enabled'] = False
+        key = 'user:' + str(self.runtime / 'hooks.json') + ':pre_tool_use:0:0'
+        selected['hooks'] = {'state': {
+            key: {'trusted_hash': 'sha256:' + 'a' * 64, 'enabled': False}}}
         config.write_text(GEN.toml_document(selected))
-        digest = self.success(self.prepare())['plan_digest']
-        self.success(self.operation('apply', digest))
-        self.success(self.operation('check', digest))
-        expected = tomllib.loads(config.read_text())
-        drifted = dict(expected, model='synthetic-drift')
-        config.write_text(GEN.toml_document(drifted))
-        result = subprocess.run([sys.executable, '-B', str(self.runtime / 'scripts/repair-runtime-config-drift.py'),
-            '--config-path', str(config), '--repair', '--json'], env=self.installed_env(),
-            capture_output=True, text=True, timeout=60)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(tomllib.loads(config.read_text()), expected)
-        states = tomllib.loads(config.read_text())['hooks']['state']
-        self.assertTrue(states)
-        self.assertTrue(all(row['enabled'] is False for row in states.values()))
+        before = self.snapshot()
+        result = self.prepare()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(json.loads(result.stdout)['status'], 'blocked')
+        self.assertEqual(self.snapshot(), before)
+        self.assertFalse((self.state / 'plan.json').exists())
 
     def test_policy_update_preserves_current_desktop_preferences(self):
         digest, _before, _repair = self.prepare_usage_policy_update(
@@ -1645,6 +2130,7 @@ with installer.renameable_directories(state, staged, target):
         config.write_text(GEN.toml_document(selected))
         self.assertNotEqual(self.operation('check', digest).returncode, 0)
         proposal = self.success(self.operation('prepare-desktop-review', digest))
+        self.assertEqual(proposal['changed_paths'], [['hooks', 'state', identity, 'enabled']])
         pin = proposal['review_sha256']
         self.assertNotEqual(self.operation('check', digest).returncode, 0)
         self.success(self.run_cli('check', '--state-dir', self.state,
@@ -1700,7 +2186,7 @@ with installer.renameable_directories(state, staged, target):
         self.assertEqual(config['projects'][str(self.home / 'Documents/Codex/another-workspace')], {'trust_level': 'trusted'})
         self.assertTrue(all(value.get('enabled') is False for value in config['hooks']['state'].values()))
         self.success(self.packaged_operation('rollback', digest))
-        self.assertEqual(self.snapshot(), before)
+        self.assert_restored_snapshot(before)
 
     def test_unselected_additional_project_still_blocks_migration(self):
         with self.assertRaisesRegex(AssertionError, 'Desktop delta contains an unreviewable policy change'):
@@ -1730,7 +2216,7 @@ with installer.renameable_directories(state, staged, target):
         expected = json.loads((self.state / 'plan.json').read_text())['expected']['config.toml']
         self.assertEqual(hashlib.sha256(config.read_bytes()).hexdigest(), expected['sha256'])
         self.success(self.packaged_operation('rollback', digest))
-        self.assertEqual(self.snapshot(), before)
+        self.assert_restored_snapshot(before)
         self.assertEqual((repair_state / 'usage-data/new-log').read_text(), 'retained after rollback')
 
     def test_usage_policy_update_applied_rollback_is_replayable(self):
@@ -1739,7 +2225,7 @@ with installer.renameable_directories(state, staged, target):
         self.success(self.operation('check', digest))
         applied = json.loads((self.state / 'result.json').read_text())
         self.success(self.packaged_operation('rollback', digest))
-        self.assertEqual(self.snapshot(), before)
+        self.assert_restored_snapshot(before)
         self.assertEqual((repair_state / 'usage-data/new-log').read_text(), 'retained after rollback')
         # Crash after the inverse exchange but before the final journal write:
         # the prior restoring snapshot still describes the applied generation.
@@ -1889,10 +2375,10 @@ with installer.renameable_directories(state, staged, target):
         self.assertNotEqual((self.runtime / 'config.toml').read_bytes(), first_snapshot['config.toml'][1])
         self.assertEqual((self.runtime / 'scripts').is_symlink(), False)
         self.success(self.operation('rollback', digest))
-        self.assertEqual(self.snapshot(), first_snapshot)
+        self.assert_restored_snapshot(first_snapshot)
         self.success(self.run_cli('check', '--state-dir', first_state, '--plan-digest', first_digest))
         self.success(self.run_cli('rollback', '--state-dir', first_state, '--plan-digest', first_digest))
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
 
     def test_update_stops_on_directory_drift_and_keeps_private_state(self):
         digest = self.success(self.prepare())['plan_digest']
@@ -1928,7 +2414,7 @@ with installer.renameable_directories(state, staged, target):
             text=True, capture_output=True, timeout=120, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         moved.rename(self.fixture.repo)
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
 
     def test_copied_script_and_profile_hardlinks_are_rejected(self):
         digest = self.success(self.prepare())['plan_digest']
@@ -2192,11 +2678,28 @@ with installer.renameable_directories(state, staged, target):
         self.assertIn(str(session_root), roots)
         self.assertNotIn(str(self.home / '.local/share/codex-storage/sessions'), roots)
         digest = prepared['plan_digest']
-        self.success(self.operation('apply', digest))
-        self.success(self.operation('check', digest))
+        original_config = (self.runtime / 'config.toml').read_bytes()
+        applied = self.success(self.operation('apply', digest))
+        retained = Path(applied['retained_generation_path'])
+        self.assertEqual(retained.read_bytes(), original_config)
+        result_path = self.state / 'result.json'
+        recorded = result_path.read_bytes()
+        for invalid in (None, str(self.home / 'outside.toml'),
+                        str(retained.parent / '..' / retained.name),
+                        str(retained.parent / 'unrecognised.toml')):
+            with self.subTest(retained_path=invalid):
+                result_data = json.loads(recorded)
+                result_data['retained_generation_path'] = invalid
+                result_path.write_text(json.dumps(result_data))
+                self.assertNotEqual(self.operation('check', digest).returncode, 0)
+                self.assertEqual(retained.read_bytes(), original_config)
+        result_path.write_bytes(recorded)
+        self.assertEqual(self.success(self.operation('check', digest))['retained_generation_path'], str(retained))
+        self.assertEqual(self.success(self.operation('apply', digest))['retained_generation_path'], str(retained))
         self.assertFalse(session_root.exists(), 'Installation must not create or copy sessions')
         self.success(self.operation('rollback', digest))
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
+        self.assertEqual(retained.read_bytes(), original_config)
 
     def test_bound_session_storage_cannot_escape_rehearsal_home(self):
         values = json.loads(self.bindings.read_text())
@@ -2228,7 +2731,7 @@ with installer.renameable_directories(state, staged, target):
             self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(sentinel.read_bytes(), b'local session must survive')
         self.success(self.operation('rollback', digest))
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
 
     def test_packaged_validator_discovers_its_source_without_environment_override(self):
         digest = self.success(self.prepare())['plan_digest']
@@ -2241,7 +2744,7 @@ with installer.renameable_directories(state, staged, target):
             timeout=20, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.success(self.operation('rollback', digest))
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
 
     def test_rollback_cancels_an_unapplied_plan(self):
         digest = self.success(self.prepare())['plan_digest']
@@ -2327,7 +2830,7 @@ except ValueError:
         result['status'] = 'restoring'
         result_path.write_text(json.dumps(result))
         self.success(self.operation('rollback', digest))
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
         self.assertEqual(stale_stage.read_bytes(), original, 'Prior recovery material must be retained')
         self.success(self.operation('rollback', digest))
 
@@ -2380,7 +2883,102 @@ except ValueError:
         self.success(self.operation('check', digest))
         self.success(self.operation('rollback', digest))
         self.assertFalse(marker.exists())
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
+
+    def check_failed_apply_generation_retry(self, internal_failure):
+        original = (self.runtime / 'config.toml').read_bytes()
+        digest = self.success(self.prepare())['plan_digest']
+        installer = self.import_installer(self.payload)
+        load_module = installer.module
+
+        def inject_module(name, path):
+            loaded = load_module(name, path)
+            if name == 'installation_repair' and internal_failure:
+                publish = loaded._write_repair
+
+                def fail_after_exchange(*args, **kwargs):
+                    retained = publish(*args, **kwargs)
+                    raise loaded.RepairPublicationError(retained)
+
+                loaded._write_repair = fail_after_exchange
+            return loaded
+
+        with (mock.patch.dict(os.environ, self.installed_env(), clear=True),
+              mock.patch.dict(sys.modules),
+              mock.patch.object(installer, 'module', side_effect=inject_module),
+              mock.patch.object(installer, 'projector', side_effect=ValueError('synthetic projector refusal'))):
+            sys.modules.pop('migration_scope', None)
+            with self.assertRaisesRegex(ValueError, 'retained generation remains at'):
+                installer.apply(self.state, digest)
+        failed = json.loads((self.state / 'result.json').read_text())
+        self.assertEqual(failed['status'], 'failed')
+        retained = Path(failed['retained_generation_path'])
+        self.assertEqual(retained.read_bytes(), original)
+        retried = self.success(self.operation('apply', digest))
+        self.assertEqual(retried['retained_generation_path'], str(retained))
+        self.assertEqual(self.success(self.operation('check', digest))['retained_generation_path'], str(retained))
+        self.assertEqual(retained.read_bytes(), original)
+
+    def check_interrupted_apply_generation(self, after_exchange):
+        config = self.runtime / 'config.toml'
+        original = config.read_bytes()
+        digest = self.success(self.prepare())['plan_digest']
+        child = '''import importlib.util,os,sys
+from pathlib import Path
+script = Path(sys.argv[1]); sys.path.insert(0, str(script.parent))
+spec = importlib.util.spec_from_file_location("interrupted_install", script)
+installer = importlib.util.module_from_spec(spec); spec.loader.exec_module(installer)
+load_module = installer.module
+def injected_module(name, path):
+    loaded = load_module(name, path)
+    if name == "installation_repair":
+        exchange = loaded._exchange_paths
+        def stop_at_syscall(first, second):
+            if sys.argv[4] == "after":
+                exchange(first, second)
+            os._exit(73)
+        loaded._exchange_paths = stop_at_syscall
+    return loaded
+installer.module = injected_module
+installer.apply(Path(sys.argv[2]), sys.argv[3])
+'''
+        writer = os.open(config, os.O_WRONLY | os.O_APPEND)
+        try:
+            stopped = subprocess.run([sys.executable, '-B', '-c', child,
+                str(self.payload / 'codex/scripts/install-codex.py'), str(self.state), digest,
+                'after' if after_exchange else 'before'], env=self.installed_env(), cwd=self.payload,
+                capture_output=True, text=True, timeout=60, check=False)
+            self.assertEqual(stopped.returncode, 73, stopped.stdout + stopped.stderr)
+            interrupted = json.loads((self.state / 'result.json').read_text())
+            self.assertEqual(interrupted['status'], 'applying')
+            slot = Path(interrupted['retained_generation_path'])
+            self.assertTrue(slot.is_file())
+            if after_exchange:
+                self.assertEqual(slot.read_bytes(), original)
+            else:
+                self.assertEqual(config.read_bytes(), original)
+            retried = self.success(self.operation('apply', digest))
+            retained = Path(retried['retained_generation_path'])
+            if after_exchange:
+                self.assertEqual(retained, slot)
+            self.assertEqual(retained.read_bytes(), original)
+            os.write(writer, b'\n# late held native writer\n')
+            self.assertTrue(retained.read_bytes().endswith(b'# late held native writer\n'))
+            self.assertNotIn(b'# late held native writer', config.read_bytes())
+        finally:
+            os.close(writer)
+
+    def test_interruption_before_exchange_keeps_recoverable_slot(self):
+        self.check_interrupted_apply_generation(after_exchange=False)
+
+    def test_interruption_after_exchange_keeps_recoverable_slot(self):
+        self.check_interrupted_apply_generation(after_exchange=True)
+
+    def test_failed_apply_keeps_generation_across_successful_retry(self):
+        self.check_failed_apply_generation_retry(internal_failure=False)
+
+    def test_failed_exchange_keeps_generation_across_successful_retry(self):
+        self.check_failed_apply_generation_retry(internal_failure=True)
 
     def test_partial_cutover_rolls_back_without_resuming_activation(self):
         digest = self.success(self.prepare())['plan_digest']
@@ -2397,7 +2995,7 @@ except ValueError:
                 os.environ, self.installed_env(), clear=True), mock.patch.dict(sys.modules):
             sys.modules.pop('migration_scope', None)
             installer.restore(self.state, digest)
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
 
     def test_rehearsal_refuses_credentials_and_nested_auth_alias(self):
         self.success(self.prepare())
@@ -2515,11 +3113,13 @@ except ValueError:
         self.assertTrue(launcher.is_file() and launcher.stat().st_mode & 0o111)
         self.assertEqual(installed['plugins']['drawio@drawio'], {'enabled': True})
         self.assertTrue(Path(installed['experimental_compact_prompt_file']).is_file())
+        self.assertNotIn('hooks', installed)
         hooks = server.rpc('hooks/list', {'cwds': [str(self.payload)]})['data'][0]
         self.assertEqual(len(hooks['hooks']), 29)
         self.assertFalse(hooks['errors'], hooks)
         self.assertFalse(hooks['warnings'], hooks)
         self.assertTrue(all(hook['sourcePath'] == str(self.runtime / 'hooks.json') for hook in hooks['hooks']))
+        self.assertTrue(all(hook['trustStatus'] == 'untrusted' for hook in hooks['hooks']))
         server.close()
         for name in ('docs', 'oss-local', 'oss-local-code', 'oss-local-fallback',
                      'oss-security', 'oss-cloud', 'oss-inspect'):

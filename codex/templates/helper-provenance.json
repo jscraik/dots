@@ -741,9 +741,10 @@
         "Add fixed packaged-context admission; retain default disposable admission and original checks.",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
         "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
-        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection."
       ],
-      "candidate_sha256": "1af21f53e52e4953787e69f1ed989999ead6dfd3e1232594d72bde0c7473e5c9"
+      "candidate_sha256": "8f2ad16cd69a27a0826f70aa3dd5878ae0d80f4d29e5560a21c1da6127c64d0b"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
@@ -753,7 +754,7 @@
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "03783c39f6e560d73ef2b3f140808eee272611645ac9a8af53e03ae50b22fe00"
+      "candidate_sha256": "c832835fbd0a72e6d1006bad3f840e854fcdc6a24cfd24377fe8591baef2eee5"
     },
     {
       "path": "codex/scripts/tests/fixtures/coderabbit-completed-source-verdict.txt",
@@ -827,7 +828,7 @@
         "synthetic fixture resources; original selected checks retained",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "5d49886f620943b9ea618da10c9fa7b1ace2515a29a4a29d912ed4647784880e"
+      "candidate_sha256": "07d73888993ffe55a0a75c6e363b5d8fe2311ce9de6c356487d416db0acbd2e0"
     },
     {
       "path": "codex/scripts/tests/test_pr_codex_completion.py",
@@ -835,9 +836,10 @@
       "transformations": [
         "synthetic fixture resources; original selected checks retained",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
-        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
+        "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection."
       ],
-      "candidate_sha256": "0531109f33d4a754040f92a0c146c99ee61d7550e06c6658cf47be14b15d9835"
+      "candidate_sha256": "5bd2a07b8594c6e8cd789184a9db8da4056d03a5935b2a54c86842d641785861"
     },
     {
       "path": "codex/scripts/tests/test_pr_readiness.py",
@@ -846,9 +848,10 @@
         "synthetic fixture resources; original selected checks retained",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
         "Add missing-check and dismissed historical-review scenarios from the coordinated follow-up.",
-        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection."
       ],
-      "candidate_sha256": "62a39be40d5ceee6791a3ba988d452fdc83e197870b29f2eac767bc7a2c4909f"
+      "candidate_sha256": "e03d876995ca7fafa0cde6d11731bf7cea4007c027b76a91d149ff4dfb7f4d24"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",

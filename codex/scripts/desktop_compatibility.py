@@ -11,6 +11,22 @@ import tomllib
 from pathlib import Path
 
 
+MAX_REVIEW_BYTES = 2 * 1024 * 1024
+
+
+def is_review_filename(name: str) -> bool:
+    """Recognise published review names, excluding notes and staging files."""
+    return name == 'desktop-review.json' or re.fullmatch(r'desktop-review-[0-9a-f]{64}\.json', name) is not None
+
+
+def review_path(state: Path, digest: str) -> Path:
+    """Select an immutable proposal without changing older review pins."""
+    if not isinstance(digest, str) or re.fullmatch(r'[0-9a-f]{64}', digest) is None:
+        raise ValueError('Invalid Desktop review digest')
+    addressed = state / f'desktop-review-{digest}.json'
+    return addressed if os.path.lexists(addressed) else state / 'desktop-review.json'
+
+
 PATHS = (
     ('model',),
     ('model_reasoning_effort',),
@@ -62,7 +78,7 @@ def requires_preservation(config: dict) -> bool:
         ('mcp_servers', 'node_repl'), ('notify',),
         ('plugins', 'computer-history@openai-bundled'),
         ('plugins', 'codex-app-tools@openai-bundled'),
-        ('desktop', 'codex-micro-layout')))
+        ('desktop', 'codex-micro-layout'), ('hooks', 'state')))
 
 
 def get(data: dict, path: tuple) -> dict:
@@ -104,7 +120,7 @@ def equal(left: object, right: object) -> bool:
     return left == right
 
 
-def delta(installed: str, observed: str) -> list:
+def delta(installed: str, observed: str, *, hook_source: str | None = None) -> list:
     """Permit only finite reviewed slots; all other policy must agree exactly."""
     before, after = tomllib.loads(installed), tomllib.loads(observed)
     reduced = copy.deepcopy(after)
@@ -115,33 +131,83 @@ def delta(installed: str, observed: str) -> list:
             validate_desktop_change(path, new)
             changes.append({'path': list(path), 'before': old, 'after': new})
             put(reduced, path, old)
-    old_states = before.get('hooks', {}).get('state', {})
-    new_states = after.get('hooks', {}).get('state', {})
-    if type(old_states) is not dict or type(new_states) is not dict or old_states.keys() != new_states.keys():
-        raise ValueError('Hook consent identities changed')
-    for identity, old in old_states.items():
-        new = new_states[identity]
-        if equal(old, new):
-            continue
-        if (type(old) is not dict or type(new) is not dict
-                or type(old.get('enabled')) is not bool or type(new.get('enabled')) is not bool
-                or type(old.get('trusted_hash')) is not str
-                or not re.fullmatch('sha256:[0-9a-f]{64}', old['trusted_hash'])
-                or not equal({k: v for k, v in old.items() if k != 'enabled'},
-                             {k: v for k, v in new.items() if k != 'enabled'})):
-            raise ValueError('Only existing trusted hook enabled booleans may be reviewed')
-        path = ('hooks', 'state', identity, 'enabled')
-        old_value, new_value = get(before, path), get(after, path)
-        changes.append({'path': list(path), 'before': old_value, 'after': new_value})
-        put(reduced, path, old_value)
+    # Only an installation-bound proposal may retain newly granted native
+    # consent. Existing hashes cannot be replaced through this route.
+    path = ('hooks', 'state')
+    old, new = get(before, path), get(after, path)
+    omitted_revocation = (not new['present'] and old['present']
+                          and type(old['value']) is dict)
+    if (hook_source is not None and not equal(old, new)
+            and (omitted_revocation or new['present']
+                 and (not old['present'] or old['value'] == {} or new['value'] == {}
+                      or consent_additions(old['value'], new['value'])))):
+        selected = new.get('value', {})
+        if old['present'] and consent_additions(old['value'], selected):
+            # Other installed sources retain their exact existing records. All
+            # additions and this source's aliases still undergo full validation.
+            selected = {key: value for key, value in selected.items()
+                if key not in old['value'] or type(key) is str
+                and key.rsplit(':', 3)[0] in {hook_source, 'user:' + hook_source}}
+        validate_native_consent(selected, hook_source)
+        changes.append({'path': list(path), 'before': old, 'after': new})
+        put(reduced, path, old)
+    else:
+        old_states = before.get('hooks', {}).get('state', {})
+        new_states = after.get('hooks', {}).get('state', {})
+        if type(old_states) is not dict or type(new_states) is not dict or old_states.keys() != new_states.keys():
+            raise ValueError('Hook consent identities changed')
+        for identity, old in old_states.items():
+            new = new_states[identity]
+            if equal(old, new):
+                continue
+            if (type(old) is not dict or type(new) is not dict
+                    or type(old.get('enabled', True)) is not bool or type(new.get('enabled')) is not bool
+                    or type(old.get('trusted_hash')) is not str
+                    or not re.fullmatch('sha256:[0-9a-f]{64}', old['trusted_hash'])
+                    or not equal({k: v for k, v in old.items() if k != 'enabled'},
+                                 {k: v for k, v in new.items() if k != 'enabled'})):
+                raise ValueError('Only existing trusted hook enabled booleans may be reviewed')
+            path = ('hooks', 'state', identity, 'enabled')
+            old_value, new_value = get(before, path), get(after, path)
+            changes.append({'path': list(path), 'before': old_value, 'after': new_value})
+            put(reduced, path, old_value)
     # Empty parent tables are semantic TOML state too. Do not erase arbitrary
     # tables to manufacture policy agreement after deleting a known leaf.
-    for parent in ('plugins', 'mcp_servers', 'marketplaces', 'desktop'):
+    for parent in ('plugins', 'mcp_servers', 'marketplaces', 'desktop', 'hooks'):
         if parent not in before and reduced.get(parent) == {}:
             reduced.pop(parent)
     if not equal(before, reduced):
         raise ValueError('Desktop delta contains an unreviewable policy change')
     return changes
+
+
+def consent_additions(before: object, after: object) -> bool:
+    """Recognise strict additions without changing any existing identity bytes."""
+    return (type(before) is dict and type(after) is dict and before.keys() < after.keys()
+            and all(equal(value, after[key]) for key, value in before.items()))
+
+
+def validate_native_consent(states: object, hook_source: str) -> None:
+    """Restrict an explicit review to this installation's native user hooks."""
+    source = Path(hook_source)
+    if not source.is_absolute() or '..' in source.parts or type(states) is not dict:
+        raise ValueError('Native consent needs the exact installed hook source and a state table')
+    events = {'session_start', 'session_end', 'interrupt', 'user_prompt_submit', 'pre_tool_use', 'permission_request',
+              'post_tool_use', 'pre_compact', 'post_compact', 'stop',
+              'subagent_start', 'subagent_stop'}
+    seen = set()
+    for key, row in states.items():
+        parts = key.rsplit(':', 3) if type(key) is str else []
+        if (len(parts) != 4 or parts[0] not in {hook_source, 'user:' + hook_source} or parts[1] not in events
+                or any(not re.fullmatch(r'0|[1-9][0-9]*', index) for index in parts[2:])
+                or type(row) is not dict or not {'trusted_hash'} <= set(row) <= {'enabled', 'trusted_hash'}
+                or type(row.get('enabled', True)) is not bool or type(row['trusted_hash']) is not str
+                or not re.fullmatch(r'sha256:[0-9a-f]{64}', row['trusted_hash'])):
+            raise ValueError('Native consent contains an unbound identity or invalid trust state')
+        identity = tuple(parts[1:])
+        if identity in seen:
+            raise ValueError('Native consent contains duplicate hook aliases')
+        seen.add(identity)
 
 
 def validate_desktop_change(path: tuple, new: dict) -> None:
@@ -337,12 +403,35 @@ def repair_candidate(installed: str, observed: str) -> dict:
             'desktop_changes': desktop_changes, 'canonical_restorations': restorations}
 
 
-def reviewed_rollback(original: str, installed: str, changes: list) -> str:
+def reviewed_rollback(original: str, installed: str, changes: list, *, baseline_kind: str = 'file') -> str:
     """A toggle must also bind an unchanged trusted identity in the rollback home."""
+    if baseline_kind not in {'file', 'absent'} or baseline_kind == 'absent' and original != '':
+        raise ValueError('Invalid config baseline kind')
+    if baseline_kind == 'absent' and (not changes or any(
+            tuple(row['path']) != ('hooks', 'state') or not row['after'].get('value')
+            for row in changes)):
+        raise ValueError('Absent config baseline permits only a nonempty native consent review')
     before, current = tomllib.loads(original), tomllib.loads(installed)
     for row in changes:
         path = tuple(row['path'])
         if path[:2] != ('hooks', 'state'):
+            continue
+        if path == ('hooks', 'state'):
+            if row['after'] in ({'present': False}, {'present': True, 'value': {}}):
+                if (not equal(get(before, path), get(current, path))
+                        or not equal(get(current, path), row['before'])):
+                    raise ValueError('Complete revocation needs an unchanged trusted rollback baseline')
+                continue
+            original_state, installed_state = get(before, path), get(current, path)
+            if (original_state['present'] and installed_state['present']
+                    and equal(original_state, installed_state)
+                    and equal(installed_state, row['before'])
+                    and consent_additions(installed_state['value'], row['after']['value'])):
+                continue
+            if (any(value['present'] and value['value'] != {}
+                    for value in (original_state, installed_state))
+                    or not equal(installed_state, row['before'])):
+                raise ValueError('New native consent requires a trust-free unchanged baseline')
             continue
         old = get(before, path[:3])
         selected = get(current, path[:3])
@@ -372,15 +461,17 @@ def overlay(original: str, changes: list) -> str:
 def load(path: Path, digest: str, *, state: Path, plan_digest: str,
          plan: dict) -> dict:
     """Validate the private review pin and recompute every derived field."""
+    if path == state / 'desktop-review.json':
+        path = review_path(state, digest)
     info = path.lstat()
     if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
             or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1
-            or info.st_size > 2 * 1024 * 1024):
+            or info.st_size > MAX_REVIEW_BYTES):
         raise ValueError('Desktop review must be a private unaliased regular file')
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     with os.fdopen(fd, 'rb') as stream:
         opened = os.fstat(stream.fileno())
-        raw = stream.read(2 * 1024 * 1024 + 1)
+        raw = stream.read(MAX_REVIEW_BYTES + 1)
     if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino) or sha(raw) != digest:
         raise ValueError('Desktop review digest or generation changed')
     def unique(pairs):
@@ -403,17 +494,27 @@ def load(path: Path, digest: str, *, state: Path, plan_digest: str,
     if any(not isinstance(data[k], str) for k in ('installed', 'observed', 'original', 'rollback')):
         raise ValueError('Invalid Desktop review configuration')
     backup = state / 'backups/config.toml'
-    backup_info = backup.lstat()
-    if (not stat.S_ISREG(backup_info.st_mode) or backup_info.st_uid != os.getuid()
-            or backup_info.st_nlink != 1):
-        raise ValueError('Desktop review backup must be an owned unaliased regular file')
-    backup_fd = os.open(backup, os.O_RDONLY | os.O_NOFOLLOW)
-    with os.fdopen(backup_fd, 'rb') as stream:
-        backup_raw = stream.read(2 * 1024 * 1024 + 1)
+    original_record = plan['before']['config.toml']
+    if original_record['kind'] == 'absent':
+        if data['original'] != '' or os.path.lexists(backup):
+            raise ValueError('Desktop review absent baseline changed')
+    elif original_record['kind'] == 'file':
+        backup_info = backup.lstat()
+        if (not stat.S_ISREG(backup_info.st_mode) or backup_info.st_uid != os.getuid()
+                or backup_info.st_nlink != 1):
+            raise ValueError('Desktop review backup must be an owned unaliased regular file')
+        backup_fd = os.open(backup, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(backup_fd, 'rb') as stream:
+            backup_raw = stream.read(2 * 1024 * 1024 + 1)
+        if (sha(data['original'].encode()) != original_record['sha256']
+                or sha(backup_raw) != original_record['sha256']):
+            raise ValueError('Desktop review backup changed')
+    else:
+        raise ValueError('Unsupported Desktop review config baseline')
     if (sha(data['installed'].encode()) != plan['expected']['config.toml']['sha256']
-            or sha(data['original'].encode()) != plan['before']['config.toml']['sha256']
-            or sha(backup_raw) != plan['before']['config.toml']['sha256']
-            or not equal(delta(data['installed'], data['observed']), data['changes'])
-            or reviewed_rollback(data['original'], data['installed'], data['changes']) != data['rollback']):
+            or not equal(delta(data['installed'], data['observed'],
+                               hook_source=str(Path(plan['home']) / '.codex/hooks.json')), data['changes'])
+            or reviewed_rollback(data['original'], data['installed'], data['changes'],
+                                 baseline_kind=original_record['kind']) != data['rollback']):
         raise ValueError('Desktop review disagrees with the verified installation')
     return data

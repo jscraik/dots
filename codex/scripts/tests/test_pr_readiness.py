@@ -31,7 +31,11 @@ class PrReadinessTests(unittest.TestCase):
                 result = committed_review_requirement([
                     {'path': path, 'old_mode': '100644', 'new_mode': '100644'}])
                 self.assertEqual(result['required_bot_review_count'], 1)
-        for path in ('src/auth/login.py', '.github/workflows/check.yml',
+        for path in ('src/auth/login.py', 'src/oauth.py', 'src/oauth2.py', 'src/OAuth2Provider.ts',
+                     'src/APIOAuthProvider.ts', 'src/APIOAuth2Provider.ts',
+                     'src/login.py', 'src/password.py', 'src/jwt.py',
+                     'src/APIJWTParser.ts', 'src/JWTAPIProvider.ts', 'src/VerifyJWT.ts',
+                     '.github/workflows/check.yml',
                      'codex/scripts/pr-readiness.py', 'migrations/001.sql',
                      'scripts/deploy.sh', 'package-lock.json', 'unknown.blob',
                      'requirements/codex-validation.txt', 'mise/config.toml',
@@ -162,7 +166,7 @@ class PrReadinessTests(unittest.TestCase):
         review = {"state": "COMMENTED", "commit_id": head,
                   "user": {"login": "chatgpt-codex-connector[bot]"}, "body": body}
         self.assertTrue(MODULE._bot_review_is_acceptable(review, head))
-        for ending in ("Nice work!", "Keep it up!", "What shall we delve into next?"):
+        for ending in ("Nice work! Findings remain.", "Wonderful patch!", "What shall we delve into next?"):
             with self.subTest(ending=ending):
                 changed = body.replace("Already looking forward to the next diff.", ending)
                 self.assertNotEqual(changed, body)
@@ -223,7 +227,9 @@ class PrReadinessTests(unittest.TestCase):
             {"state": "COMMENTED", "user": {"login": "coderabbitai[bot]"}, "body": duplicate}, head))
         keep_up = codex.replace("What shall we delve into next?", "Keep it up!")
         entry = {"state": "COMMENTED", "user": {"login": "chatgpt-codex-connector[bot]"}, "body": keep_up}
-        self.assertFalse(MODULE._bot_review_is_acceptable(entry, head))
+        # This exact ending is now present in an authenticated native receipt;
+        # additions and incomplete-inspection text must still fail closed.
+        self.assertTrue(MODULE._bot_review_is_acceptable(entry, head))
         for malformed in (keep_up + "\nFinding: unsafe write", keep_up.replace("Keep it up!", "Keep it up! Inspection incomplete.")):
             self.assertFalse(MODULE._bot_review_is_acceptable({**entry, "body": malformed}, head))
         self.assertFalse(MODULE._bot_review_is_acceptable(entry, "b" * 40))
@@ -955,6 +961,8 @@ class PrReadinessTests(unittest.TestCase):
                             ("chatgpt-codex-connector", codex.replace("Already looking forward to the next diff.", "You're on a roll.")),
                             ("chatgpt-codex-connector", codex.replace("Already looking forward to the next diff.", ":tada:")),
                             ("chatgpt-codex-connector", codex.replace("Already looking forward to the next diff.", "Delightful!")),
+                            ("chatgpt-codex-connector", codex.replace("Already looking forward to the next diff.", "Keep it up!")),
+                            ("chatgpt-codex-connector", codex.replace("Already looking forward to the next diff.", "Nice work!")),
                             ("chatgpt-codex-connector", codex.replace("Already looking forward to the next diff.", "Swish!")),
                             ("chatgpt-codex-connector", codex.replace("Already looking forward to the next diff.", "Hooray!")),
                             ("chatgpt-codex-connector", codex.replace("Already looking forward to the next diff.", ":rocket:")),

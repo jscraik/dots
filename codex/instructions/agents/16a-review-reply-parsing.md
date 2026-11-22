@@ -280,6 +280,14 @@ erase another finding, replace current-head coverage, or alter completion time.
 Authenticated App identity, successful inspection phases, immutable history and
 all existing CI, thread and reviewer-quorum requirements remain mandatory.
 Unknown walkthrough, pre-merge, context and merge-risk prose remains blocking.
+A second finite assertion group is bound only to `jscraik/dots` head
+`0246dcea7306d2fc88e064a6131edce786370353`: exactly three Additional comments,
+the two literal LGTM records for `tests/policy_fixture.py` and
+`tests/test_governance_port.py`, and the intact `tests/test_policy_projection.py`
+explanation of the notifier runtime-validator stub. Require every selected file,
+range, heading and provider marker. Changed text, duplicates, unknown comments
+or another head remain blocking. This informational group supplies no clearance
+without the existing authenticated completion, history, CI and quorum joins.
 Diagnostics identify source URLs, body digests and unclassified sections without
 qualifying them. Adjudication uses qualifying formal evidence, or the existing
 authenticated `pr-repair-endorsement/v1` contract only where the owning repository

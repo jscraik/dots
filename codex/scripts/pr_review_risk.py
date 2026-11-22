@@ -33,6 +33,7 @@ HIGH_RISK_WORDS = HIGH_RISK_COMPONENTS | frozenset({
     "secret", "secrets", "credential", "credentials",
     "workflow", "signing", "cryptography", "identity", "privilege", "privileges",
     "release", "publish", "deployment", "runner",
+    "oauth", "oauth2", "login", "password", "jwt",
     "claude", "gemini",
 })
 ORDINARY_PATTERNS = (
@@ -74,9 +75,13 @@ def committed_review_requirement(records: object) -> dict[str, object]:
             raise ValueError("committed path has invalid file modes")
         lowered = path.casefold()
         components = lowered.split("/")
-        separated = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", path)
-        separated = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", separated)
-        words = set(re.split(r"[^a-z0-9]+", separated.casefold()))
+        separated = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", path)
+        # After an acronym, prefer a whole OAuth or OAuth2 token before
+        # falling back to the usual capital-plus-lowercase boundary.
+        acronym_split = re.sub(r"([A-Z]+?)(OAuth2?(?![A-Za-z0-9])|[A-Z][a-z])", r"\1 \2", separated)
+        words = set(re.split(r"[^a-z0-9]+", f"{separated} {acronym_split}".casefold()))
+        if any('JWT' in run for run in re.findall(r'[A-Z]{2,}', path)):
+            words.add('jwt')
         protected = bool(set(components) & HIGH_RISK_COMPONENTS) or components[-1] in HIGH_RISK_NAMES
         protected = protected or any(lowered == suffix or lowered.endswith("/" + suffix)
                                      for suffix in HIGH_RISK_PATH_SUFFIXES)

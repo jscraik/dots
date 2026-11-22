@@ -8,6 +8,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import shlex
 import ctypes
 import stat
@@ -313,14 +314,17 @@ def renameable_directories(state, *paths):
             raise error
 
 
-def retire_created_target(target, state, expected):
+def retire_created_target(target, state, expected, *, before_move=None):
     """Retain newly installed resources rather than recursively delete in place."""
     recovery = Path(tempfile.mkdtemp(prefix='.restore-created-', dir=state))
     displaced = recovery / target.name
+    if before_move is not None:
+        before_move(displaced)
     with renameable_directories(state, target, displaced):
         os.rename(target, displaced)
     if describe(displaced) != expected:
         raise ValueError('Concurrent replacement preserved in private recovery directory')
+    return displaced
 
 
 def install_absent(staged, target):
@@ -329,6 +333,11 @@ def install_absent(staged, target):
         os.link(staged, target, follow_symlinks=False)
         staged.unlink()
         return
+    rename_absent(staged, target)
+
+
+def rename_absent(staged, target):
+    """Atomically move a staged path without replacing the destination."""
     libc = ctypes.CDLL(None, use_errno=True)
     if sys.platform == 'darwin':
         rename = libc.renamex_np
@@ -339,7 +348,7 @@ def install_absent(staged, target):
         rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
         result = rename(-100, os.fsencode(staged), -100, os.fsencode(target), 1)  # RENAME_NOREPLACE
     else:
-        raise ValueError('Atomic directory publication is unavailable on this OS')
+        raise ValueError('Atomic publication is unavailable on this OS')
     if result:
         number = ctypes.get_errno()
         raise OSError(number, os.strerror(number), target)
@@ -484,7 +493,7 @@ def effective_previous_review():
         rows = copy.deepcopy(review['changes'])
         for row in rows:
             path = row['path']
-            if path[:2] == ['hooks', 'state']:
+            if path[:2] == ['hooks', 'state'] and len(path) >= 3:
                 path[2] = rebase_hook_identity(path[2], old_prefix, new_prefix)
         review = dict(review, canonical=rebase_reviewed_hook_keys(review['canonical'], review),
                       observed=rebase_reviewed_hook_keys(review['observed'], review), changes=rows)
@@ -504,9 +513,18 @@ def effective_previous_review():
             changes[path] = {'path': list(path), 'before': compat.get(previous, path), 'after': value}
         old_states = previous.get('hooks', {}).get('state', {})
         new_states = observed.get('hooks', {}).get('state', {})
-        if old_states.keys() != new_states.keys():
+        if not old_states and (compat.get(observed, ('hooks', 'state'))['present']
+                               or ('hooks', 'state') in changes):
+            compat.validate_native_consent(new_states, str(Path(review['home']) / '.codex/hooks.json'))
+            changes = {path: row for path, row in changes.items() if path[:2] != ('hooks', 'state')}
+            changes[('hooks', 'state')] = {'path': ['hooks', 'state'],
+                'before': compat.get(previous, ('hooks', 'state')),
+                'after': compat.get(observed, ('hooks', 'state'))}
+        elif old_states.keys() != new_states.keys():
             raise ValueError('Reviewed hook identities changed')
         for identity, value in new_states.items():
+            if ('hooks', 'state') in changes:
+                break
             old = old_states[identity]
             if 'enabled' not in value:
                 continue
@@ -544,8 +562,24 @@ def update_desktop_text(canonical, original):
     import tomllib
     repair = module('update_policy', ROOT / 'codex/scripts/repair-runtime-config-drift.py')
     review = effective_previous_review()
-    merged, error = repair._canonical_with_desktop_plugins(
-        canonical, reviewed_plugin_validation_text(original, review))
+    validation_original = reviewed_plugin_validation_text(original, review)
+    state_path = ('hooks', 'state')
+    if review and any(tuple(row['path'][:2]) == state_path for row in review['changes']):
+        compat = module('native_consent_update', ROOT / 'codex/scripts/desktop_compatibility.py')
+        approved = tomllib.loads(review['observed'])
+        observed = tomllib.loads(rebase_reviewed_hook_keys(original, review))
+        actual = compat.get(observed, state_path)
+        if ((not actual['present'] and compat.get(approved, state_path)['present'])
+                or actual['present'] and type(actual['value']) is not dict):
+            raise ValueError('Native hook consent disappeared after its pinned review')
+        preserved = preserve_hook_disables(approved, observed)
+        if not compat.equal(compat.get(preserved, state_path), actual):
+            raise ValueError('Native hook consent changed after its pinned review')
+        # The canonical renderer rejects all runtime consent. Pass it a copy
+        # without verified state, then restore the reviewed rows below.
+        validation_original = compat.overlay(validation_original,
+            [{'path': list(state_path), 'after': {'present': False}}])
+    merged, error = repair._canonical_with_desktop_plugins(canonical, validation_original)
     if merged is None:
         raise ValueError('Unsupported Desktop state: ' + str(error))
     if review:
@@ -555,7 +589,7 @@ def update_desktop_text(canonical, original):
             path = tuple(row['path'])
             if path[:1] == ('plugins',) and path[1] in repair.DESKTOP_OWNED_PLUGIN_IDS:
                 continue
-            if path[:2] == ('hooks', 'state'):
+            if path[:2] == ('hooks', 'state') and len(path) >= 3:
                 previous = tomllib.loads(review['canonical'])
                 old = previous.get('hooks', {}).get('state', {}).get(path[2])
                 new = parsed.get('hooks', {}).get('state', {}).get(path[2])
@@ -640,6 +674,8 @@ def normalized_desktop_update(original, canonical):
         # Repair must preserve the same pinned revocations as installation.
         # Derive them from the transition, never from mutable runtime flags.
         selected = tomllib.loads(update_desktop_text(canonical, transition['observed_config']))
+        changes = [dict(row, after=compat.get(selected, ('hooks', 'state')))
+                   if row['path'] == ['hooks', 'state'] else row for row in changes]
         for path in TRANSITION_PRESERVED_PATHS:
             changes.append({'path': list(path), 'after': compat.get(selected, path)})
         for identity, value in selected.get('hooks', {}).get('state', {}).items():
@@ -653,7 +689,11 @@ def normalized_desktop_update(original, canonical):
         if not compat.equal(compat.get(observed, path), row['after']):
             raise ValueError('Approved Desktop registration changed after update')
         normalizers.append({'path': row['path'], 'after': compat.get(policy, path)})
-    return compat.overlay(original, normalizers), changes
+    normalized = compat.overlay(original, normalizers)
+    if ('hooks' not in policy and tomllib.loads(normalized).get('hooks') == {}
+            and any(row['path'] == ['hooks', 'state'] for row in changes)):
+        normalized = compat.overlay(normalized, [{'path': ['hooks'], 'after': {'present': False}}])
+    return normalized, changes
 
 
 def verify_previous(home, descriptor=None):
@@ -1063,13 +1103,22 @@ def clean_environment(home, payload, *, toolchain=None):
 
 
 @contextlib.contextmanager
-def installation_lock(home):
+def installation_lock(home, *, inherited_fd=None):
     directory = SCOPE.physical(home / '.local/state/dots')
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     path = SCOPE.physical(directory / 'installation.lock')
-    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    if inherited_fd is None:
+        fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    else:
+        if type(inherited_fd) is not int or inherited_fd < 3:
+            raise ValueError('Invalid inherited installation lock')
+        fd = os.dup(inherited_fd)
     try:
-        if os.fstat(fd).st_nlink != 1 or os.fstat(fd).st_uid != os.getuid():
+        opened, current = os.fstat(fd), path.lstat()
+        if (not stat.S_ISREG(opened.st_mode) or not stat.S_ISREG(current.st_mode)
+                or opened.st_nlink != 1 or opened.st_uid != os.getuid()
+                or opened.st_mode & 0o077
+                or (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino)):
             raise ValueError('Unsafe installation lock')
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         yield fd
@@ -1080,6 +1129,8 @@ def installation_lock(home):
 def projector(state, *args, lock_fd=None):
     context = SCOPE.context()
     env = clean_environment(Path(context['home']), ROOT)
+    if lock_fd is not None:
+        env['DOTS_INSTALLATION_LOCK_FD'] = str(lock_fd)
     for name in ('DOTS_DESKTOP_REVIEW_STATE', 'DOTS_DESKTOP_REVIEW_SHA256'):
         if name in os.environ:
             env[name] = os.environ[name]
@@ -1313,12 +1364,34 @@ def load_plan(state, digest, *, verified_context=None, package_root=None):
     return plan
 
 
+def validate_recovery_metadata(result, state, plan):
+    """Validate output-only recovery locations; never select an action from them."""
+    for field, parent, directory_pattern, file_pattern in (
+        ('retained_generation_path', Path(plan['home']) / '.codex',
+         r'\.config\.toml\.recovery-[A-Za-z0-9_-]+', r'generation-[A-Za-z0-9_-]+\.toml'),
+        ('rollback_retained_generation_path', state, r'\.restore-[A-Za-z0-9_-]+', r'config\.toml'),
+    ):
+        if field not in result:
+            continue
+        raw = result[field]
+        if not isinstance(raw, str):
+            raise ValueError('Invalid retained generation path')
+        path = Path(raw)
+        if (not path.is_absolute() or '..' in path.parts or path.parent.parent != parent
+                or not re.fullmatch(directory_pattern, path.parent.name)
+                or not re.fullmatch(file_pattern, path.name)):
+            raise ValueError('Invalid retained generation path')
+
+
 def load_result(state, plan):
     result = read_json(state / 'result.json')
-    if (not isinstance(result, dict) or set(result) != {'status', 'after'}
+    fields = {'status', 'after'}
+    optional = {'retained_generation_path', 'rollback_retained_generation_path'}
+    if (not isinstance(result, dict) or not fields <= set(result) or set(result) - fields - optional
             or not isinstance(result['after'], dict)
             or result['status'] not in {'prepared', 'applying', 'failed', 'applied', 'restoring', 'rolled_back'}):
         raise ValueError('Invalid installation result')
+    validate_recovery_metadata(result, state, plan)
     complete = result['status'] in {'applied', 'restoring', 'rolled_back'}
     if set(result['after']) != (set(plan['before']) if complete else set()):
         raise ValueError('Incomplete installation result')
@@ -1330,41 +1403,71 @@ def load_result(state, plan):
     return result
 
 
+def publish_desktop_review(path, raw):
+    """Publish a complete proposal with no temporary hard link for readers to see."""
+    with tempfile.TemporaryDirectory(prefix='.desktop-review-', dir=path.parent) as directory:
+        staged = Path(directory) / path.name
+        write(staged, raw)
+        with contextlib.suppress(FileExistsError):
+            rename_absent(staged, path)
+
+
 def prepare_desktop_review(state, digest, *, before_write=None):
     """Write a private proposal only; printing its digest is not acceptance."""
     plan = load_plan(state, digest)
     result = load_result(state, plan)
     runtime = Path(plan['home']) / '.codex'
-    if result['status'] != 'applied' or plan['before']['config.toml']['kind'] != 'file':
-        raise ValueError('Desktop review requires an applied installation with a regular backup')
+    original_record = plan['before']['config.toml']
+    if result['status'] != 'applied' or original_record['kind'] not in {'file', 'absent'}:
+        raise ValueError('Desktop review requires an applied installation with a file or absent baseline')
     current = {name: describe(runtime / name) for name in plan['before']}
     if (any(semantic(current[name]) != semantic(record) for name, record in result['after'].items()
             if name != 'config.toml') or current['config.toml']['kind'] != 'file'
             or current['config.toml']['mode'] != result['after']['config.toml']['mode']):
         raise ValueError('Desktop review cannot accept other managed changes')
-    original = SCOPE.read_regular(state / 'backups/config.toml').decode()
+    backup = state / 'backups/config.toml'
+    if original_record['kind'] == 'absent':
+        if os.path.lexists(backup):
+            raise ValueError('Absent config baseline must not have a backup')
+        original = ''
+    else:
+        original = SCOPE.read_regular(backup).decode()
     installed = update_desktop_text(
-        SCOPE.read_regular(ROOT / 'codex/config.toml').decode(), original)
+        SCOPE.read_regular(ROOT / 'codex/config.toml').decode(),
+        original if original_record['kind'] == 'file' else SCOPE.read_regular(ROOT / 'codex/config.toml').decode())
     compat = module('desktop_review', ROOT / 'codex/scripts/desktop_compatibility.py')
     if (compat.sha(installed.encode()) != plan['expected']['config.toml']['sha256']
-            or compat.sha(original.encode()) != plan['before']['config.toml']['sha256']):
+            or original_record['kind'] == 'file' and compat.sha(original.encode()) != original_record['sha256']):
         raise ValueError('Desktop review baseline or backup changed')
     observed = SCOPE.read_regular(runtime / 'config.toml').decode()
-    changes = compat.delta(installed, observed)
+    changes = compat.delta(installed, observed, hook_source=str(runtime / 'hooks.json'))
     proposal = {'schema_version': 1, 'state_dir': str(state), 'home': plan['home'],
         'package_digest': plan['package_digest'], 'plan_digest': digest,
         'installed': installed, 'observed': observed, 'original': original,
-        'rollback': compat.reviewed_rollback(original, installed, changes), 'changes': changes}
+        'rollback': compat.reviewed_rollback(original, installed, changes,
+                                             baseline_kind=original_record['kind']), 'changes': changes}
     raw = (json.dumps(proposal, sort_keys=True, indent=2) + '\n').encode()
+    if len(raw) > compat.MAX_REVIEW_BYTES:
+        raise ValueError('Desktop review exceeds the private review size limit')
     if {name: describe(runtime / name) for name in plan['before']} != current:
         raise ValueError('Managed state changed while proposing Desktop compatibility')
     if before_write is not None:
         before_write(proposal)
-    review_path = state / 'desktop-review.json'
-    # Create once. Never replace an existing proposal or approve on a read path.
-    write(review_path, raw)
-    compat.load(review_path, compat.sha(raw), state=state, plan_digest=digest, plan=plan)
-    return {'schema_version': 1, 'status': 'proposal_only', 'review_sha256': compat.sha(raw),
+    review_digest = compat.sha(raw)
+    legacy = state / 'desktop-review.json'
+    if compat.review_path(state, review_digest) == legacy:
+        if not os.path.lexists(legacy):
+            publish_desktop_review(legacy, raw)
+        try:
+            legacy_matches = compat.sha(SCOPE.read_regular(legacy, compat.MAX_REVIEW_BYTES)) == review_digest
+        except (FileNotFoundError, ValueError):
+            legacy_matches = False
+        if not legacy_matches:
+            addressed = state / f'desktop-review-{review_digest}.json'
+            if not os.path.lexists(addressed):
+                publish_desktop_review(addressed, raw)
+    compat.load(legacy, review_digest, state=state, plan_digest=digest, plan=plan)
+    return {'schema_version': 1, 'status': 'proposal_only', 'review_sha256': review_digest,
             'changed_paths': [row['path'] for row in changes]}
 
 
@@ -1403,7 +1506,12 @@ def apply(state, digest):
             # Already-correct partial results are no-ops in the existing projector.
             if actual != before and not same(actual, plan['expected'][name]):
                 raise ValueError('Target changed after preparation; no repair attempted')
-        save(state / 'result.json', {'status': 'applying', 'after': {}})
+        retained_generation = (Path(result['retained_generation_path'])
+            if 'retained_generation_path' in result else None)
+        applying_result = {'status': 'applying', 'after': {}}
+        if retained_generation is not None:
+            applying_result['retained_generation_path'] = str(retained_generation)
+        save(state / 'result.json', applying_result)
         try:
             # A migration changes canonical resource paths; it is not a
             # selective drift repair. Reuse its validated atomic publisher.
@@ -1423,8 +1531,17 @@ def apply(state, digest):
             repair._validate_runtime_snapshot(validation_text)
             verify_hook_toolchain(plan)
             if original != merged.encode():
-                repair._write_repair(target, merged, expected=original,
-                    unchanged=((ROOT / 'codex/config.toml', canonical),))
+                def record_exchange_slot(path):
+                    save(state / 'result.json', dict(applying_result,
+                        retained_generation_path=str(path)))
+
+                try:
+                    retained_generation = repair._write_repair(target, merged, expected=original,
+                        unchanged=((ROOT / 'codex/config.toml', canonical),),
+                        before_exchange=record_exchange_slot)
+                except repair.RepairPublicationError as exc:
+                    retained_generation = exc.recovery_path
+                    raise
             for row in admission.expected_map(deployed=True)['codex_projection']:
                 if row.get('strategy') == 'copy-managed':
                     publish_copy(state, row, plan['expected'][row['name']], plan['before'][row['name']], repair)
@@ -1432,11 +1549,20 @@ def apply(state, digest):
             observed = {name: describe(runtime / name) for name in plan['expected']}
             if any(not same(observed[name], expected) for name, expected in plan['expected'].items()):
                 raise ValueError('Managed readback failed')
-            save(state / 'result.json', {'status': 'applied', 'after': observed})
-        except (OSError, ValueError, subprocess.SubprocessError):
-            save(state / 'result.json', {'status': 'failed', 'after': {}})
+            applied_result = {'status': 'applied', 'after': observed}
+            if retained_generation is not None:
+                applied_result['retained_generation_path'] = str(retained_generation)
+            save(state / 'result.json', applied_result)
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            failed_result = {'status': 'failed', 'after': {}}
+            if retained_generation is not None:
+                failed_result['retained_generation_path'] = str(retained_generation)
+            save(state / 'result.json', failed_result)
+            if retained_generation is not None:
+                raise ValueError(f'Installation failed; retained generation remains at {retained_generation}: {exc}') from exc
             raise
-    return {'schema_version': 1, 'status': 'applied', 'plan_digest': digest}
+    return {'schema_version': 1, 'status': 'applied', 'plan_digest': digest,
+        'retained_generation_path': str(retained_generation) if retained_generation is not None else None}
 
 
 def check(state, digest, review_digest=None):
@@ -1460,7 +1586,8 @@ def check(state, digest, review_digest=None):
             projector(state, '--check')
     else:
         projector(state, '--check')
-    return {'schema_version': 1, 'status': 'applied', 'plan_digest': digest}
+    return {'schema_version': 1, 'status': 'applied', 'plan_digest': digest,
+        'retained_generation_path': result.get('retained_generation_path')}
 
 
 def restore(state, digest, review_digest=None):
@@ -1499,6 +1626,7 @@ def restore_selected(state, digest, review_digest=None):
             result_path = state / ('desktop-' + review_digest + '-result.json')
             before = dict(plan['before'])
             before['config.toml'] = dict(before['config.toml'],
+                kind='file', mode=before['config.toml'].get('mode', result['after']['config.toml']['mode']),
                 sha256=hashlib.sha256(review['rollback'].encode()).hexdigest(),
                 size=len(review['rollback'].encode()))
             after = dict(result['after'])
@@ -1512,6 +1640,8 @@ def restore_selected(state, digest, review_digest=None):
                 result = load_desktop_result(result_path, plan)
             else:
                 result = {'status': 'applied', 'after': after}
+        recovery_metadata = {key: result[key] for key in (
+            'retained_generation_path', 'rollback_retained_generation_path') if key in result}
         if result['status'] == 'prepared':
             observed = {name: describe(runtime / name) for name in plan['before']}
             if observed != prepared_before:
@@ -1533,7 +1663,7 @@ def restore_selected(state, digest, review_digest=None):
             if semantic(current[name]) != semantic(before) and semantic(current[name]) != semantic(observed[name]):
                 raise ValueError('Newer managed state detected; backup retained')
         observed = current  # Bind exchanges to this verified generation, including prior rollback copies.
-        save(result_path, {'status': 'restoring', 'after': observed})
+        save(result_path, {'status': 'restoring', 'after': observed, **recovery_metadata})
         repair = module('restoration_exchange', ROOT / 'codex/scripts/repair-runtime-config-drift.py')
         for name, before in reversed(list(plan['before'].items())):
             target = runtime / name
@@ -1543,7 +1673,13 @@ def restore_selected(state, digest, review_digest=None):
             if actual != observed[name]:
                 raise ValueError('Target changed during restoration')
             if before['kind'] == 'absent':
-                retire_created_target(target, state, observed[name])
+                if name == 'config.toml':
+                    def record_retired_config(path):
+                        recovery_metadata['rollback_retained_generation_path'] = str(path)
+                        save(result_path, {'status': 'restoring', 'after': observed, **recovery_metadata})
+                    retire_created_target(target, state, observed[name], before_move=record_retired_config)
+                else:
+                    retire_created_target(target, state, observed[name])
                 continue
             if name == 'usage-data' and usage_repair is not None:
                 if SCOPE.usage_directory_pair(Path(plan['home']), usage_repair) != 'migrated':
@@ -1568,26 +1704,32 @@ def restore_selected(state, digest, review_digest=None):
                     raise ValueError('Managed directory backup changed')
             else:
                 raise ValueError('Runtime directories are never replaced')
+            retain_config = name == 'config.toml' and actual['kind'] == 'file'
+            if retain_config:
+                recovery_metadata['rollback_retained_generation_path'] = str(staged)
+                save(result_path, {'status': 'restoring', 'after': observed, **recovery_metadata})
             with renameable_directories(state, staged, target):
                 repair._exchange_paths(staged, target)
             if describe(staged) != observed[name]:
                 raise ValueError('Concurrent replacement preserved in private recovery file')
-            if actual['kind'] != 'directory':
+            if actual['kind'] != 'directory' and not retain_config:
                 remove_resource(staged)
                 staging.rmdir()
         if any(semantic(describe(runtime / name)) != semantic(before) for name, before in plan['before'].items()):
             raise ValueError('Restoration readback failed')
         save(result_path, {'status': 'rolled_back', 'after': {
-            name: describe(runtime / name) for name in plan['before']}})
-    return {'schema_version': 1, 'status': 'rolled_back', 'plan_digest': digest}
+            name: describe(runtime / name) for name in plan['before']}, **recovery_metadata})
+    return {'schema_version': 1, 'status': 'rolled_back', 'plan_digest': digest, **recovery_metadata}
 
 
 def load_desktop_result(path, plan):
     result = read_json(path)
-    if (not isinstance(result, dict) or set(result) != {'status', 'after'}
+    fields = {'status', 'after'}
+    if (not isinstance(result, dict) or set(result) not in (fields, fields | {'rollback_retained_generation_path'})
             or result['status'] not in {'restoring', 'rolled_back'}
             or not isinstance(result['after'], dict) or set(result['after']) != set(plan['before'])):
         raise ValueError('Invalid Desktop recovery receipt')
+    validate_recovery_metadata(result, path.parent, plan)
     for name, row in result['after'].items():
         if (semantic(row) != semantic(plan['before'][name])
                 and (result['status'] != 'restoring' or semantic(row) != plan['expected'][name])):
@@ -1693,8 +1835,11 @@ def prepare_formatting_review(args, state, *, presentation=False):
             seen.add(str(prior_state))
             paths.append(descriptor)
             paths.extend(prior_state / name for name in (
-                'plan.json', 'result.json', 'desktop-review.json', 'backups/config.toml',
+                'plan.json', 'result.json', 'backups/config.toml',
                 'payload/codex/.deployment.json'))
+            compat = inspector.module('formatting_prior_desktop',
+                inspector.ROOT / 'codex/scripts/desktop_compatibility.py')
+            paths.append(compat.review_path(prior_state, prior['review_sha256']))
             prior_files = inspector.SCOPE.fingerprint(prior_state / 'payload')
             prior_marker = inspector.read_json(prior_state / 'payload/codex/.deployment.json')
             if (prior_files != prior_marker['files'] or

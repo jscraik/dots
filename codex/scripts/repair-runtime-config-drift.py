@@ -15,11 +15,12 @@ import json  # noqa: E402
 import math  # noqa: E402
 import os  # noqa: E402
 import re  # noqa: E402
-import shutil  # noqa: E402
+import stat  # noqa: E402
 import subprocess  # noqa: E402
 import sys  # noqa: E402
 import tempfile  # noqa: E402
 import tomllib  # noqa: E402
+from collections.abc import Callable  # noqa: E402
 from fnmatch import fnmatchcase  # noqa: E402
 from pathlib import Path  # noqa: E402
 
@@ -35,6 +36,14 @@ computer_use_plugin_preservation_errors = _DESKTOP_COMPATIBILITY.computer_use_pl
 CONFIG_PATH = (deployment_module().ROOT / 'codex' if deployment_module() is not None else SCRIPT_DIR.parent) / 'config.toml'
 SCHEMA_VERSION = 'runtime-config-drift-repair/v1'
 SERVICE = 'runtime-config-drift-repair'
+
+
+def _installer():
+    spec = importlib.util.spec_from_file_location('runtime_repair_installer',
+        require_policy_path(SCRIPT_DIR / 'install-codex.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 EXPECTED_APPROVALS_REVIEWER = 'auto_review'
 DESKTOP_PRESENTATION_VALUES = {'model_verbosity': frozenset({'low', 'medium', 'high'}), 'model_reasoning_summary': frozenset({'auto', 'concise', 'detailed', 'none'})}
 MANAGED_ROOT_STRINGS = ('model', 'developer_instructions', 'plan_mode_reasoning_effort', 'model_verbosity', 'experimental_compact_prompt_file')
@@ -183,6 +192,8 @@ def _canonical_with_desktop_plugins(canonical_text: str, runtime_text: str) -> t
     canonical, canonical_error = _loads_toml(canonical_text)
     if runtime is None or canonical is None:
         return (None, runtime_error or canonical_error or 'invalid TOML')
+    if isinstance(runtime.get('hooks'), dict) and 'state' in runtime['hooks']:
+        return (None, 'native hook consent requires an explicit installation-bound preservation review')
     if _invalid_presentation(runtime) or _invalid_presentation(canonical):
         return (None, 'invalid Desktop presentation preference')
     plugin_errors = computer_use_plugin_preservation_errors(runtime)
@@ -1227,44 +1238,102 @@ def _validate_notifier_cutover_snapshot(text: str) -> None:
         raise OSError('legacy validation view changed unrelated configuration')
     _validate_runtime_snapshot(view)
 
-def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, unchanged: tuple[tuple[Path, bytes], ...]=()) -> None:
+REPAIR_FILE_LIMIT = 16 * 1024 * 1024
+
+
+class RepairSizeLimitError(OSError):
+    """An original or proposed generation exceeds the verification bound."""
+
+
+def _repair_file_snapshot(path: Path) -> tuple[tuple[int, ...], bytes]:
+    """Read one bounded regular generation without following recovery aliases."""
+    def generation(info):
+        return (info.st_dev, info.st_ino, info.st_mode, info.st_size,
+                info.st_mtime_ns, info.st_ctime_ns)
+
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as stream:
+        before = os.fstat(stream.fileno())
+        if not stat.S_ISREG(before.st_mode):
+            raise OSError('repair generation is not a regular file')
+        if before.st_size > REPAIR_FILE_LIMIT:
+            raise RepairSizeLimitError('config exceeds the 16 MiB verification limit')
+        raw = stream.read(REPAIR_FILE_LIMIT + 1)
+        if len(raw) > REPAIR_FILE_LIMIT:
+            raise RepairSizeLimitError('config exceeds the 16 MiB verification limit')
+        if (generation(os.fstat(stream.fileno())) != generation(before)
+                or generation(path.lstat()) != generation(before)):
+            raise OSError('repair generation changed during inspection')
+    return generation(before), raw
+
+
+class RepairPublicationError(OSError):
+    """A failed publication with a retained, potentially still writable inode."""
+
+    def __init__(self, recovery_path: Path):
+        self.recovery_path = recovery_path
+        super().__init__(f'repair verification failed; recovery file remains at {recovery_path}')
+
+
+def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, unchanged: tuple[tuple[Path, bytes], ...]=(), before_exchange: Callable[[Path], None] | None=None) -> Path | None:
     if config_path.is_symlink():
         raise OSError(f'runtime config must be a regular file, not a symlink: {config_path}')
+    if expected is not None and _repair_file_snapshot(config_path)[1] != expected:
+        raise OSError('runtime config changed during reconciliation; retry from fresh state')
     repair_path = config_path
-    fd, tmp_name = tempfile.mkstemp(prefix=f'.{repair_path.name}.', suffix='.tmp', dir=repair_path.parent)
+    recovery_dir = Path(tempfile.mkdtemp(prefix=f'.{repair_path.name}.recovery-', dir=repair_path.parent))
+    try:
+        fd, tmp_name = tempfile.mkstemp(prefix='generation-', suffix='.toml', dir=recovery_dir)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            recovery_dir.rmdir()
+        raise
     tmp_path = Path(tmp_name)
-    exchanged = False
+    retain_slot = False
     try:
         os.fchmod(fd, 384)
         with os.fdopen(fd, 'w', encoding='utf-8') as handle:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
-        if expected is not None and (repair_path.is_symlink() or repair_path.read_bytes() != expected):
+        staged = _repair_file_snapshot(tmp_path)
+        if expected is not None and _repair_file_snapshot(repair_path)[1] != expected:
             raise OSError('runtime config changed during reconciliation; retry from fresh state')
         for guarded_path, guarded_bytes in unchanged:
             if guarded_path.is_symlink() or guarded_path.read_bytes() != guarded_bytes:
                 raise OSError('guarded file changed during reconciliation; retry from fresh state')
-        if expected is None and (not repair_path.exists()):
-            os.link(tmp_path, repair_path, follow_symlinks=False)
-            tmp_path.unlink()
-            return
+        if expected is None:
+            _installer().rename_absent(tmp_path, repair_path)
+            recovery_dir.rmdir()
+            return None
+        # A signal may arrive after the syscall succeeds but before it returns.
+        # Retain before handing the slot to durable bookkeeping as well.
+        retain_slot = True
+        if before_exchange is not None:
+            before_exchange(tmp_path)
         _exchange_paths(tmp_path, repair_path)
-        exchanged = True
-        if expected is not None and (tmp_path.is_symlink() or tmp_path.read_bytes() != expected):
+        displaced = _repair_file_snapshot(tmp_path)
+        if displaced[1] != expected:
             raise OSError('runtime config changed during reconciliation; retry from fresh state')
         for guarded_path, guarded_bytes in unchanged:
             if guarded_path.is_symlink() or guarded_path.read_bytes() != guarded_bytes:
                 raise OSError(f'guarded file changed during reconciliation; retry from fresh state: {guarded_path}')
-        if repair_path.is_symlink() or repair_path.read_bytes() != text.encode('utf-8'):
+        published = _repair_file_snapshot(repair_path)
+        if published[0][:4] != staged[0][:4] or published[1] != staged[1]:
             raise OSError('runtime config changed during reconciliation; retry from fresh state')
-        tmp_path.unlink()
-        exchanged = False
+        # An open native writer can still save through the displaced inode.
+        # Keep its name even on success; the private directory bounds access.
+        return tmp_path
     except BaseException as exc:
-        if exchanged:
-            raise OSError(f'repair verification failed; recovery file remains at {tmp_path}') from exc
+        if retain_slot:
+            # There is no conditional exchange primitive: compensation could
+            # displace another native save after its last comparison. Leave
+            # both generations named and require explicit recovery instead.
+            raise RepairPublicationError(tmp_path) from exc
         with contextlib.suppress(FileNotFoundError):
             tmp_path.unlink()
+        with contextlib.suppress(FileNotFoundError):
+            recovery_dir.rmdir()
         raise
 
 def _sha256_and_bytes(path: Path) -> tuple[str, int]:
@@ -1277,10 +1346,15 @@ def _sha256_and_bytes(path: Path) -> tuple[str, int]:
             size += len(chunk)
     return (digest.hexdigest(), size)
 
-def _create_backup(config_path: Path, backup_path: Path) -> tuple[str, int]:
+def _create_backup(config_path: Path, backup_path: Path, *, expected: bytes) -> tuple[str, int]:
     """Create a private, exclusive backup before replacing the runtime file."""
     if config_path.is_symlink() or not config_path.is_file():
         raise OSError(f'runtime config must be a regular file: {config_path}')
+    source_fd = os.open(config_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(source_fd, 'rb') as source:
+        source_info = os.fstat(source.fileno())
+        if not stat.S_ISREG(source_info.st_mode) or source.read(len(expected) + 1) != expected:
+            raise OSError('runtime config changed before backup; retry from fresh state')
     backup_path = backup_path.expanduser()
     backup_path.parent.mkdir(parents=True, exist_ok=True)
     if backup_path.is_symlink():
@@ -1288,13 +1362,12 @@ def _create_backup(config_path: Path, backup_path: Path) -> tuple[str, int]:
     fd = os.open(backup_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 384)
     created = os.fstat(fd)
     try:
-        with os.fdopen(fd, 'wb') as target, config_path.open('rb') as source:
-            shutil.copyfileobj(source, target)
+        with os.fdopen(fd, 'wb') as target:
+            target.write(expected)
             target.flush()
             os.fsync(target.fileno())
-        source_digest, source_bytes = _sha256_and_bytes(config_path)
         backup_digest, backup_bytes = _sha256_and_bytes(backup_path)
-        if (source_digest, source_bytes) != (backup_digest, backup_bytes):
+        if (hashlib.sha256(expected).hexdigest(), len(expected)) != (backup_digest, backup_bytes):
             raise OSError(f'backup digest/size mismatch: {backup_path}')
         return (backup_digest, backup_bytes)
     except BaseException:
@@ -1333,6 +1406,26 @@ def _emit(payload: dict[str, object], json_output: bool, message: str='') -> Non
 
 def main(argv: list[str] | None=None) -> int:
     args = parse_args(argv)
+    deployment = deployment_module()
+    if args.repair and deployment is not None:
+        stack = contextlib.ExitStack()
+        try:
+            inherited = os.environ.get('DOTS_INSTALLATION_LOCK_FD')
+            if inherited is not None and not re.fullmatch(r'[0-9]+', inherited):
+                raise ValueError('Invalid inherited installation lock')
+            stack.enter_context(_installer().installation_lock(Path(deployment.context()['home']),
+                    inherited_fd=None if inherited is None else int(inherited)))
+        except (OSError, ValueError):
+            stack.close()
+            _emit(_payload(status='blocked', path=args.config_path,
+                reason='installation_lock_unavailable', error='Installation lock unavailable; no repair admitted'), args.json)
+            return 1
+        with stack:
+            return _main_locked(args)
+    return _main_locked(args)
+
+
+def _main_locked(args) -> int:
     config_path = args.config_path.expanduser()
     require_policy_path(config_path)
     if args.backup_path is not None:
@@ -1348,8 +1441,12 @@ def main(argv: list[str] | None=None) -> int:
             _emit(payload, args.json)
             return 1
     try:
-        original_bytes = config_path.read_bytes()
+        original_bytes = _repair_file_snapshot(config_path)[1]
         original = original_bytes.decode('utf-8')
+    except RepairSizeLimitError as exc:
+        _emit(_payload(status='blocked', path=config_path,
+            reason='config_size_limit_exceeded', error=str(exc)), args.json)
+        return 1
     except (OSError, UnicodeError) as exc:
         payload = _payload(status='blocked', path=config_path, reason='config_unreadable', error=str(exc))
         _emit(payload, args.json)
@@ -1416,8 +1513,16 @@ def main(argv: list[str] | None=None) -> int:
             deployment.ROOT / 'codex/scripts/desktop_compatibility.py')
         desktop = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(desktop)
-        pending = Path(deployment.context()['state_dir']) / 'desktop-review.json'
-        if runtime is None or desktop.requires_preservation(runtime) or os.path.lexists(pending):
+        state = Path(deployment.context()['state_dir'])
+        try:
+            with os.scandir(state) as entries:
+                pending = any(desktop.is_review_filename(entry.name)
+                              for entry in entries)
+        except OSError as exc:
+            _emit(_payload(status='blocked', path=config_path,
+                reason='desktop_registration_scan_failed', error=str(exc)), args.json)
+            return 1
+        if runtime is None or desktop.requires_preservation(runtime) or pending:
             _emit(_payload(status='blocked', path=config_path,
                 reason='desktop_registration_preservation_required',
                 error='Review Desktop registration before repair; no config was changed'), args.json)
@@ -1435,6 +1540,14 @@ def main(argv: list[str] | None=None) -> int:
     if not args.repair:
         payload = _payload(status='fail', path=config_path, drift=drift, reason='runtime_config_drift')
         _emit(payload, args.json, f"FAIL runtime config drift: {', '.join(drift)}; Repair with: {Path(sys.argv[0]).name} --repair")
+        return 1
+    # Update normalisation may remove approved consent from the comparison view.
+    # A no-drift check is harmless; any repair write must inspect the raw file.
+    runtime, _ = _loads_toml(original_bytes.decode('utf-8'))
+    if isinstance(runtime, dict) and isinstance(runtime.get('hooks'), dict) and 'state' in runtime['hooks']:
+        _emit(_payload(status='blocked', path=config_path,
+            reason='native_hook_consent_preservation_required',
+            error='Review native hook consent through the installation-bound proposal before repair; no config was changed'), args.json)
         return 1
     repaired_text, repairs, blocked = repair_text(original, expected_auto_review_policy=expected_auto_review_policy, expected_signing_agent_socket=expected_signing_agent_socket, expected_circle_no_telemetry=expected_circle_no_telemetry, expected_control_settings=expected_control_settings)
     remaining_drift = detect_drift(repaired_text, expected_auto_review_policy=expected_auto_review_policy, expected_signing_agent_socket=expected_signing_agent_socket, expected_circle_no_telemetry=expected_circle_no_telemetry, expected_control_settings=expected_control_settings)
@@ -1463,6 +1576,12 @@ def main(argv: list[str] | None=None) -> int:
     except OSError as exc:
         _emit(_payload(status='blocked', path=config_path, drift=drift, reason='canonical_source_invalid', error=str(exc)), args.json)
         return 1
+    if approved_update_changes:
+        repaired_text = updater.module('restore_desktop_overlay', CONFIG_PATH.parent / 'scripts/desktop_compatibility.py').overlay(repaired_text, approved_update_changes)
+    if len(repaired_text.encode('utf-8')) > REPAIR_FILE_LIMIT:
+        _emit(_payload(status='blocked', path=config_path, drift=drift, repairs=repairs,
+            reason='config_size_limit_exceeded', error='config exceeds the 16 MiB verification limit'), args.json)
+        return 1
     if args.backup_path is None:
         backup_dir = Path(tempfile.mkdtemp(prefix='codex-config-backup-'))
         args.backup_path = backup_dir / 'config.toml'
@@ -1470,22 +1589,26 @@ def main(argv: list[str] | None=None) -> int:
     backup_bytes: int | None = None
     if args.backup_path is not None:
         try:
-            backup_sha256, backup_bytes = _create_backup(config_path, args.backup_path)
+            backup_sha256, backup_bytes = _create_backup(config_path, args.backup_path, expected=original_bytes)
         except OSError as exc:
             payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason='config_backup_failed', error=str(exc), backup_path=args.backup_path)
             _emit(payload, args.json)
             return 1
-    if approved_update_changes:
-        repaired_text = updater.module('restore_desktop_overlay', CONFIG_PATH.parent / 'scripts/desktop_compatibility.py').overlay(repaired_text, approved_update_changes)
+    recovery_path = None
     try:
-        _write_repair(config_path, repaired_text, expected=original_bytes, unchanged=((CONFIG_PATH, canonical_bytes),))
-        if config_path.read_bytes() != repaired_text.encode('utf-8'):
+        recovery_path = _write_repair(config_path, repaired_text, expected=original_bytes, unchanged=((CONFIG_PATH, canonical_bytes),))
+        if _repair_file_snapshot(config_path)[1] != repaired_text.encode('utf-8'):
             raise OSError('runtime config changed after reconciliation; expected state not verified')
     except OSError as exc:
-        payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason='config_write_failed', error=str(exc), backup_path=args.backup_path, backup_sha256=backup_sha256, backup_bytes=backup_bytes)
+        if isinstance(exc, RepairPublicationError):
+            recovery_path = exc.recovery_path
+        reason = 'config_size_limit_exceeded' if isinstance(exc, RepairSizeLimitError) else 'config_write_failed'
+        payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason=reason, error=str(exc), backup_path=args.backup_path, backup_sha256=backup_sha256, backup_bytes=backup_bytes)
+        payload['retained_generation_path'] = str(recovery_path) if recovery_path is not None else None
         _emit(payload, args.json)
         return 1
     payload = _payload(status='blocked' if notifier_only_cutover else 'repaired', path=config_path, drift=remaining_drift if notifier_only_cutover else drift, repairs=repairs, reason='legacy_repository_pinned_cua_cutover_required' if notifier_only_cutover else None, error='Retired notifier removed; ' + LEGACY_CUA_CUTOVER if notifier_only_cutover else None, backup_path=args.backup_path, backup_sha256=backup_sha256, backup_bytes=backup_bytes)
+    payload['retained_generation_path'] = str(recovery_path) if recovery_path is not None else None
     _emit(payload, args.json)
     return 1 if notifier_only_cutover else 0
 if __name__ == '__main__':

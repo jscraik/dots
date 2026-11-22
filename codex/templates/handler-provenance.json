@@ -230,9 +230,12 @@
         "CLI primary path confined to fixture",
         "Add fixed packaged-context admission; retain default disposable admission and original checks.",
         "Keep parse-error fallback; unexpected parser exceptions stop before publication. Clear Ruff diagnostics without changing file modes.",
-        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+        "Recognise legacy and digest-named pending Desktop proposals; block packaged repair when the state directory cannot be listed.",
+        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
+        "Qualify atomic absent-file repair publication, exact published Desktop proposal names, and installation locking across proposal inspection and config publication; verify inherited descriptors against the fixed lock inode without releasing parent ownership.",
+        "Qualify atomic absent-file repair publication, exact published Desktop proposal names, and installation locking across proposal inspection and config publication; verify inherited descriptors against the fixed lock inode without releasing parent ownership. Remove an empty pre-staging recovery directory on creation failure and preserve the scrubber output-format contract when lock acquisition fails."
       ],
-      "candidate_sha256": "e01c3187e88984d99e182aca585beb9194eac03d14fe885526c7a53117dab03a"
+      "candidate_sha256": "11cade9f8d080b71598f029576f30b2cae21f948d82cf02120c2b991405889d4"
     },
     {
       "path": "codex/scripts/audit-project-codex-config-overrides.sh",
@@ -274,9 +277,10 @@
         "Add fixed packaged-context admission; retain default disposable admission and original checks.",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
         "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
-        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection."
       ],
-      "candidate_sha256": "1af21f53e52e4953787e69f1ed989999ead6dfd3e1232594d72bde0c7473e5c9"
+      "candidate_sha256": "8f2ad16cd69a27a0826f70aa3dd5878ae0d80f4d29e5560a21c1da6127c64d0b"
     },
     {
       "path": "codex/scripts/pr_repair_ci.py",
@@ -304,9 +308,10 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "5baefe5d97ef259ea472cea6f9b581bd1a1d36f199e206b6ad713ccbf577bac3",
       "transformations": [
-        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Classify OAuth, OAuth2, login, password and JWT path words as high risk"
       ],
-      "candidate_sha256": "3178fd2a57839085a3c45332c15d426701cae6cb1f3c647c82745b951ec153df"
+      "candidate_sha256": "552189329f8ee27c668926659386d5610058d2de9162b9685d38a0c52b9411ff"
     },
     {
       "path": "codex/scripts/codex-validation-lib.sh",

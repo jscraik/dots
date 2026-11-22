@@ -7,9 +7,11 @@ from migration_scope import deployment_module, require_policy_path, require_poli
 require_policy_scope()
 
 import argparse  # noqa: E402
+import contextlib  # noqa: E402
 import importlib.util  # noqa: E402
 import json  # noqa: E402
 import os  # noqa: E402
+import re  # noqa: E402
 import tomllib  # noqa: E402
 from pathlib import Path  # noqa: E402
 
@@ -22,6 +24,10 @@ except ImportError:
 SCRIPT_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = SCRIPT_DIR.parent / "config.toml"
 FORBIDDEN_NOTIFY_TOKEN = "SkyComputerUseClient"
+
+
+class DesktopRegistrationScanError(OSError):
+    """The installed proposal directory could not be inspected."""
 
 
 def scrub_forbidden_notify(text: str) -> tuple[str, int]:
@@ -108,6 +114,36 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     require_policy_path(args.config_path)
+    deployment = deployment_module()
+    if args.repair and deployment is not None:
+        stack = contextlib.ExitStack()
+        try:
+            inherited = os.environ.get('DOTS_INSTALLATION_LOCK_FD')
+            if inherited is not None and not re.fullmatch(r'[0-9]+', inherited):
+                raise ValueError('Invalid inherited installation lock')
+            spec = importlib.util.spec_from_file_location('scrub_installation_lock',
+                require_policy_path(SCRIPT_DIR / 'install-codex.py'))
+            installer = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(installer)
+            stack.enter_context(installer.installation_lock(Path(deployment.context()['home']),
+                    inherited_fd=None if inherited is None else int(inherited)))
+        except (OSError, ValueError):
+            stack.close()
+            payload = {'schema_version': 'computer-use-config-scrub/v1',
+                'service': 'computer-use-config-scrub', 'status': 'blocked',
+                'reason': 'installation_lock_unavailable', 'path': str(args.config_path.expanduser())}
+            if args.json:
+                print(json.dumps(payload, sort_keys=True))
+            else:
+                print(f"FAIL  installation_lock_unavailable: {args.config_path.expanduser()}")
+            return 1
+        with stack:
+            return _main_locked(args)
+    return _main_locked(args)
+
+
+def _main_locked(args) -> int:
+    require_policy_path(args.config_path)
     config_path = args.config_path.expanduser()
     try:
         original = config_path.read_text(encoding="utf-8")
@@ -136,22 +172,29 @@ def main() -> int:
                 deployment.ROOT / 'codex/scripts/desktop_compatibility.py')
             desktop = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(desktop)
-            pending = Path(deployment.context()['state_dir']) / 'desktop-review.json'
-            if desktop.requires_preservation(parsed) or os.path.lexists(pending):
+            state = Path(deployment.context()['state_dir'])
+            try:
+                with os.scandir(state) as entries:
+                    pending = any(desktop.is_review_filename(entry.name)
+                                  for entry in entries)
+            except OSError:
+                raise DesktopRegistrationScanError from None
+            if desktop.requires_preservation(parsed) or pending:
                 raise ValueError('Packaged Desktop registration requires preservation review')
         scrubbed, removed = scrub_forbidden_notify(original)
-    except Exception:  # noqa: BLE001 -- MIG-HELPER-1: fail closed without exposing parser payloads.
+    except Exception as exc:  # noqa: BLE001 -- MIG-HELPER-1: fail closed without exposing parser payloads.
+        reason = 'desktop_registration_scan_failed' if isinstance(exc, DesktopRegistrationScanError) else 'config_parser_failed'
         payload = {
             "schema_version": "computer-use-config-scrub/v1",
             "service": "computer-use-config-scrub",
             "status": "blocked",
-            "reason": "config_parser_failed",
+            "reason": reason,
             "path": str(config_path),
         }
         if args.json:
             print(json.dumps(payload, sort_keys=True))
         else:
-            print(f"FAIL  configuration parser failed: {config_path}")
+            print(f"FAIL  {reason}: {config_path}")
         return 1
     if removed and args.repair:
         repair_path = config_path.resolve() if config_path.is_symlink() else config_path

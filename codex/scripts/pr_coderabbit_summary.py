@@ -48,6 +48,30 @@ def _without_scheduling_notice(body: str, head: str) -> str:
 
 def _known_provider_assertion(title: str, content: str, selected_info: str, *, slug: str, head: str) -> bool:
     """Accept only the inspected affirmative assertion; no free-form classifier."""
+    if (title == "Additional comments: 3" and slug == "jscraik/dots"
+        and head == "0246dcea7306d2fc88e064a6131edce786370353"):
+        # This exact reviewed test explanation refutes an allegation about
+        # which validator its failure stub reaches; it requests no repair.
+        # Retain the normal authenticated completion and selected-file join.
+        expected = {
+            "tests/policy_fixture.py: 1": "`22-22`: LGTM!\n\n",
+            "tests/test_governance_port.py: 1": "`34-34`: LGTM!\n\n",
+            "tests/test_policy_projection.py: 1": (
+                "`70-72`: **Maintainability & Code Quality**\n\n"
+                "**The notifier-cutover path does not run canonical validation first.**\n\n"
+                "For the notifier-only cleanup, `main` calls `_validate_notifier_cutover_snapshot` before any backup or write. That function invokes the runtime validator (`--runtime-config-stdin`), not `--config-stdin`. The canonical validator is not called anywhere in the repair script. The exit-75 stub therefore reaches the notifier-cutover check first, so the assertions test that check directly.\n\n"
+            ),
+        }
+        gap, children = _details(content)
+        if gap or len(children) != len(expected):
+            return False
+        observed = [_wrapper(child) for child in children]
+        if len({name for name, _ in observed}) != len(expected):
+            return False
+        return all(name in expected
+            and "* `" + name.removesuffix(": 1") + "`" in selected_info.splitlines()
+            and re.fullmatch(re.escape(expected[name]) + r"<!-- cr-comment:v1:[0-9a-f]{24} -->", note)
+            is not None for name, note in observed)
     if (title == "LanguageTool" and slug == "jscraik/rSearch"
         and head == "4d940dd7d9d74459cbea0da683814fe218330e21"
         and "* `docs/robin-review.md`" in selected_info.splitlines()):

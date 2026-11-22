@@ -36,8 +36,8 @@
     {
       "path": "README.md",
       "prior_candidate_sha256": "ced157af36e675f8d6c890a5b04a70805e0835432efc957efc85c92f1e98ab01",
-      "candidate_sha256": "5c0a961df0c1b0ca8b13da61fb3e685fd7f81186cc927da9d63b5257ed991a23",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Document the native distinction between on-disk hook consent and loaded-thread acceptance, verified by a disposable native regression without a model turn. Document the two additional exact native app metadata names; preserve the existing installation and permission boundaries. Document app-bundled CLI validation and isolated pinned dependency setup. Require an exact reviewed source commit and document clean-checkout, immutable-tree packaging and private provenance receipts. Document complete discovered test-case CircleCI partitioning plus repeated diagnostic checks across two small containers, retained security checks and the separate hosted-timing acceptance requirement."
+      "candidate_sha256": "6b9bdb70d745115e6f353d3f2c5b3aff936a04dae89899c9a940176012cd5fa2",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Document the native distinction between on-disk hook consent and loaded-thread acceptance, verified by a disposable native regression without a model turn. Document the two additional exact native app metadata names; preserve the existing installation and permission boundaries. Document app-bundled CLI validation and isolated pinned dependency setup. Require an exact reviewed source commit and document clean-checkout, immutable-tree packaging and private provenance receipts. Document complete discovered test-case CircleCI partitioning plus repeated diagnostic checks across three small containers, retained security checks and the separate hosted-timing acceptance requirement."
     },
     {
       "path": "codex/hooks/README.md",
@@ -69,7 +69,7 @@
     {
       "path": "codex/instructions/agents/16a-review-reply-parsing.md",
       "prior_candidate_sha256": "3161d0862dfd778f43b309e4f862371fe24988b2fb05f3a8963c98a3148e4d07",
-      "candidate_sha256": "d5ba85a049f28b3d2160512fead9e3f0c27ebb7cabc4f0c7f8589443f9431ea4"
+      "candidate_sha256": "9a788df788e291903ab0bd0a532b36f2bbbf73bce5011d81981e8bd19157bfef"
     },
     {
       "path": "codex/instructions/managed-configuration.md",
@@ -96,8 +96,8 @@
     {
       "path": "codex/scripts/pr-readiness.py",
       "prior_candidate_sha256": "6c47ce8d869fb46b338f6ed354ec95eb554471c215bc90b9c1d76c69e9cb60ee",
-      "candidate_sha256": "1af21f53e52e4953787e69f1ed989999ead6dfd3e1232594d72bde0c7473e5c9",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+      "candidate_sha256": "8f2ad16cd69a27a0826f70aa3dd5878ae0d80f4d29e5560a21c1da6127c64d0b",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks. Accept the observed fixed Codex closing phrases Keep it up! and Nice work! while retaining the complete authenticated, head-bound report and footer contract."
     },
     {
       "path": "codex/scripts/pr-review-request.py",
@@ -107,7 +107,7 @@
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "03783c39f6e560d73ef2b3f140808eee272611645ac9a8af53e03ae50b22fe00",
+      "candidate_sha256": "c832835fbd0a72e6d1006bad3f840e854fcdc6a24cfd24377fe8591baef2eee5",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
@@ -154,13 +154,13 @@
     {
       "path": "codex/scripts/tests/test_pr_coderabbit_structured.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "5d49886f620943b9ea618da10c9fa7b1ace2515a29a4a29d912ed4647784880e"
+      "candidate_sha256": "07d73888993ffe55a0a75c6e363b5d8fe2311ce9de6c356487d416db0acbd2e0"
     },
     {
       "path": "codex/scripts/tests/test_pr_codex_completion.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "0531109f33d4a754040f92a0c146c99ee61d7550e06c6658cf47be14b15d9835",
-      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+      "candidate_sha256": "5bd2a07b8594c6e8cd789184a9db8da4056d03a5935b2a54c86842d641785861",
+      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks. Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection."
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",
@@ -171,8 +171,8 @@
     {
       "path": "codex/scripts/tests/test_pr_readiness.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "62a39be40d5ceee6791a3ba988d452fdc83e197870b29f2eac767bc7a2c4909f",
-      "transformation": "Preserve selected checks and add synthetic missing-check and dismissed historical-review scenarios from the coordinated follow-up; production policy is unchanged.",
+      "candidate_sha256": "e03d876995ca7fafa0cde6d11731bf7cea4007c027b76a91d149ff4dfb7f4d24",
+      "transformation": "Preserve selected checks and add synthetic missing-check and dismissed historical-review scenarios from the coordinated follow-up; production policy is unchanged. Exercise the observed Keep it up! report through existing author, head, review-state, footer and appended-failure rejection controls. Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection.",
       "additional_source": {
         "revision": "d3b8f231dc659bde32ebac5e5c305b75b7589d4e",
         "status": "unpublished source follow-up; scenarios independently reimplemented from the coordination handoff"

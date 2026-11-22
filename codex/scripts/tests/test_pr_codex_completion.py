@@ -58,6 +58,33 @@ class CodexCompletionTests(unittest.TestCase):
             )
         )
 
+    def test_nice_work_receipt_retains_all_trust_boundaries(self) -> None:
+        """Recognise the observed closing phrase, never arbitrary praise."""
+        body = (
+            "<!-- codex-review-receipt:v1 -->\n\n"
+            "Codex Review: Didn't find any major issues. Nice work!\n\n"
+            f"**Reviewed commit:** `{HEAD[:10]}`\n\n"
+            + MODULE._CODEX_ABOUT_GITHUB_FOOTER
+        )
+        review = {"body": body, "state": "COMMENTED", "user": {"login": LOGIN}}
+        self.assertTrue(MODULE._bot_review_is_acceptable(review, HEAD))
+        for changed in (
+            body.replace(HEAD[:10], "b" * 10),
+            body + "\nP1: unresolved defect",
+            body.replace("About Codex", "Unknown footer"),
+            body.replace("Nice work!", "Nice work! Inspection incomplete."),
+            body.replace("Nice work!", "Wonderful patch!"),
+        ):
+            with self.subTest(body=changed):
+                self.assertFalse(MODULE._bot_review_is_acceptable({**review, "body": changed}, HEAD))
+        for changed in (
+            {**review, "user": {"login": "untrusted"}},
+            {**review, "record_only_reply": True},
+            {**review, "state": "CHANGES_REQUESTED"},
+        ):
+            with self.subTest(review=changed):
+                self.assertFalse(MODULE._bot_review_is_acceptable(changed, HEAD))
+
     def code_only_state_body(self) -> tuple[str, dict]:
         state = {
             "code_review": {
