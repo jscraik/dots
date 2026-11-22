@@ -38,6 +38,7 @@ reconciliation_thread = policy["reconciliation_thread"]
 substitution_commands = policy["substitution_commands"]
 protect_quoted_punctuation = policy["protect_quoted_punctuation"]
 decode_protected_punctuation = policy["decode_protected_punctuation"]
+pr_command_phase = policy["pr_command_phase"]
 
 def reject_unsupported():
     print("unsupported_command")
@@ -159,6 +160,10 @@ while index < len(tokens):
         repo = token.split("=", 1)[1]
         index += 1
         continue
+    if token.startswith("-R") and len(token) > 2:
+        repo = token[2:]
+        index += 1
+        continue
     if token.startswith("--hostname="):
         hostname = token.split("=", 1)[1]
         index += 1
@@ -173,9 +178,13 @@ pr_number = ""
 thread_id = ""
 base_ref = ""
 head_ref = ""
-if index + 1 < len(tokens) and tokens[index] == "pr":
-    subcommand = tokens[index + 1]
-    if subcommand == "create":
+if index < len(tokens) and tokens[index] == "pr":
+    if index + 1 >= len(tokens):
+        action = "unsupported_command"
+    else:
+        subcommand = tokens[index + 1]
+        action = pr_command_phase(subcommand)
+    if action == "create":
         action = "create"
         target_tokens = tokens[index + 2 :]
         for option_index, option in enumerate(target_tokens):
@@ -187,6 +196,12 @@ if index + 1 < len(tokens) and tokens[index] == "pr":
                     repo = trailing_repo
             elif option.startswith("--repo="):
                 trailing_repo = option.split("=", 1)[1]
+                if repo and repo.casefold() != trailing_repo.casefold():
+                    action = "target_conflict"
+                else:
+                    repo = trailing_repo
+            elif option.startswith("-R") and len(option) > 2:
+                trailing_repo = option[2:]
                 if repo and repo.casefold() != trailing_repo.casefold():
                     action = "target_conflict"
                 else:
@@ -203,7 +218,7 @@ if index + 1 < len(tokens) and tokens[index] == "pr":
                 head_ref = option.split("=", 1)[1]
             elif option.startswith("-H") and len(option) > 2:
                 head_ref = option[2:]
-    elif subcommand in {"edit", "merge", "review"}:
+    elif action == "update":
         action = "update"
         target_tokens = tokens[index + 2 :]
         trailing_repo = ""
@@ -212,6 +227,8 @@ if index + 1 < len(tokens) and tokens[index] == "pr":
                 trailing_repo = target_tokens[option_index + 1]
             elif option.startswith("--repo="):
                 trailing_repo = option.split("=", 1)[1]
+            elif option.startswith("-R") and len(option) > 2:
+                trailing_repo = option[2:]
         if trailing_repo:
             if repo and repo.casefold() != trailing_repo.casefold():
                 action = "target_conflict"
@@ -395,7 +412,7 @@ elif index < len(tokens) and tokens[index] == "api":
         elif method not in {"GET", "HEAD"}:
             action = "unsupported_command"
 
-if target_environment_override and action in {"create", "update", "review_reconciliation"}:
+if (target_environment_override or hostname) and action in {"create", "update", "review_reconciliation"}:
     action = "target_environment_override"
 
 print("\x1f".join((action, repo, pr_number, thread_id, base_ref, head_ref)))
@@ -408,7 +425,7 @@ PY
 fi
 IFS=$'\x1f' read -r readiness_phase expected_repo expected_pr expected_thread_id expected_base expected_head <<<"$target_fields"
 
-if [[ -z "$readiness_phase" ]]; then
+if [[ -z "$readiness_phase" || "$readiness_phase" == "read_only" ]]; then
   jq -n '{}'
   exit 0
 fi
@@ -428,7 +445,7 @@ if [[ "$readiness_phase" == "target_conflict" ]]; then
 fi
 
 if [[ "$readiness_phase" == "target_environment_override" ]]; then
-  jq -n --arg reason "Protected PR command is blocked because GH_REPO or GH_HOST would override the repository or host bound to readiness evidence." '
+  jq -n --arg reason "Protected PR command is blocked because GH_REPO or GH_HOST, or --hostname, would override the repository or host bound to readiness evidence." '
     {hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}
   '
   exit 0

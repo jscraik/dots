@@ -60,9 +60,10 @@
       "transformations": [
         "fixture scope and event admission before handler actions",
         "Classify raw GitHub API methods and normalized endpoints; bind canonical REST merges to update receipts and fail closed on uninspectable writes.",
+        "Bind supported direct PR lifecycle writes to update receipts and reject unclassified verbs by default.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "904cfbd81001677cbd5ce5dda5749706cc75df8cd40d27ff856dada5a333f1e6"
+      "candidate_sha256": "cbff5970efb9ed0be05cebc5937d684cb7f2dffa7186782ba7bd4d538c16d1f8"
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",
@@ -105,9 +106,10 @@
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
         "Deny xargs command construction before protected child routing; retain direct-command behavior.",
         "Admit only the exact resolver syntax check from a canonical checkout root, including when hooks run from a separate installed payload; retain execution, extra-argument and symlink denials.",
+        "Use the shared exhaustive PR verb classifier so dispatcher routing and readiness enforcement cannot drift.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "4d42a16ad7f2aec1481afe95fb626eeedd442e8a39e8a95936c3460e3a630ace"
+      "candidate_sha256": "603b487d3b24ce6fd9ef1d3000d54da190cbe8f7b5d5b417bf35670934a1a999"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",
@@ -177,9 +179,10 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "dd2827c7559edfbe275100e3e5af73fbe13cfe23128aa4bf9d601afd2fab47b8",
       "transformations": [
-        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
+        "Provide one deny-by-default direct PR verb classifier shared by dispatch and readiness enforcement."
       ],
-      "candidate_sha256": "fcf8c47504412cab8e7d4fbf13bb4bef060fdbb043945889731c59870008965e"
+      "candidate_sha256": "0348e4c2a1f1c6a6f8595c60c65889e53e22ca1983f7826a25f49945798ecc03"
     },
     {
       "path": "codex/scripts/project_metadata.py",

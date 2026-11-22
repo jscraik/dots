@@ -51,6 +51,7 @@ command_contexts = policy["command_contexts"]
 protect_quoted_punctuation = policy["protect_quoted_punctuation"]
 decode_protected_punctuation = policy["decode_protected_punctuation"]
 declared_functions = policy["declared_functions"]
+pr_command_phase = policy["pr_command_phase"]
 scope = runpy.run_path(os.path.join(os.path.dirname(sys.argv[1]), "migration_scope.py"))
 repo_root = str(scope["policy_source_root"](os.path.dirname(os.path.dirname(os.path.realpath(sys.argv[1])))).parent)
 payload = json.load(sys.stdin)
@@ -653,9 +654,8 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                 route.update({"pr": True, "unsafe": True})
             # Inspecting a PR is not publication. Keep unknown/mutating verbs
             # guarded, including when another segment of a pipeline mutates.
-            read_only_pr = subcommand == "pr" and remaining and remaining[0] in {
-                "view", "list", "status", "checks", "diff"
-            }
+            read_only_pr = (subcommand == "pr" and remaining
+                            and pr_command_phase(remaining[0]) == "read_only")
             # Raw API requests retain operation-aware readiness analysis.
             # With exactly one literal REST endpoint and no options, gh uses
             # GET. Selector values must also be literal. Tokenization has

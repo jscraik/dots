@@ -426,12 +426,39 @@ class HookHandlerTests(unittest.TestCase):
         self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
         self.assertIn('receipt', output['hookSpecificOutput']['permissionDecisionReason'])
 
+    def test_pr_lifecycle_writes_require_update_receipts(self):
+        commands = (
+            'gh pr comment 12 --body fixture',
+            'gh pr ready 12',
+            'gh pr close 12',
+            'gh pr close 12 --delete-branch',
+            'gh pr reopen https://github.com/example/project/pull/12',
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                output = self.output('pre-tool-use-dispatch.sh',
+                                     {'tool_input': {'command': command}})
+                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+                self.assertIn('update-phase readiness receipt',
+                              output['hookSpecificOutput']['permissionDecisionReason'])
+
+    def test_pr_classifier_denies_unknown_verbs_by_default(self):
+        for command in ('gh pr lock 12', 'gh pr unlock 12',
+                        'gh pr checkout 12', 'gh pr future-write 12', 'gh pr'):
+            with self.subTest(command=command):
+                output = self.output('pre-tool-use-dispatch.sh',
+                                     {'tool_input': {'command': command}})
+                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+                self.assertIn('protected command',
+                              output['hookSpecificOutput']['permissionDecisionReason'])
+
     def test_readiness_hook_rejects_github_target_environment(self):
         cases = (
             ('GH_REPO=other/repo gh pr merge 1', {}),
             ('env GH_HOST=other.example gh pr edit 1', {}),
             ('sudo env GH_REPO=other/repo gh pr review 1', {}),
             ('env -i GH_HOST=other.example gh pr merge 1', {}),
+            ('gh --hostname other.example pr comment 1 --body fixture', {}),
         )
         for command, environment in cases:
             with self.subTest(command=command, environment=environment):
@@ -546,6 +573,30 @@ class HookHandlerTests(unittest.TestCase):
                 output = merge(endpoint)
                 self.assertEqual(output['permissionDecision'], 'deny')
                 self.assertIn(f'command {target} target does not match receipt', output['permissionDecisionReason'])
+
+        def dispatch(command):
+            return self.output('pre-tool-use-dispatch.sh', {
+                'tool_input': {'command': command},
+            })['hookSpecificOutput']
+
+        for command in ('gh pr comment 349 --body fixture',
+                        'gh -Rexample/repo pr ready 349',
+                        'gh pr close 349 --delete-branch -Rexample/repo',
+                        'gh pr reopen https://github.com/example/repo/pull/349'):
+            with self.subTest(command=command):
+                output = dispatch(command)
+                self.assertNotIn('permissionDecision', output)
+                self.assertIn('update readiness receipt is current and passing',
+                              output['additionalContext'])
+        for command, target in (('gh -Rexample/other pr comment 349 --body fixture',
+                                 'repository'),
+                                ('gh pr close 349 -Rexample/other', 'repository'),
+                                ('gh pr ready 350', 'PR')):
+            with self.subTest(command=command):
+                output = dispatch(command)
+                self.assertEqual(output['permissionDecision'], 'deny')
+                self.assertIn(f'command {target} target does not match receipt',
+                              output['permissionDecisionReason'])
 
     def test_pr_inspection_does_not_require_a_mutation_receipt(self):
         for command in ('gh pr view 12 --json state | jq .state',

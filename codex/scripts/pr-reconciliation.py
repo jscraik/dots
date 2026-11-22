@@ -15,6 +15,22 @@ protected_punctuation.update(
 )
 unprotected_punctuation = {value: key for key, value in protected_punctuation.items()}
 
+READ_ONLY_PR_SUBCOMMANDS = frozenset({"checks", "diff", "list", "status", "view"})
+UPDATE_PR_SUBCOMMANDS = frozenset(
+    {"close", "comment", "edit", "merge", "ready", "reopen", "review"}
+)
+
+
+def pr_command_phase(subcommand):
+    """Classify direct gh pr verbs, protecting unknown operations by default."""
+    if subcommand in READ_ONLY_PR_SUBCOMMANDS:
+        return "read_only"
+    if subcommand == "create":
+        return "create"
+    if subcommand in UPDATE_PR_SUBCOMMANDS:
+        return "update"
+    return "unsupported_command"
+
 
 def declared_functions(tokens):
     compound_body = re.compile(r"^(?:[({]|(?:if|for|while|until|case|select|\[\[)$)")
