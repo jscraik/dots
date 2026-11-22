@@ -395,7 +395,9 @@ def run_command(command: list[str], root: Path) -> subprocess.CompletedProcess[s
     )
 
 
-def receipt_for_current_pr(root: Path) -> dict[str, object]:
+def receipt_for_current_pr(
+    root: Path, pr_number: int, repo_slug: str
+) -> dict[str, object]:
     """Consume the projected update receipt and return its validated payload."""
     readiness_script = Path(__file__).resolve().with_name("pr-readiness.py")
     if not readiness_script.is_file():
@@ -411,6 +413,10 @@ def receipt_for_current_pr(root: Path) -> dict[str, object]:
             "--repo-root",
             str(root),
             "--check-receipt",
+            "--expected-pr",
+            str(pr_number),
+            "--expected-repo",
+            repo_slug,
             "--json",
         ],
         root,
@@ -572,7 +578,7 @@ def _execute_snapshot(args: argparse.Namespace) -> dict[str, object]:
     if args.repair:
         receipt = repair_preflight_for_current_pr(root, args.pr)
     else:
-        receipt = receipt_for_current_pr(root)
+        receipt = receipt_for_current_pr(root, args.pr, args.repo)
         if receipt_pr_number(receipt) != args.pr:
             raise RefreshBlocked(
                 "--pr does not match the current receipt-bound pull request"

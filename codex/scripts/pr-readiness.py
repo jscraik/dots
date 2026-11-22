@@ -3566,6 +3566,8 @@ def recheck_hosted_state(
     phase: str,
     head_sha: str,
     *,
+    expected_pr: int | None = None,
+    expected_repo: str | None = None,
     base_branch: str | None = None,
     base_sha: str | None = None,
     review_waiver_record: dict[str, Any] | None = None,
@@ -3573,15 +3575,29 @@ def recheck_hosted_state(
     expected_pr_url: str | None = None,
 ) -> str | None:
     """Re-read hosted PR state when a receipt is consumed, including update receipts."""
-    pr, pr_error = gh_pr(root)
+    if phase == "create":
+        pr, pr_error = gh_pr(root)
+        if pr_error:
+            return f"hosted PR state could not be rechecked: {pr_error}"
+        return "a pull request now exists for the create-phase receipt" if pr is not None else None
+    if type(expected_pr) is not int or expected_pr <= 0:
+        return "non-create receipt recheck requires an explicit PR number"
+    if not isinstance(expected_repo, str) or not expected_repo:
+        return "non-create receipt recheck requires an explicit repository"
+    if not isinstance(expected_pr_url, str) or not expected_pr_url:
+        return "non-create receipt recheck requires a recorded PR URL"
+    pr, pr_error = gh_pr(root, number=expected_pr)
     if pr_error:
         return f"hosted PR state could not be rechecked: {pr_error}"
-    if phase == "create":
-        return "a pull request now exists for the create-phase receipt" if pr is not None else None
     if pr is None:
         return "update-phase receipt requires an existing pull request"
-    if expected_pr_url is not None and pr.get("url") != expected_pr_url:
+    if pr.get("number") != expected_pr:
+        return "hosted PR number changed after the receipt was written"
+    if pr.get("url") != expected_pr_url:
         return "hosted PR URL changed after the receipt was written"
+    _hostname, identity_error = review_repository_host(pr, expected_repo)
+    if identity_error:
+        return f"hosted PR repository identity is invalid: {identity_error}"
     if base_branch is not None and pr.get("baseRefName") != base_branch:
         return "hosted PR base branch changed after the receipt was written"
     if base_sha is not None and pr.get("baseRefOid") != base_sha:
@@ -3637,8 +3653,11 @@ def validate_command_target(
         return f"command head target does not match receipt branch: {expected_head} != {receipt_repo.get('branch')}"
     pull_request_details = payload.get("lanes", {}).get("pull_request", {}).get("details", {})
     receipt_pr_number = pull_request_details.get("number") if isinstance(pull_request_details, dict) else None
-    if expected_pr is not None and receipt_pr_number != expected_pr:
-        return f"command PR target does not match receipt PR: {expected_pr} != {receipt_pr_number}"
+    if expected_pr is not None:
+        if type(expected_pr) is not int or expected_pr <= 0:
+            return "command PR target is invalid"
+        if type(receipt_pr_number) is not int or receipt_pr_number != expected_pr:
+            return f"command PR target does not match receipt PR: {expected_pr} != {receipt_pr_number}"
     if expected_thread_id:
         reconciliation_details = payload.get("lanes", {}).get("reviews", {}).get("details", {})
         allowed_thread_ids = (
@@ -3669,6 +3688,8 @@ def validate_receipt(path: Path, args: argparse.Namespace) -> tuple[dict[str, An
     slug, slug_error = repository_slug(root)
     if slug_error or not slug:
         return {}, slug_error or "repository slug unavailable while validating receipt target"
+    if args.phase in {"review_inspection", "update"} and args.expected_pr is None:
+        return {}, f"{args.phase} receipt consumption requires an explicit command PR target"
     target_error = validate_command_target(
         payload,
         repository=slug,
@@ -3716,13 +3737,23 @@ def validate_receipt(path: Path, args: argparse.Namespace) -> tuple[dict[str, An
         review_details = payload.get("lanes", {}).get("reviews", {}).get("details", {})
         if isinstance(review_details, dict) and isinstance(review_details.get("review_waiver"), dict):
             review_waiver_record = review_details["review_waiver"]
-    recorded_pr_url = payload.get("lanes", {}).get("pull_request", {}).get("details", {}).get("url")
-    if args.phase == "review_inspection" and (not isinstance(recorded_pr_url, str) or not recorded_pr_url):
-        return {}, "inspection receipt does not record its PR URL"
+    pull_request_details = payload.get("lanes", {}).get("pull_request", {}).get("details", {})
+    receipt_pr_number = pull_request_details.get("number") if isinstance(pull_request_details, dict) else None
+    recorded_pr_url = pull_request_details.get("url") if isinstance(pull_request_details, dict) else None
+    if args.phase != "create":
+        if type(receipt_pr_number) is not int or receipt_pr_number <= 0:
+            return {}, "non-create receipt does not record a valid PR number"
+        if not isinstance(recorded_pr_url, str) or not recorded_pr_url:
+            return {}, "non-create receipt does not record its PR URL"
+    recheck_pr_number = (
+        args.expected_pr if args.expected_pr is not None else receipt_pr_number
+    )
     hosted_error = recheck_hosted_state(
         root,
         args.phase,
         head_sha,
+        expected_pr=recheck_pr_number,
+        expected_repo=slug,
         base_branch=str(receipt_repo.get("base_branch")),
         base_sha=str(receipt_repo.get("remote_base_sha")),
         review_waiver_record=review_waiver_record,

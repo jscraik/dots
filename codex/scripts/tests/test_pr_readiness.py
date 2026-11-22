@@ -1856,9 +1856,12 @@ class PrReadinessTests(unittest.TestCase):
                  [{"user": {"login": "chatgpt-codex-connector[bot]"}, "state": "COMMENTED", "body": "later response"}]]
         outputs = [json.dumps({"number": 7, "url": "https://github.com/o/r/pull/7", "reviews": []}), json.dumps({"nameWithOwner": "o/r"}), json.dumps(pages)]
         with patch.object(MODULE, "run_command", side_effect=[MODULE.subprocess.CompletedProcess([], 0, raw, "") for raw in outputs]) as command:
-            pr, error = MODULE.gh_pr(Path.cwd())
+            pr, error = MODULE.gh_pr(Path.cwd(), number=7)
         self.assertIsNone(error)
         self.assertEqual(pr["reviews"], pages[0] + pages[1])
+        self.assertEqual(
+            command.call_args_list[0].args[0][:4], ["gh", "pr", "view", "7"]
+        )
         self.assertEqual(command.call_args.args[0], ["gh", "api", "repos/o/r/pulls/7/reviews", "--paginate", "--slurp"])
 
     def test_review_inventory_rejects_failed_or_malformed_pages(self) -> None:
@@ -2159,6 +2162,7 @@ class PrReadinessTests(unittest.TestCase):
         pr = {
             "headRefOid": head,
             "number": 7,
+            "url": "https://github.com/jscraik/configs/pull/7",
             "reviewDecision": "APPROVED",
             "reviews": [
                 {
@@ -2184,7 +2188,15 @@ class PrReadinessTests(unittest.TestCase):
                     patch.object(MODULE, "repository_slug", return_value=("jscraik/configs", None)),
                     patch.object(MODULE, "run_command", return_value=MODULE.subprocess.CompletedProcess([], 0, json.dumps(response), "")),
                 ):
-                    error = MODULE.recheck_hosted_state(Path.cwd(), phase, head, expected_thread_id=target)
+                    error = MODULE.recheck_hosted_state(
+                        Path.cwd(),
+                        phase,
+                        head,
+                        expected_pr=7,
+                        expected_repo="jscraik/configs",
+                        expected_pr_url=pr["url"],
+                        expected_thread_id=target,
+                    )
                     if errors is None:
                         self.assertIsNone(error)
                     else:
@@ -3663,49 +3675,168 @@ class PrReadinessTests(unittest.TestCase):
                 self.assertNotEqual(MODULE.phase_checks_lane({**pr, "statusCheckRollup": rollup}, head, phase)["status"], "pass")
         self.assertEqual(MODULE.phase_checks_lane(pr, "b" * 40, "review_inspection")["status"], "blocked")
 
+    def test_non_create_recheck_queries_and_binds_the_explicit_pr(self) -> None:
+        head = "a" * 40
+        expected_url = "https://github.com/o/r/pull/7"
+        substituted_pr = {
+            "headRefOid": head,
+            "number": 8,
+            "url": "https://github.com/o/r/pull/8",
+        }
+        with (
+            patch.object(MODULE, "gh_pr", return_value=(substituted_pr, None)) as hosted_pr,
+            patch.object(MODULE, "phase_checks_lane") as checks,
+        ):
+            error = MODULE.recheck_hosted_state(
+                Path.cwd(),
+                "update",
+                head,
+                expected_pr=7,
+                expected_repo="o/r",
+                expected_pr_url=expected_url,
+            )
+
+        self.assertIn("PR number changed", error or "")
+        hosted_pr.assert_called_once_with(Path.cwd(), number=7)
+        checks.assert_not_called()
+
+    def test_non_create_recheck_requires_complete_target_identity(self) -> None:
+        cases = (
+            ({}, "explicit PR number"),
+            ({"expected_pr": 7}, "explicit repository"),
+            (
+                {"expected_pr": 7, "expected_repo": "o/r"},
+                "recorded PR URL",
+            ),
+        )
+        for identity, expected_error in cases:
+            with self.subTest(identity=identity), patch.object(
+                MODULE, "gh_pr"
+            ) as hosted_pr:
+                error = MODULE.recheck_hosted_state(
+                    Path.cwd(), "update", "a" * 40, **identity
+                )
+
+            self.assertIn(expected_error, error or "")
+            hosted_pr.assert_not_called()
+
+    def test_non_create_recheck_rejects_noncanonical_url_identity(self) -> None:
+        head = "a" * 40
+        for url in (
+            "https://github.com/other/repo/pull/7",
+            "http://github.com/o/r/pull/7",
+            "https://github.com/o/r/pull/7?redirected=true",
+        ):
+            pr = {"headRefOid": head, "number": 7, "url": url}
+            with (
+                self.subTest(url=url),
+                patch.object(MODULE, "gh_pr", return_value=(pr, None)),
+                patch.object(MODULE, "phase_checks_lane") as checks,
+            ):
+                error = MODULE.recheck_hosted_state(
+                    Path.cwd(),
+                    "update",
+                    head,
+                    expected_pr=7,
+                    expected_repo="o/r",
+                    expected_pr_url=pr["url"],
+                )
+
+            self.assertIn("repository identity is invalid", error or "")
+            checks.assert_not_called()
+
+    def test_create_recheck_preserves_the_branch_lookup(self) -> None:
+        with patch.object(MODULE, "gh_pr", return_value=(None, None)) as hosted_pr:
+            error = MODULE.recheck_hosted_state(
+                Path.cwd(), "create", "a" * 40
+            )
+
+        self.assertIsNone(error)
+        hosted_pr.assert_called_once_with(Path.cwd())
+
     def test_review_receipt_consumption_allows_pending_ci_but_rechecks_identity(self) -> None:
         head = "a" * 40
         pr = {"headRefOid": head, "number": 7, "state": "OPEN", "url": "https://github.com/o/r/pull/7",
               "statusCheckRollup": [{"name": "test", "status": "IN_PROGRESS"}]}
+        identity = {
+            "expected_pr": 7,
+            "expected_repo": "o/r",
+            "expected_pr_url": pr["url"],
+        }
         for phase in ("review_inspection", "review_reconciliation"):
             with self.subTest(phase=phase), patch.object(MODULE, "gh_pr", return_value=(pr, None)), patch.object(
                 MODULE, "review_reconciliation_lane", return_value={"status": "pass", "details": {"unresolved_thread_ids": ["thread"]}}
             ):
-                self.assertIsNone(MODULE.recheck_hosted_state(Path.cwd(), phase, head))
+                self.assertIsNone(
+                    MODULE.recheck_hosted_state(
+                        Path.cwd(), phase, head, **identity
+                    )
+                )
                 original = pr["statusCheckRollup"]
                 for changed in ([{"name": "test", "status": "COMPLETED", "conclusion": "FAILURE"}],
                                 [{"name": "test", "status": "MYSTERY"}],
                                 original + [{"name": "other", "status": "MYSTERY"}], []):
                     pr["statusCheckRollup"] = changed
-                    outcome = MODULE.recheck_hosted_state(Path.cwd(), phase, head)
+                    outcome = MODULE.recheck_hosted_state(
+                        Path.cwd(), phase, head, **identity
+                    )
                     if phase == "review_inspection":
                         self.assertIsNone(outcome)
                     else:
                         self.assertIn("hosted checks changed", outcome)
                 pr["statusCheckRollup"] = original
-                self.assertIn("head changed", MODULE.recheck_hosted_state(Path.cwd(), phase, "b" * 40))
-                self.assertIn("target review thread", MODULE.recheck_hosted_state(Path.cwd(), "review_reconciliation", head, expected_thread_id="other"))
+                self.assertIn(
+                    "head changed",
+                    MODULE.recheck_hosted_state(
+                        Path.cwd(), phase, "b" * 40, **identity
+                    ),
+                )
+                self.assertIn(
+                    "target review thread",
+                    MODULE.recheck_hosted_state(
+                        Path.cwd(),
+                        "review_reconciliation",
+                        head,
+                        expected_thread_id="other",
+                        **identity,
+                    ),
+                )
 
     def test_update_receipt_rechecks_current_hosted_checks_and_reviews(self) -> None:
         head = "a" * 40
-        pr = {"headRefOid": head}
+        pr = {
+            "headRefOid": head,
+            "number": 7,
+            "url": "https://github.com/o/r/pull/7",
+        }
         with (
             patch.object(MODULE, "gh_pr", return_value=(pr, None)),
             patch.object(MODULE, "checks_lane", return_value={"status": "pass", "evidence": "checks pass"}),
             patch.object(MODULE, "reviews_lane", return_value={"status": "pass", "evidence": "reviews pass"}),
         ):
-            error = MODULE.recheck_hosted_state(Path.cwd(), "update", head)
+            error = MODULE.recheck_hosted_state(
+                Path.cwd(),
+                "update",
+                head,
+                expected_pr=7,
+                expected_repo="o/r",
+                expected_pr_url=pr["url"],
+            )
 
         self.assertIsNone(error)
 
     def test_update_receipt_blocks_when_hosted_base_branch_changes(self) -> None:
         head = "a" * 40
-        pr = {"headRefOid": head, "baseRefName": "release", "baseRefOid": "b" * 40}
+        pr = {"headRefOid": head, "baseRefName": "release", "baseRefOid": "b" * 40,
+              "number": 7, "url": "https://github.com/o/r/pull/7"}
         with patch.object(MODULE, "gh_pr", return_value=(pr, None)):
             error = MODULE.recheck_hosted_state(
                 Path.cwd(),
                 "update",
                 head,
+                expected_pr=7,
+                expected_repo="o/r",
+                expected_pr_url=pr["url"],
                 base_branch="main",
                 base_sha="b" * 40,
             )
@@ -3716,12 +3847,16 @@ class PrReadinessTests(unittest.TestCase):
 
     def test_update_receipt_blocks_when_hosted_base_commit_changes(self) -> None:
         head = "a" * 40
-        pr = {"headRefOid": head, "baseRefName": "main", "baseRefOid": "c" * 40}
+        pr = {"headRefOid": head, "baseRefName": "main", "baseRefOid": "c" * 40,
+              "number": 7, "url": "https://github.com/o/r/pull/7"}
         with patch.object(MODULE, "gh_pr", return_value=(pr, None)):
             error = MODULE.recheck_hosted_state(
                 Path.cwd(),
                 "update",
                 head,
+                expected_pr=7,
+                expected_repo="o/r",
+                expected_pr_url=pr["url"],
                 base_branch="main",
                 base_sha="b" * 40,
             )
@@ -3732,7 +3867,11 @@ class PrReadinessTests(unittest.TestCase):
 
     def test_update_receipt_blocks_when_hosted_checks_change(self) -> None:
         head = "a" * 40
-        pr = {"headRefOid": head}
+        pr = {
+            "headRefOid": head,
+            "number": 7,
+            "url": "https://github.com/o/r/pull/7",
+        }
         with (
             patch.object(MODULE, "gh_pr", return_value=(pr, None)),
             patch.object(
@@ -3741,13 +3880,21 @@ class PrReadinessTests(unittest.TestCase):
                 return_value={"status": "blocked", "evidence": "tests are still pending"},
             ),
         ):
-            error = MODULE.recheck_hosted_state(Path.cwd(), "update", head)
+            error = MODULE.recheck_hosted_state(
+                Path.cwd(),
+                "update",
+                head,
+                expected_pr=7,
+                expected_repo="o/r",
+                expected_pr_url=pr["url"],
+            )
 
         self.assertIn("hosted checks changed", error or "")
 
     def test_review_reconciliation_recheck_does_not_require_approval(self) -> None:
         head = "a" * 40
-        pr = {"headRefOid": head, "number": 7}
+        pr = {"headRefOid": head, "number": 7,
+              "url": "https://github.com/o/r/pull/7"}
         with (
             patch.object(MODULE, "gh_pr", return_value=(pr, None)),
             patch.object(MODULE, "checks_lane", return_value={"status": "pass", "evidence": "checks pass"}),
@@ -3758,7 +3905,14 @@ class PrReadinessTests(unittest.TestCase):
             ),
             patch.object(MODULE, "reviews_lane") as final_reviews,
         ):
-            error = MODULE.recheck_hosted_state(Path.cwd(), "review_reconciliation", head)
+            error = MODULE.recheck_hosted_state(
+                Path.cwd(),
+                "review_reconciliation",
+                head,
+                expected_pr=7,
+                expected_repo="o/r",
+                expected_pr_url=pr["url"],
+            )
 
         self.assertIsNone(error)
         final_reviews.assert_not_called()

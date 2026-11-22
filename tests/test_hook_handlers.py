@@ -527,7 +527,10 @@ class HookHandlerTests(unittest.TestCase):
             'repo': {'branch': git('branch', '--show-current'), 'head_sha': head,
                      'base_branch': 'main', 'base_sha': head,
                      'remote_base_sha': head, 'remote_head_sha': head},
-            'lanes': {'pull_request': {'details': {'number': 349}},
+            'lanes': {'pull_request': {'details': {
+                          'number': 349,
+                          'url': 'https://github.com/example/repo/pull/349',
+                      }},
                       'scope': {'details': {'declared_paths': []}}},
             'receipt': {'scope_digest': hashlib.sha256(b'\n').hexdigest()},
         }))
