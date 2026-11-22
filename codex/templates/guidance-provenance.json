@@ -543,8 +543,8 @@
       "path": "codex/templates/rules/foundation.rules",
       "source_path": "codex/rules/foundation.rules",
       "source_sha256": "2e6f454ad1ddfff4fd16d0bb0668bdb03ba89f5c38906a043ea84a28b8daf89c",
-      "decision": "Unchanged policy; whole-string fixture paths for the two authentication canaries",
-      "candidate_sha256": "2e6f454ad1ddfff4fd16d0bb0668bdb03ba89f5c38906a043ea84a28b8daf89c"
+      "decision": "Harden raw Git status by leaving repository-selected fsmonitor execution to sandbox and approval policy; preserve the remaining foundation allows",
+      "candidate_sha256": "085f8fcfb9467e87b3c543e766d7b3cf9428981ade4b1d8efd2598c634f8c413"
     },
     {
       "path": "codex/templates/rules/guard.rules",
@@ -585,9 +585,9 @@
     {
       "path": "codex/scripts/validate-execpolicy-rules.py",
       "source_sha256": "dba70e04d94ab617ca5b59e8bf02a757d87d45a62b04d504077e374c79e60aea",
-      "decision": "Preserve all 93 native rule cases, hygiene, alias, timeout and retry checks; fixture-only paths, exact managed constraints and required CLI",
-      "candidate_sha256": "52209629ed9bd11a4343889494a7605a87244e58b70b17aef20342752f8af6e8",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks."
+      "decision": "Preserve all 94 native rule cases, including raw Git status fallback, plus hygiene, alias, timeout and retry checks; fixture-only paths, exact managed constraints and required CLI",
+      "candidate_sha256": "ffd7c9293008583d80024f7cda1ce970880b0182aebeae69f4198e3d149b7e06",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks. Leave raw Git status approval-governed because repository-local fsmonitor is program-valued."
     },
     {
       "path": "AGENTS.md",
@@ -599,9 +599,9 @@
     {
       "path": "codex/instructions/migration-scope.md",
       "origin": "local migration adaptation",
-      "decision": "Explicit public scope, serialization and proving checks; no new live authority",
-      "candidate_sha256": "a8ad0c51e80b11398915be16be50a9e912ba7dbc429afb47f4030238fcfe78bf",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. State installation authority separately from each machine's verified active or rollback state. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+      "decision": "Explicit public scope, serialization and proving checks; raw Git status fallback prevents repository-selected fsmonitor from receiving automatic approval; no new live authority",
+      "candidate_sha256": "b5194ba415d88dc71dd3b602786bdd8d4db7a1c740bc5b0ceae9a3d2d1d5aca7",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. State installation authority separately from each machine's verified active or rollback state. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks. Record the local hardening that supersedes the obsolete raw Git status allow."
     },
     {
       "path": "scripts/generate-codex-controls.py",
@@ -618,8 +618,8 @@
     {
       "path": "tests/test_public_controls.py",
       "origin": "local migration adaptation",
-      "decision": "Explicit public scope, serialization and proving checks; no new live authority",
-      "candidate_sha256": "2691707d1bbb0755d14f0aea6e54e3ffe13b2c7f8aa678ed58a883299b6868f0"
+      "decision": "Explicit public scope, serialization and all 94 native policy checks, including raw Git status fallback; no new live authority",
+      "candidate_sha256": "791ff354f9d44bb4b58ea8694f958b5e7cd8c8b7fed1bbef599cc2060aafb524"
     }
   ]
 }
