@@ -323,9 +323,10 @@
         "Reuse the validated Python launcher in the nested missing-Computer-Use home",
         "Use the imported Path class in the native hook trust probe",
         "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
+        "Verify that required names matching launcher state fail when missing and retain their values when present.",
         "Exercise explicit push destinations while preserving the existing force and bypass controls."
       ],
-      "candidate_sha256": "a368a5cdb3d35c29995ddfff6a425de2aaa2a2cf837f62680223f986bee70758"
+      "candidate_sha256": "be0f0c8d7457fae501caac13d5bc670d123988a3a043a9190429af4ea3fc7af9"
     },
     {
       "path": "codex/README.md",
@@ -752,9 +753,10 @@
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
         "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection.",
         "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository.",
-        "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance."
+        "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance.",
+        "Report a supersession close on a head outside the receipt using the mutation response or readback."
       ],
-      "candidate_sha256": "20784c4191da95586ecb6344446573d4c6cf69d38d2a942538a5257a13490b73"
+      "candidate_sha256": "1634baf3d8964a7b1d7420371d6e3e69e7be26960f5cbddb85b404df9d1b8694"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
@@ -862,9 +864,10 @@
         "Add missing-check and dismissed historical-review scenarios from the coordinated follow-up.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
         "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection.",
-        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
+        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
+        "Exercise supersession close races and verify the blocked CLI result."
       ],
-      "candidate_sha256": "f8f5854a80f8a68909643861bf6b60472655077e1658c76b3b28c9127fc1249d"
+      "candidate_sha256": "90647b2089f15a9a8f879d1424668088b3b37ae3f173563459be47a1dcc3e846"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",

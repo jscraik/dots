@@ -354,31 +354,23 @@ for env_name in HOME TMPDIR USER LOGNAME SHELL LANG LC_ALL LC_CTYPE TERM CODEX_H
   fi
 done
 
-required_count="$(required_env_count)"
-declare -a child_launch_args=("$required_count" "${#child_runtime_env[@]}")
-if [[ "$required_count" -gt 0 ]]; then
+declare -a child_launch_args=("$(required_env_count)")
+if [[ "${child_launch_args[0]}" -gt 0 ]]; then
   child_launch_args+=("${required_env[@]}")
 fi
 child_launch_args+=("${child_runtime_env[@]}" "$@")
 
 exec "$op_bin" run "${run_source_args[@]}" -- /bin/bash -p -c '
   set -euo pipefail
-  required_count="$1"
-  runtime_count="$2"
-  shift 2
-  declare -a child_env=()
-  for ((idx=0; idx<required_count; idx++)); do
-    env_name="$1"
-    shift
-    if [[ -z "${!env_name:-}" ]]; then
-      printf "run-auth-backed.sh: required env var is missing after auth load: %s\n" "$env_name" >&2
+  # Keep bookkeeping positional so it cannot shadow a requested name.
+  # Arguments are the remaining count and names, then assignments and command.
+  while (( $1 > 0 )); do
+    if [[ -z "${!2:-}" ]]; then
+      printf "run-auth-backed.sh: required env var is missing after auth load: %s\n" "$2" >&2
       exit 67
     fi
-    child_env+=("$env_name=${!env_name}")
+    set -- "$(( $1 - 1 ))" "${@:3:$1 - 1}" "$2=${!2}" "${@:$1 + 2}"
   done
-  for ((idx=0; idx<runtime_count; idx++)); do
-    child_env+=("$1")
-    shift
-  done
-  exec /usr/bin/env -i -- "${child_env[@]}" "$@"
+  shift
+  exec /usr/bin/env -i -- "$@"
 ' bash "${child_launch_args[@]}"

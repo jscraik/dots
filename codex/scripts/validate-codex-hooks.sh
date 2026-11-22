@@ -815,6 +815,22 @@ auth_multi_output="$(env -u CIRCLECI_CLI_TOKEN -u OLLAMA_API_KEY -u CODEX_HOME -
   chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
   exit 1
 }
+for auth_required_name in required_count runtime_count; do
+  auth_required_status=0
+  auth_required_output="$(env -u "$auth_required_name" -u CODEX_HOME -u CODEX_AUTH_OP_BIN -u CODEX_AUTH_TEST_MODE HOME="$auth_canary_home" bash "$auth_canary_wrapper" --env-file "$auth_canary_home/.codex/.env" --require-env "$auth_required_name" -- /bin/true 2>&1)" || auth_required_status=$?
+  if [[ "$auth_required_status" != 67 || "$auth_required_output" != "run-auth-backed.sh: required env var is missing after auth load: $auth_required_name" ]]; then
+    echo "[validate-codex-hooks] missing required variable $auth_required_name should exit 67 (got $auth_required_status)" >&2
+    chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
+    exit 1
+  fi
+done
+if ! env -u CODEX_HOME -u CODEX_AUTH_OP_BIN -u CODEX_AUTH_TEST_MODE HOME="$auth_canary_home" required_count='first fixture value' runtime_count='second fixture value' bash "$auth_canary_wrapper" --env-file "$auth_canary_home/.codex/.env" --require-env required_count --require-env runtime_count -- /bin/bash -c '
+  [[ "$required_count" == "first fixture value" && "$runtime_count" == "second fixture value" ]]
+'; then
+  echo "[validate-codex-hooks] launcher should preserve requested values that match its former state names" >&2
+  chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
+  exit 1
+fi
 auth_unscoped_output="$(env -u CIRCLECI_CLI_TOKEN -u OLLAMA_API_KEY -u CODEX_HOME -u CODEX_AUTH_OP_BIN -u CODEX_AUTH_TEST_MODE HOME="$auth_canary_home" bash "$auth_canary_wrapper" --env-file "$auth_canary_home/.codex/.env" -- /bin/bash -c '
   set -euo pipefail
   [[ -z "${CIRCLECI_CLI_TOKEN+x}" && -z "${OLLAMA_API_KEY+x}" ]]

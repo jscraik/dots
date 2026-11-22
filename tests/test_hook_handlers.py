@@ -882,6 +882,26 @@ class HookHandlerTests(unittest.TestCase):
         self.assertNotIn('synthetic-secret-sentinel', result.stdout + result.stderr)
         self.assertEqual(path.read_text(), 'synthetic-secret-sentinel')
 
+    def test_post_tool_distinguishes_unclassified_failures_with_the_same_exit_code(self):
+        outputs = ['x' * 240 + suffix for suffix in ('fixture-detail-one', 'fixture-detail-two')]
+        advisories = [
+            self.output(
+                'post-tool-use-review.sh',
+                {'turn_id': f'turn-{index}', 'tool_response': {'exit_code': 1, 'stderr': detail}},
+            )
+            for index, detail in enumerate((*outputs, outputs[0]))
+        ]
+        self.assertIn('hookSpecificOutput', advisories[0])
+        self.assertEqual(advisories[1], advisories[0])
+        self.assertEqual(advisories[2], {'continue': True})
+
+        receipt = self.fixture.runtime / 'usage-data/hook-events.jsonl'
+        records = receipt.read_text().splitlines()
+        self.assertEqual([json.loads(record)['decision'] for record in records],
+                         ['warn', 'warn', 'suppressed_duplicate'])
+        for detail in outputs:
+            self.assertNotIn(detail[240:], json.dumps(advisories) + ''.join(records))
+
     def test_post_tool_failure_omits_raw_output_from_advisory_and_receipt(self):
         cases = [
             (
