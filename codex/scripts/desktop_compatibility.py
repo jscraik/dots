@@ -11,6 +11,17 @@ import tomllib
 from pathlib import Path
 
 
+MAX_REVIEW_BYTES = 2 * 1024 * 1024
+
+
+def review_path(state: Path, digest: str) -> Path:
+    """Select an immutable proposal without changing older review pins."""
+    if not isinstance(digest, str) or re.fullmatch(r'[0-9a-f]{64}', digest) is None:
+        raise ValueError('Invalid Desktop review digest')
+    addressed = state / f'desktop-review-{digest}.json'
+    return addressed if os.path.lexists(addressed) else state / 'desktop-review.json'
+
+
 PATHS = (
     ('model',),
     ('model_reasoning_effort',),
@@ -445,15 +456,17 @@ def overlay(original: str, changes: list) -> str:
 def load(path: Path, digest: str, *, state: Path, plan_digest: str,
          plan: dict) -> dict:
     """Validate the private review pin and recompute every derived field."""
+    if path == state / 'desktop-review.json':
+        path = review_path(state, digest)
     info = path.lstat()
     if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
             or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1
-            or info.st_size > 2 * 1024 * 1024):
+            or info.st_size > MAX_REVIEW_BYTES):
         raise ValueError('Desktop review must be a private unaliased regular file')
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     with os.fdopen(fd, 'rb') as stream:
         opened = os.fstat(stream.fileno())
-        raw = stream.read(2 * 1024 * 1024 + 1)
+        raw = stream.read(MAX_REVIEW_BYTES + 1)
     if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino) or sha(raw) != digest:
         raise ValueError('Desktop review digest or generation changed')
     def unique(pairs):

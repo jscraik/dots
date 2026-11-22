@@ -29,6 +29,9 @@ restart. The ordinary check and rollback continue to reject those newer bytes.
 The isolated compatibility candidate adds `prepare-desktop-review` to the
 installer. It writes a private, create-once proposal in installation state and
 returns its SHA-256; it does not approve the proposal or change runtime files.
+Later proposals use digest-named files, preserving earlier proposals and pins.
+The explicit digest selects the reviewed snapshot; a changed runtime still
+invalidates an older snapshot. Oversized proposals are rejected before writing.
 Only twelve named Desktop slots and newly granted native user-hook consent
 for this installation may differ. All remaining parsed policy must
 agree with the installed baseline, and every other managed target must match.

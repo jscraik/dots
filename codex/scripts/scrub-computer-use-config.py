@@ -9,7 +9,6 @@ require_policy_scope()
 import argparse  # noqa: E402
 import importlib.util  # noqa: E402
 import json  # noqa: E402
-import os  # noqa: E402
 import tomllib  # noqa: E402
 from pathlib import Path  # noqa: E402
 
@@ -136,8 +135,9 @@ def main() -> int:
                 deployment.ROOT / 'codex/scripts/desktop_compatibility.py')
             desktop = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(desktop)
-            pending = Path(deployment.context()['state_dir']) / 'desktop-review.json'
-            if desktop.requires_preservation(parsed) or os.path.lexists(pending):
+            state = Path(deployment.context()['state_dir'])
+            pending = any(state.glob('desktop-review*.json'))
+            if desktop.requires_preservation(parsed) or pending:
                 raise ValueError('Packaged Desktop registration requires preservation review')
         scrubbed, removed = scrub_forbidden_notify(original)
     except Exception:  # noqa: BLE001 -- MIG-HELPER-1: fail closed without exposing parser payloads.

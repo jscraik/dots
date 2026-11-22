@@ -453,6 +453,68 @@ class InstallationRouteTests(unittest.TestCase):
         self.success(self.run_cli('rollback', *arguments))
         self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], {})
 
+    def test_native_consent_can_be_reviewed_again_on_the_same_installation(self):
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        path = self.runtime / 'config.toml'
+        data = tomllib.loads(path.read_text())
+        key = 'user:' + str(self.runtime / 'hooks.json') + ':pre_tool_use:0:0'
+        data['hooks'] = {'state': {key: {'trusted_hash': 'sha256:' + 'a' * 64}}}
+        path.write_text(GEN.toml_document(data))
+        first = self.success(self.operation('prepare-desktop-review', digest))['review_sha256']
+        original_proposal = (self.state / 'desktop-review.json').read_bytes()
+        self.success(self.run_cli('check', '--state-dir', self.state,
+            '--plan-digest', digest, '--desktop-review-sha256', first))
+        data['hooks']['state'] = {}
+        path.write_text(GEN.toml_document(data))
+        revoked = path.read_bytes()
+        second = self.success(self.operation('prepare-desktop-review', digest))['review_sha256']
+        self.assertNotEqual(first, second)
+        self.assertEqual(self.success(self.operation('prepare-desktop-review', digest))['review_sha256'], second)
+        self.assertEqual((self.state / 'desktop-review.json').read_bytes(), original_proposal)
+        arguments = ('--state-dir', self.state, '--plan-digest', digest,
+                     '--desktop-review-sha256', second)
+        self.success(self.run_cli('check', *arguments))
+        self.assertNotEqual(self.run_cli('check', '--state-dir', self.state,
+            '--plan-digest', digest, '--desktop-review-sha256', first).returncode, 0)
+        self.assertEqual(path.read_bytes(), revoked)
+        self.success(self.run_cli('rollback', *arguments))
+        self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], {})
+        self.assertEqual((self.state / 'desktop-review.json').read_bytes(), original_proposal)
+
+    def test_digest_named_pending_review_blocks_both_repair_helpers(self):
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        config = self.runtime / 'config.toml'
+        before = config.read_bytes()
+        (self.state / ('desktop-review-' + 'a' * 64 + '.json')).write_text('{}')
+        self.assertFalse((self.state / 'desktop-review.json').exists())
+        for name in ('repair-runtime-config-drift.py', 'scrub-computer-use-config.py'):
+            result = subprocess.run([sys.executable, '-B', str(self.payload / 'codex/scripts' / name),
+                '--config-path', str(config), '--repair', '--json'], cwd=self.payload,
+                env=self.installed_env(), capture_output=True, text=True, timeout=30, check=False)
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(config.read_bytes(), before)
+
+    def test_oversized_desktop_review_leaves_no_proposal_and_can_retry(self):
+        path = self.runtime / 'config.toml'
+        path.unlink()
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        data = tomllib.loads(path.read_text())
+        key = 'user:' + str(self.runtime / 'hooks.json') + ':pre_tool_use:0:0'
+        data['hooks'] = {'state': {key: {'trusted_hash': 'sha256:' + 'a' * 64}}}
+        valid = GEN.toml_document(data)
+        path.write_text(valid + '\n#' + 'x' * (2 * 1024 * 1024) + '\n')
+        before = path.read_bytes()
+        self.assertNotEqual(self.operation('prepare-desktop-review', digest).returncode, 0)
+        self.assertEqual(list(self.state.glob('desktop-review*.json')), [])
+        self.assertEqual(path.read_bytes(), before)
+        path.write_text(valid)
+        pin = self.success(self.operation('prepare-desktop-review', digest))['review_sha256']
+        self.success(self.run_cli('check', '--state-dir', self.state,
+            '--plan-digest', digest, '--desktop-review-sha256', pin))
+
     def test_first_install_native_consent_without_previous_config(self):
         (self.runtime / 'config.toml').unlink()
         self.before = self.snapshot()

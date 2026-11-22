@@ -15,7 +15,7 @@ import json  # noqa: E402
 import math  # noqa: E402
 import os  # noqa: E402
 import re  # noqa: E402
-import shutil  # noqa: E402
+import stat  # noqa: E402
 import subprocess  # noqa: E402
 import sys  # noqa: E402
 import tempfile  # noqa: E402
@@ -1279,10 +1279,15 @@ def _sha256_and_bytes(path: Path) -> tuple[str, int]:
             size += len(chunk)
     return (digest.hexdigest(), size)
 
-def _create_backup(config_path: Path, backup_path: Path) -> tuple[str, int]:
+def _create_backup(config_path: Path, backup_path: Path, *, expected: bytes) -> tuple[str, int]:
     """Create a private, exclusive backup before replacing the runtime file."""
     if config_path.is_symlink() or not config_path.is_file():
         raise OSError(f'runtime config must be a regular file: {config_path}')
+    source_fd = os.open(config_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(source_fd, 'rb') as source:
+        source_info = os.fstat(source.fileno())
+        if not stat.S_ISREG(source_info.st_mode) or source.read(len(expected) + 1) != expected:
+            raise OSError('runtime config changed before backup; retry from fresh state')
     backup_path = backup_path.expanduser()
     backup_path.parent.mkdir(parents=True, exist_ok=True)
     if backup_path.is_symlink():
@@ -1290,13 +1295,12 @@ def _create_backup(config_path: Path, backup_path: Path) -> tuple[str, int]:
     fd = os.open(backup_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 384)
     created = os.fstat(fd)
     try:
-        with os.fdopen(fd, 'wb') as target, config_path.open('rb') as source:
-            shutil.copyfileobj(source, target)
+        with os.fdopen(fd, 'wb') as target:
+            target.write(expected)
             target.flush()
             os.fsync(target.fileno())
-        source_digest, source_bytes = _sha256_and_bytes(config_path)
         backup_digest, backup_bytes = _sha256_and_bytes(backup_path)
-        if (source_digest, source_bytes) != (backup_digest, backup_bytes):
+        if (hashlib.sha256(expected).hexdigest(), len(expected)) != (backup_digest, backup_bytes):
             raise OSError(f'backup digest/size mismatch: {backup_path}')
         return (backup_digest, backup_bytes)
     except BaseException:
@@ -1418,8 +1422,9 @@ def main(argv: list[str] | None=None) -> int:
             deployment.ROOT / 'codex/scripts/desktop_compatibility.py')
         desktop = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(desktop)
-        pending = Path(deployment.context()['state_dir']) / 'desktop-review.json'
-        if runtime is None or desktop.requires_preservation(runtime) or os.path.lexists(pending):
+        state = Path(deployment.context()['state_dir'])
+        pending = any(state.glob('desktop-review*.json'))
+        if runtime is None or desktop.requires_preservation(runtime) or pending:
             _emit(_payload(status='blocked', path=config_path,
                 reason='desktop_registration_preservation_required',
                 error='Review Desktop registration before repair; no config was changed'), args.json)
@@ -1480,7 +1485,7 @@ def main(argv: list[str] | None=None) -> int:
     backup_bytes: int | None = None
     if args.backup_path is not None:
         try:
-            backup_sha256, backup_bytes = _create_backup(config_path, args.backup_path)
+            backup_sha256, backup_bytes = _create_backup(config_path, args.backup_path, expected=original_bytes)
         except OSError as exc:
             payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason='config_backup_failed', error=str(exc), backup_path=args.backup_path)
             _emit(payload, args.json)

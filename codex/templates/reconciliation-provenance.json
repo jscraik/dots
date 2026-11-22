@@ -36,7 +36,7 @@
     {
       "path": "README.md",
       "prior_candidate_sha256": "ced157af36e675f8d6c890a5b04a70805e0835432efc957efc85c92f1e98ab01",
-      "candidate_sha256": "3bb3545f2785b611692a9826e40cba8f3530bba091562037e1ba7e16b67a5cd2",
+      "candidate_sha256": "eb968cf949bcc803e82dd23325bb952ef1a2df347df2fe8e9e9e7062f1ecdc78",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Document the native distinction between on-disk hook consent and loaded-thread acceptance, verified by a disposable native regression without a model turn. Document the two additional exact native app metadata names; preserve the existing installation and permission boundaries. Document app-bundled CLI validation and isolated pinned dependency setup. Require an exact reviewed source commit and document clean-checkout, immutable-tree packaging and private provenance receipts. Document complete unittest-discovered test-case partitioning across two small containers after the installation module approached the job limit; retain security checks and the separate hosted-timing acceptance requirement."
     },
     {

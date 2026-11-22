@@ -1352,13 +1352,18 @@ def prepare_desktop_review(state, digest, *, before_write=None):
         'rollback': compat.reviewed_rollback(original, installed, changes,
                                              baseline_kind=original_record['kind']), 'changes': changes}
     raw = (json.dumps(proposal, sort_keys=True, indent=2) + '\n').encode()
+    if len(raw) > compat.MAX_REVIEW_BYTES:
+        raise ValueError('Desktop review exceeds the private review size limit')
     if {name: describe(runtime / name) for name in plan['before']} != current:
         raise ValueError('Managed state changed while proposing Desktop compatibility')
     if before_write is not None:
         before_write(proposal)
     review_path = state / 'desktop-review.json'
-    # Create once. Never replace an existing proposal or approve on a read path.
-    write(review_path, raw)
+    if os.path.lexists(review_path):
+        review_path = state / f'desktop-review-{compat.sha(raw)}.json'
+    # Each proposal is immutable. Re-review never replaces an accepted pin.
+    if not os.path.lexists(review_path):
+        write(review_path, raw)
     compat.load(review_path, compat.sha(raw), state=state, plan_digest=digest, plan=plan)
     return {'schema_version': 1, 'status': 'proposal_only', 'review_sha256': compat.sha(raw),
             'changed_paths': [row['path'] for row in changes]}
@@ -1685,8 +1690,11 @@ def prepare_formatting_review(args, state, *, presentation=False):
             seen.add(str(prior_state))
             paths.append(descriptor)
             paths.extend(prior_state / name for name in (
-                'plan.json', 'result.json', 'desktop-review.json', 'backups/config.toml',
+                'plan.json', 'result.json', 'backups/config.toml',
                 'payload/codex/.deployment.json'))
+            compat = inspector.module('formatting_prior_desktop',
+                inspector.ROOT / 'codex/scripts/desktop_compatibility.py')
+            paths.append(compat.review_path(prior_state, prior['review_sha256']))
             prior_files = inspector.SCOPE.fingerprint(prior_state / 'payload')
             prior_marker = inspector.read_json(prior_state / 'payload/codex/.deployment.json')
             if (prior_files != prior_marker['files'] or

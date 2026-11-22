@@ -264,6 +264,34 @@ enabled = false
         self.assertEqual(tomllib.loads(runtime.read_text()), tomllib.loads(original_runtime.decode()))
         self.success(fixture.script('validate-codex-config.py'))
 
+    def test_consent_saved_during_validation_cannot_be_copied_to_backup(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        runtime = fixture.runtime / 'config.toml'
+        original = runtime.read_text().replace('approval_policy = "on-request"', 'approval_policy = "never"', 1)
+        runtime.write_text(original)
+        backup = fixture.home / 'racing-backup.toml'
+        child = '''import importlib.util,sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]).parent))
+spec = importlib.util.spec_from_file_location("racing_repair", sys.argv[1])
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+validate = module._validate_runtime_snapshot
+def save_consent(text):
+    validate(text)
+    with Path(sys.argv[2]).open("a") as stream:
+        stream.write("\\n[hooks.state.racing]\\nenabled = true\\ntrusted_hash = 'fixture'\\n")
+module._validate_runtime_snapshot = save_consent
+raise SystemExit(module.main(["--config-path",sys.argv[2],"--repair","--json","--backup-path",sys.argv[3]]))
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/repair-runtime-config-drift.py'), str(runtime), str(backup)],
+            env=fixture.env, cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(result.stdout, result.stderr)
+        self.assertFalse(backup.exists(), result.stdout)
+        self.assertTrue(tomllib.loads(runtime.read_text())['hooks']['state']['racing']['enabled'])
+
     def test_exchange_failure_keeps_last_runtime_and_backup(self):
         fixture = self.fixture
         self.success(fixture.project())
