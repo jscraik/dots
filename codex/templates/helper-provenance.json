@@ -284,7 +284,7 @@
         "Original check selection and assertions retained; disposable admission and required helper inventory before execution",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "63b24f7ec67877edeb222a21d5e401dc006d9a4b435fcfdb8f0949eee07a183b"
+      "candidate_sha256": "6c59ca8ed63fbba562d7038bc1b45425e7cb56ba0da6c44898838f218ae57b8c"
     },
     {
       "path": "codex/scripts/codex-preflight.sh",
@@ -293,7 +293,7 @@
         "fixture admission before shell helper execution",
         "public local paths"
       ],
-      "candidate_sha256": "806c750dd648c49b33ed140890104341c7f676a7e33579fd52e597de490b1ea4"
+      "candidate_sha256": "2512f2ff529460dfe43f951bd4717a7232a2ce3f9342a3d5c8f49dcce7162254"
     },
     {
       "path": "codex/scripts/with-writable-tmpdir.sh",
@@ -302,7 +302,7 @@
         "fixture admission before shell helper execution",
         "public local paths"
       ],
-      "candidate_sha256": "7d39a2af545edc210d19a3c1b80832e426b1b74dfc3d3dbce95a87a6e81c649d"
+      "candidate_sha256": "bce85ccb2c620c0cec80ccf25793ef6240cd865194ac15ac94dfbf20feda66df"
     },
     {
       "path": "codex/scripts/validate-auto-review-scope.sh",
@@ -311,7 +311,7 @@
         "fixture admission before shell helper execution",
         "public local paths"
       ],
-      "candidate_sha256": "e416c176fea381a74572d1fa9101f892fe2948ecfe95c65b4ba44086921a2ae1"
+      "candidate_sha256": "8b4fd44010c314e56b505eb14b6d5876817d9fede834dcfaf7f4fb4aa7f0db47"
     },
     {
       "path": "codex/scripts/validate-codex-hooks.sh",
@@ -321,7 +321,7 @@
         "Reuse the validated Python launcher in the nested missing-Computer-Use home",
         "Use the imported Path class in the native hook trust probe"
       ],
-      "candidate_sha256": "d386f80c76887de9752cec5a4b071fcddbc1c1e27d57b44888f600be9810d651"
+      "candidate_sha256": "af6eea24174823494f68f5ba73b492aac17f18c0e797d184435051048cd0955d"
     },
     {
       "path": "codex/README.md",
@@ -711,7 +711,7 @@
         "Bind only generic harness resource placeholders, preserving tool commands as data",
         "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "ff5ae651c06ef4210d2658d8081a8494c8742b0efa9c5b8b8aaf5af7630a9cdd"
+      "candidate_sha256": "50ae36a4abbf172cfb91420c511d18b7174d2540c211d76682be04ff89fba9c4"
     },
     {
       "path": "codex/scripts/core-hook-fixture-manifest.py",
@@ -731,7 +731,7 @@
       ],
       "source_sha256": "218b9f4398ef58a8604855a5ff82456b80cd33204b27b950146dede8002acb7a",
       "source_path": "codex/scripts/tests/runtime_config_fixture.py",
-      "candidate_sha256": "0b16691da99b8b23539879bee5f6be43070f1c6d159a665f6b888fa64c3fda6b"
+      "candidate_sha256": "e04d0b3d579c141a63b2ffc84b5531523cd60e856be909b9413e75e5d27e391e"
     },
     {
       "path": "codex/scripts/pr-readiness.py",
@@ -818,7 +818,7 @@
         "synthetic fixture resources; original selected checks retained",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
       ],
-      "candidate_sha256": "dcfcf4601197ee0b32cc9fb71f084097e659ed34e0234d506b24ff4f27ae36dd"
+      "candidate_sha256": "68ce14cee5888454e61e68d3e2df14fec608f3c0187e0a93341f4a54f16871da"
     },
     {
       "path": "codex/scripts/tests/test_pr_coderabbit_structured.py",

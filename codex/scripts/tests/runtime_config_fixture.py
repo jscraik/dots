@@ -1,5 +1,6 @@
 """Build a second canonical fixture using public code and generated test policy."""
 
+import importlib.util
 import json
 import os
 import re
@@ -8,7 +9,11 @@ import subprocess
 import tomllib
 from pathlib import Path
 
-from helper_fixture_scope import admit_file, output, resource
+SPEC = importlib.util.spec_from_file_location(
+    'runtime_fixture_scope', Path(__file__).resolve().parents[1] / 'helper_fixture_scope.py')
+SCOPE = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(SCOPE)
+admit_file, output, resource = SCOPE.admit_file, SCOPE.output, SCOPE.resource
 
 
 def create_runtime_checkout(repo: Path, source_root: Path) -> None:

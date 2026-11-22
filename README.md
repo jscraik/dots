@@ -78,6 +78,16 @@ pins in `requirements/codex-validation.txt`. The instruction-pointer checker
 uses the already-declared `markdown-it-py==4.2.0`. No online bootstrap or new
 dependency is added by this migration.
 
+Without the separately administered `/opt/dots-hook-tools` installation, local
+installation-route operator tests report an explicit skipped prerequisite.
+Component tests still run; skipped operator tests do not prove installation or
+protected-runtime acceptance. Disposable CI provisions and validates the real
+toolchain first and sets `DOTS_REQUIRE_PROTECTED_TOOLCHAIN=1`, so a missing
+prerequisite fails that lane instead of producing skipped operator coverage.
+CI first runs the three regressions observed failing before the previous timeout,
+then the complete suite. It stops at the first failure to preserve its traceback;
+a passing run still executes the complete suite.
+
 ```sh
 python3 -m unittest discover -s tests -v
 ruff check --no-cache .
@@ -124,6 +134,65 @@ containment; session and credential stores remain protected.
 
 ## First-machine installation candidate
 
+### Protected hook tools prerequisite
+
+Prepare the complete Python, jq and GitHub CLI payload on its native platform
+using the reviewed artifact lock. Supported targets are macOS ARM64 and Linux
+amd64. The protected bootstrap requires `/usr/bin/python3` version 3.9 or newer
+(Command Line Tools Python on macOS). Installation preparation checks this
+route before publishing hooks. Preparation uses disposable storage and installs the hash-locked Python
+validation dependencies inside that payload.
+
+```sh
+python3 -I codex/scripts/prepare-hook-toolchain.py --platform darwin-arm64 --output /tmp/dots-hook-tools
+python3 -I codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-tools --inspect
+```
+
+Review the payload and the printed inventory digest before the separate admin
+step. Supply that exact digest as `REVIEWED_DIGEST`. Provisioning requires
+system Python with isolated mode and publishes a root-owned version under
+`/opt/dots-hook-tools`. `--select` explicitly selects that version for hooks.
+
+```sh
+sudo /usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-tools --reviewed-sha256 REVIEWED_DIGEST --select
+```
+
+Complete this prerequisite before preparing a new Codex installation. New
+preparation captures the selected version and its complete inventory digest in
+the sealed package and plan. Apply rechecks it before any runtime publication,
+and check refuses a changed, missing or unbound selection. An administrator
+changing the selection requires a fresh preparation. Historical unbound plans
+remain readable for recovery through their exact previously prepared package
+entrypoint, state directory and plan digest (see recovery below). The updated
+checkout dispatcher does not authenticate legacy origin receipts and refuses
+them; it must not execute historical payloads on an unverified caller manifest.
+Legacy plans do not provide new apply/check readiness through this installer.
+
+Installer children and packaged projection use the verified versioned Python
+from this protected toolchain. They do not reuse a mutable caller venv launcher.
+Machine wrappers ignore caller Python overrides and writable mise/venv fallback
+roots. Disposable fixture resources have a separate system-Python admission
+before their explicit test interpreter is used; that route grants no live-home
+installation or activation authority.
+
+Existing mise-only installations need this admin step before adopting these hook
+launchers. Full installation and Linux CI verification of this candidate are
+pending.
+
+LifeOS retrieval needs an optional Bun executable in the protected toolchain
+and a separately admitted private retriever. Before calculating the payload's
+reviewed inventory digest, stage an independently verified, platform-compatible
+Bun artifact at `bin/bun` beside Python/jq/gh. This repository does not supply a
+Bun download pin: artifact identity and provenance need separate review. The
+normal admin installation inventories and checks this optional provider, and
+the installed package binds its exact toolchain version. Changing Bun requires
+a newly reviewed payload and installation; no live-home activation is implied.
+The adapter selects only that bound `bin/bun`. `CODEX_LIFEOS_BUN`, Homebrew,
+mise and inherited PATH no longer select providers. Remove the legacy override
+from the launch environment. The private retriever and data paths retain their
+existing resource admission. Without optional Bun, retrieval returns no context;
+it does not clear a security decision. The retained LifeOS harness covers synthetic provider routing and
+the minimal child environment.
 Readiness helpers use a separate repository-scoped contract for verified managed
 worktrees. It admits contained scope and waiver inputs without adding general
 resource roots. Receipts use regular JSON leaves in an existing owned `.tmp`
@@ -741,8 +810,10 @@ The CircleCI configuration checks this repository only; it does not replace
 Configs' existing checks. Local installation records and recovery artifacts stay
 outside this public repository; they are not included in hosted validation.
 The validation job installs the already-declared validation dependency pins
-before running the suite. It partitions complete test modules across two small
-containers; every module runs once, and a failure fails validation. The workflow
+before running the suite. It partitions the complete discovered test set across
+two small containers; each discovered case runs once in that partitioned suite,
+in addition to the three diagnostic regressions repeated on both nodes.
+A failure fails validation. The workflow
 keeps the `validate` and `secret-scan` jobs, small resource classes, checksum
 verification and both secret scans. Hosted timing must confirm that validation
 finishes within the job limit; local partition checks do not establish hosted

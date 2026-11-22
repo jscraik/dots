@@ -2,14 +2,17 @@
 import json
 import os
 import sys
+import importlib.util
 from pathlib import Path
 
-from migration_scope import (
-    deployment_module,
-    require_policy_environment,
-    require_policy_path,
-    require_policy_scope,
-)
+_scope_spec = importlib.util.spec_from_file_location(
+    'hook_admission_scope', Path(__file__).resolve().with_name('migration_scope.py'))
+_scope = importlib.util.module_from_spec(_scope_spec)
+_scope_spec.loader.exec_module(_scope)
+deployment_module = _scope.deployment_module
+require_policy_environment = _scope.require_policy_environment
+require_policy_path = _scope.require_policy_path
+require_policy_scope = _scope.require_policy_scope
 
 
 def admit(event):

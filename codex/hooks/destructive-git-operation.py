@@ -213,7 +213,7 @@ def shell_split(command, keep_redirections=False):
     return arguments
 
 
-def shell_payload_index(tokens, start=0):
+def shell_payload_index(tokens, start=0, *, file_operand=False):
     index = start + 1
     command_string = False
     while index < len(tokens):
@@ -221,9 +221,13 @@ def shell_payload_index(tokens, start=0):
         if option == '--':
             index += 1
             break
+        if option.startswith(('-', '+')) and any(char in option for char in '$`*?[]{}'):
+            raise ValueError('Dynamic shell option requires separate inspection')
         if option in {"-o", "-O", "+o", "+O", "--rcfile", "--init-file"}:
             if index + 1 >= len(tokens):
                 raise ValueError("Shell option requires a value")
+            if any(char in tokens[index + 1] for char in '$`*?[]{}'):
+                raise ValueError('Dynamic shell option value requires separate inspection')
             index += 2
             continue
         if option.startswith(("-o", "-O", "+o", "+O")) and len(option) > 2:
@@ -236,6 +240,9 @@ def shell_payload_index(tokens, start=0):
             values = cluster.count("o") + cluster.count("O")
             if index + 1 + values > len(tokens):
                 raise ValueError("Shell option requires a value")
+            if any(char in value for value in tokens[index + 1:index + 1 + values]
+                   for char in '$`*?[]{}'):
+                raise ValueError('Dynamic shell option value requires separate inspection')
             command_string = command_string or option.startswith('-') and 'c' in cluster
             index += 1 + values
             continue
@@ -247,7 +254,7 @@ def shell_payload_index(tokens, start=0):
         if index < len(tokens) and tokens[index] not in SHELL_SEPARATORS:
             return index
         raise ValueError("Shell command payload is missing")
-    return None
+    return index if file_operand and index < len(tokens) else None
 
 
 def protect_search_literals(command):
@@ -271,7 +278,15 @@ def protect_search_literals(command):
             continue
         if char in "'\"":
             quote = None if quote == char else char if quote is None else quote
-        if char in markers and (quote == "'" or quote == '"' and char not in '$`'):
+        following = command[index + 1:index + 2]
+        # Admit known literal boundaries, rather than enumerating expansion
+        # prefixes across shells. A backslash is safe only before a known
+        # regex glyph: backslash-newline could join a parameter name to '$'.
+        literal_dollar = (char == '$' and (not following
+            or quote == '"' and following == '"'
+            or following in ' \t\r\n.:/|,;)'
+            or following == '\\' and command[index + 2:index + 3] in {'.', '|', ':'}))
+        if char in markers and (quote == "'" or quote == '"' and char not in '$`' or literal_dollar):
             output.append(markers[char])
         else:
             output.append(char)
@@ -360,10 +375,40 @@ def inspect_shell(command, depth=0, budget=None, opaque_transport=None):
             if any(char in tokens[executable_index] for char in '$`*?[{~'):
                 raise ValueError('Dynamic executable requires separate inspection')
             executable = tokens[executable_index].rsplit("/", 1)[-1].lower()
+            if executable in {'rg', 'find', 'gfind', 'fd', 'fdfind',
+                              'bash', 'sh', 'zsh', 'dash', 'ksh'}:
+                protected_tokens = [token.replace(marker, "${__codex_substitution__}")
+                    for token in shell_split(protect_search_literals(context))]
+            if executable == 'rg':
+                value_options = {'--regexp', '--file', '--pre-glob', '--dfa-size-limit', '--encoding',
+                    '--engine', '--max-count', '--regex-size-limit', '--threads', '--glob', '--iglob',
+                    '--ignore-file', '--max-depth', '--max-filesize', '--type', '--type-not',
+                    '--type-add', '--type-clear', '--after-context', '--before-context', '--color',
+                    '--colors', '--context', '--context-separator', '--field-context-separator',
+                    '--field-match-separator', '--hyperlink-format', '--max-columns',
+                    '--path-separator', '--replace', '--sort', '--sortr', '--generate'}
+                consume_value = False
+                for operand in protected_tokens[control_prefix + executable_index + 1:]:
+                    if not consume_value and operand == '--':
+                        break
+                    if any(char in operand for char in '$`*?[]{}'):
+                        raise ValueError('Expandable search operands require separate inspection')
+                    if consume_value:
+                        consume_value = False
+                        continue
+                    if operand.split('=', 1)[0] in {'--pre', '--hostname-bin'}:
+                        raise ValueError('Search utility command execution requires separate inspection')
+                    if operand in value_options:
+                        consume_value = True
+                    elif operand.startswith('-') and not operand.startswith('--'):
+                        for position, flag in enumerate(operand[1:], 1):
+                            if flag in 'efEmjgdtTABCMr':
+                                consume_value = position == len(operand) - 1
+                                break
+                if consume_value:
+                    raise ValueError('Missing search option value')
             if executable in {'find', 'gfind', 'fd', 'fdfind'}:
-                search_tokens = [token.replace(marker, "${__codex_substitution__}")
-                                 for token in shell_split(protect_search_literals(context))]
-                inspect_search_arguments(executable, search_tokens[control_prefix + executable_index + 1:])
+                inspect_search_arguments(executable, protected_tokens[control_prefix + executable_index + 1:])
             if executable == 'tee':
                 opaque_transport[0] = True
             if executable in {"bash", "sh", "zsh", "dash", "ksh"}:
@@ -371,9 +416,14 @@ def inspect_shell(command, depth=0, budget=None, opaque_transport=None):
                 if payload is not None:
                     expanded.extend(inspect_shell(tokens[payload], depth + 1, budget, opaque_transport))
                     expanded.append(";")
-                elif opaque_transport[0] or any(re.search(r'(?i)(?:^|[\s/;|&()])git(?:\s|$)', value)
-                                                for value in tokens[executable_index + 1:]):
-                    raise ValueError('File-backed shell after opaque data transport requires separate inspection')
+                else:
+                    operand = shell_payload_index(protected_tokens,
+                        control_prefix + executable_index, file_operand=True)
+                    if operand is not None and any(char in protected_tokens[operand] for char in '$`*?[]{}'):
+                        raise ValueError('Dynamic shell-file operand requires separate inspection')
+                    if opaque_transport[0] or any(re.search(r'(?i)(?:^|[\s/;|&()])git(?:\s|$)', value)
+                                                 for value in tokens[executable_index + 1:]):
+                        raise ValueError('File-backed shell after opaque data transport requires separate inspection')
             if executable not in {'git', 'printf', 'echo', 'cat', ':', 'true', 'false', 'test', '[',
                     'find', 'gfind', 'fd', 'fdfind', 'bash', 'sh', 'zsh', 'dash', 'ksh',
                     'export', 'declare', 'typeset', 'readonly', 'rg', 'grep', 'egrep', 'fgrep'} and any(
@@ -754,7 +804,12 @@ if len(sys.argv) > 1 and sys.argv[1] == '--prepare-literals':
     try:
         if len(sys.argv[2]) > 1048576:
             raise ValueError('Shell transport input exceeds inspection budget')
-        print('true' if inert_shell_form(sys.argv[2]) else prepare_literals(sys.argv[2]))
+        if inert_shell_form(sys.argv[2]):
+            # Keep path-bearing forms visible to the independent auth scanner.
+            print('mkdir -p ' + shlex.quote(sys.argv[2][9:])
+                  if sys.argv[2].startswith('mkdir -p ') else 'true')
+        else:
+            print(prepare_literals(sys.argv[2]))
     except (ValueError, IndexError):
         raise SystemExit(2)
     raise SystemExit(0)

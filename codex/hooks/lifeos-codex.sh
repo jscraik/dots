@@ -1,20 +1,33 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
 
 set -uo pipefail
-export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
+# shellcheck source=codex/hooks/hook-runtime-path.sh
+if . "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh"; then
+  :
+else
+  bootstrap_status=$?
+  printf 'LifeOS context unavailable: hook runtime bootstrap failed (status %s)\n' "$bootstrap_status" >&2
+  printf '%s\n' '{"continue":true,"systemMessage":"LifeOS context unavailable: hook runtime bootstrap failed"}'
+  exit 0
+fi
 
 # Read-only, fail-open DATA/LifeOS context adapter for Codex UserPromptSubmit.
 # The installed LifeOS owner remains external to Configs; this hook only routes
 # the current prompt through its deterministic retriever and returns context.
 input_json="$(cat)"
 dots_hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python3 "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit $?
+python3 -I -S -B "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit $?
 hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=codex/hooks/hook-runtime-lib.sh
-. "$hook_dir/hook-runtime-lib.sh"
+if ! . "$hook_dir/hook-runtime-lib.sh"; then
+  printf '%s\n' '{"continue":true,"systemMessage":"LifeOS context unavailable: hook runtime library failed"}'
+  exit 0
+fi
 lifeos_root="${CODEX_LIFEOS_DIR:-${LIFEOS_DIR:-$HOME/.codex/LIFEOS}}"
 retriever="${CODEX_LIFEOS_RETRIEVER:-$lifeos_root/TOOLS/MemoryRetriever.ts}"
-bun_bin="${CODEX_LIFEOS_BUN:-$(command -v bun 2>/dev/null || true)}"
+# Optional providers share the already validated, installation-bound inventory.
+# Neither an inherited override nor PATH may choose a different executable.
+bun_bin="${CODEX_VALIDATION_PYTHON%/*}/bun"
 data_project_root="${CODEX_LIFEOS_PROJECT_ROOT:-$HOME/dev/lifeOS}"
 retriever_timeout_seconds="${CODEX_LIFEOS_RETRIEVER_TIMEOUT_SECONDS:-3}"
 
@@ -38,13 +51,13 @@ if [[ "$canonical_prompt_cwd" != "$canonical_project_root" && "$canonical_prompt
   jq -n '{continue: true}'
   exit 0
 fi
-if [[ -z "$prompt" || -z "$bun_bin" || ! -f "$retriever" || ! "$retriever_timeout_seconds" =~ ^[1-9][0-9]*$ ]] || ! command -v python3 >/dev/null 2>&1; then
+if [[ -z "$prompt" || ! -f "$bun_bin" || ! -x "$bun_bin" || ! -f "$retriever" || ! "$retriever_timeout_seconds" =~ ^[1-9][0-9]*$ ]] || ! command -v python3 >/dev/null 2>&1; then
   jq -n '{continue: true}'
   exit 0
 fi
 
 retrieved="$({
-  LIFEOS_DIR="$lifeos_root" python3 - "$retriever_timeout_seconds" "$bun_bin" "$retriever" "$prompt" <<'PY'
+  LIFEOS_DIR="$lifeos_root" python3 -I -S - "$retriever_timeout_seconds" "$bun_bin" "$retriever" "$prompt" <<'PY'
 import os
 import re
 import subprocess

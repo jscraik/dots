@@ -33,31 +33,26 @@ def system_executable(name):
     if (not stat.S_ISREG(info.st_mode) or not os.access(resolved, os.X_OK)
             or any(path.stat().st_uid != 0 or path.stat().st_mode & 0o022
                    for path in (resolved, *resolved.parents))):
-        raise ValueError(f'Required system executable is not root-controlled: {name}')
+        raise ValueError('Required system executable is not root-controlled: ' + name)
     return str(resolved)
 
 
-def active_python_executable():
-    """Return the already-running interpreter without another PATH lookup."""
-    executable = Path(sys.executable)
-    if not executable.is_absolute():
-        raise ValueError('Active Python executable must be absolute')
-    try:
-        resolved = executable.resolve(strict=True)
-        info = resolved.stat()
-    except OSError as error:
-        raise ValueError('Active Python executable is unavailable') from error
-    if not resolved.is_absolute() or not stat.S_ISREG(info.st_mode) or not os.access(resolved, os.X_OK):
-        raise ValueError('Active Python executable is invalid')
-    return str(executable)
-
-
 def child_environment():
-    """Keep child lookup paths independent from caller-writable tool roots."""
-    env = {name: value for name, value in os.environ.items()
-           if name in {'LANG', 'LC_ALL', 'LC_CTYPE'}}
-    env['PATH'] = SYSTEM_PATH
-    return env
+    environment = {name: value for name, value in os.environ.items()
+                   if name in {'LANG', 'LC_ALL', 'LC_CTYPE'}}
+    environment['PATH'] = SYSTEM_PATH
+    return environment
+
+
+def protected_python_executable(toolchain=None):
+    selected = hook_toolchain_snapshot()
+    if toolchain is not None and selected != toolchain:
+        raise ValueError('Prepared hook toolchain changed; refuse child execution')
+    return selected['bin_dir'] + '/python3'
+
+
+def protected_python_command(script, *arguments, toolchain=None):
+    return [protected_python_executable(toolchain), '-I', '-B', str(script), *map(str, arguments)]
 
 
 BRAID_STORE_PREFIX = 'braid-'
@@ -71,9 +66,25 @@ FORMATTING_REVIEW_BASELINE = {
 
 
 def module(name, path):
+    path = Path(path)
+    previous_scope = sys.modules.get('migration_scope')
+    needs_scope = path.name in {'admit-policy-fixture.py', 'repair-runtime-config-drift.py'}
+    replace_scope = needs_scope and (previous_scope is None or
+        Path(getattr(previous_scope, '__file__', '')).resolve() != path.with_name('migration_scope.py').resolve())
+    if replace_scope:
+        # Isolated children have no script-directory lookup. Import only the
+        # authenticated sibling, preserving an explicitly bound matching scope.
+        sys.modules['migration_scope'] = module('installation_migration_scope', path.with_name('migration_scope.py'))
     spec = importlib.util.spec_from_file_location(name, path)
     result = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(result)
+    try:
+        spec.loader.exec_module(result)
+    finally:
+        if replace_scope:
+            if previous_scope is None:
+                sys.modules.pop('migration_scope', None)
+            else:
+                sys.modules['migration_scope'] = previous_scope
     return result
 
 
@@ -1038,15 +1049,16 @@ def public_files(root):
     return source_candidate(root, revision)['files']
 
 
-def clean_environment(home, payload):
+def clean_environment(home, payload, *, toolchain=None):
     env = child_environment()
-    python = active_python_executable()
+    python = protected_python_executable(toolchain)
+    env['PATH'] = str(Path(python).parent) + os.pathsep + SYSTEM_PATH
     env.update(HOME=str(home), CODEX_HOME=str(home / '.codex'), TMPDIR=str(home / 'tmp'),
         XDG_CONFIG_HOME=str(home / '.config'), XDG_DATA_HOME=str(home / '.local/share'),
-        XDG_CACHE_HOME=str(home / '.cache'), PYTHONDONTWRITEBYTECODE='1',
-        PYTHONNOUSERSITE='1', UV_OFFLINE='1', CODEX_SESSION_REPAIR_MODE='check',
-        CODEX_CONFIG_SOURCE_ROOT=str(payload / 'codex'), CODEX_VALIDATION_PYTHON=python,
-        CODEX_VALIDATION_UV_PYTHON=python)
+        XDG_CACHE_HOME=str(home / '.cache'), PYTHONDONTWRITEBYTECODE='1', UV_OFFLINE='1',
+        CODEX_SESSION_REPAIR_MODE='check', CODEX_CONFIG_SOURCE_ROOT=str(payload / 'codex'),
+        CODEX_VALIDATION_PYTHON=python, CODEX_VALIDATION_UV_PYTHON=python,
+        PYTHONNOUSERSITE='1')
     return env
 
 
@@ -1067,12 +1079,11 @@ def installation_lock(home):
 
 def projector(state, *args, lock_fd=None):
     context = SCOPE.context()
-    home = Path(context['home'])
-    env = clean_environment(home, ROOT)
+    env = clean_environment(Path(context['home']), ROOT)
     for name in ('DOTS_DESKTOP_REVIEW_STATE', 'DOTS_DESKTOP_REVIEW_SHA256'):
         if name in os.environ:
             env[name] = os.environ[name]
-    command = [system_executable('bash'), str(ROOT / 'scripts/link-configs.sh'), *args,
+    command = [system_executable('bash'), '-p', str(ROOT / 'scripts/link-configs.sh'), *args,
                '--scope', 'codex', '--codex-home', str(Path(context['home']) / '.codex')]
     result = subprocess.run(command, env=env, cwd=ROOT, capture_output=True, text=True,
         timeout=120, check=False, pass_fds=() if lock_fd is None else (lock_fd,))
@@ -1082,7 +1093,34 @@ def projector(state, *args, lock_fd=None):
         raise ValueError('Projector refused; see the private diagnostic')
 
 
+def hook_toolchain_snapshot():
+    """Inspect the external admin selection without executing its binaries."""
+    trusted_tools = subprocess.run(
+        ['/usr/bin/python3', '-I', '-S', '-B', str(ROOT / 'codex/scripts/validate-hook-toolchain.py'), '--identity'],
+        env={'PATH': '/usr/bin:/bin:/usr/sbin:/sbin'},
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    if trusted_tools.returncode:
+        raise ValueError('Provision and select the protected hook toolchain before preparation: '
+                         + trusted_tools.stderr.strip())
+    snapshot = json.loads(trusted_tools.stdout, object_pairs_hook=SCOPE.unique)
+    if (not isinstance(snapshot, dict) or set(snapshot) != {'schema_version', 'bin_dir', 'payload_sha256'}
+            or type(snapshot['schema_version']) is not int or snapshot['schema_version'] != 1
+            or not isinstance(snapshot['payload_sha256'], str) or len(snapshot['payload_sha256']) != 64
+            or any(char not in '0123456789abcdef' for char in snapshot['payload_sha256'])
+            or snapshot['bin_dir'] != '/opt/dots-hook-tools/' + snapshot['payload_sha256'] + '/bin'):
+        raise ValueError('Invalid protected hook toolchain identity')
+    return snapshot
+
+
+def verify_hook_toolchain(plan):
+    expected = plan.get('hook_toolchain')
+    if expected is None or hook_toolchain_snapshot() != expected:
+        raise ValueError('Prepared hook toolchain changed or was not bound; prepare a new plan')
+
+
 def assemble(args, *, policy_update=False):
+    toolchain = hook_toolchain_snapshot()
     home = SCOPE.target_home(args.home, args.mode)
     state = SCOPE.physical(args.state_dir)
     if (not state.is_relative_to(home) or state == home
@@ -1173,6 +1211,7 @@ def assemble(args, *, policy_update=False):
         path = home / '.codex' / name
         retained[name] = {'type': 'symlink', 'target': os.readlink(path)} if path.is_symlink() else {
             'type': 'directory' if path.is_dir() else 'absent' if not path.exists() else 'conflict'}
+    write(payload / 'codex/scripts/.hook-toolchain.json', json.dumps(toolchain, sort_keys=True).encode())
     for path in payload.rglob('*'):
         if path.is_file():
             path.chmod(0o500 if path.stat().st_mode & 0o111 else 0o400)
@@ -1186,10 +1225,10 @@ def assemble(args, *, policy_update=False):
             path.chmod(0o500)
     payload.chmod(0o500)
     save(state / 'origin.json', source)
-    env = clean_environment(home, payload)
+    env = clean_environment(home, payload, toolchain=toolchain)
     (home / 'tmp').mkdir(mode=0o700, exist_ok=True)
-    result = subprocess.run([active_python_executable(), '-B', str(payload / 'scripts/install-codex.py'),
-        'prepare', '--state-dir', str(state)], env=env, cwd=payload, capture_output=True, text=True, timeout=120, check=False)
+    result = subprocess.run(protected_python_command(payload / 'scripts/install-codex.py',
+        'prepare', '--state-dir', state, toolchain=toolchain), env=env, cwd=payload, capture_output=True, text=True, timeout=120, check=False)
     if result.returncode:
         save(state / 'diagnostic.json', {'stdout': result.stdout, 'stderr': result.stderr})
         raise ValueError('Preparation refused; see the private diagnostic')
@@ -1201,6 +1240,8 @@ def finish_prepare(state):
     home = Path(context['home'])
     admission = module('installation_preflight', ROOT / 'codex/scripts/admit-policy-fixture.py')
     with installation_lock(home):
+        toolchain = read_json(ROOT / 'codex/scripts/.hook-toolchain.json')
+        verify_hook_toolchain({'hook_toolchain': toolchain})
         descriptor_path = ROOT / 'codex/.previous-desktop-review.json'
         descriptor = read_json(descriptor_path) if descriptor_path.exists() else None
         transition = policy_transition()
@@ -1245,14 +1286,14 @@ def finish_prepare(state):
                     raise ValueError('Managed directory changed during backup')
         (state / 'publisher-backups').mkdir(mode=0o700)
         plan = {'schema_version': 1, 'home': str(home), 'package_digest': context['package_digest'],
-                'before': context['before'], 'expected': after}
+                'before': context['before'], 'expected': after, 'hook_toolchain': toolchain}
         save(state / 'plan.json', plan)
         digest = hashlib.sha256(SCOPE.read_regular(state / 'plan.json')).hexdigest()
         save(state / 'result.json', {'status': 'prepared', 'after': {}})
     return {'schema_version': 1, 'status': 'prepared', 'plan_digest': digest, 'targets': len(after)}
 
 
-def load_plan(state, digest, *, verified_context=None):
+def load_plan(state, digest, *, verified_context=None, package_root=None):
     context = SCOPE.context() if verified_context is None else verified_context
     if state != Path(context['state_dir']):
         raise ValueError('State directory does not belong to this package')
@@ -1260,12 +1301,15 @@ def load_plan(state, digest, *, verified_context=None):
     if hashlib.sha256(raw).hexdigest() != digest:
         raise ValueError('Plan digest mismatch')
     plan = json.loads(raw, object_pairs_hook=SCOPE.unique)
-    if (not isinstance(plan, dict) or set(plan) != {
-            'schema_version', 'home', 'package_digest', 'before', 'expected'}
+    fields = {'schema_version', 'home', 'package_digest', 'before', 'expected'}
+    if (not isinstance(plan, dict) or set(plan) not in (fields, fields | {'hook_toolchain'})
             or type(plan['schema_version']) is not int or plan['schema_version'] != 1
             or plan['package_digest'] != context['package_digest'] or plan['home'] != context['home']
             or plan['before'] != context['before'] or set(plan['expected']) != set(plan['before'])):
         raise ValueError('Plan and package disagree')
+    package_root = ROOT if package_root is None else package_root
+    if 'hook_toolchain' in plan and plan['hook_toolchain'] != read_json(package_root / 'codex/scripts/.hook-toolchain.json'):
+        raise ValueError('Plan and packaged hook toolchain identity disagree')
     return plan
 
 
@@ -1334,6 +1378,7 @@ def reviewed_desktop(state, digest, plan, review_digest):
 
 def apply(state, digest):
     plan = load_plan(state, digest)
+    verify_hook_toolchain(plan)
     runtime = Path(plan['home']) / '.codex'
     with installation_lock(Path(plan['home'])) as fd:
         recover_rename_permissions(state, runtime)
@@ -1376,6 +1421,7 @@ def apply(state, digest):
             repair._validate_canonical_snapshot(canonical.decode())
             validation_text, _ = normalized_desktop_update(merged, canonical.decode())
             repair._validate_runtime_snapshot(validation_text)
+            verify_hook_toolchain(plan)
             if original != merged.encode():
                 repair._write_repair(target, merged, expected=original,
                     unchanged=((ROOT / 'codex/config.toml', canonical),))
@@ -1395,6 +1441,7 @@ def apply(state, digest):
 
 def check(state, digest, review_digest=None):
     plan = load_plan(state, digest)
+    verify_hook_toolchain(plan)
     result = load_result(state, plan)
     runtime = Path(plan['home']) / '.codex'
     review = reviewed_desktop(state, digest, plan, review_digest)
@@ -1585,6 +1632,8 @@ def verified_public_payload(state, *, formatting_review=False):
     payload = state / 'payload'
     generated = {'codex/config.toml', 'codex/projection-map.json', 'codex/requirements.toml',
                  'codex/hooks/hooks.json', 'codex/.public-source.json', 'codex/.runtime-source.json'}
+    if (payload / 'codex/scripts/.hook-toolchain.json').exists():
+        generated.add('codex/scripts/.hook-toolchain.json')
     if (payload / 'codex/.previous-desktop-review.json').exists():
         generated.add('codex/.previous-desktop-review.json')
     if (payload / 'codex/.policy-transition.json').exists():
@@ -1848,9 +1897,19 @@ def dispatch(args):
         raise ValueError('Source candidate changed; prepare again')
     marker = verified_public_payload(state)
     payload = state / 'payload'
-    env = clean_environment(Path(marker['home']), payload)
-    command = [active_python_executable(), '-B', str(payload / 'scripts/install-codex.py'),
-        args.operation, '--state-dir', str(state), '--plan-digest', args.plan_digest or '']
+    # Rollback keeps its separate reviewed recovery route. Ordinary children
+    # must never start a different selection before their plan checks run.
+    toolchain = None
+    if args.operation != 'rollback':
+        plan = load_plan(state, args.plan_digest, verified_context=marker, package_root=payload)
+        toolchain = plan.get('hook_toolchain')
+        if not isinstance(toolchain, dict):
+            raise ValueError('Prepared hook toolchain identity is missing or malformed')
+        if SCOPE.identity(SCOPE.fingerprint(payload)) != plan['package_digest']:
+            raise ValueError('Prepared package changed; refuse child execution')
+    env = clean_environment(Path(marker['home']), payload, toolchain=toolchain)
+    command = protected_python_command(payload / 'scripts/install-codex.py',
+        args.operation, '--state-dir', state, '--plan-digest', args.plan_digest or '', toolchain=toolchain)
     if args.desktop_review_sha256:
         command.extend(('--desktop-review-sha256', args.desktop_review_sha256))
     result = subprocess.run(command,

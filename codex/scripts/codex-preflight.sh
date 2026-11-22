@@ -13,7 +13,7 @@ fi
 set -euo pipefail
 
 dots_helper_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python3 "$dots_helper_dir/admit-hook-fixture.py" '{}' || exit $?
+python3 -I -S -B "$dots_helper_dir/admit-hook-fixture.py" '{}' || exit $?
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 WORKSPACE_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd -P)"

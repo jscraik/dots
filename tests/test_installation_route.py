@@ -145,6 +145,7 @@ class InstallationRouteTests(unittest.TestCase):
         self.assertEqual(self.snapshot(), self.before)
 
     def test_selected_interpreter_with_spaces_does_not_shadow_other_tools(self):
+        self.require_operator_toolchain()
         runtime = self.home / 'selected runtime with spaces'
         runtime.mkdir()
         interpreter = runtime / 'python3'
@@ -155,6 +156,7 @@ class InstallationRouteTests(unittest.TestCase):
         sibling.chmod(0o700)
 
         def selected_cli(*args):
+            self.require_operator_toolchain()
             return subprocess.run([str(interpreter), '-B', str(self.source_root / 'scripts/install-codex.py'),
                 *map(str, args)], cwd=self.source_root, env=self.env, text=True,
                 capture_output=True, timeout=120, check=False)
@@ -279,12 +281,38 @@ class InstallationRouteTests(unittest.TestCase):
         self.source_tree = subprocess.run(['git', 'rev-parse', f'{self.source_revision}^{{tree}}'], cwd=self.source_root,
             env=self.env, text=True, capture_output=True, timeout=15, check=True).stdout.strip()
 
+    def require_operator_toolchain(self):
+        if not os.path.lexists('/opt/dots-hook-tools'):
+            reason = 'Installation operator tests require the separately administered protected toolchain'
+            if os.environ.get('DOTS_REQUIRE_PROTECTED_TOOLCHAIN') == '1':
+                self.fail(reason)
+            self.skipTest(reason + '; component tests remain available without live installation')
+
     def run_cli(self, *args, source_pin=True):
+        self.require_operator_toolchain()
         if source_pin and args and args[0] in {'prepare', 'prepare-policy-update'} and '--source-revision' not in args:
             args = (*args, '--source-revision', self.source_revision)
         return subprocess.run([sys.executable, '-B', str(self.source_root / 'scripts/install-codex.py'),
             *map(str, args)], cwd=self.source_root, env=self.env,
             text=True, capture_output=True, timeout=120, check=False)
+
+    def test_operator_prerequisite_is_explicit_and_required_in_ci(self):
+        entrypoints = (lambda: self.run_cli('check'),
+                       lambda: self.packaged_operation('check', 'unused'),
+                       self.legacy_reviewed_state,
+                       self.test_selected_interpreter_with_spaces_does_not_shadow_other_tools)
+        with (mock.patch('os.path.lexists', return_value=False),
+              mock.patch.dict(os.environ, {'DOTS_REQUIRE_PROTECTED_TOOLCHAIN': ''})):
+            for entrypoint in entrypoints:
+                with self.subTest(entrypoint=entrypoint), self.assertRaisesRegex(
+                        unittest.SkipTest, 'separately administered'):
+                    entrypoint()
+        with (mock.patch('os.path.lexists', return_value=False),
+              mock.patch.dict(os.environ, {'DOTS_REQUIRE_PROTECTED_TOOLCHAIN': '1'})):
+            for entrypoint in entrypoints:
+                with self.subTest(entrypoint=entrypoint), self.assertRaisesRegex(
+                        AssertionError, 'separately administered'):
+                    entrypoint()
 
     def prepare(self):
         return self.run_cli('prepare', '--home', self.home, '--state-dir', self.state,
@@ -926,12 +954,15 @@ with installer.renameable_directories(state, staged, target):
                 self.assertEqual((target / 'identity.txt').read_text(), 'new' if phase == 'after' else 'old')
                 self.assertFalse((state / 'rename-modes.json').exists())
 
-    def test_active_python_preserves_virtual_environment_launcher(self):
+    def test_child_python_ignores_virtual_environment_launcher(self):
         installer = self.import_installer(ROOT)
         launcher = self.home / 'venv-python'
         launcher.symlink_to(sys.executable)
-        with mock.patch.object(sys, 'executable', str(launcher)):
-            self.assertEqual(installer.active_python_executable(), str(launcher))
+        protected = '/opt/dots-hook-tools/' + 'a' * 64 + '/bin'
+        with (mock.patch.object(sys, 'executable', str(launcher)),
+              mock.patch.object(installer, 'hook_toolchain_snapshot', return_value={'bin_dir': protected})):
+            self.assertEqual(installer.protected_python_command('selected.py'),
+                             [protected + '/python3', '-I', '-B', 'selected.py'])
 
     def test_copied_helpers_resolve_the_installed_source(self):
         digest = self.success(self.prepare())['plan_digest']
@@ -1262,6 +1293,7 @@ with installer.renameable_directories(state, staged, target):
 
     def legacy_reviewed_state(self):
         """Build two real old-policy generations, never copy caller runtime state."""
+        self.require_operator_toolchain()
         source = self.home / 'legacy-source'
         source.mkdir()
         installer = self.import_installer(self.source_root)
@@ -1292,6 +1324,7 @@ with installer.renameable_directories(state, staged, target):
         self.bindings.write_text(json.dumps(values))
 
         def source_cli(*args):
+            self.require_operator_toolchain()
             if args and args[0] == 'prepare':
                 args = (*args, '--source-revision', legacy_revision)
             return subprocess.run([sys.executable, '-B', str(source / 'codex/scripts/install-codex.py'),
@@ -1311,6 +1344,7 @@ with installer.renameable_directories(state, staged, target):
         return digest, projects
 
     def packaged_operation(self, operation, digest):
+        self.require_operator_toolchain()
         return subprocess.run([sys.executable, '-B', str(self.payload / 'scripts/install-codex.py'),
             operation, '--state-dir', str(self.state), '--plan-digest', digest], cwd=self.payload,
             env=self.installed_env(), text=True, capture_output=True, timeout=180, check=False)
@@ -1447,8 +1481,7 @@ with installer.renameable_directories(state, staged, target):
         # Fail at the existing real projector boundary, then retry the prepared
         # transition with its partially published config and managed resources.
         installer = self.import_installer(self.payload)
-        script_path = str(self.payload / 'codex/scripts')
-        with mock.patch.object(sys, 'path', [script_path, *sys.path]), mock.patch.dict(
+        with mock.patch.dict(
                 os.environ, self.installed_env(), clear=True), mock.patch.dict(sys.modules), mock.patch.object(
                 installer, 'projector', side_effect=ValueError('synthetic projector refusal')):
             sys.modules.pop('migration_scope', None)
@@ -2352,8 +2385,7 @@ except ValueError:
     def test_partial_cutover_rolls_back_without_resuming_activation(self):
         digest = self.success(self.prepare())['plan_digest']
         installer = self.import_installer(self.payload)
-        script_path = str(self.payload / 'codex/scripts')
-        with mock.patch.object(sys, 'path', [script_path, *sys.path]), mock.patch.dict(
+        with mock.patch.dict(
                 os.environ, self.installed_env(), clear=True), mock.patch.dict(sys.modules), mock.patch.object(
                 installer, 'projector', side_effect=ValueError('synthetic projector refusal')):
             sys.modules.pop('migration_scope', None)
@@ -2361,7 +2393,7 @@ except ValueError:
                 installer.apply(self.state, digest)
         self.assertEqual(json.loads((self.state / 'result.json').read_text())['status'], 'failed')
         self.assertNotEqual(self.snapshot()['config.toml'], self.before['config.toml'])
-        with mock.patch.object(sys, 'path', [script_path, *sys.path]), mock.patch.dict(
+        with mock.patch.dict(
                 os.environ, self.installed_env(), clear=True), mock.patch.dict(sys.modules):
             sys.modules.pop('migration_scope', None)
             installer.restore(self.state, digest)

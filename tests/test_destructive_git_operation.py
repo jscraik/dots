@@ -28,6 +28,66 @@ def seed_checkout_ref(repository, environment, branch='topic'):
 
 
 class DestructiveGitOperationTests(unittest.TestCase):
+    def test_expansion_cannot_introduce_search_options_or_shell_files(self):
+        blocked = ('op=--pre; rg "$op" ./payload pattern notes.txt',
+                   'rg ${OP} ./payload pattern notes.txt',
+                   'rg "${OP}" ./payload pattern notes.txt',
+                   'rg "$?" ./payload pattern notes.txt',
+                   'rg $"--pre" ./payload pattern notes.txt',
+                   "rg $'--pre' ./payload pattern notes.txt",
+                   'rg "$[OP]" notes.txt',
+                   'rg "$=OP" ./payload pattern notes.txt',
+                   'rg "$^OP" ./payload pattern notes.txt',
+                   'rg "$~OP" ./payload pattern notes.txt',
+                   'rg "$<" notes.txt',
+                   'rg "$+OP" notes.txt',
+                   'rg "$\\\nOP" notes.txt',
+                   'rg "$(printf %s --pre)" ./payload pattern notes.txt',
+                   'rg * pattern notes.txt',
+                   'rg -e -- --pre=./payload notes.txt',
+                   'fd "$(printf %s --exec)" payload',
+                   'find . "$(printf %s -exec)" payload',
+                   'bash "$(printf %s "$TEXT" > /tmp/payload; printf /tmp/payload)"',
+                   'bash "$SCRIPT"',
+                   'OP=c; bash -"$OP" "rm -rf /"',
+                   'OP="pipefail -c"; bash -o $OP "rm -rf /"',
+                   'OP="extglob -c"; bash -O $OP "rm -rf /"',
+                   'OP="pipefail -c"; bash -eo $OP "rm -rf /"')
+        for command in blocked:
+            with self.subTest(command=command):
+                self.assertEqual(self.classify(command), 'unsupported')
+        for command in ("rg 'foo$' notes.txt", 'rg "^foo$" notes.txt', "rg '*.py' notes.txt",
+                        'rg "^foo$|^bar$" notes.txt', 'rg "(foo$)|(bar$)" notes.txt',
+                        r'rg "foo$\." notes.txt',
+                        'rg "foo$:" notes.txt', 'rg foo$/bar notes.txt',
+                        "rg '${OP}' notes.txt", "rg -e '--pre' notes.txt",
+                        'rg -- "$op" notes.txt', 'bash scripts/verify-work.sh --fast',
+                        'bash -o pipefail scripts/verify-work.sh --fast',
+                        'bash -O extglob scripts/verify-work.sh --fast'):
+            with self.subTest(command=command):
+                self.assertEqual(self.classify(command), 'safe')
+
+    def test_search_command_options_are_not_inert_data(self):
+        for command in ("rg --pre 'rm -rf /Users/alice' pattern .",
+                        "rg --pre='git reset --hard' pattern .",
+                        'rg -e -- --pre=./payload notes.txt',
+                        'rg -ne -- --hostname-bin=./payload notes.txt',
+                        'rg --regexp -- --pre=./payload notes.txt',
+                        "rg --hostname-bin='git reset --hard' pattern ."):
+            with self.subTest(command=command):
+                self.assertEqual(self.classify(command), 'unsupported')
+        self.assertEqual(self.classify('rg -- --pre notes.txt'), 'safe')
+
+    def test_inert_path_normalization_preserves_auth_prefix(self):
+        command = 'mkdir -p /Users/alice/.codex/auth/{one,two}'
+        result = subprocess.run([sys.executable, '-I', '-S', str(DETECTOR),
+            '--prepare-literals', command], capture_output=True, text=True,
+            timeout=5, check=False, env=self.environment)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        import shlex
+        self.assertEqual(shlex.split(result.stdout), ['mkdir', '-p',
+            '/Users/alice/.codex/auth/{one,two}'])
+
     def test_inert_shell_forms_and_confined_cleanup_remain_safe(self):
         for command in ('mkdir -p /tmp/x/{one,two}', 'printf %s $((1+1))',
                         'rg -n rm .', 'grep rm notes.txt',
