@@ -8,6 +8,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import shlex
 import ctypes
 import stat
@@ -1351,10 +1352,21 @@ def load_plan(state, digest, *, verified_context=None, package_root=None):
 
 def load_result(state, plan):
     result = read_json(state / 'result.json')
-    if (not isinstance(result, dict) or set(result) != {'status', 'after'}
+    fields = {'status', 'after'}
+    if (not isinstance(result, dict) or set(result) not in (fields, fields | {'retained_generation_path'})
             or not isinstance(result['after'], dict)
             or result['status'] not in {'prepared', 'applying', 'failed', 'applied', 'restoring', 'rolled_back'}):
         raise ValueError('Invalid installation result')
+    if 'retained_generation_path' in result:
+        retained = result['retained_generation_path']
+        if not isinstance(retained, str):
+            raise ValueError('Invalid retained generation path')
+        path = Path(retained)
+        if (not path.is_absolute() or '..' in path.parts
+                or path.parent.parent != Path(plan['home']) / '.codex'
+                or not re.fullmatch(r'\.config\.toml\.recovery-[A-Za-z0-9_-]+', path.parent.name)
+                or not re.fullmatch(r'generation-[A-Za-z0-9_-]+\.toml', path.name)):
+            raise ValueError('Invalid retained generation path')
     complete = result['status'] in {'applied', 'restoring', 'rolled_back'}
     if set(result['after']) != (set(plan['before']) if complete else set()):
         raise ValueError('Incomplete installation result')
@@ -1470,6 +1482,7 @@ def apply(state, digest):
             if actual != before and not same(actual, plan['expected'][name]):
                 raise ValueError('Target changed after preparation; no repair attempted')
         save(state / 'result.json', {'status': 'applying', 'after': {}})
+        retained_generation = None
         try:
             # A migration changes canonical resource paths; it is not a
             # selective drift repair. Reuse its validated atomic publisher.
@@ -1489,7 +1502,7 @@ def apply(state, digest):
             repair._validate_runtime_snapshot(validation_text)
             verify_hook_toolchain(plan)
             if original != merged.encode():
-                repair._write_repair(target, merged, expected=original,
+                retained_generation = repair._write_repair(target, merged, expected=original,
                     unchanged=((ROOT / 'codex/config.toml', canonical),))
             for row in admission.expected_map(deployed=True)['codex_projection']:
                 if row.get('strategy') == 'copy-managed':
@@ -1498,11 +1511,17 @@ def apply(state, digest):
             observed = {name: describe(runtime / name) for name in plan['expected']}
             if any(not same(observed[name], expected) for name, expected in plan['expected'].items()):
                 raise ValueError('Managed readback failed')
-            save(state / 'result.json', {'status': 'applied', 'after': observed})
-        except (OSError, ValueError, subprocess.SubprocessError):
+            applied_result = {'status': 'applied', 'after': observed}
+            if retained_generation is not None:
+                applied_result['retained_generation_path'] = str(retained_generation)
+            save(state / 'result.json', applied_result)
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
             save(state / 'result.json', {'status': 'failed', 'after': {}})
+            if retained_generation is not None:
+                raise ValueError(f'Installation failed; retained generation remains at {retained_generation}: {exc}') from exc
             raise
-    return {'schema_version': 1, 'status': 'applied', 'plan_digest': digest}
+    return {'schema_version': 1, 'status': 'applied', 'plan_digest': digest,
+        'retained_generation_path': str(retained_generation) if retained_generation is not None else None}
 
 
 def check(state, digest, review_digest=None):
@@ -1526,7 +1545,8 @@ def check(state, digest, review_digest=None):
             projector(state, '--check')
     else:
         projector(state, '--check')
-    return {'schema_version': 1, 'status': 'applied', 'plan_digest': digest}
+    return {'schema_version': 1, 'status': 'applied', 'plan_digest': digest,
+        'retained_generation_path': result.get('retained_generation_path')}
 
 
 def restore(state, digest, review_digest=None):

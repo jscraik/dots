@@ -302,6 +302,111 @@ raise SystemExit(module.main(["--config-path",sys.argv[2],"--repair","--json","-
         self.assertFalse(backup.exists(), result.stdout)
         self.assertTrue(tomllib.loads(runtime.read_text())['hooks']['state']['racing']['enabled'])
 
+    def test_absent_repair_never_replaces_a_concurrently_created_config(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        child = '''import importlib.util,sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]).parent))
+spec = importlib.util.spec_from_file_location("absent_repair", sys.argv[1])
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+target = Path(sys.argv[2])
+target.write_bytes(b"concurrent native save\\n")
+try:
+    module._write_repair(target, "repair\\n", expected=None)
+except FileExistsError:
+    pass
+else:
+    raise AssertionError("absent-only publication replaced an existing config")
+assert target.read_bytes() == b"concurrent native save\\n"
+target.unlink()
+module._write_repair(target, "repair\\n", expected=None)
+assert target.read_bytes() == b"repair\\n"
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/repair-runtime-config-drift.py'),
+            str(fixture.runtime / 'absent-race.toml')], env=fixture.env, cwd=fixture.repo,
+            capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_failed_readback_reports_retained_generation(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        runtime = fixture.runtime / 'config.toml'
+        runtime.write_text(runtime.read_text().replace('approval_policy = "on-request"', 'approval_policy = "never"', 1))
+        original = runtime.read_bytes()
+        child = '''import importlib.util,sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]).parent))
+spec = importlib.util.spec_from_file_location("late_readback", sys.argv[1])
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+publish = module._write_repair
+def save_after_publish(*args, **kwargs):
+    retained = publish(*args, **kwargs)
+    with Path(sys.argv[2]).open("a") as stream:
+        stream.write("\\n# save after publication\\n")
+    return retained
+module._write_repair = save_after_publish
+raise SystemExit(module.main(["--config-path",sys.argv[2],"--repair","--json"]))
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/repair-runtime-config-drift.py'), str(runtime)],
+            env=fixture.env, cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload['reason'], 'config_write_failed')
+        retained = Path(payload['retained_generation_path'])
+        self.assertTrue(retained.is_relative_to(fixture.runtime))
+        self.assertEqual(retained.read_bytes(), original)
+        self.assertIn('# save after publication', runtime.read_text())
+
+    def test_open_native_writers_keep_named_generations_after_publication(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        child = '''import importlib.util,sys,os
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]).parent))
+spec = importlib.util.spec_from_file_location("held_writer", sys.argv[1])
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+target = Path(sys.argv[2]); target.write_bytes(b"original\\n")
+original_fd = os.open(target, os.O_WRONLY | os.O_APPEND)
+exchange = module._exchange_paths
+published_fd = None
+calls = 0
+def publish(first, second):
+    global published_fd, calls
+    calls += 1
+    if sys.argv[3] == "race":
+        os.write(original_fd, b"concurrent consent\\n")
+    exchange(first, second)
+    published_fd = os.open(second, os.O_WRONLY | os.O_APPEND)
+module._exchange_paths = publish
+try:
+    retained = module._write_repair(target, "repair\\n", expected=b"original\\n")
+except OSError as error:
+    assert sys.argv[3] == "race", error
+    assert "recovery file remains at" in str(error), error
+    retained, = target.parent.glob(".held-config.toml.recovery-*/generation-*.toml")
+else:
+    assert sys.argv[3] == "success"
+assert calls == 1, "unsafe compensating exchange"
+os.write(original_fd, b"late original save\\n"); os.close(original_fd)
+os.write(published_fd, b"late published save\\n"); os.close(published_fd)
+assert b"late original save" in retained.read_bytes()
+assert b"late published save" in target.read_bytes()
+assert retained.parent.stat().st_mode & 0o777 == 0o700
+'''
+        for mode in ('success', 'race'):
+            with self.subTest(mode=mode):
+                # Each child owns a separate runtime directory and held FDs.
+                target_dir = fixture.home / ('held-' + mode)
+                target_dir.mkdir()
+                result = subprocess.run([sys.executable, '-B', '-c', child,
+                    str(fixture.codex / 'scripts/repair-runtime-config-drift.py'),
+                    str(target_dir / 'held-config.toml'), mode], env=fixture.env,
+                    cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def check_consent_exchange_race(self, later_edit, replace_recovery=False):
         fixture = self.fixture
         self.success(fixture.project())
@@ -340,21 +445,25 @@ raise SystemExit(module.main(["--config-path",sys.argv[2],"--repair","--json"]))
         if replace_recovery:
             self.assertFalse(runtime.is_symlink())
             self.assertEqual(tomllib.loads(runtime.read_text())['approval_policy'], 'on-request')
-            recovery = list(runtime.parent.glob('.config.toml.*.tmp'))
+            recovery = list(runtime.parent.glob('.config.toml.recovery-*/generation-*.toml'))
             self.assertEqual(len(recovery), 1)
             self.assertTrue(recovery[0].is_symlink())
             self.assertEqual(sentinel.read_text(), 'preserve recovery target\n')
         elif later_edit:
             self.assertIn('# later independent edit', runtime.read_text())
-            recovery = list(runtime.parent.glob('.config.toml.*.tmp'))
+            recovery = list(runtime.parent.glob('.config.toml.recovery-*/generation-*.toml'))
             self.assertEqual(len(recovery), 1)
             self.assertTrue(tomllib.loads(recovery[0].read_text())['hooks']['state']['racing']['enabled'])
         else:
-            self.assertTrue(tomllib.loads(runtime.read_text())['hooks']['state']['racing']['enabled'], result.stdout)
-            self.assertEqual(tomllib.loads(runtime.read_text())['approval_policy'], 'never')
-            self.assertEqual(list(runtime.parent.glob('.config.toml.*.tmp')), [])
+            self.assertEqual(tomllib.loads(runtime.read_text())['approval_policy'], 'on-request')
+            recovery = list(runtime.parent.glob('.config.toml.recovery-*/generation-*.toml'))
+            self.assertEqual(len(recovery), 1)
+            self.assertTrue(tomllib.loads(recovery[0].read_text())['hooks']['state']['racing']['enabled'])
+        self.assertIn('recovery file remains at', result.stdout)
+        payload = json.loads(result.stdout)
+        self.assertEqual(Path(payload['retained_generation_path']), recovery[0])
 
-    def test_consent_saved_at_exchange_is_restored_to_live_config(self):
+    def test_consent_saved_at_exchange_is_retained_for_explicit_recovery(self):
         self.check_consent_exchange_race(later_edit=False)
 
     def test_later_edit_preserves_live_and_displaced_consent(self):

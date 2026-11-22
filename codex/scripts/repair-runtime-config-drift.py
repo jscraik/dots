@@ -1248,74 +1248,63 @@ def _repair_file_snapshot(path: Path) -> tuple[tuple[int, ...], bytes]:
     return generation(before), raw
 
 
-def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, unchanged: tuple[tuple[Path, bytes], ...]=()) -> None:
+class RepairPublicationError(OSError):
+    """A failed publication with a retained, potentially still writable inode."""
+
+    def __init__(self, recovery_path: Path):
+        self.recovery_path = recovery_path
+        super().__init__(f'repair verification failed; recovery file remains at {recovery_path}')
+
+
+def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, unchanged: tuple[tuple[Path, bytes], ...]=()) -> Path | None:
     if config_path.is_symlink():
         raise OSError(f'runtime config must be a regular file, not a symlink: {config_path}')
     repair_path = config_path
-    fd, tmp_name = tempfile.mkstemp(prefix=f'.{repair_path.name}.', suffix='.tmp', dir=repair_path.parent)
+    recovery_dir = Path(tempfile.mkdtemp(prefix=f'.{repair_path.name}.recovery-', dir=repair_path.parent))
+    fd, tmp_name = tempfile.mkstemp(prefix='generation-', suffix='.toml', dir=recovery_dir)
     tmp_path = Path(tmp_name)
     exchanged = False
-    staged_snapshot = None
-    published_snapshot = None
-    displaced_snapshot = None
     try:
         os.fchmod(fd, 384)
         with os.fdopen(fd, 'w', encoding='utf-8') as handle:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
-        staged_snapshot = _repair_file_snapshot(tmp_path)
+        staged = _repair_file_snapshot(tmp_path)
         if expected is not None and (repair_path.is_symlink() or repair_path.read_bytes() != expected):
             raise OSError('runtime config changed during reconciliation; retry from fresh state')
         for guarded_path, guarded_bytes in unchanged:
             if guarded_path.is_symlink() or guarded_path.read_bytes() != guarded_bytes:
                 raise OSError('guarded file changed during reconciliation; retry from fresh state')
-        if expected is None and (not repair_path.exists()):
+        if expected is None:
             os.link(tmp_path, repair_path, follow_symlinks=False)
             tmp_path.unlink()
-            return
+            recovery_dir.rmdir()
+            return None
         _exchange_paths(tmp_path, repair_path)
         exchanged = True
-        displaced_snapshot = _repair_file_snapshot(tmp_path)
-        published = _repair_file_snapshot(repair_path)
-        if published[0][:4] == staged_snapshot[0][:4] and published[1] == staged_snapshot[1]:
-            published_snapshot = published
-        if expected is not None and (tmp_path.is_symlink() or tmp_path.read_bytes() != expected):
+        displaced = _repair_file_snapshot(tmp_path)
+        if displaced[1] != expected:
             raise OSError('runtime config changed during reconciliation; retry from fresh state')
         for guarded_path, guarded_bytes in unchanged:
             if guarded_path.is_symlink() or guarded_path.read_bytes() != guarded_bytes:
                 raise OSError(f'guarded file changed during reconciliation; retry from fresh state: {guarded_path}')
-        if repair_path.is_symlink() or repair_path.read_bytes() != text.encode('utf-8'):
+        published = _repair_file_snapshot(repair_path)
+        if published[0][:4] != staged[0][:4] or published[1] != staged[1]:
             raise OSError('runtime config changed during reconciliation; retry from fresh state')
-        tmp_path.unlink()
-        exchanged = False
+        # An open native writer can still save through the displaced inode.
+        # Keep its name even on success; the private directory bounds access.
+        return tmp_path
     except BaseException as exc:
         if exchanged:
-            # A writer may have saved consent between our comparison and swap.
-            # Restore the displaced generation only while our exact publication
-            # is still live; never overwrite an independent later generation.
-            try:
-                if (displaced_snapshot is not None
-                        and published_snapshot is not None
-                        and _repair_file_snapshot(repair_path) == published_snapshot
-                        and _repair_file_snapshot(tmp_path) == displaced_snapshot):
-                    _exchange_paths(tmp_path, repair_path)
-                    # Rename changes ctime, so verify the identity and bytes;
-                    # retain both copies if either publication changed again.
-                    recovered = _repair_file_snapshot(tmp_path)
-                    restored = _repair_file_snapshot(repair_path)
-                    if (recovered[0][:4] == staged_snapshot[0][:4]
-                            and recovered[1] == staged_snapshot[1]
-                            and restored[0][:4] == displaced_snapshot[0][:4]
-                            and restored[1] == displaced_snapshot[1]):
-                        tmp_path.unlink()
-                        exchanged = False
-            except OSError:
-                pass  # Keep both generations for explicit recovery.
-        if exchanged:
-            raise OSError(f'repair verification failed; recovery file remains at {tmp_path}') from exc
+            # There is no conditional exchange primitive: compensation could
+            # displace another native save after its last comparison. Leave
+            # both generations named and require explicit recovery instead.
+            raise RepairPublicationError(tmp_path) from exc
         with contextlib.suppress(FileNotFoundError):
             tmp_path.unlink()
+        with contextlib.suppress(FileNotFoundError):
+            recovery_dir.rmdir()
         raise
 
 def _sha256_and_bytes(path: Path) -> tuple[str, int]:
@@ -1541,15 +1530,20 @@ def main(argv: list[str] | None=None) -> int:
             return 1
     if approved_update_changes:
         repaired_text = updater.module('restore_desktop_overlay', CONFIG_PATH.parent / 'scripts/desktop_compatibility.py').overlay(repaired_text, approved_update_changes)
+    recovery_path = None
     try:
-        _write_repair(config_path, repaired_text, expected=original_bytes, unchanged=((CONFIG_PATH, canonical_bytes),))
+        recovery_path = _write_repair(config_path, repaired_text, expected=original_bytes, unchanged=((CONFIG_PATH, canonical_bytes),))
         if config_path.read_bytes() != repaired_text.encode('utf-8'):
             raise OSError('runtime config changed after reconciliation; expected state not verified')
     except OSError as exc:
+        if isinstance(exc, RepairPublicationError):
+            recovery_path = exc.recovery_path
         payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason='config_write_failed', error=str(exc), backup_path=args.backup_path, backup_sha256=backup_sha256, backup_bytes=backup_bytes)
+        payload['retained_generation_path'] = str(recovery_path) if recovery_path is not None else None
         _emit(payload, args.json)
         return 1
     payload = _payload(status='blocked' if notifier_only_cutover else 'repaired', path=config_path, drift=remaining_drift if notifier_only_cutover else drift, repairs=repairs, reason='legacy_repository_pinned_cua_cutover_required' if notifier_only_cutover else None, error='Retired notifier removed; ' + LEGACY_CUA_CUTOVER if notifier_only_cutover else None, backup_path=args.backup_path, backup_sha256=backup_sha256, backup_bytes=backup_bytes)
+    payload['retained_generation_path'] = str(recovery_path) if recovery_path is not None else None
     _emit(payload, args.json)
     return 1 if notifier_only_cutover else 0
 if __name__ == '__main__':

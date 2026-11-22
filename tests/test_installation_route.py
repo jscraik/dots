@@ -426,6 +426,17 @@ class InstallationRouteTests(unittest.TestCase):
     def snapshot(self):
         result = {}
         for path in self.runtime.iterdir():
+            if path.name.startswith('.config.toml.recovery-'):
+                # Recovery generations deliberately survive managed rollback;
+                # compare caller state separately and validate their boundary.
+                self.assertFalse(path.is_symlink())
+                self.assertEqual(path.stat().st_mode & 0o777, 0o700)
+                generations = list(path.iterdir())
+                self.assertEqual(len(generations), 1)
+                self.assertTrue(generations[0].name.startswith('generation-'))
+                self.assertFalse(generations[0].is_symlink())
+                self.assertTrue(generations[0].is_file())
+                continue
             if path.is_symlink():
                 result[path.name] = ('link', str(path.readlink()))
             elif path.is_file():
@@ -2542,11 +2553,28 @@ with installer.renameable_directories(state, staged, target):
         self.assertIn(str(session_root), roots)
         self.assertNotIn(str(self.home / '.local/share/codex-storage/sessions'), roots)
         digest = prepared['plan_digest']
-        self.success(self.operation('apply', digest))
-        self.success(self.operation('check', digest))
+        original_config = (self.runtime / 'config.toml').read_bytes()
+        applied = self.success(self.operation('apply', digest))
+        retained = Path(applied['retained_generation_path'])
+        self.assertEqual(retained.read_bytes(), original_config)
+        result_path = self.state / 'result.json'
+        recorded = result_path.read_bytes()
+        for invalid in (None, str(self.home / 'outside.toml'),
+                        str(retained.parent / '..' / retained.name),
+                        str(retained.parent / 'unrecognised.toml')):
+            with self.subTest(retained_path=invalid):
+                result_data = json.loads(recorded)
+                result_data['retained_generation_path'] = invalid
+                result_path.write_text(json.dumps(result_data))
+                self.assertNotEqual(self.operation('check', digest).returncode, 0)
+                self.assertEqual(retained.read_bytes(), original_config)
+        result_path.write_bytes(recorded)
+        self.assertEqual(self.success(self.operation('check', digest))['retained_generation_path'], str(retained))
+        self.assertEqual(self.success(self.operation('apply', digest))['retained_generation_path'], str(retained))
         self.assertFalse(session_root.exists(), 'Installation must not create or copy sessions')
         self.success(self.operation('rollback', digest))
         self.assertEqual(self.snapshot(), self.before)
+        self.assertEqual(retained.read_bytes(), original_config)
 
     def test_bound_session_storage_cannot_escape_rehearsal_home(self):
         values = json.loads(self.bindings.read_text())
