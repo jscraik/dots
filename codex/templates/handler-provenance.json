@@ -232,9 +232,10 @@
         "Keep parse-error fallback; unexpected parser exceptions stop before publication. Clear Ruff diagnostics without changing file modes.",
         "Recognise legacy and digest-named pending Desktop proposals; block packaged repair when the state directory cannot be listed.",
         "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
-        "Qualify atomic absent-file repair publication, exact published Desktop proposal names, and installation locking across proposal inspection and config publication; verify inherited descriptors against the fixed lock inode without releasing parent ownership."
+        "Qualify atomic absent-file repair publication, exact published Desktop proposal names, and installation locking across proposal inspection and config publication; verify inherited descriptors against the fixed lock inode without releasing parent ownership.",
+        "Qualify atomic absent-file repair publication, exact published Desktop proposal names, and installation locking across proposal inspection and config publication; verify inherited descriptors against the fixed lock inode without releasing parent ownership. Remove an empty pre-staging recovery directory on creation failure and preserve the scrubber output-format contract when lock acquisition fails."
       ],
-      "candidate_sha256": "f2e62a02b79b252a9d4425994e34eb31ffaefecb2bb34b26ee9e1e0f0f252467"
+      "candidate_sha256": "11cade9f8d080b71598f029576f30b2cae21f948d82cf02120c2b991405889d4"
     },
     {
       "path": "codex/scripts/audit-project-codex-config-overrides.sh",

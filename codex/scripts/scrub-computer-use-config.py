@@ -113,6 +113,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    require_policy_path(args.config_path)
     deployment = deployment_module()
     if args.repair and deployment is not None:
         stack = contextlib.ExitStack()
@@ -128,9 +129,13 @@ def main() -> int:
                     inherited_fd=None if inherited is None else int(inherited)))
         except (OSError, ValueError):
             stack.close()
-            print(json.dumps({'schema_version': 'computer-use-config-scrub/v1',
+            payload = {'schema_version': 'computer-use-config-scrub/v1',
                 'service': 'computer-use-config-scrub', 'status': 'blocked',
-                'reason': 'installation_lock_unavailable'}))
+                'reason': 'installation_lock_unavailable', 'path': str(args.config_path.expanduser())}
+            if args.json:
+                print(json.dumps(payload, sort_keys=True))
+            else:
+                print(f"FAIL  installation_lock_unavailable: {args.config_path.expanduser()}")
             return 1
         with stack:
             return _main_locked(args)

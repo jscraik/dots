@@ -13,6 +13,31 @@ from policy_fixture import PolicyFixture
 
 
 class PolicyProjectionTests(unittest.TestCase):
+    def test_staging_failure_leaves_no_empty_recovery_directory(self):
+        fixture = self.fixture
+        child = '''import importlib.util,sys
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,str(Path(sys.argv[1]).parent))
+spec=importlib.util.spec_from_file_location("staging_failure",sys.argv[1])
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+target=Path(sys.argv[2]);target.write_bytes(b"keep\\n")
+with patch.object(module.tempfile,"mkstemp",side_effect=OSError("fixture staging failure")):
+    try:
+        module._write_repair(target,"repair\\n",expected=b"keep\\n")
+    except OSError:
+        pass
+    else:
+        raise AssertionError("Staging failure did not propagate")
+assert target.read_bytes()==b"keep\\n"
+assert not list(target.parent.glob("."+target.name+".recovery-*")),"Empty recovery directory remained"
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/repair-runtime-config-drift.py'),
+            str(fixture.home / 'staging-failure.toml')], env=fixture.env, cwd=fixture.repo,
+            capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def setUp(self):
         self.fixture = PolicyFixture(self)
         self.addCleanup(self.fixture.assert_preserved, self)

@@ -10,6 +10,40 @@ from policy_fixture import ROOT
 
 
 class HandoverValidationTests(unittest.TestCase):
+    def test_scrub_lock_failure_respects_requested_output_format(self):
+        fixture = self.fixture
+        child = '''import contextlib,importlib.util,io,json,sys
+from pathlib import Path
+from types import SimpleNamespace
+sys.path.insert(0,str(Path(sys.argv[1]).parent))
+def load(name,path):
+    spec=importlib.util.spec_from_file_location(name,path)
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+module=load("scrub_lock_format",sys.argv[1]);home=Path(sys.argv[2])
+installer=load("parent_lock",Path(sys.argv[1]).with_name("install-codex.py"))
+module.deployment_module=lambda:SimpleNamespace(context=lambda:{"home":str(home)})
+target=home/"missing-config.toml"
+with installer.installation_lock(home):
+    for use_json in (False,True):
+        sys.argv=[sys.argv[1],"--config-path",str(target),"--repair"]+(["--json"] if use_json else [])
+        output=io.StringIO()
+        with contextlib.redirect_stdout(output):
+            assert module.main()==1
+        text=output.getvalue()
+        if use_json:
+            payload=json.loads(text)
+            assert payload["reason"]=="installation_lock_unavailable"
+            assert payload["path"]==str(target)
+        else:
+            assert text.startswith("FAIL  installation_lock_unavailable:"),text
+            assert str(target) in text
+assert not target.exists()
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/scrub-computer-use-config.py'), str(fixture.home)],
+            env=fixture.env, cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_repair_errors_after_lock_acquisition_keep_their_cause(self):
         fixture = self.fixture
         child = '''import importlib.util,sys

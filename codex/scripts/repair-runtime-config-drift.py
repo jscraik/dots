@@ -1282,7 +1282,12 @@ def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, 
         raise OSError('runtime config changed during reconciliation; retry from fresh state')
     repair_path = config_path
     recovery_dir = Path(tempfile.mkdtemp(prefix=f'.{repair_path.name}.recovery-', dir=repair_path.parent))
-    fd, tmp_name = tempfile.mkstemp(prefix='generation-', suffix='.toml', dir=recovery_dir)
+    try:
+        fd, tmp_name = tempfile.mkstemp(prefix='generation-', suffix='.toml', dir=recovery_dir)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            recovery_dir.rmdir()
+        raise
     tmp_path = Path(tmp_name)
     retain_slot = False
     try:
