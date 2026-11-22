@@ -60,6 +60,123 @@ def required_check_pr(
 
 
 class PrReadinessTests(unittest.TestCase):
+    def test_supersession_head_race_reports_closed_unreviewed_head_without_rollback(self):
+        args, snapshot = self.lifecycle_data('close')
+        args.repo_root, args.phase = Path('/fixture'), None
+        receipt = {'schema_version': 'pr-lifecycle/v1', 'status': 'pass', 'operation': 'close',
+            'checked_at': MODULE.datetime.now(MODULE.UTC).isoformat(), 'acceptance_claims_proven': False,
+            'snapshot': snapshot, 'after': {'state': 'closed', 'draft': True}}
+        args.write_receipt, args.apply_lifecycle = False, True
+        after = {**snapshot['target'], 'state': 'closed', 'head': 'f' * 40}
+        with patch.object(MODULE, '_lifecycle_snapshot', return_value=snapshot), \
+                patch.object(MODULE._scope, 'require_policy_repository_path'), \
+                patch.object(MODULE._scope, 'require_policy_repository_identity'), \
+                patch.object(MODULE._scope, 'policy_repository_read', return_value=json.dumps(receipt).encode()), \
+                patch.object(MODULE, '_lifecycle_request', return_value=(after, {})), \
+                patch.object(MODULE, 'run_command', return_value=subprocess.CompletedProcess([], 0, '{}', '')) as mutate, \
+                patch.object(MODULE, 'parse_args', return_value=args), \
+                patch.object(MODULE, 'resolve_root', return_value=Path('/fixture')), \
+                patch.object(MODULE._scope, 'policy_repository_identity', return_value='identity'), \
+                patch('sys.stdout', new_callable=io.StringIO) as output:
+            self.assertEqual(MODULE.main(), 2)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result['status'], 'blocked')
+            self.assertEqual(result['mutation_outcome'], 'unverified')
+            self.assertEqual(result['observed_target'],
+                             {'number': 7, 'state': 'closed', 'draft': True, 'head': 'f' * 40})
+            mutate.assert_called_once()
+
+    def test_dirty_probe_does_not_execute_repository_fsmonitor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def git(*arguments):
+                return subprocess.run(['git', '-C', str(root), *arguments],
+                    check=True, capture_output=True, text=True)
+            git('init', '-q')
+            marker = root / 'should-not-run'
+            provider = root / '.git/hostile-monitor'
+            provider.write_text('#!/bin/sh\ntouch ' + shlex.quote(str(marker)) + '\n')
+            provider.chmod(0o700)
+            git('config', 'core.fsmonitor', str(provider))
+            self.assertEqual(MODULE.dirty_lane(root)['status'], 'pass')
+            self.assertFalse(marker.exists())
+
+    def test_context_only_branch_summary_fetches_authoritative_app_identities(self):
+        base = 'b' * 40
+        branch = {'name': 'main', 'commit': {'sha': base}, 'protected': True,
+                  'protection': {'required_status_checks': {'contexts': ['build']}}}
+        full = {'required_status_checks': {'contexts': ['build'],
+                                           'checks': [{'context': 'build', 'app_id': 42}]}}
+        with patch.object(MODULE, 'run_command', side_effect=[
+                subprocess.CompletedProcess([], 0, json.dumps(value), '')
+                for value in (branch, [[]], full)]) as calls:
+            policy, error = MODULE._required_check_policy(Path('/fixture'), 'o/r', 'main', base, 'github.com')
+        self.assertIsNone(error)
+        self.assertEqual(policy['required_checks'], [{'context': 'build', 'app_id': 42}])
+        self.assertIn('/protection', calls.call_args.args[0][2])
+
+    def test_later_optional_inventory_cannot_clear_an_earlier_rollup(self):
+        head = 'a' * 40
+        for required in ([], [{'context': 'validate', 'app_id': None}]):
+            for state, expected in [('FAILURE', 'fail'), ('PENDING', 'blocked'), ('UNKNOWN', 'blocked')]:
+                rollup = [{'__typename': 'StatusContext', 'context': 'validate', 'state': 'SUCCESS'},
+                          {'__typename': 'StatusContext', 'context': 'lint', 'state': 'SUCCESS'}]
+                pr = required_check_pr(rollup, head, required)
+                pr['requiredCheckEvidence'][1]['state'] = state
+                pr['statusCheckRollup'] = rollup
+                with self.subTest(required=required, state=state):
+                    result = MODULE.checks_lane(pr, head)
+                    self.assertEqual(result['status'], expected)
+                    if state == 'UNKNOWN':
+                        self.assertTrue(result['details']['unknown_required'])
+
+    def test_required_execution_collection_failure_has_a_bounded_category(self):
+        pr = {'requiredCheckPolicy': {},
+              'requiredCheckPolicyError': 'current-head check-run inventory unavailable'}
+        result = MODULE.checks_lane(pr, 'a' * 40)
+        self.assertEqual(result['status'], 'blocked')
+        self.assertIn('execution collection', result['evidence'])
+
+    def test_failed_status_probe_never_reports_clean(self):
+        for status in (1, 128):
+            with self.subTest(status=status), patch.object(MODULE, 'run_command',
+                    return_value=subprocess.CompletedProcess([], status, '', 'private detail')):
+                result = MODULE.dirty_lane(Path('/fixture'))
+                self.assertEqual(result['status'], 'blocked')
+                self.assertNotIn('private detail', result['evidence'])
+
+    def test_lifecycle_checkout_requires_the_public_github_host(self):
+        for url, accepted in [('https://github.com/o/r', True),
+                              ('https://enterprise.example/o/r', False),
+                              ('https://github.com/other/repo', False)]:
+            with self.subTest(url=url), patch.object(MODULE, 'run_command', return_value=
+                    subprocess.CompletedProcess([], 0, json.dumps({'nameWithOwner': 'o/r', 'url': url}), '')):
+                repo, error = MODULE.repository_slug(Path('/fixture'), require_github_com=True)
+                self.assertEqual(error is None, accepted)
+                self.assertEqual(repo, 'o/r' if accepted else None)
+
+    def test_lifecycle_expiry_after_final_snapshot_blocks_mutation(self):
+        args, snapshot = self.lifecycle_data()
+        checked = MODULE.datetime.fromisoformat('2026-11-22T22:00:00+00:00')
+        receipt = {'schema_version': 'pr-lifecycle/v1', 'status': 'pass', 'operation': 'ready',
+                   'checked_at': checked.isoformat(), 'acceptance_claims_proven': False,
+                   'snapshot': snapshot, 'after': {'state': 'open', 'draft': False}}
+        args.write_receipt, args.apply_lifecycle = False, True
+        class Clock(MODULE.datetime):
+            values = iter([checked.timestamp() + 299, checked.timestamp() + 302])
+            @classmethod
+            def now(cls, tz=None):
+                return cls.fromtimestamp(next(cls.values), tz)
+        with patch.object(MODULE, 'datetime', Clock), \
+                patch.object(MODULE, '_lifecycle_snapshot', return_value=snapshot), \
+                patch.object(MODULE._scope, 'require_policy_repository_path'), \
+                patch.object(MODULE._scope, 'require_policy_repository_identity'), \
+                patch.object(MODULE._scope, 'policy_repository_read', return_value=json.dumps(receipt).encode()), \
+                patch.object(MODULE, 'run_command') as mutate:
+            with self.assertRaisesRegex(ValueError, 'stale'):
+                MODULE._lifecycle_execute(Path('/fixture'), args, 'identity')
+            mutate.assert_not_called()
+
     def test_unavailable_scope_cannot_replace_an_existing_receipt(self):
         args = MODULE.argparse.Namespace(repo_root=Path.cwd(), scope_file=None,
             review_waiver_file=None, receipt=Path('receipt.json'), lifecycle=None,
@@ -2882,7 +2999,7 @@ class PrReadinessTests(unittest.TestCase):
         self.assertEqual(MODULE.checks_lane(pr, head)['status'], 'pass')
         pr['statusCheckRollup'][0]['state'] = 'FAILURE'
         self.assertEqual(MODULE.checks_lane(pr, head)['status'], 'fail')
-        self.assertEqual(MODULE.checks_lane({**pr, 'statusCheckRollup': []}, head)['status'], 'blocked')
+        self.assertEqual(MODULE.checks_lane({**pr, 'statusCheckRollup': []}, head)['status'], 'fail')
         self.assertEqual(MODULE.checks_lane({**pr, 'requiredCheckPolicy': None}, head)['status'], 'blocked')
 
     def test_required_execution_state_cannot_hide_behind_earlier_rollup(self) -> None:

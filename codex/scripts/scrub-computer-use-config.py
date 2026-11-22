@@ -198,15 +198,13 @@ def _main_locked(args) -> int:
         return 1
     if removed and args.repair:
         repair_path = config_path.resolve() if config_path.is_symlink() else config_path
-        tmp_path = repair_path.with_suffix(f"{repair_path.suffix}.tmp")
         try:
-            tmp_path.write_text(scrubbed, encoding="utf-8")
-            tmp_path.replace(repair_path)
+            spec = importlib.util.spec_from_file_location('scrub_retained_publication',
+                require_policy_path(SCRIPT_DIR / 'repair-runtime-config-drift.py'))
+            publisher = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(publisher)
+            retained_path = publisher._write_repair(repair_path, scrubbed, expected=original.encode('utf-8'))
         except OSError as exc:
-            try:
-                tmp_path.unlink()
-            except OSError:
-                pass
             payload = {
                 "schema_version": "computer-use-config-scrub/v1",
                 "service": "computer-use-config-scrub",
@@ -215,6 +213,7 @@ def _main_locked(args) -> int:
                 "path": str(config_path),
                 "removed_count": removed,
                 "error": str(exc),
+                "retained_generation_path": str(exc.recovery_path) if getattr(exc, 'recovery_path', None) else None,
             }
             if args.json:
                 print(json.dumps(payload, sort_keys=True))
@@ -243,6 +242,8 @@ def _main_locked(args) -> int:
         "path": str(config_path),
         "removed_count": removed,
     }
+    if removed and args.repair:
+        payload['retained_generation_path'] = str(retained_path) if retained_path else None
     if args.json:
         print(json.dumps(payload, sort_keys=True))
     else:

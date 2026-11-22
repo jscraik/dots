@@ -408,6 +408,7 @@ contains_git_push_no_verify() {
 }
 push_refspec_has_unapproved_destination() {
   local refspec="${1#+}"
+  [[ "$refspec" == *:* ]] || return 0
   local destination="$refspec"
   if [[ "$refspec" == *:* ]]; then
     destination="${refspec##*:}"
@@ -972,7 +973,7 @@ def pattern_recipients(path: str) -> list[str] | None:
 
 
 def is_auth_path(token: str) -> bool:
-    expanded = expanded_token(token)
+    expanded = restore_inert_expansions(expanded_token(token))
     # An unresolved pattern may select a symlink. Collapsing a later '..'
     # would discard its protected destination, so reject that ambiguity.
     unresolved_pattern = False
@@ -981,7 +982,7 @@ def is_auth_path(token: str) -> bool:
             return True
         if any(char in part for char in "*?[{}"):
             unresolved_pattern = True
-    normalized = normalized_token(token)
+    normalized = posixpath.normpath(expanded).lower()
     joined = posixpath.join(command_cwd, expanded) if command_cwd else expanded
     candidates = {normalized, os.path.realpath(joined).lower()}
     if unresolved_pattern:

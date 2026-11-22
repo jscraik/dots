@@ -1622,7 +1622,10 @@ def _main_locked(args) -> int:
         if isinstance(exc, RepairPublicationError):
             recovery_path = exc.recovery_path
         reason = 'config_size_limit_exceeded' if isinstance(exc, RepairSizeLimitError) else 'config_write_failed'
-        payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason=reason, error=str(exc), backup_path=args.backup_path, backup_sha256=backup_sha256, backup_bytes=backup_bytes)
+        error = str(exc)
+        if recovery_path is not None and str(recovery_path) not in error:
+            error += f'; retained generation: {recovery_path}'
+        payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason=reason, error=error, backup_path=args.backup_path, backup_sha256=backup_sha256, backup_bytes=backup_bytes)
         payload['retained_generation_path'] = str(recovery_path) if recovery_path is not None else None
         _emit(payload, args.json)
         return 1

@@ -196,7 +196,8 @@ if [[ -n "$output_excerpt" ]]; then
   context_message="${context_message} The failed tool returned output; raw output is omitted from this advisory and its receipt."
 fi
 
-if ! hook_runtime_should_emit_context "$input_json" "post-tool-use-review" "$context_message"; then
+failure_fingerprint="$(printf '%s\037%s' "$command_excerpt" "$output_excerpt" | shasum -a 256 | awk '{print $1}')"
+if ! hook_runtime_should_emit_context "$input_json" "post-tool-use-review" "${context_message} ${failure_fingerprint}"; then
   event_record="$(hook_runtime_event_envelope "$input_json" "post-tool-use" "post-tool-use-review" "suppressed_duplicate" "$context_message")"
   if [[ -n "$event_record" ]]; then
     hook_runtime_append_jsonl "$(hook_runtime_log_path "hook-events")" "$event_record" "post-tool-use-review"

@@ -48,12 +48,11 @@ assert not list(target.parent.glob("."+target.name+".recovery-*")),"Empty recove
 
     def hostile_user_site_startup(self):
         fixture = self.fixture
-        version = f'python{sys.version_info.major}.{sys.version_info.minor}'
-        if sys.platform == 'darwin' and getattr(sys, '_framework', ''):
-            user_site = (fixture.home / 'Library/Python' / version.removeprefix('python')
-                         / 'lib/python/site-packages')
-        else:
-            user_site = fixture.home / '.local/lib' / version / 'site-packages'
+        query = subprocess.run([sys.executable, '-I', '-S', '-c',
+            'import site; print(site.getusersitepackages())'], env=fixture.env,
+            cwd=fixture.repo, capture_output=True, text=True, timeout=10, check=True)
+        user_site = Path(query.stdout.strip())
+        self.assertTrue(user_site.resolve().is_relative_to(fixture.home.resolve()))
         user_site.mkdir(parents=True)
         markers = []
         for startup_name in ('fixture-startup.pth', 'sitecustomize.py', 'usercustomize.py'):
@@ -155,6 +154,12 @@ assert not list(target.parent.glob("."+target.name+".recovery-*")),"Empty recove
         runtime.write_text(original.replace('approval_policy = "on-request"',
                                             'approval_policy = "never"', 1))
         markers = self.hostile_user_site_startup()
+        validator = fixture.codex / 'scripts/validate-codex-config.py'
+        source = validator.read_text()
+        entry = 'def main(raw_config: str | None=None, *, runtime_snapshot: bool=False) -> int:\n'
+        self.assertIn(entry, source)
+        validator.write_text(source.replace(entry, entry +
+            '    assert sys.flags.isolated, "nested validator must use isolated mode"\n'))
         loader = '''import runpy,sys
 from pathlib import Path
 script = Path(sys.argv[1]).resolve(strict=True)
@@ -390,7 +395,13 @@ sys.path.insert(0, str(Path(sys.argv[1]).parent))
 spec = importlib.util.spec_from_file_location("absent_repair", sys.argv[1])
 module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
 target = Path(sys.argv[2])
-target.write_bytes(b"concurrent native save\\n")
+installer = module._installer()
+publish = installer.rename_absent
+def racing_publish(source, destination):
+    target.write_bytes(b"concurrent native save\\n")
+    return publish(source, destination)
+installer.rename_absent = racing_publish
+module._installer = lambda: installer
 try:
     module._write_repair(target, "repair\\n", expected=None)
 except FileExistsError:
@@ -399,6 +410,7 @@ else:
     raise AssertionError("absent-only publication replaced an existing config")
 assert target.read_bytes() == b"concurrent native save\\n"
 target.unlink()
+installer.rename_absent = publish
 module._write_repair(target, "repair\\n", expected=None)
 assert target.read_bytes() == b"repair\\n"
 assert target.stat().st_nlink == 1

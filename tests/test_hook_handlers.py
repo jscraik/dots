@@ -13,6 +13,38 @@ from hook_fixture import HookFixture
 
 
 class HookHandlerTests(unittest.TestCase):
+    def test_distinct_unclassified_failures_keep_separate_safe_advisories(self):
+        for marker in ('synthetic-secret-first', 'synthetic-secret-second'):
+            output = self.output('post-tool-use-review.sh',
+                {'tool_response': {'exit_code': 1, 'stderr': marker}})
+            self.assertIn('additionalContext', output['hookSpecificOutput'])
+            self.assertNotIn(marker, json.dumps(output))
+        duplicate = self.output('post-tool-use-review.sh',
+            {'tool_response': {'exit_code': 1, 'stderr': 'synthetic-secret-second'}})
+        self.assertTrue(duplicate['continue'])
+
+    def test_literal_expansion_names_still_resolve_protected_symlinks(self):
+        for name in ('$credential', '`credential`'):
+            path = self.fixture.repo / name
+            path.symlink_to(self.fixture.runtime / 'auth.json')
+            for hook in ('pre-tool-use-guard.sh', 'pre-tool-use-dispatch.sh'):
+                with self.subTest(name=name, hook=hook):
+                    output = self.output(hook, {'tool_input': {'command': 'cat ' + shlex.quote('./' + name)}})
+                    self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+            path.unlink()
+            path.write_text('ordinary data')
+            output = self.output('pre-tool-use-guard.sh', {'tool_input': {'command': 'cat ' + shlex.quote('./' + name)}})
+            self.assertNotEqual(output.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+
+    def test_source_only_push_cannot_select_a_configured_protected_destination(self):
+        subprocess.run(['git', 'config', 'remote.origin.push', 'refs/heads/feature:refs/heads/main'],
+                       cwd=self.fixture.repo, env=self.fixture.env, check=True)
+        for command in ('git push origin feature', 'git push origin refs/heads/feature'):
+            output = self.output('pre-tool-use-guard.sh', {'tool_input': {'command': command}})
+            self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+        output = self.output('pre-tool-use-guard.sh', {'tool_input': {'command': 'git push origin HEAD:feature'}})
+        self.assertNotEqual(output.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+
     def test_admission_ignores_modules_beside_its_entrypoint(self):
         marker = self.fixture.home / 'shadow-json-ran'
         shadow = self.fixture.codex / 'scripts/json.py'

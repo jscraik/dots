@@ -166,6 +166,14 @@ EXPLICIT_SHA_BINDING_RE = re.compile(
 )
 
 
+class LifecycleOutcomeUnverified(ValueError):
+    """An observed hosted result does not match the authorised transition."""
+    def __init__(self, operation: str, observed: dict[str, Any]):
+        super().__init__('Lifecycle transition may have occurred; exact readback did not verify it; explicit recovery inspection is required')
+        self.operation = operation
+        self.observed = {key: observed[key] for key in ('number', 'state', 'draft', 'head')}
+
+
 class CommandFailure(RuntimeError):
     def __init__(self, command: list[str], reason: str) -> None:
         self.command = command
@@ -383,7 +391,10 @@ def worktree_lane(root: Path) -> dict[str, Any]:
 
 
 def dirty_lane(root: Path) -> dict[str, Any]:
-    output = git(root, "status", "--porcelain=v1", check=False)
+    result = run_command(['git', '-c', 'core.fsmonitor=false', 'status', '--porcelain=v1'], root, check=False)
+    if result.returncode:
+        return lane('blocked', 'worktree status inventory is unavailable')
+    output = result.stdout
     paths = [line[3:] for line in output.splitlines() if len(line) >= 4]
     if paths:
         return lane("fail", f"worktree has {len(paths)} dirty path(s)", paths=paths)
@@ -438,8 +449,9 @@ def gh_pr(root: Path, *, for_export: bool = False, number: int | None = None) ->
         return None, f"gh pr view returned invalid JSON: {exc.msg}"
 
 
-def repository_slug(root: Path) -> tuple[str | None, str | None]:
-    result = run_command(["gh", "repo", "view", "--json", "nameWithOwner"], root, check=False)
+def repository_slug(root: Path, *, require_github_com: bool = False) -> tuple[str | None, str | None]:
+    fields = 'nameWithOwner,url' if require_github_com else 'nameWithOwner'
+    result = run_command(["gh", "repo", "view", "--json", fields], root, check=False)
     if result.returncode != 0:
         return None, (result.stderr or result.stdout or "gh repo view failed").strip().splitlines()[0]
     try:
@@ -451,6 +463,8 @@ def repository_slug(root: Path) -> tuple[str | None, str | None]:
         return None, f"gh repo view returned invalid JSON: {exc.msg}"
     if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value) or any(segment in {".", ".."} for segment in value.split("/")):
         return None, "gh repo view returned an invalid repository identity"
+    if require_github_com and payload.get('url') != f'https://github.com/{value}':
+        return None, 'lifecycle checkout must identify the exact GitHub.com repository'
     return value, None
 
 
@@ -672,7 +686,9 @@ def _required_check_policy(
             protection = {'required_status_checks': None}
         elif (protection is None or isinstance(protection, dict)
               and ('required_status_checks' not in protection
-                   or protection['required_status_checks'] is None)):
+                   or protection['required_status_checks'] is None
+                   or isinstance(protection['required_status_checks'], dict)
+                   and 'checks' not in protection['required_status_checks'])):
             classic = run_command(['gh', 'api', branch_path + '/protection', *host_args],
                                   root, check=False)
             if classic.returncode:
@@ -1181,6 +1197,12 @@ def _check_matches_requirement(
 
 def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
     """Require the provider's complete policy and retain every observed check gate."""
+    collection_error = pr.get('requiredCheckPolicyError')
+    if collection_error:
+        stage = ('execution' if isinstance(collection_error, str)
+                 and collection_error.startswith(('current-head', 'required-check workflow')) else 'policy')
+        return lane('blocked', f'authenticated required-check {stage} collection is unavailable',
+                    head_sha=head_sha, collection_stage=stage)
     policy, error = _validated_required_check_policy(pr)
     if error or policy is None:
         return lane("blocked", error or "required-check policy is unavailable", head_sha=head_sha)
@@ -1191,6 +1213,13 @@ def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
     missing = [requirement["context"] + (f" (App {requirement['app_id']})" if requirement["app_id"] is not None else "") for requirement in policy["required_checks"]
                if not any(_check_matches_requirement(item, requirement, head_sha) for item in evidence)]
     if missing:
+        unsupported = [item['context'] for item in policy['required_checks'] if item['app_id'] is not None
+                       and not any(_check_matches_requirement(record, item, head_sha) for record in evidence)
+                       and any(record.get('__typename') == 'StatusContext'
+                               and record.get('context') == item['context'] for record in evidence)]
+        if unsupported:
+            return lane('blocked', 'App-bound commit-status publisher identity cannot be authenticated',
+                        head_sha=head_sha, unsupported_contexts=unsupported, missing=missing)
         return lane("blocked", "required checks are absent: " + ", ".join(missing),
                     head_sha=head_sha, policy_digest=policy["digest"], missing=missing)
     selected = [item for item in evidence if any(
@@ -1201,12 +1230,15 @@ def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
     # Evaluate both snapshots. A later REST failure or queued rerun must not be
     # hidden by an earlier successful GraphQL rollup; neither can clear the other.
     observed = observed_checks_lane(pr, head_sha)
+    later = observed_checks_lane({'statusCheckRollup': evidence}, head_sha, attempt_order=True)
+    if later['status'] == 'fail' or (later['status'] == 'blocked' and observed['status'] != 'fail'):
+        observed = later
     if required['status'] == 'fail' or (required['status'] == 'blocked' and observed['status'] != 'fail'):
         observed = required
     observed.setdefault("details", {}).update(policy_digest=policy["digest"],
         required_checks=policy["required_checks"], missing=[],
         unknown_required=any(_check_lifecycle(item) not in SUCCESS_CHECKS | PENDING_CHECKS | FAILED_CHECKS
-                             for item in selected))
+                             for item in evidence))
     return observed
 
 
@@ -4540,7 +4572,7 @@ def _lifecycle_local_context(root: Path, args: argparse.Namespace) -> dict[str, 
 
 
 def _lifecycle_snapshot(root: Path, args: argparse.Namespace) -> dict[str, Any]:
-    repo, error = repository_slug(root)
+    repo, error = repository_slug(root, require_github_com=True)
     if (error or repo != args.expected_repo or type(args.expected_pr) is not int
             or args.expected_pr <= 0 or not isinstance(args.lifecycle_head, str)
             or not SHA_RE.fullmatch(args.lifecycle_head)
@@ -4658,6 +4690,8 @@ def _lifecycle_execute(root: Path, args: argparse.Namespace, identity: Any) -> d
     final = _lifecycle_snapshot(root, args)
     if comparable(final) != comparable(recorded):
         raise ValueError('Lifecycle evidence changed before mutation')
+    if not 0 <= (datetime.now(UTC) - checked).total_seconds() <= 300:
+        raise ValueError('Lifecycle receipt is stale before mutation')
     if args.lifecycle == 'ready':
         query = ('mutation($id:ID!){markPullRequestReadyForReview(input:{pullRequestId:$id})'
                  '{pullRequest{id isDraft state headRefOid}}}')
@@ -4671,7 +4705,7 @@ def _lifecycle_execute(root: Path, args: argparse.Namespace, identity: Any) -> d
     after, _raw = _lifecycle_request(root, args.expected_repo, args.expected_pr)
     expected = {**recorded['target'], **expected_after}
     if response.returncode or after != expected:
-        raise ValueError('Lifecycle transition may have occurred; exact readback did not verify it')
+        raise LifecycleOutcomeUnverified(args.lifecycle, after)
     _scope.require_policy_repository_identity(root, identity)
     return {'schema_version': 'pr-lifecycle/v1', 'status': 'pass', 'operation': args.lifecycle,
             'target': after, 'acceptance_claims_proven': False, 'transition_verified': True}
@@ -4724,6 +4758,11 @@ def main() -> int:
         if getattr(args, 'lifecycle', None):
             try:
                 result = _lifecycle_execute(root, args, repository_identity)
+            except LifecycleOutcomeUnverified as exc:
+                print(json.dumps({'schema_version': 'pr-lifecycle/v1', 'status': 'blocked',
+                    'acceptance_claims_proven': False, 'mutation_outcome': 'unverified',
+                    'operation': exc.operation, 'observed_target': exc.observed, 'error': str(exc)}))
+                return 2
             except (OSError, ValueError, TypeError, KeyError, AttributeError):
                 print(json.dumps({'schema_version': 'pr-lifecycle/v1', 'status': 'blocked',
                     'acceptance_claims_proven': False,

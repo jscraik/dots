@@ -361,24 +361,22 @@ if [[ "$required_count" -gt 0 ]]; then
 fi
 child_launch_args+=("${child_runtime_env[@]}" "$@")
 
-exec "$op_bin" run "${run_source_args[@]}" -- /bin/bash -p -c '
-  set -euo pipefail
-  required_count="$1"
-  runtime_count="$2"
-  shift 2
-  declare -a child_env=()
-  for ((idx=0; idx<required_count; idx++)); do
-    env_name="$1"
-    shift
-    if [[ -z "${!env_name:-}" ]]; then
-      printf "run-auth-backed.sh: required env var is missing after auth load: %s\n" "$env_name" >&2
-      exit 67
-    fi
-    child_env+=("$env_name=${!env_name}")
-  done
-  for ((idx=0; idx<runtime_count; idx++)); do
-    child_env+=("$1")
-    shift
-  done
-  exec /usr/bin/env -i -- "${child_env[@]}" "$@"
-' bash "${child_launch_args[@]}"
+exec "$op_bin" run "${run_source_args[@]}" -- /usr/bin/python3 -I -S -c '
+import os, signal, sys
+required_count, runtime_count = map(int, sys.argv[1:3])
+names = sys.argv[3:3 + required_count]
+runtime = sys.argv[3 + required_count:3 + required_count + runtime_count]
+command = sys.argv[3 + required_count + runtime_count:]
+child_env = {}
+for name in names:
+    value = os.environ.get(name)
+    if not value:
+        print("run-auth-backed.sh: required env var is missing after auth load: " + name, file=sys.stderr)
+        sys.exit(67)
+    child_env[name] = value
+child_env.update(item.split("=", 1) for item in runtime)
+for name in ("SIGPIPE", "SIGXFZ", "SIGXFSZ"):
+    if hasattr(signal, name):
+        signal.signal(getattr(signal, name), signal.SIG_DFL)
+os.execvpe(command[0], command, child_env)
+' "${child_launch_args[@]}"

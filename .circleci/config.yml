@@ -42,10 +42,17 @@ jobs:
             curl -fsSL "https://github.com/openai/codex/releases/download/rust-v${codex_version}/codex-x86_64-unknown-linux-musl.tar.gz" -o "$codex_archive"
             printf '%s  %s\n' f479424eca092484dc40d87ae28c44f4cc40234a60045d6131e493800d814a30 "$codex_archive" | sha256sum --check --status
             tar -xOzf "$codex_archive" codex-x86_64-unknown-linux-musl > /tmp/dots-ci-tools/codex
-            chmod 0755 /tmp/dots-ci-tools/fd /tmp/dots-ci-tools/rg /tmp/dots-ci-tools/codex
+            bwrap_archive=/tmp/dots-ci-downloads/bwrap.tar.gz
+            curl -fsSL "https://github.com/openai/codex/releases/download/rust-v${codex_version}/bwrap-x86_64-unknown-linux-musl.tar.gz" -o "$bwrap_archive"
+            printf '%s  %s\n' e7d65c75e05637e42b93f6abf9222fa0d26b537648a7a34c122b75021d41756d "$bwrap_archive" | sha256sum --check --status
+            tar -xOzf "$bwrap_archive" bwrap-x86_64-unknown-linux-musl > /tmp/dots-ci-tools/bwrap
+            chmod 0755 /tmp/dots-ci-tools/fd /tmp/dots-ci-tools/rg /tmp/dots-ci-tools/codex /tmp/dots-ci-tools/bwrap
             /tmp/dots-ci-tools/fd --version
             /tmp/dots-ci-tools/rg --version
             /tmp/dots-ci-tools/codex --version
+            /tmp/dots-ci-tools/bwrap --version
+            /tmp/dots-ci-tools/bwrap --help | grep -- --perms
+            /tmp/dots-ci-tools/bwrap --help | grep -- --as-pid-1
       - run:
           name: Verify public guidance and instruction links
           command: /tmp/dots-validation-venv/bin/python -B scripts/check-public-guidance.py
@@ -56,8 +63,6 @@ jobs:
             reviewed_digest="$(/usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-toolchain --inspect)"
             sudo /usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-toolchain --reviewed-sha256 "$reviewed_digest" --select
             /usr/bin/python3 -I -S codex/scripts/validate-hook-toolchain.py
-            sudo apt-get update
-            sudo apt-get install --yes bubblewrap
       - run:
           name: Test Linux CLI compatibility and disposable-home staging
           no_output_timeout: 15m
@@ -67,6 +72,7 @@ jobs:
             echo 'Linux pinned CLI compatibility only; Desktop app-runtime proof is a separate local check.'
             "$DOTS_CODEX_BIN" --version
             export DOTS_REQUIRE_PROTECTED_TOOLCHAIN=1
+            /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_hook_active_turn.py -v --failfast
             /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_hook_handlers.py -k raw_api_merge_accepts_only_the_receipt_target -v --failfast
             /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_installation_route.py -k partial_cutover_rolls_back_without_resuming_activation -v --failfast
             /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_installation_route.py -k policy_transition_preserves_selected_preferences_and_exact_rollback -v --failfast

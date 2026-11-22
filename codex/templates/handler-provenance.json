@@ -52,7 +52,7 @@
         "fixed root-owned hook dependency path and absolute Bash launch",
         "Omit raw failed-tool output from advisory context and persisted receipts."
       ],
-      "candidate_sha256": "ccfdaf18fba54aaf092a74fd51382b4398bad3a69f67ba27cfdd8bb1a61ca7ac"
+      "candidate_sha256": "3c709efb3a1de7edf8bbe88c727e295c4a9e7675e812f0a3633db9b4fc2f150d"
     },
     {
       "path": "codex/hooks/pr-readiness-guard.sh",
@@ -124,7 +124,7 @@
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
         "Reject implicit or ambiguous push destinations and uninspectable auth-path expansions while retaining literal data and the protected toolchain."
       ],
-      "candidate_sha256": "9d1ffddc720ce53d1704f843c95c27ddc301e69ca5a4860552c842d8d969091c"
+      "candidate_sha256": "75509e0bd8fdc9d1c3f02269c030412556a5b8924f90c2842f3322dc1030fd8f"
     },
     {
       "path": "codex/hooks/session-start.sh",
@@ -241,7 +241,7 @@
         "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
         "Qualify atomic absent-file repair publication, exact published Desktop proposal names, and installation locking across proposal inspection and config publication; verify inherited descriptors against the fixed lock inode without releasing parent ownership. Remove an empty pre-staging recovery directory on creation failure and preserve the scrubber output-format contract when lock acquisition fails."
       ],
-      "candidate_sha256": "11cade9f8d080b71598f029576f30b2cae21f948d82cf02120c2b991405889d4"
+      "candidate_sha256": "be4d11f78925c74a079a28528f43cca8da8a40d16ad1ad4a9b6de2d0a480bf60"
     },
     {
       "path": "codex/scripts/audit-project-codex-config-overrides.sh",
@@ -262,7 +262,7 @@
         "fixture admission for shell runtime dependency",
         "Deliver only explicitly requested injected credentials plus pre-injection runtime context to the child."
       ],
-      "candidate_sha256": "411809dd3cabed4f7b57bd4f3f66c5f932a26bf74d21fce32b33b6af2661d2dd"
+      "candidate_sha256": "8d422e39ad5725d3254b63a39d05386e352336798bec115580c2201f2aed4edb"
     },
     {
       "path": "codex/scripts/hook-governance/hook_runtime_policy.py",
@@ -289,7 +289,7 @@
         "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository.",
         "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance."
       ],
-      "candidate_sha256": "20784c4191da95586ecb6344446573d4c6cf69d38d2a942538a5257a13490b73"
+      "candidate_sha256": "b1d481e0f1ee413a09ffe46935976528df6c41eb89621519ef6d2039a7450815"
     },
     {
       "path": "codex/scripts/pr_repair_ci.py",

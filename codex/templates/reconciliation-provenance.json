@@ -87,7 +87,7 @@
     {
       "path": "codex/schemas/pr-readiness.v1.schema.json",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "f113cacd9aa986dd2d942b3fb332b030360a1b8134acb09d408f372470d2ead0",
+      "candidate_sha256": "c14a059e8f2536583d276c9d2788147c44239277ba5c6f83141b5687544f0b5c",
       "transformation": "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
@@ -99,7 +99,7 @@
     {
       "path": "codex/scripts/pr-readiness.py",
       "prior_candidate_sha256": "6c47ce8d869fb46b338f6ed354ec95eb554471c215bc90b9c1d76c69e9cb60ee",
-      "candidate_sha256": "20784c4191da95586ecb6344446573d4c6cf69d38d2a942538a5257a13490b73",
+      "candidate_sha256": "b1d481e0f1ee413a09ffe46935976528df6c41eb89621519ef6d2039a7450815",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks. Accept the observed fixed Codex closing phrases Keep it up! and Nice work! while retaining the complete authenticated, head-bound report and footer contract. Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance."
     },
     {
@@ -175,7 +175,7 @@
     {
       "path": "codex/scripts/tests/test_pr_readiness.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "f8f5854a80f8a68909643861bf6b60472655077e1658c76b3b28c9127fc1249d",
+      "candidate_sha256": "9f290b9e643ac2bfa26a26f6a344f41ead79d164f8b9ca52b945338eeb6e150e",
       "transformation": "Preserve selected checks and add synthetic missing-check and dismissed historical-review scenarios from the coordinated follow-up; production policy is unchanged. Exercise the observed Keep it up! report through existing author, head, review-state, footer and appended-failure rejection controls. Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection. Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
       "additional_source": {
         "revision": "d3b8f231dc659bde32ebac5e5c305b75b7589d4e",
@@ -207,7 +207,7 @@
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "e157f97db1cf3dc51a0030c76449eaef6b769fc62d5e8834cff6429a07b24d1c",
+      "candidate_sha256": "2dcf943a25820f76af6612cf6fc18ca4e4651916d22cc5a3d72dc9e158cb478b",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment. Add automatic SessionStart fsmonitor non-execution and dirty-state regression coverage. Prove exact resolver syntax admission through the actual hook from a separate checkout and preserve execution, extra-argument and symlink denials. Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {

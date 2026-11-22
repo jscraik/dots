@@ -324,7 +324,7 @@
         "Use the imported Path class in the native hook trust probe",
         "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
       ],
-      "candidate_sha256": "58343730cb7c58b014e8fcd6f8fdbb9e80af234c46d1fa0f0eaa2455c414e5b1"
+      "candidate_sha256": "91232ceb23848826fbc0d2a2c6ec530d2d2948a08dbbbcece693ffad7303bdcd"
     },
     {
       "path": "codex/README.md",
@@ -753,7 +753,7 @@
         "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository.",
         "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance."
       ],
-      "candidate_sha256": "20784c4191da95586ecb6344446573d4c6cf69d38d2a942538a5257a13490b73"
+      "candidate_sha256": "b1d481e0f1ee413a09ffe46935976528df6c41eb89621519ef6d2039a7450815"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
@@ -863,7 +863,7 @@
         "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection.",
         "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
       ],
-      "candidate_sha256": "f8f5854a80f8a68909643861bf6b60472655077e1658c76b3b28c9127fc1249d"
+      "candidate_sha256": "9f290b9e643ac2bfa26a26f6a344f41ead79d164f8b9ca52b945338eeb6e150e"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",
@@ -879,7 +879,7 @@
       "path": "codex/schemas/pr-readiness.v1.schema.json",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "f8ca2c7202842e2175d1abb6c8160b6b2e4ac321798d8c6190e4f2c4813d70b1",
-      "candidate_sha256": "f113cacd9aa986dd2d942b3fb332b030360a1b8134acb09d408f372470d2ead0",
+      "candidate_sha256": "c14a059e8f2536583d276c9d2788147c44239277ba5c6f83141b5687544f0b5c",
       "transformations": [
         "unchanged receipt schema; original phase/authority assertions retained",
         "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
