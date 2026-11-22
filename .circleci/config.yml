@@ -2,7 +2,7 @@ version: 2.1
 
 jobs:
   validate:
-    parallelism: 2
+    parallelism: 3
     docker:
       - image: cimg/python:3.12.8@sha256:6c162c73ea0c4af3d63fa3a7725991af19d86c0a10235109d927950539bca05d
     resource_class: small

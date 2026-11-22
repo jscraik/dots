@@ -788,6 +788,20 @@ it back through reconciliation, and check that projected hooks begin untrusted.
 Fresh consent remains an explicit native runtime action and is never imported
 from policy bindings or copied from a live config into Git.
 
+Config replacement retains the displaced inode in an adjacent private
+`.config.toml.recovery-*` directory, including after a successful repair. The
+repair JSON and successful installation result identify `retained_generation_path`;
+a failed publication reports its recovery location in the error. A writer with
+an already open file handle may still save into that retained generation.
+These files are local recovery material, not immutable receipts or Git inputs.
+Inspect the active and retained generations before an explicitly authorised
+recovery, and keep them until native writers have closed their handles. There
+is no automatic rollback or cleanup of a generation exposed at the active
+path. A detected publication race fails without a compensating swap; this
+preserves recoverable data but cannot guarantee that every concurrent save
+remains active. Stop native writers before retrying repair or recovering a
+selected generation. Passing readback describes the observed generation only.
+
 Browser/pet assets, external adapters and live cutover remain separate migration
 surfaces. Passing this generated-policy integration does not retire Configs
 checks or prove that those remaining surfaces have been migrated.
@@ -853,8 +867,8 @@ Configs' existing checks. Local installation records and recovery artifacts stay
 outside this public repository; they are not included in hosted validation.
 The validation job installs the already-declared validation dependency pins
 before running the suite. It partitions the complete discovered test set across
-two small containers; each discovered case runs once in that partitioned suite,
-in addition to the three diagnostic regressions repeated on both nodes.
+three small containers; each discovered case runs once in that partitioned suite,
+in addition to the three diagnostic regressions repeated on each node.
 A failure fails validation. The workflow
 keeps the `validate` and `secret-scan` jobs, small resource classes, checksum
 verification and both secret scans. Hosted timing must confirm that validation
