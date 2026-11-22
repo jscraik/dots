@@ -117,9 +117,10 @@
         "canonical auth wrapper identity is derived from the ported helper",
         "fixture scope and event admission before handler actions",
         "Use the shared token-level destructive Git classifier for pre-tool denials.",
+        "Reject active shell expansion in auth-path operands while preserving inert literals and the exact authenticated-wrapper exception.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "5a5120586e99a0d1b2cb0306f1a5f9a4652643d15f3d82d81460f788da6b1401"
+      "candidate_sha256": "2e6209fe5be17b867a07d30ecf4d3f281d8dedec6a9d79495add246c77d2387f"
     },
     {
       "path": "codex/hooks/session-start.sh",

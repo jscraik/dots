@@ -726,6 +726,41 @@ command_cwd = sys.argv[3]
 
 policy = runpy.run_path(sys.argv[4])
 wrapper_canonical = os.path.realpath(sys.argv[5]).lower()
+INERT_DOLLAR = "\ue200"
+INERT_BACKTICK = "\ue201"
+
+
+def protect_inert_expansions(command: str) -> str:
+    """Retain dollars and backticks that the current shell treats literally."""
+    if INERT_DOLLAR in command or INERT_BACKTICK in command:
+        raise ValueError("Reserved shell-analysis marker")
+    protected = []
+    quote = None
+    index = 0
+    while index < len(command):
+        char = command[index]
+        if char == "\\" and quote != "'" and index + 1 < len(command):
+            following = command[index + 1]
+            if following in {"$", "`"}:
+                protected.append(INERT_DOLLAR if following == "$" else INERT_BACKTICK)
+            else:
+                protected.extend((char, following))
+            index += 2
+            continue
+        if char in {"'", '"'}:
+            quote = None if quote == char else char if quote is None else quote
+        if quote == "'" and char in {"$", "`"}:
+            protected.append(INERT_DOLLAR if char == "$" else INERT_BACKTICK)
+        else:
+            protected.append(char)
+        index += 1
+    return "".join(protected)
+
+
+def restore_inert_expansions(token: str) -> str:
+    return token.replace(INERT_DOLLAR, "$").replace(INERT_BACKTICK, "`")
+
+
 def command_position(segment, function_names=()):
     value_options = {"env": {"-u", "--unset", "-C", "--chdir"}, "sudo": {"-u", "--user", "-g", "--group", "-h", "--host", "-p", "--prompt", "-C", "--close-from", "-R", "--chroot", "-D", "--chdir"}, "command": set(), "builtin": set(), "exec": {"-a"}, "time": set()}
     index = 0
@@ -762,7 +797,8 @@ def command_segments(command: str, depth: int = 0, inherited_functions=frozenset
     substitutions = policy["substitution_commands"](command)
     if substitutions is None:
         raise ValueError("Uninspectable command substitution")
-    lexer = shlex.shlex(policy["protect_quoted_punctuation"](command), posix=True, punctuation_chars=";&|<>()\n")
+    protected_command = protect_inert_expansions(command)
+    lexer = shlex.shlex(policy["protect_quoted_punctuation"](protected_command), posix=True, punctuation_chars=";&|<>()\n")
     lexer.whitespace, lexer.whitespace_split, lexer.commenters = " \t\r", True, ""
     tokens = list(lexer)
     function_names = inherited_functions | policy["declared_functions"](tokens)
@@ -784,7 +820,8 @@ def command_segments(command: str, depth: int = 0, inherited_functions=frozenset
             while args and args[0] in {"--env-file", "--environment", "--require-env", "--canary", "--require-environment", "--help", "-h"}:
                 args = args[1:] if args[0] in {"--require-environment", "--help", "-h"} else args[2:]
             if args and args[0] == "--":
-                yield from command_segments(shlex.join(args[1:]), depth + 1)
+                child = shlex.join(restore_inert_expansions(arg) for arg in args[1:])
+                yield from command_segments(child, depth + 1)
             continue
         index = command_position(segment, function_names)
         if index >= len(segment) or posixpath.basename(segment[index]) not in {"bash", "sh", "zsh"}:
@@ -799,7 +836,7 @@ def command_segments(command: str, depth: int = 0, inherited_functions=frozenset
                 index += int(index < len(segment) and segment[index] == "--")
                 if index >= len(segment):
                     raise ValueError("Missing shell payload")
-                yield from command_segments(segment[index], depth + 1, function_names)
+                yield from command_segments(restore_inert_expansions(segment[index]), depth + 1, function_names)
                 break
             if option in {"-o", "+o", "-O", "+O"} or option.endswith(("o", "O")) and not option.startswith("--"):
                 index += 1
@@ -812,6 +849,33 @@ def expanded_token(token: str) -> str:
 
 def normalized_token(token: str) -> str:
     return posixpath.normpath(expanded_token(token)).lower()
+
+
+def has_path_expansion(token: str) -> bool:
+    """Identify shell expansions that can supply an uninspectable pathname."""
+    for index, char in enumerate(token[:-1]):
+        if char == "$":
+            following = token[index + 1]
+            if following.isalnum() or following == "_" or following in "{([@*#?$!-":
+                return True
+    return "`" in token
+
+
+def operands_may_name_paths(tokens, command_at: int, function_names=()) -> bool:
+    if command_at >= len(tokens):
+        return False
+    executable = tokens[command_at]
+    prefix = tokens[:command_at]
+    literal_printf = (
+        executable == "printf"
+        and executable not in function_names
+        and all(
+            token in {"!", "if", "while", "until", "then", "do", "else", "elif", "{"}
+            or re.match(r"[A-Za-z_][A-Za-z0-9_]*\+?=", token)
+            for token in prefix
+        )
+    )
+    return not literal_printf
 
 
 def pattern_recipients(path: str) -> list[str] | None:
@@ -917,7 +981,9 @@ def wrapper_index(tokens, function_names=()) -> int | None:
 
 try:
     for tokens, function_names in command_segments(command_text):
+        command_at = command_position(tokens, function_names)
         wrapper_at = wrapper_index(tokens, function_names)
+        path_operands = operands_may_name_paths(tokens, command_at, function_names)
         skip_indices: set[int] = set()
         if wrapper_at is not None:
             idx = wrapper_at + 1
@@ -933,6 +999,8 @@ try:
             if idx in skip_indices:
                 continue
             if is_auth_path(token):
+                raise SystemExit(0)
+            if path_operands and idx > command_at and idx != wrapper_at and has_path_expansion(token):
                 raise SystemExit(0)
 except ValueError:
     raise SystemExit(1)

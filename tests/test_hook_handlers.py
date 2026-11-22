@@ -153,6 +153,36 @@ class HookHandlerTests(unittest.TestCase):
         output = self.output('pre-tool-use-guard.sh', {'tool_input': {'command': command}})
         self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
 
+    def test_auth_path_expansions_fail_closed_without_blocking_literals(self):
+        commands = (
+            'leaf=auth.json; cat "$HOME/.codex/$leaf"',
+            'cat "$CODEX_AUTH_PATH"',
+            'base="$HOME/.codex"; cat "${base}/auth.json"',
+            'cat "${paths[0]}"',
+            'cat "${!selected_path}"',
+            'cat "$1"',
+            'cat "$((1 + 1))"',
+            'read_auth() { cat "$1"; }; read_auth "$HOME/.codex/auth.json"',
+            "bash -c 'cat \"$CODEX_AUTH_PATH\"'",
+        )
+        for hook in ('pre-tool-use-guard.sh', 'pre-tool-use-dispatch.sh'):
+            for command in commands:
+                with self.subTest(hook=hook, command=command):
+                    output = self.output(hook, {'tool_input': {'command': command}})
+                    self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+
+            for command in ('cat README.md', "cat '$HOME/.codex/$leaf'",
+                            r'cat \$HOME/.codex/\$leaf'):
+                with self.subTest(hook=hook, command=command):
+                    literal = self.output(hook, {'tool_input': {'command': command}})
+                    self.assertNotEqual(literal.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+
+        wrapper = shlex.quote(str(self.fixture.codex / 'scripts/run-auth-backed.sh'))
+        allowed = self.output('pre-tool-use-dispatch.sh', {
+            'tool_input': {'command': f'bash {wrapper} --env-file ~/.codex/.env --canary SYNTHETIC_TOKEN'},
+        })
+        self.assertNotEqual(allowed.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+
     def test_inherited_target_environment_can_only_be_cleared_explicitly(self):
         for command, denied in (('gh pr merge 1', True),
                                 ('env -u GH_REPO gh pr merge 1', False),
