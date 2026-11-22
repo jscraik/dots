@@ -2182,6 +2182,8 @@ class PrReadinessTests(unittest.TestCase):
                     patch.object(MODULE, "gh_pr", return_value=(pr, None)),
                     patch.object(MODULE, "phase_checks_lane", return_value={"status": "pass", "evidence": "checks pass"}),
                     patch.object(MODULE, "repository_slug", return_value=("jscraik/configs", None)),
+                    patch.object(MODULE, "review_comments", return_value=([], None)),
+                    patch.object(MODULE, "issue_comments", return_value=([], None)),
                     patch.object(MODULE, "run_command", return_value=MODULE.subprocess.CompletedProcess([], 0, json.dumps(response), "")),
                 ):
                     error = MODULE.recheck_hosted_state(Path.cwd(), phase, head, expected_thread_id=target)
@@ -2445,7 +2447,11 @@ class PrReadinessTests(unittest.TestCase):
             "path": str(Path(tempfile.gettempdir()) / "pr-377-solo-review-waiver.json"),
             "sha256": "0" * 64,
         }
-        with patch.object(MODULE, "review_threads", return_value=({"unresolved_threads": 0, "truncated": False}, None)):
+        with (
+            patch.object(MODULE, "review_threads", return_value=({"unresolved_threads": 0, "truncated": False}, None)),
+            patch.object(MODULE, "review_comments", return_value=([], None)),
+            patch.object(MODULE, "issue_comments", return_value=([], None)),
+        ):
             result = MODULE.reviews_lane(Path.cwd(), pr, head, waiver)
         self.assertEqual(result["status"], "pass")
         self.assertEqual(result["details"]["review_mode"], "solo_review_waiver")
@@ -2495,7 +2501,11 @@ class PrReadinessTests(unittest.TestCase):
             "tracking_ticket": "JSC-411",
             "expiry_or_adr": "ADR-411",
         }
-        with patch.object(MODULE, "review_threads", return_value=({"unresolved_threads": 0, "truncated": False}, None)):
+        with (
+            patch.object(MODULE, "review_threads", return_value=({"unresolved_threads": 0, "truncated": False}, None)),
+            patch.object(MODULE, "review_comments", return_value=([], None)),
+            patch.object(MODULE, "issue_comments", return_value=([], None)),
+        ):
             result = MODULE.reviews_lane(Path.cwd(), pr, head, waiver)
         self.assertEqual(result["status"], "pass")
 
@@ -3449,7 +3459,11 @@ class PrReadinessTests(unittest.TestCase):
             "reviewDecision": "APPROVED",
             "reviews": [{"state": "APPROVED", "commit": {"oid": head}, "user": {"login": "reviewer", "type": "User"}}],
         }
-        with patch.object(MODULE, "review_threads", return_value=({"unresolved_threads": 0, "truncated": False}, None)):
+        with (
+            patch.object(MODULE, "review_threads", return_value=({"unresolved_threads": 0, "truncated": False}, None)),
+            patch.object(MODULE, "review_comments", return_value=([], None)),
+            patch.object(MODULE, "issue_comments", return_value=([], None)),
+        ):
             result = MODULE.reviews_lane(Path.cwd(), pr, head)
         self.assertEqual(result["status"], "pass")
         self.assertEqual(result["details"]["review_mode"], "human_approval")
@@ -3457,6 +3471,123 @@ class PrReadinessTests(unittest.TestCase):
         with patch.object(MODULE, "review_threads", return_value=({"unresolved_threads": 1, "truncated": False}, None)):
             result = MODULE.reviews_lane(Path.cwd(), pr, head)
         self.assertEqual(result["status"], "fail")
+
+    def test_human_clearance_modes_reject_later_bot_findings(self) -> None:
+        head = "a" * 40
+        human_approval = {
+            "state": "APPROVED",
+            "commit": {"oid": head},
+            "user": {"login": "reviewer", "type": "User"},
+        }
+        bot_user = {"id": 136622811, "login": "coderabbitai[bot]", "type": "Bot"}
+        finding_body = f"Finding for {head}: unsafe validation remains."
+        for mode in ("human_approval", "solo_review_waiver"):
+            for source in ("formal_review", "inline_comment", "issue_comment"):
+                with self.subTest(mode=mode, source=source):
+                    reviews = [human_approval]
+                    inline_comments = []
+                    issue_entries = []
+                    finding = {
+                        "user": bot_user,
+                        "body": finding_body,
+                        "created_at": "2026-11-22T17:00:00Z",
+                    }
+                    if source == "formal_review":
+                        reviews.append({
+                            **finding,
+                            "state": "COMMENTED",
+                            "commit_id": head,
+                            "submitted_at": finding["created_at"],
+                        })
+                    elif source == "inline_comment":
+                        inline_comments.append({**finding, "commit_id": head})
+                    else:
+                        issue_entries.append(finding)
+                    pr = {"number": 7, "reviewDecision": "APPROVED", "reviews": reviews}
+                    waiver = {"authorized_by": "reviewer"} if mode == "solo_review_waiver" else None
+                    with (
+                        patch.object(MODULE, "review_threads", return_value=({"unresolved_threads": 0, "truncated": False}, None)),
+                        patch.object(MODULE, "review_comments", return_value=(inline_comments, None)),
+                        patch.object(MODULE, "issue_comments", return_value=(issue_entries, None)),
+                    ):
+                        result = MODULE.reviews_lane(Path.cwd(), pr, head, waiver)
+                    self.assertEqual(result["status"], "fail")
+                    self.assertEqual(result["details"]["outstanding_bot_concerns"], ["CodeRabbit"])
+
+    def test_human_approval_requires_complete_bot_inventories(self) -> None:
+        head = "a" * 40
+        pr = {
+            "number": 7,
+            "reviewDecision": "APPROVED",
+            "reviews": [{
+                "state": "APPROVED",
+                "commit_id": head,
+                "user": {"login": "reviewer", "type": "User"},
+            }],
+        }
+        for unavailable in ("inline", "issue"):
+            with (
+                self.subTest(unavailable=unavailable),
+                patch.object(MODULE, "review_threads", return_value=({"unresolved_threads": 0, "truncated": False}, None)),
+                patch.object(
+                    MODULE,
+                    "review_comments",
+                    return_value=([], "inline review inventory unavailable") if unavailable == "inline" else ([], None),
+                ),
+                patch.object(
+                    MODULE,
+                    "issue_comments",
+                    return_value=([], "issue comment inventory unavailable") if unavailable == "issue" else ([], None),
+                ),
+            ):
+                result = MODULE.reviews_lane(Path.cwd(), pr, head)
+            self.assertEqual(result["status"], "blocked")
+            self.assertIn("inventory unavailable", result["evidence"])
+
+    def test_human_approval_accepts_later_bot_clearance(self) -> None:
+        head = "a" * 40
+        bot_user = {"id": 136622811, "login": "coderabbitai[bot]", "type": "Bot"}
+        pr = {
+            "number": 7,
+            "reviewDecision": "APPROVED",
+            "reviews": [
+                {
+                    "state": "APPROVED",
+                    "commit_id": head,
+                    "user": {"login": "reviewer", "type": "User"},
+                },
+                {
+                    "state": "COMMENTED",
+                    "commit_id": head,
+                    "user": bot_user,
+                    "body": f"No findings for {head}.",
+                    "submitted_at": "2026-11-22T17:01:00Z",
+                },
+            ],
+        }
+        finding = {
+            "user": bot_user,
+            "body": f"Finding for {head}: unsafe validation remains.",
+            "created_at": "2026-11-22T17:00:00Z",
+        }
+        with (
+            patch.object(MODULE, "review_threads", return_value=({"unresolved_threads": 0, "truncated": False}, None)),
+            patch.object(MODULE, "review_comments", return_value=([], None)),
+            patch.object(MODULE, "issue_comments", return_value=([finding], None)),
+        ):
+            result = MODULE.reviews_lane(Path.cwd(), pr, head)
+        self.assertEqual(result["status"], "pass")
+        self.assertEqual(result["details"]["review_mode"], "human_approval")
+
+        with (
+            patch.object(MODULE, "review_threads", return_value=({"unresolved_threads": 0, "truncated": False}, None)),
+            patch.object(MODULE, "review_comments", return_value=([], None)),
+            patch.object(MODULE, "issue_comments", return_value=([finding], None)),
+            patch.object(MODULE, "_inspection_provenance_matches", return_value=False),
+        ):
+            result = MODULE.reviews_lane(Path.cwd(), pr, head)
+        self.assertEqual(result["status"], "fail")
+        self.assertIn("provenance does not match", result["evidence"])
 
     def test_managed_user_approvals_keep_current_head_decision_and_thread_gates(self) -> None:
         """Supported managed logins do not waive approval freshness or thread gates."""

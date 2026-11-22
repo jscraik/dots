@@ -3153,6 +3153,8 @@ def reviews_lane(root: Path, pr: dict[str, Any], head_sha: str, review_waiver: d
     unresolved = int(threads.get("unresolved_threads", 0))
     if unresolved:
         return lane("fail", "unresolved review threads remain", head_sha=head_sha, current_head_approvals=current_approvals, unresolved_threads=unresolved)
+    approval_mode: str | None = None
+    approval_details: dict[str, Any] = {}
     if review_waiver is not None:
         if str(pr.get("reviewDecision", "")).upper() == "CHANGES_REQUESTED":
             return lane("fail", "hosted PR review decision is CHANGES_REQUESTED", head_sha=head_sha, current_head_approvals=current_approvals, unresolved_threads=0, review_waiver=review_waiver)
@@ -3167,28 +3169,21 @@ def reviews_lane(root: Path, pr: dict[str, Any], head_sha: str, review_waiver: d
                 unresolved_threads=0,
                 review_waiver=review_waiver,
             )
-        return lane(
-            "pass",
-            "explicit solo-review waiver accepted for missing independent bot approvals",
-            head_sha=head_sha,
-            current_head_approvals=current_approvals,
-            unresolved_threads=0,
-            review_mode="solo_review_waiver",
-            review_waiver=review_waiver,
-        )
-    if current_approvals:
+        approval_mode = "solo_review_waiver"
+        approval_details["review_waiver"] = review_waiver
+    elif current_approvals:
         if str(pr.get("reviewDecision", "")).upper() != "APPROVED":
             return lane("fail", "hosted PR review decision is not APPROVED", head_sha=head_sha, current_head_approvals=current_approvals, unresolved_threads=0)
-        return lane("pass", "current-head approval and resolved review threads verified", head_sha=head_sha, current_head_approvals=current_approvals, unresolved_threads=0, review_mode="human_approval")
+        approval_mode = "human_approval"
 
     bot_reviews = current_head_bot_reviews(reviews, head_sha)
     comments, comment_error = review_comments(root, int(pr["number"]))
     if comment_error:
-        return lane("blocked", comment_error, head_sha=head_sha, current_head_approvals=[], current_head_bot_reviews={}, required_bot_reviewers=REQUIRED_BOT_REVIEWERS, unresolved_threads=0)
+        return lane("blocked", comment_error, head_sha=head_sha, current_head_approvals=current_approvals, current_head_bot_reviews={}, required_bot_reviewers=REQUIRED_BOT_REVIEWERS, unresolved_threads=0)
     bot_comments = current_head_bot_comments(comments, head_sha)
     issue_entries, issue_error = issue_comments(root, int(pr["number"]))
     if issue_error:
-        return lane("blocked", issue_error, head_sha=head_sha, current_head_approvals=[], current_head_bot_reviews={}, required_bot_reviewers=REQUIRED_BOT_REVIEWERS, unresolved_threads=0)
+        return lane("blocked", issue_error, head_sha=head_sha, current_head_approvals=current_approvals, current_head_bot_reviews={}, required_bot_reviewers=REQUIRED_BOT_REVIEWERS, unresolved_threads=0)
     authentic_issue_entries = issue_entries
     completion, completion_error = codex_completion_review(root, pr, head_sha, comments, authentic_issue_entries)
     if completion_error:
@@ -3279,6 +3274,52 @@ def reviews_lane(root: Path, pr: dict[str, Any], head_sha: str, review_waiver: d
            for review in bot_evidence.values()):
         return lane("fail", "CodeRabbit inspection provenance does not match this PR/base/head or authenticated source",
                     head_sha=head_sha, unresolved_threads=0)
+    if approval_mode is not None:
+        if concerns:
+            detail = "; ".join(
+                f"{name}={','.join(categories)}" for name, categories in sorted(diagnostics.items())
+            ).replace("changes_requested", "CHANGES_REQUESTED")
+            evidence = "bot review evidence requires later explicit clearance: " + detail
+            if any(
+                "unrecognised_verdict_format" in categories
+                for categories in diagnostics.values()
+            ):
+                evidence += "; unrecognised text may contain findings and requires inspection"
+            return lane(
+                "fail",
+                evidence,
+                head_sha=head_sha,
+                current_head_approvals=current_approvals,
+                outstanding_bot_concerns=concerns,
+                review_blocker_categories=diagnostics,
+                unresolved_threads=0,
+                codex_completion_evidence=completion["completion_evidence"] if completion else None,
+                coderabbit_completion_evidence=rabbit_completion["completion_evidence"] if rabbit_completion else None,
+                review_source_diagnostics=native_review_diagnostics([
+                    entry for entry in authentic_issue_entries
+                    if rabbit_completion is None or entry.get("html_url") != rabbit_completion["html_url"]
+                ]),
+                next_action=review_clearance_guidance(head_sha, concerns),
+                **approval_details,
+            )
+        if approval_mode == "solo_review_waiver":
+            return lane(
+                "pass",
+                "explicit solo-review waiver accepted for missing independent bot approvals",
+                head_sha=head_sha,
+                current_head_approvals=current_approvals,
+                unresolved_threads=0,
+                review_mode=approval_mode,
+                **approval_details,
+            )
+        return lane(
+            "pass",
+            "current-head approval and resolved review threads verified",
+            head_sha=head_sha,
+            current_head_approvals=current_approvals,
+            unresolved_threads=0,
+            review_mode=approval_mode,
+        )
     try:
         requirement = review_requirement(root, pr, head_sha)
     except (ValueError, CommandFailure) as exc:
