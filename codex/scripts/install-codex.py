@@ -1481,8 +1481,12 @@ def apply(state, digest):
             # Already-correct partial results are no-ops in the existing projector.
             if actual != before and not same(actual, plan['expected'][name]):
                 raise ValueError('Target changed after preparation; no repair attempted')
-        save(state / 'result.json', {'status': 'applying', 'after': {}})
-        retained_generation = None
+        retained_generation = (Path(result['retained_generation_path'])
+            if 'retained_generation_path' in result else None)
+        applying_result = {'status': 'applying', 'after': {}}
+        if retained_generation is not None:
+            applying_result['retained_generation_path'] = str(retained_generation)
+        save(state / 'result.json', applying_result)
         try:
             # A migration changes canonical resource paths; it is not a
             # selective drift repair. Reuse its validated atomic publisher.
@@ -1502,8 +1506,12 @@ def apply(state, digest):
             repair._validate_runtime_snapshot(validation_text)
             verify_hook_toolchain(plan)
             if original != merged.encode():
-                retained_generation = repair._write_repair(target, merged, expected=original,
-                    unchanged=((ROOT / 'codex/config.toml', canonical),))
+                try:
+                    retained_generation = repair._write_repair(target, merged, expected=original,
+                        unchanged=((ROOT / 'codex/config.toml', canonical),))
+                except repair.RepairPublicationError as exc:
+                    retained_generation = exc.recovery_path
+                    raise
             for row in admission.expected_map(deployed=True)['codex_projection']:
                 if row.get('strategy') == 'copy-managed':
                     publish_copy(state, row, plan['expected'][row['name']], plan['before'][row['name']], repair)
@@ -1516,7 +1524,10 @@ def apply(state, digest):
                 applied_result['retained_generation_path'] = str(retained_generation)
             save(state / 'result.json', applied_result)
         except (OSError, ValueError, subprocess.SubprocessError) as exc:
-            save(state / 'result.json', {'status': 'failed', 'after': {}})
+            failed_result = {'status': 'failed', 'after': {}}
+            if retained_generation is not None:
+                failed_result['retained_generation_path'] = str(retained_generation)
+            save(state / 'result.json', failed_result)
             if retained_generation is not None:
                 raise ValueError(f'Installation failed; retained generation remains at {retained_generation}: {exc}') from exc
             raise

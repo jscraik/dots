@@ -2760,6 +2760,46 @@ except ValueError:
         self.assertFalse(marker.exists())
         self.assertEqual(self.snapshot(), self.before)
 
+    def check_failed_apply_generation_retry(self, internal_failure):
+        original = (self.runtime / 'config.toml').read_bytes()
+        digest = self.success(self.prepare())['plan_digest']
+        installer = self.import_installer(self.payload)
+        load_module = installer.module
+
+        def inject_module(name, path):
+            loaded = load_module(name, path)
+            if name == 'installation_repair' and internal_failure:
+                publish = loaded._write_repair
+
+                def fail_after_exchange(*args, **kwargs):
+                    retained = publish(*args, **kwargs)
+                    raise loaded.RepairPublicationError(retained)
+
+                loaded._write_repair = fail_after_exchange
+            return loaded
+
+        with (mock.patch.dict(os.environ, self.installed_env(), clear=True),
+              mock.patch.dict(sys.modules),
+              mock.patch.object(installer, 'module', side_effect=inject_module),
+              mock.patch.object(installer, 'projector', side_effect=ValueError('synthetic projector refusal'))):
+            sys.modules.pop('migration_scope', None)
+            with self.assertRaisesRegex(ValueError, 'retained generation remains at'):
+                installer.apply(self.state, digest)
+        failed = json.loads((self.state / 'result.json').read_text())
+        self.assertEqual(failed['status'], 'failed')
+        retained = Path(failed['retained_generation_path'])
+        self.assertEqual(retained.read_bytes(), original)
+        retried = self.success(self.operation('apply', digest))
+        self.assertEqual(retried['retained_generation_path'], str(retained))
+        self.assertEqual(self.success(self.operation('check', digest))['retained_generation_path'], str(retained))
+        self.assertEqual(retained.read_bytes(), original)
+
+    def test_failed_apply_keeps_generation_across_successful_retry(self):
+        self.check_failed_apply_generation_retry(internal_failure=False)
+
+    def test_failed_exchange_keeps_generation_across_successful_retry(self):
+        self.check_failed_apply_generation_retry(internal_failure=True)
+
     def test_partial_cutover_rolls_back_without_resuming_activation(self):
         digest = self.success(self.prepare())['plan_digest']
         installer = self.import_installer(self.payload)
