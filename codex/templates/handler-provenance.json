@@ -50,9 +50,10 @@
       "transformations": [
         "fixture scope and event admission before handler actions",
         "fixed root-owned hook dependency path and absolute Bash launch",
-        "Omit raw failed-tool output from advisory context and persisted receipts."
+        "Omit raw failed-tool output from advisory context and persisted receipts.",
+        "Include unclassified failure output only in the hashed deduplication key."
       ],
-      "candidate_sha256": "ccfdaf18fba54aaf092a74fd51382b4398bad3a69f67ba27cfdd8bb1a61ca7ac"
+      "candidate_sha256": "1e280973b973fe4b5ce1b9824e0f53774b3c79302db9ea9158ab444bd22a8f9f"
     },
     {
       "path": "codex/hooks/pr-readiness-guard.sh",
