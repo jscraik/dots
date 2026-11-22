@@ -70,6 +70,7 @@ SCHEMA_VERSION = "pr-readiness/v1"
 SERVICE_NAME = "pr-readiness"
 PHASES = ("create", "review_inspection", "review_reconciliation", "update")
 REVIEW_WAIVER_SCHEMA = "pr-readiness-review-waiver/v1"
+REQUIRED_CHECK_POLICY_SCHEMA = "required-check-policy/v1"
 REVIEW_WAIVER_SCOPE = "missing independent bot approvals only"
 REVIEW_WAIVER_GOVERNANCE_FIELDS = (
     "rule_or_section",
@@ -80,7 +81,7 @@ SHA_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 SCOPE_DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 DEFAULT_TIMEOUT = 15
 REPLY_TIMEOUT = 30
-SUCCESS_CHECKS = {"success", "successful", "neutral", "skipped", "completed"}
+SUCCESS_CHECKS = {"success", "successful", "neutral", "skipped"}
 PENDING_CHECKS = {"queued", "pending", "in_progress", "requested", "waiting", "expected"}
 FAILED_CHECKS = {"failure", "failed", "error", "cancelled", "timed_out", "startup_failure", "action_required"}
 BOT_REVIEWERS = {
@@ -378,7 +379,7 @@ def dirty_lane(root: Path) -> dict[str, Any]:
 
 
 def gh_pr(root: Path, *, for_export: bool = False, number: int | None = None) -> tuple[dict[str, Any] | None, str | None]:
-    fields = "number,url,state,author,headRefName,headRefOid,baseRefName,baseRefOid,isDraft,reviewDecision,reviews,statusCheckRollup"
+    fields = "number,url,state,author,headRefName,headRefOid,baseRefName,baseRefOid,isDraft,reviewDecision,reviews"
     target = [] if number is None else [str(number)]
     result = run_command(["gh", "pr", "view", *target, "--json", fields], root, check=False)
     if result.returncode != 0:
@@ -394,20 +395,33 @@ def gh_pr(root: Path, *, for_export: bool = False, number: int | None = None) ->
         if error or not slug:
             return None, error or "repository unavailable for complete review query"
         # The summary view is not proof of complete historical review coverage.
-        hostname = None
-        if for_export:
-            hostname, error = review_repository_host(pr, slug)
-            if error or not hostname:
-                return None, error or "repository host unavailable"
+        hostname, error = review_repository_host(pr, slug)
+        if error or not hostname:
+            return None, error or "repository host unavailable"
+        policy, check_evidence, error = required_checks_snapshot(
+            root,
+            slug,
+            pr.get("baseRefName"),
+            pr.get("baseRefOid"),
+            pr.get("headRefOid"),
+            hostname,
+        )
+        if error:
+            return None, error
         reviews, error = review_inventory_collection(root, f"repos/{slug}/pulls/{pr['number']}/reviews", hostname)
         if error:
             return None, error
         if any(_review_login(review) == "tessl-reviewer" for review in reviews):
-            checks, error = tessl_check_inventory(root, slug, pr.get("headRefOid"), hostname)
+            tessl_checks, error = tessl_check_inventory(root, slug, pr.get("headRefOid"), hostname)
             if error:
                 return None, error
-            pr = {**pr, "tessl_check_runs": checks}
-        return {**pr, "reviews": reviews}, None
+            pr = {**pr, "tessl_check_runs": tessl_checks}
+        return {
+            **pr,
+            "requiredCheckPolicy": policy,
+            "reviews": reviews,
+            "statusCheckRollup": check_evidence,
+        }, None
     except json.JSONDecodeError as exc:
         return None, f"gh pr view returned invalid JSON: {exc.msg}"
 
@@ -526,6 +540,311 @@ def review_threads(root: Path, number: int, head_sha: str) -> tuple[dict[str, An
     }, None
 
 
+def _required_check_record(context: Any, app_id: Any) -> dict[str, Any]:
+    if not isinstance(context, str) or not context or context != context.strip():
+        raise ValueError("required check context is missing or malformed")
+    if app_id is None or (type(app_id) is int and app_id == -1):
+        normalized_app_id = None
+    elif type(app_id) is int and app_id > 0:
+        normalized_app_id = app_id
+    else:
+        raise ValueError("required check App identity is malformed")
+    return {"context": context, "app_id": normalized_app_id}
+
+
+def _required_check_sort_key(item: dict[str, Any]) -> tuple[str, int]:
+    app_id = item["app_id"]
+    return item["context"], -1 if app_id is None else app_id
+
+
+def _required_check_policy(
+    root: Path,
+    slug: str,
+    base_branch: Any,
+    base_sha: Any,
+    hostname: str,
+) -> tuple[dict[str, Any], str | None]:
+    """Read the complete provider policy that applies to one exact base ref."""
+    if (
+        not isinstance(base_branch, str)
+        or not base_branch
+        or not isinstance(base_sha, str)
+        or not SHA_RE.fullmatch(base_sha)
+    ):
+        return {}, "required-check policy requires an exact PR base branch and commit"
+    host_args = ["--hostname", hostname]
+    encoded_branch = quote(base_branch, safe="")
+    branch_path = f"repos/{slug}/branches/{encoded_branch}"
+    branch_result = run_command(["gh", "api", branch_path, *host_args], root, check=False)
+    if branch_result.returncode:
+        return {}, "required-check branch policy inventory unavailable"
+    rules_path = f"repos/{slug}/rules/branches/{encoded_branch}?per_page=100"
+    rules_result = run_command(
+        ["gh", "api", rules_path, *host_args, "--paginate", "--slurp"],
+        root,
+        check=False,
+    )
+    if rules_result.returncode:
+        return {}, "required-check ruleset inventory unavailable"
+    try:
+        branch = json.loads(branch_result.stdout)
+        pages = json.loads(rules_result.stdout)
+        if (
+            not isinstance(branch, dict)
+            or branch.get("name") != base_branch
+            or not isinstance(branch.get("commit"), dict)
+            or branch["commit"].get("sha") != base_sha
+            or not isinstance(branch.get("protected"), bool)
+        ):
+            raise ValueError("branch identity or protection state is malformed")
+        if not isinstance(pages, list) or not pages or any(
+            not isinstance(page, list) or any(not isinstance(rule, dict) for rule in page)
+            for page in pages
+        ):
+            raise ValueError("ruleset pages are malformed")
+
+        required: list[dict[str, Any]] = []
+        protection = branch.get("protection")
+        if protection is not None and not isinstance(protection, dict):
+            raise ValueError("branch protection details are malformed")
+        branch_required = protection.get("required_status_checks") if isinstance(protection, dict) else None
+        branch_source: dict[str, Any] = {
+            "kind": "branch_protection",
+            "protected": branch["protected"],
+            "enforcement_level": None,
+            "required_status_checks": [],
+        }
+        if branch_required is not None:
+            if not isinstance(branch_required, dict):
+                raise ValueError("branch required-status policy is malformed")
+            contexts = branch_required.get("contexts", [])
+            checks = branch_required.get("checks", [])
+            if not isinstance(contexts, list) or not isinstance(checks, list):
+                raise ValueError("branch required-status identities are malformed")
+            enforcement_level = branch_required.get("enforcement_level")
+            if enforcement_level is not None and not isinstance(enforcement_level, str):
+                raise ValueError("branch required-status enforcement is malformed")
+            branch_source["enforcement_level"] = enforcement_level
+            branch_checks = []
+            for check in checks:
+                if not isinstance(check, dict):
+                    raise ValueError("branch required-status check is malformed")
+                branch_checks.append(_required_check_record(check.get("context"), check.get("app_id")))
+            represented = {item["context"] for item in branch_checks}
+            for context in contexts:
+                if context not in represented:
+                    branch_checks.append(_required_check_record(context, None))
+            branch_checks = sorted(
+                {(_required_check_sort_key(item)): item for item in branch_checks}.values(),
+                key=_required_check_sort_key,
+            )
+            branch_source["required_status_checks"] = branch_checks
+            required.extend(branch_checks)
+
+        ruleset_sources: list[dict[str, Any]] = []
+        for rule in (rule for page in pages for rule in page):
+            rule_type = rule.get("type")
+            if not isinstance(rule_type, str) or not rule_type:
+                raise ValueError("ruleset rule type is malformed")
+            if rule_type == "workflows":
+                return {}, "required workflow policy cannot be authenticated by the required-check lane"
+            if rule_type != "required_status_checks":
+                continue
+            ruleset_id = rule.get("ruleset_id")
+            if type(ruleset_id) is not int or ruleset_id <= 0:
+                raise ValueError("required-status ruleset identity is malformed")
+            parameters = rule.get("parameters")
+            entries = parameters.get("required_status_checks") if isinstance(parameters, dict) else None
+            if not isinstance(entries, list) or not entries:
+                raise ValueError("required-status ruleset entries are malformed")
+            strict = parameters.get("strict_required_status_checks_policy")
+            do_not_enforce_on_create = parameters.get("do_not_enforce_on_create")
+            if strict is not None and not isinstance(strict, bool):
+                raise ValueError("required-status ruleset strictness is malformed")
+            if do_not_enforce_on_create is not None and not isinstance(do_not_enforce_on_create, bool):
+                raise ValueError("required-status ruleset creation policy is malformed")
+            identities = []
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    raise ValueError("required-status ruleset check is malformed")
+                identities.append(
+                    _required_check_record(entry.get("context"), entry.get("integration_id"))
+                )
+            identities = sorted(
+                {(_required_check_sort_key(item)): item for item in identities}.values(),
+                key=_required_check_sort_key,
+            )
+            for field in ("ruleset_source_type", "ruleset_source", "ruleset_name"):
+                if rule.get(field) is not None and not isinstance(rule[field], str):
+                    raise ValueError("required-status ruleset metadata is malformed")
+            ruleset_sources.append(
+                {
+                    "kind": "ruleset",
+                    "id": ruleset_id,
+                    "name": rule.get("ruleset_name"),
+                    "source": rule.get("ruleset_source"),
+                    "source_type": rule.get("ruleset_source_type"),
+                    "strict": strict,
+                    "do_not_enforce_on_create": do_not_enforce_on_create,
+                    "required_status_checks": identities,
+                }
+            )
+            required.extend(identities)
+
+        required = sorted(
+            {(_required_check_sort_key(item)): item for item in required}.values(),
+            key=_required_check_sort_key,
+        )
+        policy = {
+            "schema_version": REQUIRED_CHECK_POLICY_SCHEMA,
+            "repository": slug,
+            "base_branch": base_branch,
+            "base_sha": base_sha,
+            "sources": [branch_source, *sorted(ruleset_sources, key=lambda item: item["id"])],
+            "required_checks": required,
+        }
+        policy["digest"] = hashlib.sha256(
+            json.dumps(policy, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        return policy, None
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        return {}, f"required-check policy inventory malformed: {exc}"
+
+
+def _current_check_inventory(
+    root: Path,
+    slug: str,
+    head_sha: Any,
+    hostname: str,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Read exact-head statuses and check runs with provider App identities."""
+    if not isinstance(head_sha, str) or not SHA_RE.fullmatch(head_sha):
+        return [], "required-check evidence requires an exact PR head"
+    host_args = ["--hostname", hostname]
+    checks_result = run_command(
+        [
+            "gh",
+            "api",
+            f"repos/{slug}/commits/{head_sha}/check-runs?filter=all&per_page=100",
+            *host_args,
+            "--paginate",
+            "--slurp",
+        ],
+        root,
+        check=False,
+    )
+    if checks_result.returncode:
+        return [], "current-head check-run inventory unavailable"
+    statuses_result = run_command(
+        [
+            "gh",
+            "api",
+            f"repos/{slug}/commits/{head_sha}/statuses?per_page=100",
+            *host_args,
+            "--paginate",
+            "--slurp",
+        ],
+        root,
+        check=False,
+    )
+    if statuses_result.returncode:
+        return [], "current-head status-context inventory unavailable"
+    try:
+        check_pages = json.loads(checks_result.stdout)
+        status_pages = json.loads(statuses_result.stdout)
+        if not isinstance(check_pages, list) or not check_pages or any(
+            not isinstance(page, dict)
+            or not isinstance(page.get("check_runs"), list)
+            or any(not isinstance(check, dict) for check in page["check_runs"])
+            for page in check_pages
+        ):
+            raise ValueError("check-run pages are malformed")
+        if not isinstance(status_pages, list) or not status_pages or any(
+            not isinstance(page, list) or any(not isinstance(status, dict) for status in page)
+            for page in status_pages
+        ):
+            raise ValueError("status-context pages are malformed")
+
+        evidence: list[dict[str, Any]] = []
+        for check in (check for page in check_pages for check in page["check_runs"]):
+            app = check.get("app")
+            if (
+                type(check.get("id")) is not int
+                or check["id"] <= 0
+                or not isinstance(check.get("name"), str)
+                or not check["name"]
+                or check.get("head_sha") != head_sha
+                or not isinstance(check.get("status"), str)
+                or (check.get("conclusion") is not None and not isinstance(check["conclusion"], str))
+                or not isinstance(app, dict)
+                or type(app.get("id")) is not int
+                or app["id"] <= 0
+                or (app.get("slug") is not None and not isinstance(app["slug"], str))
+            ):
+                raise ValueError("check-run identity or lifecycle is malformed")
+            evidence.append(
+                {
+                    "__typename": "CheckRun",
+                    "id": check["id"],
+                    "name": check["name"],
+                    "head_sha": head_sha,
+                    "status": check["status"],
+                    "conclusion": check.get("conclusion"),
+                    "startedAt": check.get("started_at"),
+                    "completedAt": check.get("completed_at"),
+                    "app": {"id": app["id"], "slug": app.get("slug")},
+                }
+            )
+        for status in (status for page in status_pages for status in page):
+            if (
+                type(status.get("id")) is not int
+                or status["id"] <= 0
+                or not isinstance(status.get("context"), str)
+                or not status["context"]
+                or status.get("sha") != head_sha
+                or not isinstance(status.get("state"), str)
+                or not isinstance(status.get("created_at"), str)
+                or not status["created_at"]
+            ):
+                raise ValueError("status-context identity or lifecycle is malformed")
+            evidence.append(
+                {
+                    "__typename": "StatusContext",
+                    "id": status["id"],
+                    "context": status["context"],
+                    "head_sha": head_sha,
+                    "state": status["state"],
+                    "createdAt": status["created_at"],
+                }
+            )
+        return evidence, None
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        return [], f"current-head check inventory malformed: {exc}"
+
+
+def required_checks_snapshot(
+    root: Path,
+    slug: str,
+    base_branch: Any,
+    base_sha: Any,
+    head_sha: Any,
+    hostname: str,
+) -> tuple[dict[str, Any], list[dict[str, Any]], str | None]:
+    """Bind exact-head execution evidence to one stable required-check policy."""
+    policy, error = _required_check_policy(root, slug, base_branch, base_sha, hostname)
+    if error:
+        return {}, [], error
+    checks, error = _current_check_inventory(root, slug, head_sha, hostname)
+    if error:
+        return {}, [], error
+    final_policy, error = _required_check_policy(root, slug, base_branch, base_sha, hostname)
+    if error:
+        return {}, [], error
+    if final_policy.get("digest") != policy.get("digest"):
+        return {}, [], "required-check policy changed during evidence collection"
+    return policy, checks, None
+
+
 def _check_timestamp(item: dict[str, Any]) -> str:
     for key in ("completedAt", "completed_at", "startedAt", "started_at", "createdAt", "created_at"):
         candidate = item.get(key)
@@ -535,6 +854,15 @@ def _check_timestamp(item: dict[str, Any]) -> str:
 
 
 def _check_lifecycle(item: dict[str, Any]) -> str:
+    if item.get("__typename") == "CheckRun":
+        status = item.get("status")
+        if not isinstance(status, str) or not status:
+            return ""
+        normalized_status = status.lower()
+        if normalized_status != "completed":
+            return normalized_status
+        conclusion = item.get("conclusion")
+        return conclusion.lower() if isinstance(conclusion, str) and conclusion else normalized_status
     for key in ("state", "conclusion", "status"):
         candidate = item.get(key)
         if isinstance(candidate, str) and candidate:
@@ -545,7 +873,7 @@ def _check_lifecycle(item: dict[str, Any]) -> str:
 def _check_app_identity(item: dict[str, Any]) -> str:
     app = item.get("app")
     if isinstance(app, dict):
-        for key in ("slug", "name", "id"):
+        for key in ("id", "slug", "name"):
             value = app.get(key)
             if value not in (None, ""):
                 return str(value)
@@ -580,13 +908,13 @@ def _check_identity(item: dict[str, Any], index: int) -> tuple[str, ...]:
     return ("legacy", name)
 
 
-def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
+def _latest_check_evidence(pr: dict[str, Any]) -> tuple[list[dict[str, Any]], str | None]:
     checks = pr.get("statusCheckRollup")
-    if not isinstance(checks, list) or not checks:
-        return lane("blocked", "hosted PR reported no required check rollup for the current head", head_sha=head_sha, checks=[])
+    if not isinstance(checks, list):
+        return [], "hosted PR reported no current-head check inventory"
     if any(not isinstance(item, dict) for item in checks):
-        return lane("blocked", "hosted PR reported malformed check evidence", head_sha=head_sha, checks=[])
-    # GitHub retains every check-run for a commit in the PR rollup.  A rerun
+        return [], "hosted PR reported malformed check evidence"
+    # GitHub retains every check-run for a commit in the check inventory. A rerun
     # after metadata repair therefore appears beside the failed predecessor
     # run, even though both refer to the same commit. Evaluate one current
     # context per name. Prefer the newest reported timestamp, but keep a
@@ -622,7 +950,19 @@ def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
             previous = latest.get(identity)
             if previous is None or rank >= previous[:4]:
                 latest[identity] = (*rank, item)
-    current_checks = [entry[4] for entry in latest.values()]
+    return [entry[4] for entry in latest.values()], None
+
+
+def observed_checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
+    """Classify an observed rollup when another boundary proves the required run."""
+    current_checks, error = _latest_check_evidence(pr)
+    if error or not current_checks:
+        return lane(
+            "blocked",
+            error or "hosted PR reported no current-head check inventory",
+            head_sha=head_sha,
+            checks=[],
+        )
     failures: list[str] = []
     pending: list[str] = []
     for item in current_checks:
@@ -635,10 +975,128 @@ def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
         elif state not in SUCCESS_CHECKS:
             pending.append(name)
     if failures:
-        return lane("fail", f"required checks failed: {', '.join(failures)}", head_sha=head_sha, failures=failures, pending=pending)
+        return lane("fail", f"observed checks failed: {', '.join(failures)}", head_sha=head_sha, failures=failures, pending=pending)
     if pending:
-        return lane("blocked", f"required checks are not complete: {', '.join(pending)}", head_sha=head_sha, failures=[], pending=pending)
-    return lane("pass", f"{len(current_checks)} current check contexts passed for current PR head", head_sha=head_sha, checks=current_checks)
+        return lane("blocked", f"observed checks are not complete: {', '.join(pending)}", head_sha=head_sha, failures=[], pending=pending)
+    return lane("pass", f"{len(current_checks)} observed check contexts passed for current PR head", head_sha=head_sha, checks=current_checks)
+
+
+def _validated_required_check_policy(pr: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
+    policy = pr.get("requiredCheckPolicy")
+    if not isinstance(policy, dict):
+        return None, "authenticated required-check policy inventory is unavailable"
+    digest = policy.get("digest")
+    required = policy.get("required_checks")
+    if (
+        policy.get("schema_version") != REQUIRED_CHECK_POLICY_SCHEMA
+        or policy.get("base_branch") != pr.get("baseRefName")
+        or policy.get("base_sha") != pr.get("baseRefOid")
+        or not isinstance(policy.get("repository"), str)
+        or not isinstance(policy.get("sources"), list)
+        or not policy["sources"]
+        or not isinstance(required, list)
+        or not isinstance(digest, str)
+        or not SCOPE_DIGEST_RE.fullmatch(digest)
+    ):
+        return None, "authenticated required-check policy inventory is malformed"
+    try:
+        if any(
+            not isinstance(item, dict)
+            or set(item) != {"context", "app_id"}
+            or _required_check_record(item.get("context"), item.get("app_id")) != item
+            for item in required
+        ):
+            return None, "authenticated required-check identities are malformed"
+        canonical = {key: value for key, value in policy.items() if key != "digest"}
+        expected = hashlib.sha256(
+            json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    except (TypeError, ValueError):
+        return None, "authenticated required-check policy inventory is malformed"
+    if expected != digest:
+        return None, "authenticated required-check policy digest is invalid"
+    if not required:
+        return None, "the base branch policy defines no required check identities"
+    return policy, None
+
+
+def _check_matches_requirement(
+    item: dict[str, Any],
+    requirement: dict[str, Any],
+    head_sha: str,
+) -> bool:
+    if item.get("head_sha") != head_sha:
+        return False
+    context = item.get("context") or item.get("name")
+    if context != requirement["context"]:
+        return False
+    required_app = requirement["app_id"]
+    if required_app is None:
+        return True
+    app = item.get("app")
+    return (
+        item.get("__typename") == "CheckRun"
+        and isinstance(app, dict)
+        and type(app.get("id")) is int
+        and app["id"] == required_app
+    )
+
+
+def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
+    policy, error = _validated_required_check_policy(pr)
+    if error or policy is None:
+        return lane("blocked", error or "required-check policy is unavailable", head_sha=head_sha)
+    current_checks, error = _latest_check_evidence(pr)
+    if error:
+        return lane(
+            "blocked",
+            error,
+            head_sha=head_sha,
+            policy_digest=policy["digest"],
+            checks=[],
+        )
+    failures: list[str] = []
+    pending: list[str] = []
+    missing: list[str] = []
+    selected: list[dict[str, Any]] = []
+    for requirement in policy["required_checks"]:
+        label = requirement["context"]
+        if requirement["app_id"] is not None:
+            label = f"{label} (App {requirement['app_id']})"
+        matches = [
+            item
+            for item in current_checks
+            if _check_matches_requirement(item, requirement, head_sha)
+        ]
+        if not matches:
+            missing.append(label)
+            continue
+        selected.extend(matches)
+        states = [_check_lifecycle(item) for item in matches]
+        if any(state in FAILED_CHECKS for state in states):
+            failures.append(label)
+        elif any(state in PENDING_CHECKS or state not in SUCCESS_CHECKS for state in states):
+            pending.append(label)
+    details = {
+        "head_sha": head_sha,
+        "policy_digest": policy["digest"],
+        "required_checks": policy["required_checks"],
+        "checks": selected,
+        "failures": failures,
+        "pending": pending,
+        "missing": missing,
+    }
+    if failures:
+        return lane("fail", f"required checks failed: {', '.join(failures)}", **details)
+    if missing:
+        return lane("blocked", f"required checks are absent: {', '.join(missing)}", **details)
+    if pending:
+        return lane("blocked", f"required checks are not complete: {', '.join(pending)}", **details)
+    return lane(
+        "pass",
+        f"{len(policy['required_checks'])} provider-required check identities passed for current PR head",
+        **details,
+    )
 
 
 def phase_checks_lane(pr: dict[str, Any], head_sha: str, phase: str) -> dict[str, Any]:
@@ -652,10 +1110,14 @@ def phase_checks_lane(pr: dict[str, Any], head_sha: str, phase: str) -> dict[str
     )
     if (phase in {"review_inspection", "review_reconciliation"}
             and checks["status"] == "blocked" and details.get("pending")
-            and details.get("failures") == [] and known_states):
+            and details.get("failures") == [] and not details.get("missing")
+            and SCOPE_DIGEST_RE.fullmatch(str(details.get("policy_digest") or ""))
+            and known_states):
         return lane("pass", "review actions only; required CI is still pending",
                     head_sha=head_sha, ci_status=checks["status"],
                     ci_evidence=checks["evidence"], pending=details["pending"],
+                    missing=details.get("missing", []),
+                    policy_digest=details.get("policy_digest"),
                     acceptance_claims_proven=False)
     return checks
 
@@ -3528,6 +3990,7 @@ def recheck_hosted_state(
     review_waiver_record: dict[str, Any] | None = None,
     expected_thread_id: str | None = None,
     expected_pr_url: str | None = None,
+    expected_check_policy_digest: str | None = None,
 ) -> str | None:
     """Re-read hosted PR state when a receipt is consumed, including update receipts."""
     pr, pr_error = gh_pr(root)
@@ -3551,6 +4014,12 @@ def recheck_hosted_state(
         if waiver_error:
             return waiver_error
     checks = phase_checks_lane(pr, head_sha, phase)
+    current_policy_digest = checks.get("details", {}).get("policy_digest")
+    if (
+        expected_check_policy_digest is not None
+        and current_policy_digest != expected_check_policy_digest
+    ):
+        return "required-check policy changed after the receipt was written"
     if checks["status"] != "pass":
         return f"hosted checks changed after the receipt was written: {checks['evidence']}"
     if phase == "review_inspection":
@@ -3676,6 +4145,17 @@ def validate_receipt(path: Path, args: argparse.Namespace) -> tuple[dict[str, An
     recorded_pr_url = payload.get("lanes", {}).get("pull_request", {}).get("details", {}).get("url")
     if args.phase == "review_inspection" and (not isinstance(recorded_pr_url, str) or not recorded_pr_url):
         return {}, "inspection receipt does not record its PR URL"
+    expected_check_policy_digest = None
+    if args.phase != "create":
+        check_details = payload.get("lanes", {}).get("required_checks", {}).get("details", {})
+        if not isinstance(check_details, dict):
+            return {}, "receipt required-check details are malformed"
+        expected_check_policy_digest = check_details.get("policy_digest")
+        if (
+            not isinstance(expected_check_policy_digest, str)
+            or not SCOPE_DIGEST_RE.fullmatch(expected_check_policy_digest)
+        ):
+            return {}, "receipt does not bind an authenticated required-check policy"
     hosted_error = recheck_hosted_state(
         root,
         args.phase,
@@ -3685,6 +4165,7 @@ def validate_receipt(path: Path, args: argparse.Namespace) -> tuple[dict[str, An
         review_waiver_record=review_waiver_record,
         expected_thread_id=args.expected_thread_id,
         expected_pr_url=recorded_pr_url,
+        expected_check_policy_digest=expected_check_policy_digest,
     )
     if hosted_error:
         return {}, hosted_error

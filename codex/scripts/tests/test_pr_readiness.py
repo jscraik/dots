@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import hashlib
 import importlib.util
 import json
 import os
@@ -19,6 +20,41 @@ if SPEC is None or SPEC.loader is None:  # pragma: no cover
     raise RuntimeError(f"Unable to load validator module from {MODULE_PATH}")
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
+
+
+def required_check_pr(
+    checks: list[dict],
+    head: str,
+    required: list[dict] | None = None,
+) -> dict:
+    base = "b" * 40
+    evidence = [{**check, "head_sha": head} for check in checks]
+    if required is None:
+        required = []
+        seen = set()
+        for check in evidence:
+            context = check.get("context") or check.get("name")
+            if context not in seen:
+                required.append({"context": context, "app_id": None})
+                seen.add(context)
+    policy = {
+        "schema_version": MODULE.REQUIRED_CHECK_POLICY_SCHEMA,
+        "repository": "o/r",
+        "base_branch": "main",
+        "base_sha": base,
+        "sources": [{"kind": "test-policy"}],
+        "required_checks": required,
+    }
+    policy["digest"] = hashlib.sha256(
+        json.dumps(policy, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return {
+        "baseRefName": "main",
+        "baseRefOid": base,
+        "headRefOid": head,
+        "requiredCheckPolicy": policy,
+        "statusCheckRollup": evidence,
+    }
 
 
 class PrReadinessTests(unittest.TestCase):
@@ -1826,11 +1862,14 @@ class PrReadinessTests(unittest.TestCase):
         pages = [[{"user": {"login": "coderabbitai[bot]"}, "state": "COMMENTED", "body": "earlier concern"}],
                  [{"user": {"login": "chatgpt-codex-connector[bot]"}, "state": "COMMENTED", "body": "later response"}]]
         outputs = [json.dumps({"number": 7, "url": "https://github.com/o/r/pull/7", "reviews": []}), json.dumps({"nameWithOwner": "o/r"}), json.dumps(pages)]
-        with patch.object(MODULE, "run_command", side_effect=[MODULE.subprocess.CompletedProcess([], 0, raw, "") for raw in outputs]) as command:
+        with (
+            patch.object(MODULE, "run_command", side_effect=[MODULE.subprocess.CompletedProcess([], 0, raw, "") for raw in outputs]) as command,
+            patch.object(MODULE, "required_checks_snapshot", return_value=({"digest": "d" * 64}, [], None)),
+        ):
             pr, error = MODULE.gh_pr(Path.cwd())
         self.assertIsNone(error)
         self.assertEqual(pr["reviews"], pages[0] + pages[1])
-        self.assertEqual(command.call_args.args[0], ["gh", "api", "repos/o/r/pulls/7/reviews", "--paginate", "--slurp"])
+        self.assertEqual(command.call_args.args[0], ["gh", "api", "repos/o/r/pulls/7/reviews", "--hostname", "github.com", "--paginate", "--slurp"])
 
     def test_review_inventory_rejects_failed_or_malformed_pages(self) -> None:
         for raw, code in (("[]", 0), ("{}", 0), ('[[null]]', 0), ('[[{}]]', 0),
@@ -2064,24 +2103,29 @@ class PrReadinessTests(unittest.TestCase):
         self.assertFalse(MODULE.is_scope_digest("scope path must stay repository-relative: /tmp/outside.txt"))
 
     def test_checks_lane_distinguishes_pending_and_failure(self) -> None:
-        pr = {"statusCheckRollup": [{"name": "lint", "state": "SUCCESS"}, {"name": "tests", "state": "PENDING"}]}
-        pending = MODULE.checks_lane(pr, "a" * 40)
+        head = "a" * 40
+        pr = required_check_pr(
+            [{"name": "lint", "state": "SUCCESS"}, {"name": "tests", "state": "PENDING"}],
+            head,
+        )
+        pending = MODULE.checks_lane(pr, head)
         self.assertEqual(pending["status"], "blocked")
 
         pr["statusCheckRollup"][1]["state"] = "FAILURE"
-        failed = MODULE.checks_lane(pr, "a" * 40)
+        failed = MODULE.checks_lane(pr, head)
         self.assertEqual(failed["status"], "fail")
 
     def test_checks_lane_uses_newest_duplicate_context(self) -> None:
         head = "a" * 40
-        pr = {
-            "statusCheckRollup": [
+        pr = required_check_pr(
+            [
                 {"name": "pr-template", "conclusion": "FAILURE", "completedAt": "2026-08-01T19:05:47Z"},
                 {"name": "linear-gate", "conclusion": "FAILURE", "completedAt": "2026-08-01T19:10:49Z"},
                 {"name": "pr-template", "conclusion": "SUCCESS", "completedAt": "2026-08-01T19:17:42Z"},
                 {"name": "linear-gate", "conclusion": "SUCCESS", "completedAt": "2026-08-01T19:18:08Z"},
             ],
-        }
+            head,
+        )
 
         result = MODULE.checks_lane(pr, head)
 
@@ -2094,12 +2138,13 @@ class PrReadinessTests(unittest.TestCase):
 
     def test_checks_lane_blocks_queued_duplicate_without_timestamp(self) -> None:
         head = "a" * 40
-        pr = {
-            "statusCheckRollup": [
+        pr = required_check_pr(
+            [
                 {"name": "test", "conclusion": "SUCCESS", "completedAt": "2026-08-01T19:05:47Z"},
                 {"name": "test", "status": "QUEUED"},
             ],
-        }
+            head,
+        )
 
         result = MODULE.checks_lane(pr, head)
 
@@ -2108,34 +2153,37 @@ class PrReadinessTests(unittest.TestCase):
 
     def test_checks_lane_blocks_timestampless_failure_until_later_success(self) -> None:
         head = "a" * 40
-        stale_success_then_failure = {
-            "statusCheckRollup": [
+        stale_success_then_failure = required_check_pr(
+            [
                 {"name": "test", "conclusion": "SUCCESS", "completedAt": "2026-08-01T19:05:47Z"},
                 {"name": "test", "conclusion": "FAILURE"},
             ],
-        }
+            head,
+        )
         result = MODULE.checks_lane(stale_success_then_failure, head)
         self.assertEqual(result["status"], "fail")
         self.assertEqual(result["details"]["failures"], ["test"])
 
-        later_success = {
-            "statusCheckRollup": [
+        later_success = required_check_pr(
+            [
                 {"name": "test", "conclusion": "FAILURE"},
                 {"name": "test", "conclusion": "SUCCESS", "completedAt": "2026-08-01T19:17:42Z"},
             ],
-        }
+            head,
+        )
         result = MODULE.checks_lane(later_success, head)
         self.assertEqual(result["status"], "pass")
 
     def test_checks_lane_keeps_same_named_check_runs_from_distinct_workflows(self) -> None:
         head = "a" * 40
-        pr = {
-            "statusCheckRollup": [
+        pr = required_check_pr(
+            [
                 {
                     "__typename": "CheckRun",
                     "name": "test",
                     "workflowName": "unit",
                     "app": {"slug": "circleci"},
+                    "status": "COMPLETED",
                     "conclusion": "FAILURE",
                     "completedAt": "2026-08-02T19:05:47Z",
                 },
@@ -2144,11 +2192,13 @@ class PrReadinessTests(unittest.TestCase):
                     "name": "test",
                     "workflowName": "integration",
                     "app": {"slug": "circleci"},
+                    "status": "COMPLETED",
                     "conclusion": "SUCCESS",
                     "completedAt": "2026-08-02T19:17:42Z",
                 },
             ],
-        }
+            head,
+        )
 
         result = MODULE.checks_lane(pr, head)
 
@@ -2157,22 +2207,25 @@ class PrReadinessTests(unittest.TestCase):
 
     def test_checks_lane_keeps_unidentified_same_named_check_runs_separate(self) -> None:
         head = "a" * 40
-        pr = {
-            "statusCheckRollup": [
+        pr = required_check_pr(
+            [
                 {
                     "__typename": "CheckRun",
                     "name": "test",
+                    "status": "COMPLETED",
                     "conclusion": "FAILURE",
                     "completedAt": "2026-08-02T19:05:47Z",
                 },
                 {
                     "__typename": "CheckRun",
                     "name": "test",
+                    "status": "COMPLETED",
                     "conclusion": "SUCCESS",
                     "completedAt": "2026-08-02T19:17:42Z",
                 },
             ],
-        }
+            head,
+        )
 
         result = MODULE.checks_lane(pr, head)
 
@@ -2181,8 +2234,8 @@ class PrReadinessTests(unittest.TestCase):
 
     def test_checks_lane_dedupes_status_contexts_by_context_name(self) -> None:
         head = "a" * 40
-        pr = {
-            "statusCheckRollup": [
+        pr = required_check_pr(
+            [
                 {
                     "__typename": "StatusContext",
                     "context": "ci/build",
@@ -2195,13 +2248,174 @@ class PrReadinessTests(unittest.TestCase):
                     "state": "SUCCESS",
                     "createdAt": "2026-08-01T19:17:42Z",
                 },
-            ]
-        }
+            ],
+            head,
+        )
 
         result = MODULE.checks_lane(pr, head)
 
         self.assertEqual(result["status"], "pass")
         self.assertEqual(len(result["details"]["checks"]), 1)
+
+    def test_checks_lane_blocks_optional_success_when_required_check_is_absent(self) -> None:
+        head = "a" * 40
+        pr = required_check_pr(
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "optional",
+                    "app": {"id": 42},
+                    "status": "COMPLETED",
+                    "conclusion": "SUCCESS",
+                }
+            ],
+            head,
+            required=[{"context": "required", "app_id": 42}],
+        )
+
+        result = MODULE.checks_lane(pr, head)
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["details"]["missing"], ["required (App 42)"])
+
+    def test_checks_lane_requires_explicit_conclusion_and_app_identity(self) -> None:
+        head = "a" * 40
+        requirement = [{"context": "validate", "app_id": 42}]
+        completed_only = required_check_pr(
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "validate",
+                    "app": {"id": 42},
+                    "status": "COMPLETED",
+                    "conclusion": None,
+                }
+            ],
+            head,
+            required=requirement,
+        )
+        wrong_app = required_check_pr(
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "validate",
+                    "app": {"id": 99},
+                    "status": "COMPLETED",
+                    "conclusion": "SUCCESS",
+                }
+            ],
+            head,
+            required=requirement,
+        )
+        in_progress = required_check_pr(
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "validate",
+                    "app": {"id": 42},
+                    "status": "IN_PROGRESS",
+                    "conclusion": "SUCCESS",
+                }
+            ],
+            head,
+            required=requirement,
+        )
+
+        self.assertEqual(MODULE.checks_lane(completed_only, head)["status"], "blocked")
+        self.assertEqual(MODULE.checks_lane(in_progress, head)["status"], "blocked")
+        self.assertEqual(MODULE.checks_lane(wrong_app, head)["details"]["missing"], ["validate (App 42)"])
+
+    def test_checks_lane_accepts_required_success_and_ignores_optional_failure(self) -> None:
+        head = "a" * 40
+        pr = required_check_pr(
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "validate",
+                    "app": {"id": 42},
+                    "status": "COMPLETED",
+                    "conclusion": "SUCCESS",
+                },
+                {
+                    "__typename": "CheckRun",
+                    "name": "optional",
+                    "app": {"id": 42},
+                    "status": "COMPLETED",
+                    "conclusion": "FAILURE",
+                },
+            ],
+            head,
+            required=[{"context": "validate", "app_id": 42}],
+        )
+
+        result = MODULE.checks_lane(pr, head)
+
+        self.assertEqual(result["status"], "pass")
+        self.assertEqual([item["name"] for item in result["details"]["checks"]], ["validate"])
+
+    def test_required_check_policy_combines_branch_protection_and_rulesets(self) -> None:
+        base = "b" * 40
+        branch = {
+            "name": "main",
+            "commit": {"sha": base},
+            "protected": True,
+            "protection": {
+                "required_status_checks": {
+                    "contexts": ["branch-ci"],
+                    "checks": [{"context": "branch-ci", "app_id": 41}],
+                }
+            },
+        }
+        rules = [[{
+            "type": "required_status_checks",
+            "ruleset_id": 7,
+            "ruleset_name": "delivery",
+            "ruleset_source": "o/r",
+            "ruleset_source_type": "Repository",
+            "parameters": {
+                "required_status_checks": [{"context": "ruleset-ci", "integration_id": 42}]
+            },
+        }]]
+        responses = [json.dumps(branch), json.dumps(rules)]
+        with patch.object(
+            MODULE,
+            "run_command",
+            side_effect=[subprocess.CompletedProcess([], 0, value, "") for value in responses],
+        ):
+            policy, error = MODULE._required_check_policy(
+                Path.cwd(), "o/r", "main", base, "github.com"
+            )
+
+        self.assertIsNone(error)
+        self.assertEqual(
+            policy["required_checks"],
+            [
+                {"context": "branch-ci", "app_id": 41},
+                {"context": "ruleset-ci", "app_id": 42},
+            ],
+        )
+        self.assertRegex(policy["digest"], r"^[0-9a-f]{64}$")
+
+    def test_required_check_policy_blocks_unauthenticated_workflow_rules(self) -> None:
+        base = "b" * 40
+        branch = {
+            "name": "main",
+            "commit": {"sha": base},
+            "protected": True,
+            "protection": {},
+        }
+        responses = [json.dumps(branch), json.dumps([[{"type": "workflows"}]])]
+        with patch.object(
+            MODULE,
+            "run_command",
+            side_effect=[subprocess.CompletedProcess([], 0, value, "") for value in responses],
+        ):
+            policy, error = MODULE._required_check_policy(
+                Path.cwd(), "o/r", "main", base, "github.com"
+            )
+
+        self.assertEqual(policy, {})
+        self.assertIn("cannot be authenticated", error or "")
 
     def test_reviews_lane_accepts_exact_solo_review_waiver(self) -> None:
         head = "a" * 40
@@ -3394,9 +3608,10 @@ class PrReadinessTests(unittest.TestCase):
 
     def test_pending_ci_is_observed_without_granting_merge_readiness(self) -> None:
         head = "a" * 40
-        pr = {"headRefOid": head, "statusCheckRollup": [
-            {"name": "test", "status": "IN_PROGRESS", "conclusion": ""},
-        ]}
+        pr = required_check_pr(
+            [{"name": "test", "status": "IN_PROGRESS", "conclusion": ""}],
+            head,
+        )
         for phase in ("review_inspection", "review_reconciliation", "update"):
             with self.subTest(phase=phase):
                 result = MODULE.phase_checks_lane(pr, head, phase)
@@ -3411,8 +3626,12 @@ class PrReadinessTests(unittest.TestCase):
 
     def test_review_receipt_consumption_allows_pending_ci_but_rechecks_identity(self) -> None:
         head = "a" * 40
-        pr = {"headRefOid": head, "number": 7, "state": "OPEN", "url": "https://github.com/o/r/pull/7",
-              "statusCheckRollup": [{"name": "test", "status": "IN_PROGRESS"}]}
+        pr = {
+            **required_check_pr([{"name": "test", "status": "IN_PROGRESS"}], head),
+            "number": 7,
+            "state": "OPEN",
+            "url": "https://github.com/o/r/pull/7",
+        }
         for phase in ("review_inspection", "review_reconciliation"):
             with self.subTest(phase=phase), patch.object(MODULE, "gh_pr", return_value=(pr, None)), patch.object(
                 MODULE, "review_reconciliation_lane", return_value={"status": "pass", "details": {"unresolved_thread_ids": ["thread"]}}
@@ -3421,7 +3640,7 @@ class PrReadinessTests(unittest.TestCase):
                 original = pr["statusCheckRollup"]
                 for changed in ([{"name": "test", "status": "COMPLETED", "conclusion": "FAILURE"}],
                                 [{"name": "test", "status": "MYSTERY"}],
-                                original + [{"name": "other", "status": "MYSTERY"}], []):
+                                []):
                     pr["statusCheckRollup"] = changed
                     self.assertIn("hosted checks changed", MODULE.recheck_hosted_state(Path.cwd(), phase, head))
                 pr["statusCheckRollup"] = original
@@ -3439,6 +3658,25 @@ class PrReadinessTests(unittest.TestCase):
             error = MODULE.recheck_hosted_state(Path.cwd(), "update", head)
 
         self.assertIsNone(error)
+
+    def test_receipt_recheck_rejects_changed_required_check_policy(self) -> None:
+        head = "a" * 40
+        pr = required_check_pr(
+            [{"name": "validate", "state": "SUCCESS"}],
+            head,
+        )
+        with (
+            patch.object(MODULE, "gh_pr", return_value=(pr, None)),
+            patch.object(MODULE, "reviews_lane", return_value={"status": "pass", "evidence": "reviews pass"}),
+        ):
+            error = MODULE.recheck_hosted_state(
+                Path.cwd(),
+                "update",
+                head,
+                expected_check_policy_digest="c" * 64,
+            )
+
+        self.assertEqual(error, "required-check policy changed after the receipt was written")
 
     def test_update_receipt_blocks_when_hosted_base_branch_changes(self) -> None:
         head = "a" * 40
@@ -3668,9 +3906,11 @@ class TesslReviewTests(unittest.TestCase):
 
     def test_gh_pr_propagates_tessl_check_retrieval_failure(self):
         head = "a" * 40
-        pr = {"number": 7, "headRefOid": head}
+        pr = {"number": 7, "url": "https://github.com/o/r/pull/7", "headRefOid": head,
+              "baseRefName": "main", "baseRefOid": "b" * 40}
         with (patch.object(MODULE, "run_command", return_value=subprocess.CompletedProcess([], 0, json.dumps(pr), "")),
               patch.object(MODULE, "repository_slug", return_value=("o/r", None)),
+              patch.object(MODULE, "required_checks_snapshot", return_value=({"digest": "d" * 64}, [], None)),
               patch.object(MODULE, "review_inventory_collection", return_value=([{"user": {"login": "tessl-reviewer[bot]"}}], None)),
               patch.object(MODULE, "tessl_check_inventory", return_value=([], "check retrieval failed"))):
             self.assertEqual(MODULE.gh_pr(Path.cwd(), number=7), (None, "check retrieval failed"))
