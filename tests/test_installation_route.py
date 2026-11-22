@@ -34,26 +34,24 @@ class DesktopProposalPublicationTests(unittest.TestCase):
         path = self.root / 'desktop-review.json'
         with mock.patch.object(self.installer.os, 'fsync', side_effect=OSError('injected sync failure')):
             with self.assertRaises(OSError):
-                self.installer.write_desktop_proposal(path, b'private reviewed proposal')
+                self.installer.publish_desktop_review(path, b'private reviewed proposal')
         self.assertFalse(path.exists())
         self.assertEqual(list(self.root.iterdir()), [])
-        self.installer.write_desktop_proposal(path, b'private reviewed proposal')
+        self.installer.publish_desktop_review(path, b'private reviewed proposal')
         self.assertEqual(path.read_bytes(), b'private reviewed proposal')
         self.assertEqual(path.stat().st_mode & 0o777, 0o600)
         self.assertEqual(path.stat().st_nlink, 1)
 
     def test_racing_pin_is_preserved_and_partial_bytes_are_not_published(self):
         path = self.root / 'desktop-review.json'
-        publish = self.installer.install_absent
+        publish = self.installer.rename_absent
         def race(source, target, **options):
             self.assertFalse(path.exists())
             self.assertEqual(Path(source).read_bytes(), b'new proposal')
             path.write_bytes(b'other reviewed proposal')
-            self.assertTrue(options['atomic_file'])
             return publish(source, target, **options)
-        with mock.patch.object(self.installer, 'install_absent', side_effect=race):
-            with self.assertRaises(FileExistsError):
-                self.installer.write_desktop_proposal(path, b'new proposal')
+        with mock.patch.object(self.installer, 'rename_absent', side_effect=race):
+            self.installer.publish_desktop_review(path, b'new proposal')
         self.assertEqual(path.read_bytes(), b'other reviewed proposal')
         self.assertEqual(list(self.root.iterdir()), [path])
 
@@ -539,7 +537,10 @@ class InstallationRouteTests(unittest.TestCase):
         revoked = path.read_bytes()
         second = self.success(self.operation('prepare-desktop-review', digest))['review_sha256']
         self.assertNotEqual(first, second)
+        addressed = self.state / f'desktop-review-{second}.json'
+        published = addressed.stat()
         self.assertEqual(self.success(self.operation('prepare-desktop-review', digest))['review_sha256'], second)
+        self.assertEqual(addressed.stat().st_ino, published.st_ino)
         self.assertEqual((self.state / 'desktop-review.json').read_bytes(), original_proposal)
         arguments = ('--state-dir', self.state, '--plan-digest', digest,
                      '--desktop-review-sha256', second)
@@ -550,6 +551,24 @@ class InstallationRouteTests(unittest.TestCase):
         self.success(self.run_cli('rollback', *arguments))
         self.assertEqual(tomllib.loads(path.read_text())['hooks']['state'], {})
         self.assertEqual((self.state / 'desktop-review.json').read_bytes(), original_proposal)
+
+    def test_review_publication_leaves_concurrent_proposal_untouched(self):
+        installer = self.import_installer(ROOT)
+        target = self.home / f'desktop-review-{"a" * 64}.json'
+        raw = b'complete proposal'
+        sync = os.fsync
+
+        def finish_staging(fd):
+            self.assertFalse(target.exists())
+            self.assertEqual(os.fstat(fd).st_mode & 0o777, 0o600)
+            sync(fd)
+            with target.open('xb') as stream:
+                stream.write(b'concurrent proposal')
+
+        with mock.patch.object(installer.os, 'fsync', side_effect=finish_staging):
+            installer.publish_desktop_review(target, raw)
+        self.assertEqual(target.read_bytes(), b'concurrent proposal')
+        self.assertEqual(list(self.home.glob('.desktop-review-*')), [])
 
     def test_digest_named_pending_review_blocks_both_repair_helpers(self):
         digest = self.success(self.prepare())['plan_digest']

@@ -100,23 +100,6 @@ def write(path, raw, mode=0o600):
         os.fsync(stream.fileno())
 
 
-def write_desktop_proposal(path, raw):
-    """Publish complete private proposal bytes without replacing any pin."""
-    fd, name = tempfile.mkstemp(prefix='.desktop-proposal-', dir=path.parent)
-    temporary = Path(name)
-    try:
-        with os.fdopen(fd, 'wb') as stream:
-            os.fchmod(stream.fileno(), 0o600)
-            stream.write(raw)
-            stream.flush()
-            os.fsync(stream.fileno())
-        # Exclusive rename avoids a crash leaving a two-link private pin.
-        install_absent(temporary, path, atomic_file=True)
-    finally:
-        with contextlib.suppress(FileNotFoundError):
-            temporary.unlink()
-
-
 def save(path, value):
     fd, name = tempfile.mkstemp(prefix='.installation-', dir=path.parent)
     try:
@@ -340,12 +323,17 @@ def retire_created_target(target, state, expected):
         raise ValueError('Concurrent replacement preserved in private recovery directory')
 
 
-def install_absent(staged, target, *, atomic_file=False):
+def install_absent(staged, target):
     """Publish without replacing a concurrently created destination."""
-    if staged.is_file() and not atomic_file:
+    if staged.is_file():
         os.link(staged, target, follow_symlinks=False)
         staged.unlink()
         return
+    rename_absent(staged, target)
+
+
+def rename_absent(staged, target):
+    """Atomically move a staged path without replacing the destination."""
     libc = ctypes.CDLL(None, use_errno=True)
     if sys.platform == 'darwin':
         rename = libc.renamex_np
@@ -1378,6 +1366,15 @@ def load_result(state, plan):
     return result
 
 
+def publish_desktop_review(path, raw):
+    """Publish a complete proposal with no temporary hard link for readers to see."""
+    with tempfile.TemporaryDirectory(prefix='.desktop-review-', dir=path.parent) as directory:
+        staged = Path(directory) / path.name
+        write(staged, raw)
+        with contextlib.suppress(FileExistsError):
+            rename_absent(staged, path)
+
+
 def prepare_desktop_review(state, digest, *, before_write=None):
     """Write a private proposal only; printing its digest is not acceptance."""
     plan = load_plan(state, digest)
@@ -1419,17 +1416,21 @@ def prepare_desktop_review(state, digest, *, before_write=None):
         raise ValueError('Managed state changed while proposing Desktop compatibility')
     if before_write is not None:
         before_write(proposal)
-    review_path = state / 'desktop-review.json'
-    if os.path.lexists(review_path):
+    review_digest = compat.sha(raw)
+    legacy = state / 'desktop-review.json'
+    if compat.review_path(state, review_digest) == legacy:
+        if not os.path.lexists(legacy):
+            publish_desktop_review(legacy, raw)
         try:
-            compat.load(review_path, compat.sha(raw), state=state, plan_digest=digest, plan=plan)
-        except (OSError, ValueError):
-            review_path = state / f'desktop-review-{compat.sha(raw)}.json'
-    # Each proposal is immutable. Re-review never replaces an accepted pin.
-    if not os.path.lexists(review_path):
-        write_desktop_proposal(review_path, raw)
-    compat.load(review_path, compat.sha(raw), state=state, plan_digest=digest, plan=plan)
-    return {'schema_version': 1, 'status': 'proposal_only', 'review_sha256': compat.sha(raw),
+            legacy_matches = compat.sha(SCOPE.read_regular(legacy, compat.MAX_REVIEW_BYTES)) == review_digest
+        except (FileNotFoundError, ValueError):
+            legacy_matches = False
+        if not legacy_matches:
+            addressed = state / f'desktop-review-{review_digest}.json'
+            if not os.path.lexists(addressed):
+                publish_desktop_review(addressed, raw)
+    compat.load(legacy, review_digest, state=state, plan_digest=digest, plan=plan)
+    return {'schema_version': 1, 'status': 'proposal_only', 'review_sha256': review_digest,
             'changed_paths': [row['path'] for row in changes]}
 
 
