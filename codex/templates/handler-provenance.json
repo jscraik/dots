@@ -261,9 +261,10 @@
       "source_sha256": "0934dbfd2eef51942db405f7e0439d4b0e58c171606ba991b7fafcf832646c2c",
       "transformations": [
         "fixture admission for shell runtime dependency",
-        "Deliver only explicitly requested injected credentials plus pre-injection runtime context to the child."
+        "Deliver only explicitly requested injected credentials plus pre-injection runtime context to the child.",
+        "Keep child launcher state positional so requested names retain their environment values."
       ],
-      "candidate_sha256": "411809dd3cabed4f7b57bd4f3f66c5f932a26bf74d21fce32b33b6af2661d2dd"
+      "candidate_sha256": "6f0eb44aa755d94016cbc8bc669946381ff32a7714427318a55d7c730855d4ff"
     },
     {
       "path": "codex/scripts/hook-governance/hook_runtime_policy.py",
