@@ -521,11 +521,28 @@ def effective_previous_review():
     return review
 
 
+def reviewed_plugin_validation_text(text, review):
+    """Exclude only exact pinned Desktop plugin tables from automatic policy."""
+    if not review:
+        return text
+    compat = module('reviewed_plugin_values', ROOT / 'codex/scripts/desktop_compatibility.py')
+    parsed = tomllib.loads(text)
+    changes = []
+    for row in review['changes']:
+        path = tuple(row['path'])
+        if len(path) != 2 or path[0] != 'plugins' or path[1] not in compat.DESKTOP_OWNED_COMPUTER_USE_PLUGIN_IDS:
+            continue
+        if not compat.equal(compat.get(parsed, path), row['after']):
+            raise ValueError('Pinned Desktop plugin registration changed')
+        changes.append({'path': list(path), 'after': {'present': False}})
+    return compat.overlay(text, changes)
+
+
 def update_desktop_text(canonical, original):
     import tomllib
     repair = module('update_policy', ROOT / 'codex/scripts/repair-runtime-config-drift.py')
     review = effective_previous_review()
-    validation_original = original
+    validation_original = reviewed_plugin_validation_text(original, review)
     state_path = ('hooks', 'state')
     if review and any(tuple(row['path'][:2]) == state_path for row in review['changes']):
         compat = module('native_consent_update', ROOT / 'codex/scripts/desktop_compatibility.py')
@@ -540,7 +557,7 @@ def update_desktop_text(canonical, original):
             raise ValueError('Native hook consent changed after its pinned review')
         # The canonical renderer rejects all runtime consent. Pass it a copy
         # without verified state, then restore the reviewed rows below.
-        validation_original = compat.overlay(original,
+        validation_original = compat.overlay(validation_original,
             [{'path': list(state_path), 'after': {'present': False}}])
     merged, error = repair._canonical_with_desktop_plugins(canonical, validation_original)
     if merged is None:
@@ -1397,6 +1414,8 @@ def apply(state, digest):
                     merged.encode()).hexdigest(), 'size': len(merged.encode())}, plan['expected']['config.toml']):
                 raise ValueError('Prepared canonical policy or Desktop state changed: ' + str(error))
             repair._validate_canonical_snapshot(canonical.decode())
+            validation_text, _ = normalized_desktop_update(merged, canonical.decode())
+            repair._validate_runtime_snapshot(validation_text)
             if original != merged.encode():
                 repair._write_repair(target, merged, expected=original,
                     unchanged=((ROOT / 'codex/config.toml', canonical),))

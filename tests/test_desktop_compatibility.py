@@ -255,6 +255,32 @@ class DesktopCompatibilityTests(unittest.TestCase):
             'after': {'present': True, 'value': False}}])
         self.assertRaises(ValueError, adapter.repair_candidate, installed, changed)
 
+    def test_automatic_computer_use_preservation_is_disabled_marker_only(self):
+        adapter, _, _ = self.seven_fixture()
+        for plugin_id in adapter.DESKTOP_OWNED_COMPUTER_USE_PLUGIN_IDS:
+            safe = {'plugins': {plugin_id: {'enabled': False}}}
+            self.assertEqual(adapter.computer_use_plugin_preservation_errors(safe), [])
+            self.assertFalse(adapter.requires_preservation(safe))
+            unsafe = (
+                {'enabled': True},
+                {'enabled': False, 'command': '/unreviewed'},
+                {'enabled': False, 'env': {'TOKEN': 'unreviewed'}},
+                {'enabled': False, 'mcp_servers': {'cua_repl': {
+                    'enabled_tools': ['click']}}},
+                {'enabled': False, 'mcp_servers': {'cua_repl': {
+                    'default_tools_approval_mode': 'auto'}}},
+            )
+            for value in unsafe:
+                config = {'plugins': {plugin_id: value}}
+                with self.subTest(plugin_id=plugin_id, value=value):
+                    self.assertTrue(adapter.computer_use_plugin_preservation_errors(config))
+                    self.assertTrue(adapter.requires_preservation(config))
+
+        installed = 'approval_policy = "on-request"\n'
+        observed = installed + '[plugins."computer-use@openai-bundled"]\nenabled = true\n'
+        self.assertEqual(len(adapter.delta(installed, observed)), 1)
+        self.assertTrue(adapter.requires_preservation(tomllib.loads(observed)))
+
     def test_new_desktop_slots_reject_unvalidated_values(self):
         adapter, installed, observed = self.seven_fixture()
         bad = [

@@ -34,10 +34,16 @@ class InstallationRouteTests(unittest.TestCase):
                 installer.preserve_hook_disables(baseline, {'hooks': {'state': state}})
 
     def test_update_renderer_requires_review_for_unbound_hook_state(self):
-        installer = self.import_installer(ROOT)
+        shutil.copy2(ROOT / 'codex/scripts/install-codex.py',
+                     self.fixture.repo / 'codex/scripts/install-codex.py')
+        shutil.copy2(ROOT / 'scripts/generate-codex-policy.py',
+                     self.fixture.repo / 'scripts/generate-codex-policy.py')
+        shutil.copy2(ROOT / 'scripts/stage-home.py',
+                     self.fixture.repo / 'scripts/stage-home.py')
+        installer = self.import_installer(self.fixture.repo)
         canonical = '[hooks.state.known]\ntrusted_hash = "bound"\n'
         observed = canonical + 'enabled = false\n'
-        scope = installer.module('renderer_test_scope', ROOT / 'codex/scripts/migration_scope.py')
+        scope = installer.module('renderer_test_scope', self.fixture.repo / 'codex/scripts/migration_scope.py')
         with (mock.patch.object(installer, 'effective_previous_review', return_value=None),
               mock.patch.dict(sys.modules, {'migration_scope': scope}),
               mock.patch.dict(os.environ, self.fixture.env, clear=True)):
@@ -45,20 +51,26 @@ class InstallationRouteTests(unittest.TestCase):
                 installer.update_desktop_text(canonical, observed)
 
     def test_update_renderer_preserves_reviewed_leaf_hook_toggle(self):
-        installer = self.import_installer(ROOT)
-        compat = installer.module('renderer_test_compat', ROOT / 'codex/scripts/desktop_compatibility.py')
+        installer = self.import_installer(self.source_root)
+        compat = installer.module('renderer_test_compat', self.source_root / 'codex/scripts/desktop_compatibility.py')
         canonical = '[hooks.state.known]\nenabled = false\ntrusted_hash = "sha256:' + 'a' * 64 + '"\n'
-        observed = canonical.replace('enabled = false', 'enabled = true')
-        review = {'canonical': canonical, 'observed': observed,
-                  'state_dir': str(self.state), 'changes': compat.delta(canonical, observed)}
-        scope = installer.module('renderer_test_scope', ROOT / 'codex/scripts/migration_scope.py')
-        with (mock.patch.object(installer, 'effective_previous_review', return_value=review),
-              mock.patch.dict(sys.modules, {'migration_scope': scope}),
-              mock.patch.dict(os.environ, self.fixture.env, clear=True)):
-            updated = installer.update_desktop_text(canonical, observed)
-            self.assertEqual(tomllib.loads(updated), tomllib.loads(observed))
-            with self.assertRaises(ValueError):
-                installer.update_desktop_text(canonical, observed.replace('a' * 64, 'b' * 64))
+        scope = installer.module('renderer_test_scope', self.source_root / 'codex/scripts/migration_scope.py')
+        for plugin in ('', '\n[plugins."computer-use@openai-bundled"]\nenabled = true\n'):
+            observed = canonical.replace('enabled = false', 'enabled = true') + plugin
+            review = {'canonical': canonical, 'observed': observed,
+                      'state_dir': str(self.state), 'changes': compat.delta(canonical, observed)}
+            with (self.subTest(plugin=bool(plugin)),
+                  mock.patch.object(installer, 'effective_previous_review', return_value=review),
+                  mock.patch.dict(sys.modules, {'migration_scope': scope}),
+                  mock.patch.dict(os.environ, self.fixture.env, clear=True)):
+                updated = installer.update_desktop_text(canonical, observed)
+                self.assertEqual(tomllib.loads(updated), tomllib.loads(observed))
+                with self.assertRaises(ValueError):
+                    installer.update_desktop_text(canonical, observed.replace('a' * 64, 'b' * 64))
+                if plugin:
+                    with self.assertRaisesRegex(ValueError, 'Pinned Desktop plugin'):
+                        installer.update_desktop_text(canonical, observed.replace(plugin,
+                            plugin.replace('enabled = true', 'enabled = false')))
 
     def test_standalone_live_usage_swap_refuses_before_any_state_change(self):
         installer = self.import_installer(ROOT)
@@ -816,13 +828,15 @@ class InstallationRouteTests(unittest.TestCase):
         self.success(self.operation('apply', digest))
         config = self.runtime / 'config.toml'
         installed = config.read_bytes()
-        for kind in ('history', 'notify'):
+        for kind in ('history', 'notify', 'computer-use'):
             with self.subTest(kind=kind):
                 data = tomllib.loads(installed.decode())
                 if kind == 'history':
                     data['plugins']['computer-history@openai-bundled'] = {'enabled': True}
-                else:
+                elif kind == 'notify':
                     data['notify'] = [str(self.home / 'app/desktop-notify'), 'done']
+                else:
+                    data['plugins']['computer-use@openai-bundled'] = {'enabled': True}
                 config.write_text(GEN.toml_document(data))
                 observed = config.read_bytes()
                 result = subprocess.run([sys.executable, '-B',
@@ -862,9 +876,7 @@ class InstallationRouteTests(unittest.TestCase):
     def test_cutover_repeat_and_exact_managed_rollback(self):
         config = self.runtime / 'config.toml'
         original = config.read_text().replace('model_verbosity = "medium"', 'model_verbosity = "high"', 1)
-        desktop = ('[plugins."computer-use@openai-bundled"]\nenabled = false\n'
-                   '[plugins."computer-use@openai-bundled".mcp_servers.computer-use.tools.click]\n'
-                   'approval_mode = "prompt"\n')
+        desktop = '[plugins."computer-use@openai-bundled"]\nenabled = false\n'
         config.write_text(original.replace('\n[desktop]\n', '\n' + desktop + '\n[desktop]\n', 1))
         self.before = self.snapshot()
         prepared = self.success(self.prepare())
@@ -1960,6 +1972,15 @@ with installer.renameable_directories(state, staged, target):
         self.assertFalse(self.state.exists())
         self.assertEqual(self.snapshot(), before)
         path = self.runtime / 'config.toml'
+        pinned = path.read_text()
+        changed_plugin = tomllib.loads(pinned)
+        changed_plugin['plugins']['computer-use@openai-bundled']['enabled'] = False
+        path.write_text(GEN.toml_document(changed_plugin))
+        changed = self.snapshot()
+        self.assertNotEqual(self.prepare_reviewed_update(pin).returncode, 0)
+        self.assertFalse(self.state.exists())
+        self.assertEqual(self.snapshot(), changed)
+        path.write_text(pinned)
         data = tomllib.loads(path.read_text())
         data['notify'].append('unapproved-new-argument')
         path.write_text(GEN.toml_document(data))

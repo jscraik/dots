@@ -24,6 +24,14 @@ from fnmatch import fnmatchcase  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+_DESKTOP_SPEC = importlib.util.spec_from_file_location('repair_desktop_compatibility',
+    require_policy_path(SCRIPT_DIR / 'desktop_compatibility.py'))
+if _DESKTOP_SPEC is None or _DESKTOP_SPEC.loader is None:
+    raise RuntimeError('Desktop compatibility helper is unavailable')
+_DESKTOP_COMPATIBILITY = importlib.util.module_from_spec(_DESKTOP_SPEC)
+_DESKTOP_SPEC.loader.exec_module(_DESKTOP_COMPATIBILITY)
+DESKTOP_OWNED_COMPUTER_USE_PLUGIN_IDS = _DESKTOP_COMPATIBILITY.DESKTOP_OWNED_COMPUTER_USE_PLUGIN_IDS
+computer_use_plugin_preservation_errors = _DESKTOP_COMPATIBILITY.computer_use_plugin_preservation_errors
 CONFIG_PATH = (deployment_module().ROOT / 'codex' if deployment_module() is not None else SCRIPT_DIR.parent) / 'config.toml'
 SCHEMA_VERSION = 'runtime-config-drift-repair/v1'
 SERVICE = 'runtime-config-drift-repair'
@@ -47,7 +55,7 @@ NETWORKED_PERMISSION_PROFILES = ('workspace-net', 'readonly-net')
 LEGACY_PINNED_CUA_SHA256 = '149d490fc3e32e510f3b9d7926334d276315f9d6af78c6fe35edac73dd459b45'
 LEGACY_CUA_DRIFT = 'legacy_repository_pinned_cua_requires_cutover'
 LEGACY_CUA_CUTOVER = "The runtime matches the retired repository-pinned cua_repl table. No desktop registration was changed. Back up this config, verify the table's repository provenance, and obtain approval for a one-time removal of only that table and its env subtable; then use Desktop's supported activation path. Make intentional settings changes in the canonical repository config; subsequent reconciliation preserves Desktop-owned Computer Use plugin consent."
-DESKTOP_OWNED_PLUGIN_IDS = frozenset({'computer-use@openai-bundled', 'unified-computer-use@openai-bundled'})
+DESKTOP_OWNED_PLUGIN_IDS = DESKTOP_OWNED_COMPUTER_USE_PLUGIN_IDS
 
 def _has_legacy_pinned_cua(config: dict[str, object]) -> bool:
     """Recognize only the full historical launcher, never a partial match."""
@@ -148,7 +156,9 @@ def _with_desktop_presentation(canonical_text: str, runtime: dict[str, object]) 
 def _runtime_matches_canonical_policy(runtime_text: str, canonical_text: str) -> bool:
     runtime, _ = _loads_toml(runtime_text)
     canonical, _ = _loads_toml(canonical_text)
-    if runtime is None or canonical is None or _invalid_presentation(runtime) or _invalid_presentation(canonical):
+    if (runtime is None or canonical is None or _invalid_presentation(runtime)
+            or _invalid_presentation(canonical)
+            or computer_use_plugin_preservation_errors(runtime)):
         return False
     runtime = copy.deepcopy(runtime)
     canonical = copy.deepcopy(canonical)
@@ -177,6 +187,9 @@ def _canonical_with_desktop_plugins(canonical_text: str, runtime_text: str) -> t
         return (None, 'native hook consent requires an explicit installation-bound preservation review')
     if _invalid_presentation(runtime) or _invalid_presentation(canonical):
         return (None, 'invalid Desktop presentation preference')
+    plugin_errors = computer_use_plugin_preservation_errors(runtime)
+    if plugin_errors:
+        return (None, '; '.join(plugin_errors))
     canonical_text, preference_error = _with_desktop_presentation(canonical_text, runtime)
     if canonical_text is None:
         return (None, preference_error)
@@ -1175,18 +1188,46 @@ def _exchange_paths(first: Path, second: Path) -> None:
 class SnapshotValidationUnavailable(OSError):
     """The validator could not produce a policy verdict."""
 
-def _validate_canonical_snapshot(text: str) -> None:
+def _validate_snapshot(text: str, *, option: str, label: str) -> None:
     """Validate the exact proposed bytes, not a second read of mutable source."""
     try:
-        result = subprocess.run([sys.executable, str(SCRIPT_DIR / 'validate-codex-config.py'), '--config-stdin'], input=text, encoding='utf-8', capture_output=True, timeout=30, check=False)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_DIR / 'validate-codex-config.py'), option],
+            input=text, encoding='utf-8', capture_output=True, timeout=30, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise SnapshotValidationUnavailable('canonical snapshot validation unavailable; no publication performed') from exc
+        raise SnapshotValidationUnavailable(
+            f'{label} snapshot validation unavailable; no publication performed') from exc
     if result.returncode == 65:
         diagnostic = result.stdout.strip()[-1000:]
-        raise OSError(f'canonical snapshot failed full config validation; no publication performed: {diagnostic}')
+        raise OSError(
+            f'{label} snapshot failed full config validation; no publication performed: {diagnostic}')
     if result.returncode != 0:
         diagnostic = (result.stdout + '\n' + result.stderr).strip()[-1000:]
-        raise SnapshotValidationUnavailable(f'canonical snapshot validator execution failed (exit {result.returncode}); no publication performed: {diagnostic}')
+        raise SnapshotValidationUnavailable(
+            f'{label} snapshot validator execution failed (exit {result.returncode}); '
+            f'no publication performed: {diagnostic}')
+
+def _validate_canonical_snapshot(text: str) -> None:
+    _validate_snapshot(text, option='--config-stdin', label='canonical')
+
+def _validate_runtime_snapshot(text: str) -> None:
+    _validate_snapshot(text, option='--runtime-config-stdin', label='repaired runtime')
+
+def _validate_notifier_cutover_snapshot(text: str) -> None:
+    """Validate policy around the unchanged, digest-pinned retired launcher."""
+    parsed, _ = _loads_toml(text)
+    if parsed is None or not _has_legacy_pinned_cua(parsed):
+        raise OSError('legacy notifier cleanup lost its exact launcher identity')
+    expected = copy.deepcopy(parsed)
+    del expected['mcp_servers']['cua_repl']
+    # This is a validation view only. Publication retains the complete pinned
+    # launcher until the separately authorised cutover; no new launcher passes.
+    view = _remove_complete_table(text, 'mcp_servers.cua_repl.env')[0]
+    view = _remove_complete_table(view, 'mcp_servers.cua_repl')[0]
+    observed, _ = _loads_toml(view)
+    if not _same_toml_values(observed, expected):
+        raise OSError('legacy validation view changed unrelated configuration')
+    _validate_runtime_snapshot(view)
 
 def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, unchanged: tuple[tuple[Path, bytes], ...]=()) -> None:
     if config_path.is_symlink():
@@ -1412,20 +1453,26 @@ def main(argv: list[str] | None=None) -> int:
         payload = _payload(status='blocked', path=config_path, drift=remaining_drift, repairs=repairs, reason='runtime_config_drift_unrepairable', error=', '.join([*blocked, *remaining_drift]))
         _emit(payload, args.json)
         return 1
+    canonical_repair, plugin_error = _canonical_with_desktop_plugins(canonical_text, original)
+    if canonical_repair is None:
+        _emit(_payload(status='blocked', path=config_path, drift=drift, reason='desktop_plugin_preservation_failed', error=plugin_error), args.json)
+        return 1
     if not notifier_only_cutover:
-        repaired_text, plugin_error = _canonical_with_desktop_plugins(canonical_text, original)
-        if repaired_text is None:
-            _emit(_payload(status='blocked', path=config_path, drift=drift, reason='desktop_plugin_preservation_failed', error=plugin_error), args.json)
-            return 1
+        repaired_text = canonical_repair
         repairs = [*repairs, 'canonical_file_sync']
-        try:
-            _validate_canonical_snapshot(canonical_text)
-        except SnapshotValidationUnavailable as exc:
-            _emit(_payload(status='blocked', path=config_path, drift=drift, reason='canonical_validation_unavailable', error=str(exc)), args.json)
-            return 1
-        except OSError as exc:
-            _emit(_payload(status='blocked', path=config_path, drift=drift, reason='canonical_source_invalid', error=str(exc)), args.json)
-            return 1
+    # A blocked legacy cleanup is still a publication. Apply the same consent
+    # and exact-snapshot checks before creating a backup or replacing bytes.
+    try:
+        if notifier_only_cutover:
+            _validate_notifier_cutover_snapshot(repaired_text)
+        else:
+            _validate_runtime_snapshot(repaired_text)
+    except SnapshotValidationUnavailable as exc:
+        _emit(_payload(status='blocked', path=config_path, drift=drift, reason='canonical_validation_unavailable', error=str(exc)), args.json)
+        return 1
+    except OSError as exc:
+        _emit(_payload(status='blocked', path=config_path, drift=drift, reason='canonical_source_invalid', error=str(exc)), args.json)
+        return 1
     if args.backup_path is None:
         backup_dir = Path(tempfile.mkdtemp(prefix='codex-config-backup-'))
         args.backup_path = backup_dir / 'config.toml'
