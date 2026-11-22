@@ -233,7 +233,7 @@
         "Recognise legacy and digest-named pending Desktop proposals; block packaged repair when the state directory cannot be listed.",
         "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
       ],
-      "candidate_sha256": "9e4e1070c6efa2ef9d1bba897b368264186c68712e3b8d533425d8b33b553362"
+      "candidate_sha256": "313172916ef0ac1a01f39f2340c0389b7ff1884b165e79dbe4c53647e2af5ed2"
     },
     {
       "path": "codex/scripts/audit-project-codex-config-overrides.sh",
@@ -306,7 +306,8 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "5baefe5d97ef259ea472cea6f9b581bd1a1d36f199e206b6ad713ccbf577bac3",
       "transformations": [
-        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Classify OAuth, OAuth2, login, password and JWT path words as high risk"
       ],
       "candidate_sha256": "552189329f8ee27c668926659386d5610058d2de9162b9685d38a0c52b9411ff"
     },

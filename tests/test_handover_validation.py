@@ -46,6 +46,35 @@ class HandoverValidationTests(unittest.TestCase):
         self.assertEqual(config.read_text(), 'model = "keep"\n\n[other]\nnotify = ["keep"]\n')
         self.assertEqual(json.loads(result.stdout)['removed_count'], 1)
 
+    def test_desktop_registration_scan_failure_is_bounded_and_preserves_config(self):
+        fixture = self.fixture
+        config = fixture.home / 'scan-failure.toml'
+        original = 'model = "keep"\nnotify = ["SkyComputerUseClient"]\n'
+        config.write_text(original)
+        child = '''import importlib.util,sys
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+sys.path.insert(0, str(Path(sys.argv[1]).parent))
+spec = importlib.util.spec_from_file_location("scan_failure",sys.argv[1])
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+deployment = SimpleNamespace(ROOT=Path(sys.argv[1]).parents[2])
+state = sys.argv[3]
+deployment.context = lambda: {"state_dir":state}
+module.deployment_module = lambda: deployment
+sys.argv=[sys.argv[1],"--config-path",sys.argv[2],"--repair","--json"]
+with patch.object(module.os,"scandir",side_effect=OSError("synthetic-private-scan-data")):
+    raise SystemExit(module.main())
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/scrub-computer-use-config.py'), str(config), str(fixture.home)],
+            env=fixture.env, cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)['reason'], 'desktop_registration_scan_failed')
+        self.assertEqual(config.read_text(), original)
+        self.assertNotIn('synthetic-private-scan-data', result.stdout + result.stderr)
+        self.assertNotIn('Traceback', result.stdout + result.stderr)
+
     def test_invalid_binding_document_is_a_bounded_cli_rejection(self):
         path = self.fixture.home / 'invalid-bindings.json'
         path.write_text('[]')

@@ -1544,6 +1544,12 @@ def main(argv: list[str] | None=None) -> int:
     except OSError as exc:
         _emit(_payload(status='blocked', path=config_path, drift=drift, reason='canonical_source_invalid', error=str(exc)), args.json)
         return 1
+    if approved_update_changes:
+        repaired_text = updater.module('restore_desktop_overlay', CONFIG_PATH.parent / 'scripts/desktop_compatibility.py').overlay(repaired_text, approved_update_changes)
+    if len(repaired_text.encode('utf-8')) > REPAIR_FILE_LIMIT:
+        _emit(_payload(status='blocked', path=config_path, drift=drift, repairs=repairs,
+            reason='config_size_limit_exceeded', error='config exceeds the 16 MiB verification limit'), args.json)
+        return 1
     if args.backup_path is None:
         backup_dir = Path(tempfile.mkdtemp(prefix='codex-config-backup-'))
         args.backup_path = backup_dir / 'config.toml'
@@ -1556,12 +1562,10 @@ def main(argv: list[str] | None=None) -> int:
             payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason='config_backup_failed', error=str(exc), backup_path=args.backup_path)
             _emit(payload, args.json)
             return 1
-    if approved_update_changes:
-        repaired_text = updater.module('restore_desktop_overlay', CONFIG_PATH.parent / 'scripts/desktop_compatibility.py').overlay(repaired_text, approved_update_changes)
     recovery_path = None
     try:
         recovery_path = _write_repair(config_path, repaired_text, expected=original_bytes, unchanged=((CONFIG_PATH, canonical_bytes),))
-        if config_path.read_bytes() != repaired_text.encode('utf-8'):
+        if _repair_file_snapshot(config_path)[1] != repaired_text.encode('utf-8'):
             raise OSError('runtime config changed after reconciliation; expected state not verified')
     except OSError as exc:
         if isinstance(exc, RepairPublicationError):

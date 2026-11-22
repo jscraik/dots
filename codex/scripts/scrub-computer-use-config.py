@@ -24,6 +24,10 @@ CONFIG_PATH = SCRIPT_DIR.parent / "config.toml"
 FORBIDDEN_NOTIFY_TOKEN = "SkyComputerUseClient"
 
 
+class DesktopRegistrationScanError(OSError):
+    """The installed proposal directory could not be inspected."""
+
+
 def scrub_forbidden_notify(text: str) -> tuple[str, int]:
     """Remove top-level notify assignments that launch SkyComputerUseClient."""
     if tomlkit is None:
@@ -137,24 +141,28 @@ def main() -> int:
             desktop = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(desktop)
             state = Path(deployment.context()['state_dir'])
-            with os.scandir(state) as entries:
-                pending = any(entry.name.startswith('desktop-review') and entry.name.endswith('.json')
-                              for entry in entries)
+            try:
+                with os.scandir(state) as entries:
+                    pending = any(entry.name.startswith('desktop-review') and entry.name.endswith('.json')
+                                  for entry in entries)
+            except OSError:
+                raise DesktopRegistrationScanError from None
             if desktop.requires_preservation(parsed) or pending:
                 raise ValueError('Packaged Desktop registration requires preservation review')
         scrubbed, removed = scrub_forbidden_notify(original)
-    except Exception:  # noqa: BLE001 -- MIG-HELPER-1: fail closed without exposing parser payloads.
+    except Exception as exc:  # noqa: BLE001 -- MIG-HELPER-1: fail closed without exposing parser payloads.
+        reason = 'desktop_registration_scan_failed' if isinstance(exc, DesktopRegistrationScanError) else 'config_parser_failed'
         payload = {
             "schema_version": "computer-use-config-scrub/v1",
             "service": "computer-use-config-scrub",
             "status": "blocked",
-            "reason": "config_parser_failed",
+            "reason": reason,
             "path": str(config_path),
         }
         if args.json:
             print(json.dumps(payload, sort_keys=True))
         else:
-            print(f"FAIL  configuration parser failed: {config_path}")
+            print(f"FAIL  {reason}: {config_path}")
         return 1
     if removed and args.repair:
         repair_path = config_path.resolve() if config_path.is_symlink() else config_path

@@ -372,6 +372,31 @@ assert retained.read_bytes() == b"small original\\n"
         self.assertEqual(set(runtime.parent.iterdir()), before)
         self.assertFalse(backup.exists())
 
+    def test_oversized_repaired_candidate_does_not_create_backup(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        runtime = fixture.runtime / 'config.toml'
+        canonical = runtime.read_bytes()
+        original = canonical.replace(b'approval_policy = "on-request"', b'approval_policy = "never"', 1)
+        self.assertLess(len(original), len(canonical))
+        runtime.write_bytes(original)
+        backup = fixture.home / 'candidate-size-backup.toml'
+        child = '''import importlib.util,sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]).parent))
+spec = importlib.util.spec_from_file_location("candidate_size", sys.argv[1])
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+module.REPAIR_FILE_LIMIT = len(Path(sys.argv[2]).read_bytes()) + 1
+raise SystemExit(module.main(["--config-path",sys.argv[2],"--repair","--backup-path",sys.argv[3],"--json"]))
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/repair-runtime-config-drift.py'), str(runtime), str(backup)],
+            env=fixture.env, cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)['reason'], 'config_size_limit_exceeded')
+        self.assertEqual(runtime.read_bytes(), original)
+        self.assertFalse(backup.exists(), 'candidate-size rejection created a backup')
+
     def test_failed_readback_reports_retained_generation(self):
         fixture = self.fixture
         self.success(fixture.project())
