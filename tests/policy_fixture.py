@@ -18,6 +18,7 @@ class PolicyFixture(HookFixture):
         super().__init__(testcase)
         self.env['DOTS_PROJECTION_FIXTURE'] = 'full-policy-v1'
         for name in ('scripts/link-configs.sh', 'codex/scripts/admit-policy-fixture.py',
+                     'codex/scripts/install-codex.py', 'codex/scripts/deployment_scope.py',
                      'codex/scripts/validate-execpolicy-rules.py',
                      'codex/scripts/desktop_compatibility.py',
                      'codex/scripts/reconcile-config-projection.sh',

@@ -36,6 +36,14 @@ computer_use_plugin_preservation_errors = _DESKTOP_COMPATIBILITY.computer_use_pl
 CONFIG_PATH = (deployment_module().ROOT / 'codex' if deployment_module() is not None else SCRIPT_DIR.parent) / 'config.toml'
 SCHEMA_VERSION = 'runtime-config-drift-repair/v1'
 SERVICE = 'runtime-config-drift-repair'
+
+
+def _installer():
+    spec = importlib.util.spec_from_file_location('runtime_repair_installer',
+        require_policy_path(SCRIPT_DIR / 'install-codex.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 EXPECTED_APPROVALS_REVIEWER = 'auto_review'
 DESKTOP_PRESENTATION_VALUES = {'model_verbosity': frozenset({'low', 'medium', 'high'}), 'model_reasoning_summary': frozenset({'auto', 'concise', 'detailed', 'none'})}
 MANAGED_ROOT_STRINGS = ('model', 'developer_instructions', 'plan_mode_reasoning_effort', 'model_verbosity', 'experimental_compact_prompt_file')
@@ -1290,8 +1298,7 @@ def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, 
             if guarded_path.is_symlink() or guarded_path.read_bytes() != guarded_bytes:
                 raise OSError('guarded file changed during reconciliation; retry from fresh state')
         if expected is None:
-            os.link(tmp_path, repair_path, follow_symlinks=False)
-            tmp_path.unlink()
+            _installer().rename_absent(tmp_path, repair_path)
             recovery_dir.rmdir()
             return None
         # A signal may arrive after the syscall succeeds but before it returns.
@@ -1394,6 +1401,26 @@ def _emit(payload: dict[str, object], json_output: bool, message: str='') -> Non
 
 def main(argv: list[str] | None=None) -> int:
     args = parse_args(argv)
+    deployment = deployment_module()
+    if args.repair and deployment is not None:
+        stack = contextlib.ExitStack()
+        try:
+            inherited = os.environ.get('DOTS_INSTALLATION_LOCK_FD')
+            if inherited is not None and not re.fullmatch(r'[0-9]+', inherited):
+                raise ValueError('Invalid inherited installation lock')
+            stack.enter_context(_installer().installation_lock(Path(deployment.context()['home']),
+                    inherited_fd=None if inherited is None else int(inherited)))
+        except (OSError, ValueError):
+            stack.close()
+            _emit(_payload(status='blocked', path=args.config_path,
+                reason='installation_lock_unavailable', error='Installation lock unavailable; no repair admitted'), args.json)
+            return 1
+        with stack:
+            return _main_locked(args)
+    return _main_locked(args)
+
+
+def _main_locked(args) -> int:
     config_path = args.config_path.expanduser()
     require_policy_path(config_path)
     if args.backup_path is not None:
@@ -1484,7 +1511,7 @@ def main(argv: list[str] | None=None) -> int:
         state = Path(deployment.context()['state_dir'])
         try:
             with os.scandir(state) as entries:
-                pending = any(entry.name.startswith('desktop-review') and entry.name.endswith('.json')
+                pending = any(desktop.is_review_filename(entry.name)
                               for entry in entries)
         except OSError as exc:
             _emit(_payload(status='blocked', path=config_path,

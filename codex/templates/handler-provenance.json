@@ -231,9 +231,10 @@
         "Add fixed packaged-context admission; retain default disposable admission and original checks.",
         "Keep parse-error fallback; unexpected parser exceptions stop before publication. Clear Ruff diagnostics without changing file modes.",
         "Recognise legacy and digest-named pending Desktop proposals; block packaged repair when the state directory cannot be listed.",
-        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
+        "Qualify atomic absent-file repair publication, exact published Desktop proposal names, and installation locking across proposal inspection and config publication; verify inherited descriptors against the fixed lock inode without releasing parent ownership."
       ],
-      "candidate_sha256": "313172916ef0ac1a01f39f2340c0389b7ff1884b165e79dbe4c53647e2af5ed2"
+      "candidate_sha256": "f2e62a02b79b252a9d4425994e34eb31ffaefecb2bb34b26ee9e1e0f0f252467"
     },
     {
       "path": "codex/scripts/audit-project-codex-config-overrides.sh",

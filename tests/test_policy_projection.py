@@ -322,6 +322,7 @@ assert target.read_bytes() == b"concurrent native save\\n"
 target.unlink()
 module._write_repair(target, "repair\\n", expected=None)
 assert target.read_bytes() == b"repair\\n"
+assert target.stat().st_nlink == 1
 '''
         result = subprocess.run([sys.executable, '-B', '-c', child,
             str(fixture.codex / 'scripts/repair-runtime-config-drift.py'),

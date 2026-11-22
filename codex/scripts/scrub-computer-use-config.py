@@ -7,9 +7,11 @@ from migration_scope import deployment_module, require_policy_path, require_poli
 require_policy_scope()
 
 import argparse  # noqa: E402
+import contextlib  # noqa: E402
 import importlib.util  # noqa: E402
 import json  # noqa: E402
 import os  # noqa: E402
+import re  # noqa: E402
 import tomllib  # noqa: E402
 from pathlib import Path  # noqa: E402
 
@@ -111,6 +113,31 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    deployment = deployment_module()
+    if args.repair and deployment is not None:
+        stack = contextlib.ExitStack()
+        try:
+            inherited = os.environ.get('DOTS_INSTALLATION_LOCK_FD')
+            if inherited is not None and not re.fullmatch(r'[0-9]+', inherited):
+                raise ValueError('Invalid inherited installation lock')
+            spec = importlib.util.spec_from_file_location('scrub_installation_lock',
+                require_policy_path(SCRIPT_DIR / 'install-codex.py'))
+            installer = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(installer)
+            stack.enter_context(installer.installation_lock(Path(deployment.context()['home']),
+                    inherited_fd=None if inherited is None else int(inherited)))
+        except (OSError, ValueError):
+            stack.close()
+            print(json.dumps({'schema_version': 'computer-use-config-scrub/v1',
+                'service': 'computer-use-config-scrub', 'status': 'blocked',
+                'reason': 'installation_lock_unavailable'}))
+            return 1
+        with stack:
+            return _main_locked(args)
+    return _main_locked(args)
+
+
+def _main_locked(args) -> int:
     require_policy_path(args.config_path)
     config_path = args.config_path.expanduser()
     try:
@@ -143,7 +170,7 @@ def main() -> int:
             state = Path(deployment.context()['state_dir'])
             try:
                 with os.scandir(state) as entries:
-                    pending = any(entry.name.startswith('desktop-review') and entry.name.endswith('.json')
+                    pending = any(desktop.is_review_filename(entry.name)
                                   for entry in entries)
             except OSError:
                 raise DesktopRegistrationScanError from None

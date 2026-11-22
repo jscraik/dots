@@ -10,6 +10,35 @@ from policy_fixture import ROOT
 
 
 class HandoverValidationTests(unittest.TestCase):
+    def test_repair_errors_after_lock_acquisition_keep_their_cause(self):
+        fixture = self.fixture
+        child = '''import importlib.util,sys
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+sys.path.insert(0,str(Path(sys.argv[1]).parent))
+spec=importlib.util.spec_from_file_location("locked_diagnostic",sys.argv[1])
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+home=Path(sys.argv[2])
+deployment=SimpleNamespace(ROOT=Path(sys.argv[1]).parents[2],context=lambda:{"home":str(home)})
+module.deployment_module=lambda:deployment
+sys.argv=[sys.argv[1],"--config-path",str(home/"config.toml"),"--repair","--json"]
+with patch.object(module,"_main_locked",side_effect=OSError("synthetic-action-failure")):
+    try:
+        module.main()
+    except OSError as error:
+        assert str(error)=="synthetic-action-failure"
+    else:
+        raise AssertionError("Action error was relabelled as lock unavailability")
+'''
+        for name in ('repair-runtime-config-drift.py', 'scrub-computer-use-config.py'):
+            with self.subTest(name=name):
+                result = subprocess.run([sys.executable, '-B', '-c', child,
+                    str(fixture.codex / 'scripts' / name), str(fixture.home)],
+                    env=fixture.env, cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(result.stdout, '')
+
     def setUp(self):
         self.fixture = HelperFixture(self)
         self.addCleanup(self.fixture.assert_preserved, self)
@@ -60,7 +89,7 @@ spec = importlib.util.spec_from_file_location("scan_failure",sys.argv[1])
 module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
 deployment = SimpleNamespace(ROOT=Path(sys.argv[1]).parents[2])
 state = sys.argv[3]
-deployment.context = lambda: {"state_dir":state}
+deployment.context = lambda: {"state_dir":state,"home":state}
 module.deployment_module = lambda: deployment
 sys.argv=[sys.argv[1],"--config-path",sys.argv[2],"--repair","--json"]
 with patch.object(module.os,"scandir",side_effect=OSError("synthetic-private-scan-data")):
