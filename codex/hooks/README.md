@@ -405,8 +405,9 @@ bash codex/scripts/run-auth-backed.sh \
 
 Inside Codex, the wrapper validates that `${HOME}/.codex/.env` is a
 non-symlink FIFO owned by the current user with no group/other access, then
-stable `op` exposes the selected Environment only to the child. It never prints
-the variable value and does not accept an arbitrary command in canary mode.
+the trusted post-injection launcher passes only explicitly requested names to a
+caller command. It never prints a variable value and does not accept an
+arbitrary command in canary mode.
 The wrapper selects `op`/`op-beta` only from `/opt/homebrew/bin` or `/usr/local/bin` (resolved under that root with no caller-writable path components; home shims refused). The canary child uses `/bin/bash -p` so `PATH`/functions/`BASH_ENV` cannot replace it; missing installs fail closed.
 Both networked permission profiles explicitly deny the FIFO. Only the two exact
 fixed-output canary commands are auto-allowed outside that ordinary workspace

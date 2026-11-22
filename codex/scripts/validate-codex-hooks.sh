@@ -736,6 +736,7 @@ while (($# > 0)); do
 done
 [[ -p "$env_file" ]] || exit 2
 export CIRCLECI_CLI_TOKEN="non-secret-test-placeholder"
+export OLLAMA_API_KEY="second-non-secret-test-placeholder"
 exec "$@"
 EOF
 chmod a+x,a-w "$auth_canary_bin/op"; chmod a-w "$auth_canary_root/homebrew" "$auth_canary_bin"
@@ -759,6 +760,53 @@ fi
 if [[ "$auth_canary_alternate_output" != *"only permits the canonical ~/.codex/.env"* ]]; then
   echo "[validate-codex-hooks] auth-injection canary alternate-path rejection should be explicit" >&2
   printf '%s\n' "$auth_canary_alternate_output" >&2
+  chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
+  exit 1
+fi
+auth_scoped_output="$(env -u CIRCLECI_CLI_TOKEN -u OLLAMA_API_KEY -u CODEX_HOME -u CODEX_AUTH_OP_BIN -u CODEX_AUTH_TEST_MODE HOME="$auth_canary_home" bash "$auth_canary_wrapper" --env-file "$auth_canary_home/.codex/.env" --require-env CIRCLECI_CLI_TOKEN -- /bin/bash -c '
+  set -euo pipefail
+  [[ -n "${CIRCLECI_CLI_TOKEN:-}" ]]
+  [[ -z "${OLLAMA_API_KEY+x}" ]]
+  [[ "$HOME" == "$1" ]]
+  [[ -n "${PATH:-}" ]]
+  printf "run-auth-backed.sh: scoped child environment passed\n"
+' bash "$auth_canary_home")"
+[[ "$auth_scoped_output" == "run-auth-backed.sh: scoped child environment passed" ]] || {
+  echo "[validate-codex-hooks] auth-backed child should receive only its requested secret and preserved runtime context" >&2
+  printf '%s\n' "$auth_scoped_output" >&2
+  chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
+  exit 1
+}
+auth_multi_output="$(env -u CIRCLECI_CLI_TOKEN -u OLLAMA_API_KEY -u CODEX_HOME -u CODEX_AUTH_OP_BIN -u CODEX_AUTH_TEST_MODE HOME="$auth_canary_home" bash "$auth_canary_wrapper" --env-file "$auth_canary_home/.codex/.env" --require-env CIRCLECI_CLI_TOKEN --require-env OLLAMA_API_KEY -- /bin/bash -c '
+  set -euo pipefail
+  [[ -n "${CIRCLECI_CLI_TOKEN:-}" && -n "${OLLAMA_API_KEY:-}" ]]
+  printf "run-auth-backed.sh: multiple requested variables passed\n"
+')"
+[[ "$auth_multi_output" == "run-auth-backed.sh: multiple requested variables passed" ]] || {
+  echo "[validate-codex-hooks] auth-backed child should receive every explicitly requested variable" >&2
+  printf '%s\n' "$auth_multi_output" >&2
+  chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
+  exit 1
+}
+auth_unscoped_output="$(env -u CIRCLECI_CLI_TOKEN -u OLLAMA_API_KEY -u CODEX_HOME -u CODEX_AUTH_OP_BIN -u CODEX_AUTH_TEST_MODE HOME="$auth_canary_home" bash "$auth_canary_wrapper" --env-file "$auth_canary_home/.codex/.env" -- /bin/bash -c '
+  set -euo pipefail
+  [[ -z "${CIRCLECI_CLI_TOKEN+x}" && -z "${OLLAMA_API_KEY+x}" ]]
+  printf "run-auth-backed.sh: unscoped child received no injected variables\n"
+')"
+[[ "$auth_unscoped_output" == "run-auth-backed.sh: unscoped child received no injected variables" ]] || {
+  echo "[validate-codex-hooks] auth-backed child without requested names must receive no injected variables" >&2
+  printf '%s\n' "$auth_unscoped_output" >&2
+  chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
+  exit 1
+}
+if auth_reserved_output="$(env -u CIRCLECI_CLI_TOKEN -u OLLAMA_API_KEY -u CODEX_HOME -u CODEX_AUTH_OP_BIN -u CODEX_AUTH_TEST_MODE HOME="$auth_canary_home" bash "$auth_canary_wrapper" --env-file "$auth_canary_home/.codex/.env" --require-env PATH -- /bin/true 2>&1)"; then
+  echo "[validate-codex-hooks] auth-backed child should reject requested names reserved for runtime context" >&2
+  chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
+  exit 1
+fi
+if [[ "$auth_reserved_output" != *"name is reserved for pre-injection runtime context: PATH"* ]]; then
+  echo "[validate-codex-hooks] reserved auth-backed child environment rejection should be explicit" >&2
+  printf '%s\n' "$auth_reserved_output" >&2
   chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
   exit 1
 fi

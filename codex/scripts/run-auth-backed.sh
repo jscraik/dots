@@ -37,7 +37,8 @@ Options:
   --require-environment
                        Require CODEX_AUTH_ENVIRONMENT_ID and the beta Environment
                        route; never fall back to the compatibility env file
-  --require-env NAME   Require NAME to be non-empty after loading env material
+  --require-env NAME   Require and deliver NAME after loading env material;
+                       repeat for every variable the child is allowed to receive
   --canary NAME        Verify one allowlisted variable (OLLAMA_API_KEY or
                        CIRCLECI_CLI_TOKEN) and print only a fixed pass result;
                        this mode runs no caller command
@@ -59,6 +60,13 @@ is_valid_environment_id() {
 is_allowed_canary_name() {
   case "$1" in
     OLLAMA_API_KEY|CIRCLECI_CLI_TOKEN) return 0 ;;
+    (*) return 1 ;;
+  esac
+}
+
+is_child_runtime_env_name() {
+  case "$1" in
+    HOME|PATH|TMPDIR|USER|LOGNAME|SHELL|LANG|LC_ALL|LC_CTYPE|TERM|CODEX_HOME) return 0 ;;
     (*) return 1 ;;
   esac
 }
@@ -312,6 +320,10 @@ if [[ "$(required_env_count)" -gt 0 ]]; then
       printf 'run-auth-backed.sh: invalid --require-env name: %s\n' "$env_name" >&2
       exit 2
     fi
+    if is_child_runtime_env_name "$env_name"; then
+      printf 'run-auth-backed.sh: --require-env name is reserved for pre-injection runtime context: %s\n' "$env_name" >&2
+      exit 2
+    fi
   done
 fi
 
@@ -331,21 +343,42 @@ if [[ -n "$canary_env" ]]; then
   ' bash "$canary_env"
 fi
 
-if [[ "$(required_env_count)" -gt 0 ]]; then
-  exec "$op_bin" run "${run_source_args[@]}" -- /bin/bash -p -c '
-    set -euo pipefail
-    required_count="$1"
-    shift
-    for ((idx=0; idx<required_count; idx++)); do
-      env_name="$1"
-      shift
-      if [[ -z "${!env_name:-}" ]]; then
-        printf "run-auth-backed.sh: required env var is missing after auth load: %s\n" "$env_name" >&2
-        exit 67
-      fi
-    done
-    exec "$@"
-  ' bash "${#required_env[@]}" "${required_env[@]}" "$@"
-fi
+# Capture only the benign process context needed by ordinary command-line
+# children before 1Password can add or replace environment values. The trusted
+# post-injection shell below reconstructs the child environment from this list
+# and the explicitly requested names, so unrelated credentials cannot survive.
+declare -a child_runtime_env=("PATH=${PATH:-/usr/bin:/bin}")
+for env_name in HOME TMPDIR USER LOGNAME SHELL LANG LC_ALL LC_CTYPE TERM CODEX_HOME; do
+  if [[ -n "${!env_name+x}" ]]; then
+    child_runtime_env+=("$env_name=${!env_name}")
+  fi
+done
 
-exec "$op_bin" run "${run_source_args[@]}" -- "$@"
+required_count="$(required_env_count)"
+declare -a child_launch_args=("$required_count" "${#child_runtime_env[@]}")
+if [[ "$required_count" -gt 0 ]]; then
+  child_launch_args+=("${required_env[@]}")
+fi
+child_launch_args+=("${child_runtime_env[@]}" "$@")
+
+exec "$op_bin" run "${run_source_args[@]}" -- /bin/bash -p -c '
+  set -euo pipefail
+  required_count="$1"
+  runtime_count="$2"
+  shift 2
+  declare -a child_env=()
+  for ((idx=0; idx<required_count; idx++)); do
+    env_name="$1"
+    shift
+    if [[ -z "${!env_name:-}" ]]; then
+      printf "run-auth-backed.sh: required env var is missing after auth load: %s\n" "$env_name" >&2
+      exit 67
+    fi
+    child_env+=("$env_name=${!env_name}")
+  done
+  for ((idx=0; idx<runtime_count; idx++)); do
+    child_env+=("$1")
+    shift
+  done
+  exec /usr/bin/env -i "${child_env[@]}" -- "$@"
+' bash "${child_launch_args[@]}"

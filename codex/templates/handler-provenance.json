@@ -250,9 +250,10 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "0934dbfd2eef51942db405f7e0439d4b0e58c171606ba991b7fafcf832646c2c",
       "transformations": [
-        "fixture admission for shell runtime dependency"
+        "fixture admission for shell runtime dependency",
+        "least-privilege post-injection child environment from requested names and fixed pre-injection runtime context"
       ],
-      "candidate_sha256": "9d2154b7ba627e71a47cbd8daf95035e70f36d321bf04cd453225205401922f8"
+      "candidate_sha256": "9a939f11b90051cd211496f6889906e78c24fb475f6c348c021e4c85eacef74d"
     },
     {
       "path": "codex/scripts/hook-governance/hook_runtime_policy.py",

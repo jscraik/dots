@@ -319,26 +319,29 @@
       "transformations": [
         "Original core assertions retained; canonical publisher core view, disposable event/resource plumbing and isolated synthetic FIFO canary",
         "Reuse the validated Python launcher in the nested missing-Computer-Use home",
-        "Use the imported Path class in the native hook trust probe"
+        "Use the imported Path class in the native hook trust probe",
+        "Synthetic provider assertions cover requested, unrequested and zero-name child environment projection"
       ],
-      "candidate_sha256": "af6eea24174823494f68f5ba73b492aac17f18c0e797d184435051048cd0955d"
+      "candidate_sha256": "b302b013a4e75799db0658a32a9f5b502e12ea9262d267f8b90373f22652603e"
     },
     {
       "path": "codex/README.md",
       "source_sha256": "dfde30ca45cc79ffa05fb46e5f328bcc01872f170569366c248b355b9dfdf9a3",
       "transformations": [
-        "public path placeholders; accepted schema/policy content retained"
+        "public path placeholders; accepted schema/policy content retained",
+        "document least-privilege projection of explicitly requested authentication variables"
       ],
-      "candidate_sha256": "16a58767203e0718f30a922e2a98f81c27592f428a3e63f84dcd4712e249a65a"
+      "candidate_sha256": "681ae0e95430a2cc85cfb307d321c38a7fdc72ec486065ba911faffe5f0f2a27"
     },
     {
       "path": "codex/hooks/README.md",
       "source_sha256": "ac8b428c26865a5ba69164e65b499d94d6ed2c53c73bacd478016375c14e6be1",
       "transformations": [
         "public path placeholders; accepted schema/policy content retained",
-        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "document least-privilege projection of explicitly requested authentication variables"
       ],
-      "candidate_sha256": "0875fada62bd61a45bbe15f0d2feb28d6bd2404a09ed7f0f8c99e37411e502d7"
+      "candidate_sha256": "32301c5b62d145275161b2436efabb7fe9bd3a113814474065ad13d206122809"
     },
     {
       "path": "codex/duplication-policy.json",

@@ -49,11 +49,11 @@
     {
       "path": "codex/instructions/1Password.md",
       "source_sha256": "2f43441d758745c53476260d6ef48227c9e2e2696b9352322673a87fb66897f3",
-      "decision": "Public paths and scoped source recipes; safeguards preserved",
+      "decision": "Public paths and scoped source recipes; safeguards preserved; authenticated children receive only explicitly requested injected variables",
       "deferred_context_pointers": [
         "../../docs/adr/0001-native-git-1password-signing.md"
       ],
-      "candidate_sha256": "6b6c52b52f6864595e6edcbf380cd486cee8f8e3c3511ab2fb9b5467c8ce775d"
+      "candidate_sha256": "0078c96973360c3db3daae00177c94ed89a0924e7680c551f074db545d5529f2"
     },
     {
       "path": "codex/instructions/CODESTYLE.md",
