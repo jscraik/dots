@@ -221,6 +221,10 @@ if [[ -f "$computer_use_config_scrub_script" ]]; then
     elif [[ "$computer_use_config_scrub_status" == "blocked" ]]; then
       computer_use_config_scrub_summary="Computer Use config scrub blocked: ${computer_use_config_scrub_reason}"
     fi
+    computer_use_retained_generation="$(printf '%s' "$computer_use_config_scrub_output" | jq -r '.retained_generation_path | select(type == "string" and length > 0) // ""')"
+    if [[ -n "$computer_use_retained_generation" ]]; then
+      computer_use_config_scrub_summary+="; retained generation: ${computer_use_retained_generation}; inspect native saves before explicit recovery"
+    fi
   else
     computer_use_config_scrub_status="unavailable"
   fi
@@ -243,6 +247,10 @@ if [[ -f "$runtime_config_drift_script" ]]; then
       runtime_config_drift_summary="runtime config drift repair blocked: ${runtime_config_drift_reason}. Inspect the repair diagnostic before changing config; this blocker does not establish host-profile, compact-prompt, or skills-projection drift."
     elif [[ "$runtime_config_drift_status" == "fail" ]]; then
       runtime_config_drift_summary="runtime config drift detected but not repaired"
+    fi
+    runtime_retained_generation="$(printf '%s' "$runtime_config_drift_output" | jq -r '.retained_generation_path | select(type == "string" and length > 0) // ""')"
+    if [[ -n "$runtime_retained_generation" ]]; then
+      runtime_config_drift_summary+="; retained generation: ${runtime_retained_generation}; inspect native saves before explicit recovery"
     fi
   else
     runtime_config_drift_status="unavailable"

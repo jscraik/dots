@@ -1402,6 +1402,11 @@ def parse_args(argv: list[str] | None=None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 def _emit(payload: dict[str, object], json_output: bool, message: str='') -> None:
+    if not json_output and payload.get('retained_generation_path'):
+        message = str(message or payload.get('error') or payload['status'])
+        retained = str(payload['retained_generation_path'])
+        if retained not in message:
+            message += f'; retained generation: {retained}; inspect native saves before explicit recovery'
     print(json.dumps(payload, sort_keys=True) if json_output else f'''service:"{SERVICE}" {message or payload.get('error') or payload['status']}''')
 
 def main(argv: list[str] | None=None) -> int:
@@ -1603,7 +1608,10 @@ def _main_locked(args) -> int:
         if isinstance(exc, RepairPublicationError):
             recovery_path = exc.recovery_path
         reason = 'config_size_limit_exceeded' if isinstance(exc, RepairSizeLimitError) else 'config_write_failed'
-        payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason=reason, error=str(exc), backup_path=args.backup_path, backup_sha256=backup_sha256, backup_bytes=backup_bytes)
+        error = str(exc)
+        if recovery_path is not None and str(recovery_path) not in error:
+            error += f'; retained generation: {recovery_path}'
+        payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason=reason, error=error, backup_path=args.backup_path, backup_sha256=backup_sha256, backup_bytes=backup_bytes)
         payload['retained_generation_path'] = str(recovery_path) if recovery_path is not None else None
         _emit(payload, args.json)
         return 1

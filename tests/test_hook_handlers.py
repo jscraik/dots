@@ -13,6 +13,23 @@ from hook_fixture import HookFixture
 
 
 class HookHandlerTests(unittest.TestCase):
+    def test_session_start_reports_retained_generations_from_both_repair_helpers(self):
+        for status in ('repaired', 'blocked'):
+            paths = []
+            for name, schema in (('scrub-computer-use-config.py', 'computer-use-config-scrub/v1'),
+                                 ('repair-runtime-config-drift.py', 'runtime-config-drift-repair/v1')):
+                retained = self.fixture.runtime / (name + '.retained-generation.toml')
+                paths.append(str(retained))
+                payload = {'schema_version': schema, 'status': status, 'reason': 'fixture_outcome',
+                           'removed_count': 1, 'repairs': ['fixture'], 'retained_generation_path': str(retained)}
+                (self.fixture.codex / 'scripts' / name).write_text('print(' + repr(json.dumps(payload)) + ')\n')
+            output = self.output('session-start.sh', {'source': 'startup'},
+                {'CODEX_SESSION_REPAIR_MODE': 'repair', 'CODEX_HOOK_CONTEXT_DEDUP_DISABLE': '1'})
+            context = output['hookSpecificOutput']['additionalContext']
+            for retained in paths:
+                self.assertIn(retained, context)
+            self.assertIn('inspect native saves before explicit recovery', context)
+
     def test_admission_ignores_modules_beside_its_entrypoint(self):
         marker = self.fixture.home / 'shadow-json-ran'
         shadow = self.fixture.codex / 'scripts/json.py'
