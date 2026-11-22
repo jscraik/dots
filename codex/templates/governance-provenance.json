@@ -9,7 +9,7 @@
     "source": "codex/scripts/repair-runtime-config-drift.py",
     "revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
     "source_sha256": "44807152f8919dd9899ee93559c3d098c4954c79bf8c0136ef5c795fea77b033",
-    "transformation": "AST-preserving private path substitution; disposable-scope import; Configs default renamed dots. Repair config and backup destinations must remain inside the disposable home; original repair checks retained."
+    "transformation": "AST-preserving private path substitution; disposable-scope import; Configs default renamed dots. Repair config and backup destinations must remain inside the disposable home. Nested snapshot validation uses an isolated protected-Python loader; original repair checks retained."
   },
   {
     "source": "codex/schemas/config.schema.json",

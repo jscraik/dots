@@ -5,8 +5,8 @@
       "path": "codex/scripts/reconcile-config-projection.sh",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "f1d04051212667d750fdae7f0d150abcd51b564d4a61910b287b87535123e169",
-      "transformation": "explicit disposable-home admission; original checks retained",
-      "candidate_sha256": "64af5514221b2ee6d30bf5488fe9e71a484569c1cc82e3a7fcfc65a42410ef0e"
+      "transformation": "explicit disposable-home admission; protected reconciliation Python uses isolated startup and disables user-site processing; original checks retained",
+      "candidate_sha256": "b59f4b6273c66e78a94496b19514f202efadb561be2f4badf6d6e48ef331d416"
     },
     {
       "path": "codex/scripts/audit-codex-symlinks.sh",

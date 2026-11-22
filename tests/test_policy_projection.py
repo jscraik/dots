@@ -21,6 +21,23 @@ class PolicyProjectionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return result
 
+    def hostile_user_site_startup(self):
+        fixture = self.fixture
+        version = f'python{sys.version_info.major}.{sys.version_info.minor}'
+        if sys.platform == 'darwin' and getattr(sys, '_framework', ''):
+            user_site = (fixture.home / 'Library/Python' / version.removeprefix('python')
+                         / 'lib/python/site-packages')
+        else:
+            user_site = fixture.home / '.local/lib' / version / 'site-packages'
+        user_site.mkdir(parents=True)
+        markers = []
+        for startup_name in ('fixture-startup.pth', 'sitecustomize.py', 'usercustomize.py'):
+            marker = fixture.home / (startup_name.replace('.', '-') + '-ran')
+            statement = f'import pathlib; pathlib.Path({str(marker)!r}).touch()\n'
+            (user_site / startup_name).write_text(statement)
+            markers.append(marker)
+        return markers
+
     def legacy_notifier_runtime(self, *, enabled=False):
         fixture = self.fixture
         self.success(fixture.project())
@@ -94,6 +111,43 @@ class PolicyProjectionTests(unittest.TestCase):
                                     '--codex-home', str(fixture.runtime)))
         self.success(fixture.project('--check'))
         self.assertEqual(fixture.managed_snapshot(), before)
+
+    def test_reconciler_ignores_user_site_startup_and_preserves_valid_runtime(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        before = fixture.managed_snapshot()
+        markers = self.hostile_user_site_startup()
+        self.success(fixture.script('reconcile-config-projection.sh', '--repair', '--scope', 'codex',
+                                    '--codex-home', str(fixture.runtime)))
+        self.assertTrue(all(not marker.exists() for marker in markers))
+        self.assertEqual(fixture.managed_snapshot(), before)
+
+    def test_nested_snapshot_validator_ignores_user_site_startup(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        runtime = fixture.runtime / 'config.toml'
+        original = runtime.read_text()
+        runtime.write_text(original.replace('approval_policy = "on-request"',
+                                            'approval_policy = "never"', 1))
+        markers = self.hostile_user_site_startup()
+        loader = '''import runpy,sys
+from pathlib import Path
+script = Path(sys.argv[1]).resolve(strict=True)
+sys.path.insert(0, str(script.parent))
+sys.argv = sys.argv[1:]
+runpy.run_path(str(script), run_name="__main__")
+'''
+        environment = dict(fixture.env)
+        environment.pop('PYTHONNOUSERSITE', None)
+        result = subprocess.run(
+            [sys.executable, '-I', '-B', '-c', loader,
+             str(fixture.codex / 'scripts/repair-runtime-config-drift.py'),
+             '--config-path', str(runtime), '--repair', '--json'],
+            env=environment, cwd=fixture.repo, capture_output=True, text=True,
+            timeout=45, check=False)
+        self.success(result)
+        self.assertTrue(all(not marker.exists() for marker in markers))
+        self.assertEqual(tomllib.loads(runtime.read_text()), tomllib.loads(original))
 
     def test_invalid_policy_missing_schema_and_changed_map_reject_before_writes(self):
         fixture = self.fixture
