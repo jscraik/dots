@@ -230,6 +230,7 @@
         "CLI primary path confined to fixture",
         "Add fixed packaged-context admission; retain default disposable admission and original checks.",
         "Keep parse-error fallback; unexpected parser exceptions stop before publication. Clear Ruff diagnostics without changing file modes.",
+        "Recognise legacy and digest-named pending Desktop proposals; block packaged repair when the state directory cannot be listed.",
         "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
       ],
       "candidate_sha256": "9e4e1070c6efa2ef9d1bba897b368264186c68712e3b8d533425d8b33b553362"

@@ -1230,6 +1230,13 @@ def _validate_notifier_cutover_snapshot(text: str) -> None:
         raise OSError('legacy validation view changed unrelated configuration')
     _validate_runtime_snapshot(view)
 
+REPAIR_FILE_LIMIT = 16 * 1024 * 1024
+
+
+class RepairSizeLimitError(OSError):
+    """An original or proposed generation exceeds the verification bound."""
+
+
 def _repair_file_snapshot(path: Path) -> tuple[tuple[int, ...], bytes]:
     """Read one bounded regular generation without following recovery aliases."""
     def generation(info):
@@ -1241,9 +1248,12 @@ def _repair_file_snapshot(path: Path) -> tuple[tuple[int, ...], bytes]:
         before = os.fstat(stream.fileno())
         if not stat.S_ISREG(before.st_mode):
             raise OSError('repair generation is not a regular file')
-        raw = stream.read(16 * 1024 * 1024 + 1)
-        if (len(raw) > 16 * 1024 * 1024
-                or generation(os.fstat(stream.fileno())) != generation(before)
+        if before.st_size > REPAIR_FILE_LIMIT:
+            raise RepairSizeLimitError('config exceeds the 16 MiB verification limit')
+        raw = stream.read(REPAIR_FILE_LIMIT + 1)
+        if len(raw) > REPAIR_FILE_LIMIT:
+            raise RepairSizeLimitError('config exceeds the 16 MiB verification limit')
+        if (generation(os.fstat(stream.fileno())) != generation(before)
                 or generation(path.lstat()) != generation(before)):
             raise OSError('repair generation changed during inspection')
     return generation(before), raw
@@ -1260,6 +1270,8 @@ class RepairPublicationError(OSError):
 def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, unchanged: tuple[tuple[Path, bytes], ...]=(), before_exchange: Callable[[Path], None] | None=None) -> Path | None:
     if config_path.is_symlink():
         raise OSError(f'runtime config must be a regular file, not a symlink: {config_path}')
+    if expected is not None and _repair_file_snapshot(config_path)[1] != expected:
+        raise OSError('runtime config changed during reconciliation; retry from fresh state')
     repair_path = config_path
     recovery_dir = Path(tempfile.mkdtemp(prefix=f'.{repair_path.name}.recovery-', dir=repair_path.parent))
     fd, tmp_name = tempfile.mkstemp(prefix='generation-', suffix='.toml', dir=recovery_dir)
@@ -1272,7 +1284,7 @@ def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, 
             handle.flush()
             os.fsync(handle.fileno())
         staged = _repair_file_snapshot(tmp_path)
-        if expected is not None and (repair_path.is_symlink() or repair_path.read_bytes() != expected):
+        if expected is not None and _repair_file_snapshot(repair_path)[1] != expected:
             raise OSError('runtime config changed during reconciliation; retry from fresh state')
         for guarded_path, guarded_bytes in unchanged:
             if guarded_path.is_symlink() or guarded_path.read_bytes() != guarded_bytes:
@@ -1397,8 +1409,12 @@ def main(argv: list[str] | None=None) -> int:
             _emit(payload, args.json)
             return 1
     try:
-        original_bytes = config_path.read_bytes()
+        original_bytes = _repair_file_snapshot(config_path)[1]
         original = original_bytes.decode('utf-8')
+    except RepairSizeLimitError as exc:
+        _emit(_payload(status='blocked', path=config_path,
+            reason='config_size_limit_exceeded', error=str(exc)), args.json)
+        return 1
     except (OSError, UnicodeError) as exc:
         payload = _payload(status='blocked', path=config_path, reason='config_unreadable', error=str(exc))
         _emit(payload, args.json)
@@ -1550,7 +1566,8 @@ def main(argv: list[str] | None=None) -> int:
     except OSError as exc:
         if isinstance(exc, RepairPublicationError):
             recovery_path = exc.recovery_path
-        payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason='config_write_failed', error=str(exc), backup_path=args.backup_path, backup_sha256=backup_sha256, backup_bytes=backup_bytes)
+        reason = 'config_size_limit_exceeded' if isinstance(exc, RepairSizeLimitError) else 'config_write_failed'
+        payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason=reason, error=str(exc), backup_path=args.backup_path, backup_sha256=backup_sha256, backup_bytes=backup_bytes)
         payload['retained_generation_path'] = str(recovery_path) if recovery_path is not None else None
         _emit(payload, args.json)
         return 1

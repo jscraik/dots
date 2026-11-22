@@ -329,6 +329,49 @@ assert target.read_bytes() == b"repair\\n"
             capture_output=True, text=True, timeout=30, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_oversized_config_is_rejected_before_publication_or_backup(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        child = '''import importlib.util,sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]).parent))
+spec = importlib.util.spec_from_file_location("bounded_repair", sys.argv[1])
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+target = Path(sys.argv[2]); original = b"x" * (16 * 1024 * 1024 + 1)
+target.write_bytes(original)
+try:
+    module._write_repair(target, "repair\\n", expected=original)
+except OSError:
+    pass
+else:
+    raise AssertionError("oversized original was accepted")
+assert target.read_bytes() == original, "oversized original was displaced before rejection"
+assert list(target.parent.iterdir()) == [target], "size rejection created recovery material"
+target.write_bytes(b"small original\\n")
+retained = module._write_repair(target, "repair\\n", expected=b"small original\\n")
+assert target.read_bytes() == b"repair\\n"
+assert retained.read_bytes() == b"small original\\n"
+'''
+        directory = fixture.home / 'bounded-repair'
+        directory.mkdir()
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/repair-runtime-config-drift.py'),
+            str(directory / 'config.toml')], env=fixture.env, cwd=fixture.repo,
+            capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        runtime = fixture.runtime / 'config.toml'
+        original = runtime.read_bytes() + b'\n#' + b'x' * (16 * 1024 * 1024)
+        runtime.write_bytes(original)
+        backup = fixture.home / 'oversized-backup.toml'
+        before = set(runtime.parent.iterdir())
+        result = fixture.script('repair-runtime-config-drift.py', '--config-path', runtime,
+            '--repair', '--backup-path', backup, '--json')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(json.loads(result.stdout)['reason'], 'config_size_limit_exceeded')
+        self.assertEqual(runtime.read_bytes(), original)
+        self.assertEqual(set(runtime.parent.iterdir()), before)
+        self.assertFalse(backup.exists())
+
     def test_failed_readback_reports_retained_generation(self):
         fixture = self.fixture
         self.success(fixture.project())

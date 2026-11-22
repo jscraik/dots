@@ -2172,7 +2172,7 @@ with installer.renameable_directories(state, staged, target):
     def test_usage_policy_update_cancel_preserves_nonempty_logs(self):
         digest, before, repair_state = self.prepare_usage_policy_update()
         self.success(self.packaged_operation('rollback', digest))
-        self.assert_restored_snapshot(before)
+        self.assertEqual(self.snapshot(), before)
         self.assertEqual((repair_state / 'usage-data/new-log').read_text(), 'retained after rollback')
         self.success(self.packaged_operation('rollback', digest))
 
