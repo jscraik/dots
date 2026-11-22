@@ -186,13 +186,13 @@ else
 fi
 
 if [[ "$output_lc" == *"operation not permitted"* || "$output_lc" == *"permission denied"* ]]; then
-  context_message="${context_message} This looks like a sandbox or approval boundary; request the minimal required permission change instead of retrying unchanged."
+  context_message="${context_message} Permission denied or operation not permitted indicates a sandbox or approval boundary; request the minimal required permission change instead of retrying unchanged."
 elif [[ "$output_lc" == *"command not found"* ]]; then
   context_message="${context_message} This looks like a missing tool dependency; verify command availability before retrying."
 fi
 
 if [[ -n "$output_excerpt" ]]; then
-  context_message="${context_message} Error excerpt: ${output_excerpt}"
+  context_message="${context_message} The failed tool returned output; raw output is omitted from this advisory and its receipt."
 fi
 
 if ! hook_runtime_should_emit_context "$input_json" "post-tool-use-review" "$context_message"; then

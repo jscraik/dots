@@ -42,9 +42,10 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "d3b5e1bef276f85b724bd898392325ceeebf83b8c21eb5bd601631509350bebc",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "Omit raw failed-tool output from advisory and receipt while preserving fixed failure classification, exit status, and output presence."
       ],
-      "candidate_sha256": "63eb5883c6293efc0486f5cee5922766c614891746eb0b443234d8d7467729e8"
+      "candidate_sha256": "813d4f083b31dd7f4097c5cd0f3e7a5f0a2867dd6246feb87916c021fc052edc"
     },
     {
       "path": "codex/hooks/pr-readiness-guard.sh",

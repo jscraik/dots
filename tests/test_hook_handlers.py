@@ -130,6 +130,43 @@ class HookHandlerTests(unittest.TestCase):
         self.assertTrue((logs / 'compact-hooks.jsonl').is_file())
         self.assertTrue((logs / 'subagent-hooks.jsonl').is_file())
 
+    def test_post_tool_failure_omits_raw_output_from_advisory_and_receipt(self):
+        cases = [
+            (
+                {'exit_code': 1, field: f'Permission denied synthetic-secret-{field}'},
+                f'synthetic-secret-{field}',
+            )
+            for field in ('stderr', 'output', 'stdout', 'message', 'error', 'text')
+        ]
+        cases.append(
+            (
+                'Rejected("approval required by policy, but AskForApproval is set to Never; '
+                'synthetic-secret-string")',
+                'synthetic-secret-string',
+            )
+        )
+        receipt = self.fixture.runtime / 'usage-data/hook-events.jsonl'
+
+        for response, sentinel in cases:
+            with self.subTest(response=response):
+                output = self.output(
+                    'post-tool-use-review.sh',
+                    {'tool_response': response},
+                    {'CODEX_HOOK_CONTEXT_DEDUP_DISABLE': '1'},
+                )
+                context = output['hookSpecificOutput']['additionalContext']
+                receipt_record = receipt.read_text().splitlines()[-1]
+
+                self.assertNotIn(sentinel, json.dumps(output))
+                self.assertNotIn(sentinel, receipt_record)
+                self.assertIn('raw output is omitted', context)
+                if isinstance(response, str):
+                    self.assertIn('policy-layer mismatch', context)
+                else:
+                    self.assertIn('exit code 1', context)
+                    self.assertIn('minimal required permission', context)
+                self.assertEqual(json.loads(receipt_record)['reason'], context)
+
     def test_session_start_uses_ported_maintenance_without_live_state(self):
         output = self.output('session-start.sh', {'source': 'startup', 'hook_event_name': 'SessionStart'})
         context = output['hookSpecificOutput']['additionalContext']
