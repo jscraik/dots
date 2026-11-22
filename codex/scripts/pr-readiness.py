@@ -4506,6 +4506,10 @@ def _lifecycle_request(root: Path, repo: str, number: int) -> tuple[dict[str, An
     if response.returncode:
         raise ValueError('Lifecycle target inventory unavailable')
     value = json.loads(response.stdout)
+    return _lifecycle_target(value, repo, number), value
+
+
+def _lifecycle_target(value: Any, repo: str, number: int) -> dict[str, Any]:
     expected_url = f'https://github.com/{repo}/pull/{number}'
     if (not isinstance(value, dict) or type(value.get('number')) is not int
             or value['number'] != number or value.get('html_url') != expected_url
@@ -4520,10 +4524,9 @@ def _lifecycle_request(root: Path, repo: str, number: int) -> tuple[dict[str, An
             or not isinstance(base.get('ref'), str) or not base['ref']
             or base.get('repo', {}).get('full_name') != repo):
         raise ValueError('Lifecycle head, base or repository is malformed')
-    target = {'number': number, 'url': expected_url, 'node_id': value['node_id'],
-              'head': head['sha'], 'base': base['ref'], 'base_sha': base['sha'],
-              'state': value['state'], 'draft': value['draft'], 'merged_at': value.get('merged_at')}
-    return target, value
+    return {'number': number, 'url': expected_url, 'node_id': value['node_id'],
+            'head': head['sha'], 'base': base['ref'], 'base_sha': base['sha'],
+            'state': value['state'], 'draft': value['draft'], 'merged_at': value.get('merged_at')}
 
 
 def _lifecycle_local_context(root: Path, args: argparse.Namespace) -> dict[str, Any]:
@@ -4668,9 +4671,32 @@ def _lifecycle_execute(root: Path, args: argparse.Namespace, identity: Any) -> d
                    f'repos/{args.expected_repo}/pulls/{args.expected_pr}',
                    '-f', 'state=' + expected_after['state']]
     response = run_command(command, root, check=False)
-    after, _raw = _lifecycle_request(root, args.expected_repo, args.expected_pr)
     expected = {**recorded['target'], **expected_after}
-    if response.returncode or after != expected:
+
+    def unreviewed_close(target):
+        if (args.lifecycle == 'close' and target['node_id'] == expected['node_id']
+                and target['state'] == 'closed' and target['head'] != expected['head']):
+            return {'schema_version': 'pr-lifecycle/v1', 'status': 'blocked', 'operation': 'close',
+                    'acceptance_claims_proven': False, 'transition_verified': False,
+                    'error': 'GitHub reported the PR closed on an unreviewed head',
+                    'expected_head': expected['head'], 'target': target}
+        return None
+
+    # GitHub's close PATCH has no expected-head precondition. Check its response
+    # before the readback can obscure a head change or fail independently.
+    applied = None
+    if args.lifecycle == 'close' and not response.returncode:
+        try:
+            applied = _lifecycle_target(json.loads(response.stdout), args.expected_repo, args.expected_pr)
+        except (ValueError, TypeError, AttributeError):
+            pass  # Still read back the current state before reporting uncertainty.
+        if applied and (report := unreviewed_close(applied)):
+            return report
+
+    after, _raw = _lifecycle_request(root, args.expected_repo, args.expected_pr)
+    if report := unreviewed_close(after):
+        return report
+    if response.returncode or after != expected or (args.lifecycle == 'close' and applied != expected):
         raise ValueError('Lifecycle transition may have occurred; exact readback did not verify it')
     _scope.require_policy_repository_identity(root, identity)
     return {'schema_version': 'pr-lifecycle/v1', 'status': 'pass', 'operation': args.lifecycle,
@@ -4730,7 +4756,7 @@ def main() -> int:
                     'error': 'Lifecycle evidence is invalid, stale or changed; a transition may have occurred if apply was requested'}))
                 return 2
             print(json.dumps(result, sort_keys=True))
-            return 0
+            return 0 if result['status'] == 'pass' else 2
         if (getattr(args, 'apply_lifecycle', False) or getattr(args, 'lifecycle_head', None)
                 or getattr(args, 'replacement_pr', None) is not None):
             raise ValueError('Lifecycle arguments require their explicit mode')
