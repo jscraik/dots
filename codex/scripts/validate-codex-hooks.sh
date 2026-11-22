@@ -552,7 +552,7 @@ pre_tool_short_repo_admin_merge_block_output="$(
 assert_jq "$pre_tool_short_repo_admin_merge_block_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny admin PR merge with short global repo option"
 
 pre_tool_git_c_force_push_block_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -C /tmp/repo push origin feature --force"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -C /tmp/repo push origin HEAD:feature --force"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_git_c_force_push_block_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny force push with git global options"
@@ -630,6 +630,8 @@ for unapproved_push in \
   'git push' \
   'git push origin' \
   'git push origin HEAD' \
+  'git push origin feature' \
+  'git push --repo=origin feature' \
   'git push origin refs/heads/*' \
   'git push --repo=origin'
 do
@@ -641,9 +643,8 @@ do
 done
 
 for explicit_topic_push in \
-  'git push origin feature' \
   'git push origin HEAD:feature' \
-  'git push --repo=origin feature'
+  'git push --repo=origin HEAD:feature'
 do
   pre_tool_explicit_topic_push_output="$(
     jq -cn --arg command "$explicit_topic_push" '{hook_event_name:"PreToolUse",session_id:"thr_test",turn_id:"turn_test",tool_name:"Bash",tool_use_id:"tool_test",tool_input:{command:$command},cwd:env.HOME,permission_mode:"on-request"}' \
@@ -893,15 +894,15 @@ tmp_breakglass_boundary_baseline_log="$(mktemp)"
 tmp_breakglass_boundary_and_log="$(mktemp)"
 tmp_breakglass_boundary_background_log="$(mktemp)"
 pre_tool_push_boundary_baseline_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin HEAD:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production hotfix" CODEX_HOOK_BYPASS_LOG="$tmp_breakglass_boundary_baseline_log" run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 pre_tool_push_boundary_and_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin feature && echo --no-verify"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin HEAD:feature && echo --no-verify"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production hotfix" CODEX_HOOK_BYPASS_LOG="$tmp_breakglass_boundary_and_log" run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 pre_tool_push_boundary_background_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin feature & echo --no-verify"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin HEAD:feature & echo --no-verify"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production hotfix" CODEX_HOOK_BYPASS_LOG="$tmp_breakglass_boundary_background_log" run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_push_boundary_baseline_output" '(has("continue") | not) and ((.hookSpecificOutput.permissionDecision // "") == "")' "PreToolUse should allow the unprotected push baseline"
@@ -931,7 +932,7 @@ fi
 rm -f "$tmp_breakglass_boundary_audit_log"
 trace_step "pre-tool push no-verify command-boundary check passed"
 pre_tool_clustered_force_push_output="$(
-  run_fixture_hook hooks/pre-tool-use-guard.sh <<< '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push -vf origin feature"},"cwd":"/tmp","permission_mode":"on-request"}'
+  run_fixture_hook hooks/pre-tool-use-guard.sh <<< '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push -vf origin HEAD:feature"},"cwd":"/tmp","permission_mode":"on-request"}'
 )"
 assert_jq "$pre_tool_clustered_force_push_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should detect force in clustered short push flags"
 
@@ -941,7 +942,7 @@ pre_tool_force_refspec_output="$(
 assert_jq "$pre_tool_force_refspec_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should detect plus-prefixed force refspecs"
 
 pre_tool_later_force_text_control_output="$(
-  run_fixture_hook hooks/pre-tool-use-guard.sh <<< '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin feature && echo \"-vf +feature:feature\""},"cwd":"/tmp","permission_mode":"on-request"}'
+  run_fixture_hook hooks/pre-tool-use-guard.sh <<< '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin HEAD:feature && echo \"-vf +feature:feature\""},"cwd":"/tmp","permission_mode":"on-request"}'
 )"
 assert_jq "$pre_tool_later_force_text_control_output" '(has("continue") | not) and ((.hookSpecificOutput.permissionDecision // "") == "")' "PreToolUse should not attribute later quoted force text to an earlier push segment"
 
@@ -956,7 +957,7 @@ pre_tool_until_condition_protected_push_output="$(
 assert_jq "$pre_tool_until_condition_protected_push_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should detect protected pushes used as until conditions"
 
 pre_tool_while_condition_force_push_output="$(
-  run_fixture_hook hooks/pre-tool-use-guard.sh <<< '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"while git push origin feature --force; do echo retry; done"},"cwd":"/tmp","permission_mode":"on-request"}'
+  run_fixture_hook hooks/pre-tool-use-guard.sh <<< '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"while git push origin HEAD:feature --force; do echo retry; done"},"cwd":"/tmp","permission_mode":"on-request"}'
 )"
 assert_jq "$pre_tool_while_condition_force_push_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should detect forced pushes used as while conditions"
 
@@ -1009,7 +1010,7 @@ assert_jq "$pre_tool_conditional_commit_bypass_output" '.hookSpecificOutput.perm
 tmp_segment_bound_breakglass_log="$(mktemp)"
 pre_tool_segment_bound_breakglass_output="$(
   CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production hotfix" CODEX_HOOK_BYPASS_LOG="$tmp_segment_bound_breakglass_log" \
-    run_fixture_hook hooks/pre-tool-use-guard.sh <<< '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push --no-verify origin feature && git status main"},"cwd":"/tmp","permission_mode":"on-request"}'
+    run_fixture_hook hooks/pre-tool-use-guard.sh <<< '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push --no-verify origin HEAD:feature && git status main"},"cwd":"/tmp","permission_mode":"on-request"}'
 )"
 assert_jq "$pre_tool_segment_bound_breakglass_output" '(has("continue") | not) and ((.hookSpecificOutput.permissionDecision // "") == "")' "PreToolUse should allow audited push-only break-glass followed by a harmless command mentioning main"
 if [[ ! -s "$tmp_segment_bound_breakglass_log" ]]; then
@@ -1021,7 +1022,7 @@ trace_step "pre-tool quoted separator and shell-group checks passed"
 
 
 pre_tool_second_push_no_verify_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin feature && git push --no-verify origin feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin HEAD:feature && git push --no-verify origin HEAD:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_second_push_no_verify_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should detect --no-verify on a later git push invocation"
@@ -1034,7 +1035,7 @@ assert_jq "$pre_tool_second_commit_no_verify_output" '.hookSpecificOutput.permis
 
 tmp_compound_breakglass_audit_log="$(mktemp)"
 pre_tool_compound_commit_push_bypass_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git commit --no-verify -m bad && git push --no-verify origin feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git commit --no-verify -m bad && git push --no-verify origin HEAD:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production hotfix" CODEX_HOOK_BYPASS_LOG="$tmp_compound_breakglass_audit_log" run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_compound_commit_push_bypass_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse push break-glass should not authorize a compound command containing git commit --no-verify"

@@ -312,7 +312,7 @@ class HookHandlerTests(unittest.TestCase):
     def test_command_guards_keep_denials_and_defer_valid_commit_to_native_policy(self):
         safe = self.output('pre-tool-use-dispatch.sh')
         self.assertNotEqual(safe.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
-        for command in ('git commit --no-verify -m bad', 'git push --no-verify origin topic',
+        for command in ('git commit --no-verify -m bad', 'git push --no-verify origin HEAD:topic',
                         'git commit --no-gpg-sign -m fixture',
                         'git commit --amend -m fixture',
                         'git commit --gpg-sign=other-key -m fixture',
@@ -324,6 +324,16 @@ class HookHandlerTests(unittest.TestCase):
         output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': 'git commit -m fixture'}})
         self.assertNotEqual(output.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
         self.assertIn('Native execution approval still applies', output['hookSpecificOutput']['additionalContext'])
+
+    def test_push_requires_explicit_destination_with_configured_mapping(self):
+        prefix = 'git -c remote.origin.push=refs/heads/feature:refs/heads/main push origin '
+        for refspec, denied in (('feature', True), ('refs/heads/feature', True),
+                                ('HEAD:feature', False)):
+            with self.subTest(refspec=refspec):
+                output = self.output('pre-tool-use-guard.sh',
+                                     {'tool_input': {'command': prefix + refspec}})
+                decision = output.get('hookSpecificOutput', {}).get('permissionDecision')
+                self.assertEqual(decision == 'deny', denied, output)
 
     def test_commit_rejects_shell_expansion_before_option_admission(self):
         commands = (

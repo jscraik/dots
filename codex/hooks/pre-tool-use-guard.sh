@@ -408,10 +408,9 @@ contains_git_push_no_verify() {
 }
 push_refspec_has_unapproved_destination() {
   local refspec="${1#+}"
-  local destination="$refspec"
-  if [[ "$refspec" == *:* ]]; then
-    destination="${refspec##*:}"
-  fi
+  # A source-only refspec can use the remote's configured push mapping.
+  [[ "$refspec" == *:* ]] || return 0
+  local destination="${refspec##*:}"
   destination="${destination#refs/heads/}"
   case "$destination" in
     ''|main|master|head|@|*_head|*\**|*\?*|*\[*|*'@{'*|*~*|*^*) return 0 ;;
