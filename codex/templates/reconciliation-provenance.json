@@ -31,13 +31,13 @@
     {
       "path": "MIGRATION.md",
       "prior_candidate_sha256": "df64a7222cb2a17cba4561734eb0efb27474ea72d092d1885a22f382b0b36bcd",
-      "candidate_sha256": "5f0623b16ba3d2a1ec81638f0b3a0c24a593961716edc255f6ee1e921202ede4"
+      "candidate_sha256": "381d6a54509392a633b7d5dcc251541a68f22f5398abd9ccaee9eec3c4b7404f"
     },
     {
       "path": "README.md",
       "prior_candidate_sha256": "ced157af36e675f8d6c890a5b04a70805e0835432efc957efc85c92f1e98ab01",
-      "candidate_sha256": "eb968cf949bcc803e82dd23325bb952ef1a2df347df2fe8e9e9e7062f1ecdc78",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Document the native distinction between on-disk hook consent and loaded-thread acceptance, verified by a disposable native regression without a model turn. Document the two additional exact native app metadata names; preserve the existing installation and permission boundaries. Document app-bundled CLI validation and isolated pinned dependency setup. Require an exact reviewed source commit and document clean-checkout, immutable-tree packaging and private provenance receipts. Document complete unittest-discovered test-case partitioning across two small containers after the installation module approached the job limit; retain security checks and the separate hosted-timing acceptance requirement."
+      "candidate_sha256": "dce731621e6631af5f24da6e87a44ba2c4f9ba44d2fac30e97413418e8d5b3d8",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Document the native distinction between on-disk hook consent and loaded-thread acceptance, verified by a disposable native regression without a model turn. Document the two additional exact native app metadata names; preserve the existing installation and permission boundaries. Document app-bundled CLI validation and isolated pinned dependency setup. Require an exact reviewed source commit and document clean-checkout, immutable-tree packaging and private provenance receipts. Document complete discovered test-case CircleCI partitioning plus repeated diagnostic checks across two small containers, retained security checks and the separate hosted-timing acceptance requirement."
     },
     {
       "path": "codex/hooks/README.md",
@@ -47,12 +47,13 @@
     {
       "path": "codex/hooks/pre-commit-tests.sh",
       "prior_candidate_sha256": "da8c32b3ee00003e38fabaea57151d518935326235741e2cbc4ac92a2bb5eb7b",
-      "candidate_sha256": "f3af43de082e451a28eb1f8b9a93e196b015cdaeca3678a73874c215d29d5371"
+      "candidate_sha256": "e6d9a165758987f5572ae3d2f3e814d6278be484cb0f3c7bd68fd86283806cfb",
+      "transformation": "Use the fixed root-owned hook dependency path and absolute Bash launch."
     },
     {
       "path": "codex/hooks/pre-tool-use-dispatch.sh",
       "prior_candidate_sha256": "410160a1e4cf544151c390af3e2f56548926d42cd13cfa942dd7efd87c75c515",
-      "candidate_sha256": "8c820875525739c4eaced0a1479dcebfc40e8af8cfa87420e2010dc79c47c13a",
+      "candidate_sha256": "4d42a16ad7f2aec1481afe95fb626eeedd442e8a39e8a95936c3460e3a630ace",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Deny xargs command construction before protected child routing; retain direct-command behavior. Admit the exact resolver syntax check from a canonical checkout root independently of the installed hook payload; preserve execution, extra-argument and symlink denials.",
       "additional_source": {
         "revision": "283db198d281e239524da23563bd3390fa9910c9",
@@ -147,7 +148,7 @@
     {
       "path": "codex/scripts/tests/test_pending_hook_findings.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "dcfcf4601197ee0b32cc9fb71f084097e659ed34e0234d506b24ff4f27ae36dd",
+      "candidate_sha256": "68ce14cee5888454e61e68d3e2df14fec608f3c0187e0a93341f4a54f16871da",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
@@ -185,7 +186,7 @@
     {
       "path": "codex/scripts/validate-codex-config.py",
       "prior_candidate_sha256": "e9cdebab1d97447c1ac3ff1dce5894c7c13ccf095c2a1cc8e44716c103768e61",
-      "candidate_sha256": "94bd99800f8434482eeb9edf4d7792358e8afdd6a1dc264a54cfdfef2278fa99",
+      "candidate_sha256": "e5bb59d105a3b8c1d71b78f8613a53635a26159c2e5756b0729208bb44fc5241",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
     },
     {
@@ -196,12 +197,12 @@
     {
       "path": "tests/test_helper_dependencies.py",
       "prior_candidate_sha256": "f8c74a3d7d96e5791162b6abdf902c1705a78226deb56347f56a2a09096384b9",
-      "candidate_sha256": "d4e19096ce7eae157ae155871cb3e00e8bf9cdf12099a7ea2bd8882a596720d6"
+      "candidate_sha256": "ce89a22c399b2506758d3c313d5d062e5ea65930f004ae8454562b2ec33c1927"
     },
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "ddabc59473dd5c759483e65252bac42fa184867463fdc6ce5a31e9ea6620cd28",
+      "candidate_sha256": "b1461e05e1dd4cbe7a6e4e60716c8ae2f17270e6328d3758434306da3b10e663",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment. Add automatic SessionStart fsmonitor non-execution and dirty-state regression coverage. Prove exact resolver syntax admission through the actual hook from a separate checkout and preserve execution, extra-argument and symlink denials."
     },
     {

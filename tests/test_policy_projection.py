@@ -130,6 +130,16 @@ class PolicyProjectionTests(unittest.TestCase):
         self.assertEqual(fixture.managed_snapshot(), before)
         self.assertFalse((fixture.home / '.config-symlink-backups').exists())
 
+    def test_inline_projection_ignores_workspace_python_modules(self):
+        fixture = self.fixture
+        marker = fixture.home / 'workspace-python-ran'
+        (fixture.repo / 'json.py').write_text('from pathlib import Path\nPath('
+            + repr(str(marker)) + ').touch()\nraise RuntimeError("workspace module imported")\n')
+        before = fixture.managed_snapshot()
+        self.success(fixture.project('--repair', '--dry-run'))
+        self.assertFalse(marker.exists())
+        self.assertEqual(fixture.managed_snapshot(), before)
+
     def test_copy_hardlinks_are_rejected_before_any_projection(self):
         fixture = self.fixture
         for relative in ('config.toml', 'hooks.json'):
@@ -291,6 +301,67 @@ raise SystemExit(module.main(["--config-path",sys.argv[2],"--repair","--json","-
         self.assertTrue(result.stdout, result.stderr)
         self.assertFalse(backup.exists(), result.stdout)
         self.assertTrue(tomllib.loads(runtime.read_text())['hooks']['state']['racing']['enabled'])
+
+    def check_consent_exchange_race(self, later_edit, replace_recovery=False):
+        fixture = self.fixture
+        self.success(fixture.project())
+        runtime = fixture.runtime / 'config.toml'
+        sentinel = fixture.home / 'recovery-sentinel.toml'
+        sentinel.write_text('preserve recovery target\n')
+        runtime.write_text(runtime.read_text().replace('approval_policy = "on-request"', 'approval_policy = "never"', 1))
+        child = '''import importlib.util,sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]).parent))
+spec = importlib.util.spec_from_file_location("exchange_race", sys.argv[1])
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+exchange = module._exchange_paths
+calls = 0
+def race(first, second):
+    global calls
+    calls += 1
+    if calls == 1:
+        with Path(second).open("a") as stream:
+            stream.write("\\n[hooks.state.racing]\\nenabled = true\\ntrusted_hash = 'fixture'\\n")
+    exchange(first, second)
+    if calls == 1 and sys.argv[3] == "replace":
+        Path(first).unlink()
+        Path(first).symlink_to(sys.argv[4])
+    if calls == 1 and sys.argv[3] == "later":
+        with Path(second).open("a") as stream:
+            stream.write("\\n# later independent edit\\n")
+module._exchange_paths = race
+raise SystemExit(module.main(["--config-path",sys.argv[2],"--repair","--json"]))
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/repair-runtime-config-drift.py'), str(runtime),
+            'replace' if replace_recovery else 'later' if later_edit else 'restore', str(sentinel)], env=fixture.env, cwd=fixture.repo,
+            capture_output=True, text=True, timeout=30, check=False)
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        if replace_recovery:
+            self.assertFalse(runtime.is_symlink())
+            self.assertEqual(tomllib.loads(runtime.read_text())['approval_policy'], 'on-request')
+            recovery = list(runtime.parent.glob('.config.toml.*.tmp'))
+            self.assertEqual(len(recovery), 1)
+            self.assertTrue(recovery[0].is_symlink())
+            self.assertEqual(sentinel.read_text(), 'preserve recovery target\n')
+        elif later_edit:
+            self.assertIn('# later independent edit', runtime.read_text())
+            recovery = list(runtime.parent.glob('.config.toml.*.tmp'))
+            self.assertEqual(len(recovery), 1)
+            self.assertTrue(tomllib.loads(recovery[0].read_text())['hooks']['state']['racing']['enabled'])
+        else:
+            self.assertTrue(tomllib.loads(runtime.read_text())['hooks']['state']['racing']['enabled'], result.stdout)
+            self.assertEqual(tomllib.loads(runtime.read_text())['approval_policy'], 'never')
+            self.assertEqual(list(runtime.parent.glob('.config.toml.*.tmp')), [])
+
+    def test_consent_saved_at_exchange_is_restored_to_live_config(self):
+        self.check_consent_exchange_race(later_edit=False)
+
+    def test_later_edit_preserves_live_and_displaced_consent(self):
+        self.check_consent_exchange_race(later_edit=True)
+
+    def test_replaced_recovery_source_is_not_restored_to_live_config(self):
+        self.check_consent_exchange_race(later_edit=False, replace_recovery=True)
 
     def test_exchange_failure_keeps_last_runtime_and_backup(self):
         fixture = self.fixture

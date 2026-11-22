@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "source_status": "reviewed uncommitted snapshot; not an accepted commit",
-  "publisher_sha256": "86c37920137fe6019de8064f1c4295dd00a0c79f055ebef840baeb1c2ca59ff5",
-  "manifest_sha256": "5104c0bb1702f5a151cb45a6bed3c8951f6de0e789fed7482e0d735946823192",
+  "publisher_sha256": "926bc72d6a10a9331c236af60c7e36ce19e39b0663690fe1de437f3e257b094a",
+  "manifest_sha256": "6f7fe4b23eddc8c5727ebb8d05f14e9d5bcea56d87ad88d8540a0bd4d8194899",
   "transformations": [
     "explicit disposable scope",
     "home-relative quoted Braid launcher",
@@ -10,7 +10,8 @@
     "source confinement applies to publication and without-braid rendering",
     "disposable scope uses the system temporary root and excludes account-home descendants",
     "fixed private packaged context preserves default fixture admission",
-    "deployed publication requires its declared runtime hooks.json target; installation backups retain a separate validated location"
+    "deployed publication requires its declared runtime hooks.json target; installation backups retain a separate validated location",
+    "core hook commands require the absolute system Bash launcher"
   ],
   "installation_authorised": false,
   "handler_closure_ported": true,

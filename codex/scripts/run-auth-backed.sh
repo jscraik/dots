@@ -12,7 +12,7 @@ fi
 
 set -euo pipefail
 dots_script_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python3 "$dots_script_dir/admit-hook-fixture.py" '{}' || exit $?
+python3 -I -S -B "$dots_script_dir/admit-hook-fixture.py" '{}' || exit $?
 
 usage() {
   cat <<'USAGE'
@@ -304,7 +304,7 @@ if ! op_bin="$(resolve_trusted_op "$op_bin")"; then
   printf 'run-auth-backed.sh: trusted 1Password CLI is unavailable: %s\n' "$op_bin" >&2
   exit 69
 fi
-python3 "$dots_script_dir/admit-hook-fixture.py" --provider-path "$op_bin" || exit $?
+python3 -I -S -B "$dots_script_dir/admit-hook-fixture.py" --provider-path "$op_bin" || exit $?
 
 if [[ "$(required_env_count)" -gt 0 ]]; then
   for env_name in "${required_env[@]}"; do

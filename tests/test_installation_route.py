@@ -19,6 +19,45 @@ from policy_fixture import PolicyFixture
 from test_governance_port import ROOT, GEN
 
 
+class DesktopProposalPublicationTests(unittest.TestCase):
+    """Publication component checks do not need an installed toolchain."""
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        spec = importlib.util.spec_from_file_location('proposal_publication', ROOT / 'codex/scripts/install-codex.py')
+        self.installer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.installer)
+
+    def test_failed_sync_leaves_final_absent_and_retry_succeeds(self):
+        path = self.root / 'desktop-review.json'
+        with mock.patch.object(self.installer.os, 'fsync', side_effect=OSError('injected sync failure')):
+            with self.assertRaises(OSError):
+                self.installer.write_desktop_proposal(path, b'private reviewed proposal')
+        self.assertFalse(path.exists())
+        self.assertEqual(list(self.root.iterdir()), [])
+        self.installer.write_desktop_proposal(path, b'private reviewed proposal')
+        self.assertEqual(path.read_bytes(), b'private reviewed proposal')
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(path.stat().st_nlink, 1)
+
+    def test_racing_pin_is_preserved_and_partial_bytes_are_not_published(self):
+        path = self.root / 'desktop-review.json'
+        publish = self.installer.install_absent
+        def race(source, target, **options):
+            self.assertFalse(path.exists())
+            self.assertEqual(Path(source).read_bytes(), b'new proposal')
+            path.write_bytes(b'other reviewed proposal')
+            self.assertTrue(options['atomic_file'])
+            return publish(source, target, **options)
+        with mock.patch.object(self.installer, 'install_absent', side_effect=race):
+            with self.assertRaises(FileExistsError):
+                self.installer.write_desktop_proposal(path, b'new proposal')
+        self.assertEqual(path.read_bytes(), b'other reviewed proposal')
+        self.assertEqual(list(self.root.iterdir()), [path])
+
+
 class InstallationRouteTests(unittest.TestCase):
     def test_transition_preserves_only_existing_hook_revocation(self):
         installer = self.import_installer(ROOT)
@@ -166,6 +205,7 @@ class InstallationRouteTests(unittest.TestCase):
         self.assertEqual(self.snapshot(), self.before)
 
     def test_selected_interpreter_with_spaces_does_not_shadow_other_tools(self):
+        self.require_operator_toolchain()
         runtime = self.home / 'selected runtime with spaces'
         runtime.mkdir()
         interpreter = runtime / 'python3'
@@ -176,6 +216,7 @@ class InstallationRouteTests(unittest.TestCase):
         sibling.chmod(0o700)
 
         def selected_cli(*args):
+            self.require_operator_toolchain()
             return subprocess.run([str(interpreter), '-B', str(self.source_root / 'scripts/install-codex.py'),
                 *map(str, args)], cwd=self.source_root, env=self.env, text=True,
                 capture_output=True, timeout=120, check=False)
@@ -300,12 +341,38 @@ class InstallationRouteTests(unittest.TestCase):
         self.source_tree = subprocess.run(['git', 'rev-parse', f'{self.source_revision}^{{tree}}'], cwd=self.source_root,
             env=self.env, text=True, capture_output=True, timeout=15, check=True).stdout.strip()
 
+    def require_operator_toolchain(self):
+        if not os.path.lexists('/opt/dots-hook-tools'):
+            reason = 'Installation operator tests require the separately administered protected toolchain'
+            if os.environ.get('DOTS_REQUIRE_PROTECTED_TOOLCHAIN') == '1':
+                self.fail(reason)
+            self.skipTest(reason + '; component tests remain available without live installation')
+
     def run_cli(self, *args, source_pin=True):
+        self.require_operator_toolchain()
         if source_pin and args and args[0] in {'prepare', 'prepare-policy-update'} and '--source-revision' not in args:
             args = (*args, '--source-revision', self.source_revision)
         return subprocess.run([sys.executable, '-B', str(self.source_root / 'scripts/install-codex.py'),
             *map(str, args)], cwd=self.source_root, env=self.env,
             text=True, capture_output=True, timeout=120, check=False)
+
+    def test_operator_prerequisite_is_explicit_and_required_in_ci(self):
+        entrypoints = (lambda: self.run_cli('check'),
+                       lambda: self.packaged_operation('check', 'unused'),
+                       self.legacy_reviewed_state,
+                       self.test_selected_interpreter_with_spaces_does_not_shadow_other_tools)
+        with (mock.patch('os.path.lexists', return_value=False),
+              mock.patch.dict(os.environ, {'DOTS_REQUIRE_PROTECTED_TOOLCHAIN': ''})):
+            for entrypoint in entrypoints:
+                with self.subTest(entrypoint=entrypoint), self.assertRaisesRegex(
+                        unittest.SkipTest, 'separately administered'):
+                    entrypoint()
+        with (mock.patch('os.path.lexists', return_value=False),
+              mock.patch.dict(os.environ, {'DOTS_REQUIRE_PROTECTED_TOOLCHAIN': '1'})):
+            for entrypoint in entrypoints:
+                with self.subTest(entrypoint=entrypoint), self.assertRaisesRegex(
+                        AssertionError, 'separately administered'):
+                    entrypoint()
 
     def prepare(self):
         return self.run_cli('prepare', '--home', self.home, '--state-dir', self.state,
@@ -463,6 +530,8 @@ class InstallationRouteTests(unittest.TestCase):
         path.write_text(GEN.toml_document(data))
         first = self.success(self.operation('prepare-desktop-review', digest))['review_sha256']
         original_proposal = (self.state / 'desktop-review.json').read_bytes()
+        self.assertEqual(self.success(self.operation('prepare-desktop-review', digest))['review_sha256'], first)
+        self.assertEqual(list(self.state.glob('desktop-review*.json')), [self.state / 'desktop-review.json'])
         self.success(self.run_cli('check', '--state-dir', self.state,
             '--plan-digest', digest, '--desktop-review-sha256', first))
         data['hooks']['state'] = {}
@@ -487,14 +556,20 @@ class InstallationRouteTests(unittest.TestCase):
         self.success(self.operation('apply', digest))
         config = self.runtime / 'config.toml'
         before = config.read_bytes()
-        (self.state / ('desktop-review-' + 'a' * 64 + '.json')).write_text('{}')
+        pending = self.state / ('desktop-review-' + 'a' * 64 + '.json')
         self.assertFalse((self.state / 'desktop-review.json').exists())
         for name in ('repair-runtime-config-drift.py', 'scrub-computer-use-config.py'):
-            result = subprocess.run([sys.executable, '-B', str(self.payload / 'codex/scripts' / name),
-                '--config-path', str(config), '--repair', '--json'], cwd=self.payload,
+            command = [sys.executable, '-B', str(self.payload / 'codex/scripts' / name),
+                '--config-path', str(config), '--repair', '--json']
+            allowed = subprocess.run(command, cwd=self.payload,
+                env=self.installed_env(), capture_output=True, text=True, timeout=30, check=False)
+            self.success(allowed)
+            pending.write_text('{}')
+            result = subprocess.run(command, cwd=self.payload,
                 env=self.installed_env(), capture_output=True, text=True, timeout=30, check=False)
             self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(config.read_bytes(), before)
+            pending.unlink()
 
     def test_oversized_desktop_review_leaves_no_proposal_and_can_retry(self):
         path = self.runtime / 'config.toml'
@@ -1211,12 +1286,15 @@ with installer.renameable_directories(state, staged, target):
                 self.assertEqual((target / 'identity.txt').read_text(), 'new' if phase == 'after' else 'old')
                 self.assertFalse((state / 'rename-modes.json').exists())
 
-    def test_active_python_preserves_virtual_environment_launcher(self):
+    def test_child_python_ignores_virtual_environment_launcher(self):
         installer = self.import_installer(ROOT)
         launcher = self.home / 'venv-python'
         launcher.symlink_to(sys.executable)
-        with mock.patch.object(sys, 'executable', str(launcher)):
-            self.assertEqual(installer.active_python_executable(), str(launcher))
+        protected = '/opt/dots-hook-tools/' + 'a' * 64 + '/bin'
+        with (mock.patch.object(sys, 'executable', str(launcher)),
+              mock.patch.object(installer, 'hook_toolchain_snapshot', return_value={'bin_dir': protected})):
+            self.assertEqual(installer.protected_python_command('selected.py'),
+                             [protected + '/python3', '-I', '-B', 'selected.py'])
 
     def test_copied_helpers_resolve_the_installed_source(self):
         digest = self.success(self.prepare())['plan_digest']
@@ -1547,6 +1625,7 @@ with installer.renameable_directories(state, staged, target):
 
     def legacy_reviewed_state(self):
         """Build two real old-policy generations, never copy caller runtime state."""
+        self.require_operator_toolchain()
         source = self.home / 'legacy-source'
         source.mkdir()
         installer = self.import_installer(self.source_root)
@@ -1577,6 +1656,7 @@ with installer.renameable_directories(state, staged, target):
         self.bindings.write_text(json.dumps(values))
 
         def source_cli(*args):
+            self.require_operator_toolchain()
             if args and args[0] == 'prepare':
                 args = (*args, '--source-revision', legacy_revision)
             return subprocess.run([sys.executable, '-B', str(source / 'codex/scripts/install-codex.py'),
@@ -1605,6 +1685,7 @@ with installer.renameable_directories(state, staged, target):
         return digest, projects
 
     def packaged_operation(self, operation, digest):
+        self.require_operator_toolchain()
         return subprocess.run([sys.executable, '-B', str(self.payload / 'scripts/install-codex.py'),
             operation, '--state-dir', str(self.state), '--plan-digest', digest], cwd=self.payload,
             env=self.installed_env(), text=True, capture_output=True, timeout=180, check=False)
@@ -1741,8 +1822,7 @@ with installer.renameable_directories(state, staged, target):
         # Fail at the existing real projector boundary, then retry the prepared
         # transition with its partially published config and managed resources.
         installer = self.import_installer(self.payload)
-        script_path = str(self.payload / 'codex/scripts')
-        with mock.patch.object(sys, 'path', [script_path, *sys.path]), mock.patch.dict(
+        with mock.patch.dict(
                 os.environ, self.installed_env(), clear=True), mock.patch.dict(sys.modules), mock.patch.object(
                 installer, 'projector', side_effect=ValueError('synthetic projector refusal')):
             sys.modules.pop('migration_scope', None)
@@ -2636,8 +2716,7 @@ except ValueError:
     def test_partial_cutover_rolls_back_without_resuming_activation(self):
         digest = self.success(self.prepare())['plan_digest']
         installer = self.import_installer(self.payload)
-        script_path = str(self.payload / 'codex/scripts')
-        with mock.patch.object(sys, 'path', [script_path, *sys.path]), mock.patch.dict(
+        with mock.patch.dict(
                 os.environ, self.installed_env(), clear=True), mock.patch.dict(sys.modules), mock.patch.object(
                 installer, 'projector', side_effect=ValueError('synthetic projector refusal')):
             sys.modules.pop('migration_scope', None)
@@ -2645,7 +2724,7 @@ except ValueError:
                 installer.apply(self.state, digest)
         self.assertEqual(json.loads((self.state / 'result.json').read_text())['status'], 'failed')
         self.assertNotEqual(self.snapshot()['config.toml'], self.before['config.toml'])
-        with mock.patch.object(sys, 'path', [script_path, *sys.path]), mock.patch.dict(
+        with mock.patch.dict(
                 os.environ, self.installed_env(), clear=True), mock.patch.dict(sys.modules):
             sys.modules.pop('migration_scope', None)
             installer.restore(self.state, digest)

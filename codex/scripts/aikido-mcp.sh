@@ -2,7 +2,7 @@
 set -euo pipefail
 
 dots_script_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python3 "$dots_script_dir/admit-hook-fixture.py" '{}' || exit $?
+python3 -I -S -B "$dots_script_dir/admit-hook-fixture.py" '{}' || exit $?
 
 prepend_path_if_dir() {
   local path_dir="$1"
@@ -21,8 +21,8 @@ aikido_mcp_version="${AIKIDO_MCP_VERSION:-1.0.10}"
 binary="${AIKIDO_MCP_BIN:-${HOME}/.codex/utilities/aikido-mcp/bin/aikido-mcp}"
 env_file="${AIKIDO_MCP_ENV_FILE:-${HOME}/.codex/aikido-mcp.env}"
 use_op_run="${AIKIDO_MCP_USE_OP_RUN:-1}"
-python3 "$dots_script_dir/admit-hook-fixture.py" --aikido-input aikido-binary "$binary" || exit $?
-python3 "$dots_script_dir/admit-hook-fixture.py" --aikido-input aikido-reference "$env_file" || exit $?
+python3 -I -S -B "$dots_script_dir/admit-hook-fixture.py" --aikido-input aikido-binary "$binary" || exit $?
+python3 -I -S -B "$dots_script_dir/admit-hook-fixture.py" --aikido-input aikido-reference "$env_file" || exit $?
 
 if [[ ! -f "${binary}" || ! -x "${binary}" ]]; then
   printf 'aikido MCP binary is not installed or executable: %s\n' "${binary}" >&2
@@ -48,7 +48,7 @@ if [[ "${use_op_run}" == "1" && -e "${env_file}" ]]; then
     printf 'Install op or set OP_BIN to an executable 1Password CLI path.\n' >&2
     exit 127
   fi
-  python3 "$dots_script_dir/admit-hook-fixture.py" --provider-path "$op_binary" || exit $?
+  python3 -I -S -B "$dots_script_dir/admit-hook-fixture.py" --provider-path "$op_binary" || exit $?
   exec "${op_binary}" run --env-file "${env_file}" -- "${binary}" "$@"
 fi
 

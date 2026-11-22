@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 dots_script_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python3 "$dots_script_dir/admit-hook-fixture.py" '{}' || exit $?
+python3 -I -S -B "$dots_script_dir/admit-hook-fixture.py" '{}' || exit $?
 
 tmpdir="${TMPDIR:?explicit disposable TMPDIR is required}"
 export UV_CACHE_DIR="${CODEX_VALIDATION_UV_CACHE_DIR:-${tmpdir}/configs-uv-cache}"

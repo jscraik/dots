@@ -9,6 +9,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from policy_fixture import PolicyFixture
+
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location('preview_core_fixture', ROOT / 'scripts/preview-codex.py')
 PREVIEW = importlib.util.module_from_spec(SPEC)
@@ -70,13 +72,15 @@ class ProjectionCoreTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertFalse(sentinel.exists())
 
-    def test_selected_fixture_interpreter_is_checked_before_home_admission(self):
-        self.env.update(DOTS_PROJECTION_FIXTURE='full-policy-v1',
-                        CODEX_VALIDATION_PYTHON='/missing/python')
-        self.env['HOME'] = '/missing/home'
-        result = self.run_projector('--help')
-        self.assertEqual(result.returncode, 78, result.stderr)
-        self.assertIn('absolute executable Python', result.stderr)
+    def test_home_admission_precedes_selected_fixture_interpreter(self):
+        fixture = PolicyFixture(self)
+        self.addCleanup(fixture.assert_preserved, self)
+        environment = fixture.env | {'HOME': '/missing/home',
+                                     'CODEX_VALIDATION_PYTHON': '/missing/python'}
+        result = subprocess.run(['/bin/bash', '-p', str(fixture.repo / 'scripts/link-configs.sh'), '--help'],
+            cwd=fixture.repo, env=environment, capture_output=True, text=True, timeout=30, check=False)
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('DOTS_TEST_HOME', result.stderr)
 
     def test_sanitized_launcher_ignores_exported_functions(self):
         marker = self.home.parent / 'exported-function-ran'
@@ -87,15 +91,26 @@ class ProjectionCoreTests(unittest.TestCase):
         self.assertFalse(marker.exists())
 
     def test_selected_interpreter_with_spaces_runs_admission(self):
-        selected = self.home.parent / 'selected python'
-        selected.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' "$@"\n')
+        fixture = PolicyFixture(self)
+        self.addCleanup(fixture.assert_preserved, self)
+        selected = fixture.home / 'selected python'
+        marker = fixture.home / 'selected-python-ran'
+        selected.write_text('#!/bin/sh\nprintf selected > ' + shlex.quote(str(marker))
+                            + '\nexec ' + shlex.quote(sys.executable) + ' "$@"\n')
         selected.chmod(0o700)
-        self.env.update(DOTS_PROJECTION_FIXTURE='full-policy-v1',
-                        CODEX_VALIDATION_PYTHON=str(selected), HOME='/missing/home')
-        result = self.run_projector('--help')
-        self.assertIn('existing disposable HOME', result.stderr)
+        environment = fixture.env | {'CODEX_VALIDATION_PYTHON': str(selected)}
+        command = ['/bin/bash', '-p', str(fixture.repo / 'scripts/link-configs.sh'), '--help']
+        result = subprocess.run(command, cwd=fixture.repo, env=environment | {'HOME': '/missing/home'},
+            capture_output=True, text=True, timeout=30, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(marker.exists())
+        result = subprocess.run(command, cwd=fixture.repo, env=environment,
+            capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(marker.exists())
         selected.write_text('#!/bin/sh\nexit 1\n')
-        result = self.run_projector('--help')
+        result = subprocess.run(command, cwd=fixture.repo, env=environment,
+            capture_output=True, text=True, timeout=30, check=False)
         self.assertEqual(result.returncode, 78, result.stderr)
         self.assertIn('Python 3.9 or later', result.stderr)
 

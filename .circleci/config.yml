@@ -50,6 +50,15 @@ jobs:
           name: Verify public guidance and instruction links
           command: /tmp/dots-validation-venv/bin/python -B scripts/check-public-guidance.py
       - run:
+          name: Provision protected hook toolchain in the disposable executor
+          command: |
+            /tmp/dots-validation-venv/bin/python -I codex/scripts/prepare-hook-toolchain.py --platform linux-amd64 --output /tmp/dots-hook-toolchain
+            reviewed_digest="$(/usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-toolchain --inspect)"
+            sudo /usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-toolchain --reviewed-sha256 "$reviewed_digest" --select
+            /usr/bin/python3 -I -S codex/scripts/validate-hook-toolchain.py
+            sudo apt-get update
+            sudo apt-get install --yes bubblewrap
+      - run:
           name: Test Linux CLI compatibility and disposable-home staging
           no_output_timeout: 15m
           command: |
@@ -57,7 +66,11 @@ jobs:
             export DOTS_CODEX_BIN=/tmp/dots-ci-tools/codex
             echo 'Linux pinned CLI compatibility only; Desktop app-runtime proof is a separate local check.'
             "$DOTS_CODEX_BIN" --version
-            # Share the long installation module across both small runners.
+            export DOTS_REQUIRE_PROTECTED_TOOLCHAIN=1
+            /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_hook_handlers.py -k raw_api_merge_accepts_only_the_receipt_target -v --failfast
+            /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_installation_route.py -k partial_cutover_rolls_back_without_resuming_activation -v --failfast
+            /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_installation_route.py -k policy_transition_preserves_selected_preferences_and_exact_rollback -v --failfast
+            # Share installation cases: even that module alone exceeds one hour.
             /tmp/dots-validation-venv/bin/python -B - "$CIRCLE_NODE_INDEX" "$CIRCLE_NODE_TOTAL" \<<'PY'
             import sys
             import unittest
@@ -75,7 +88,7 @@ jobs:
                 raise SystemExit('Invalid or empty CI test partition')
             selected = discovered[node::total]
             print(f'CI partition {node + 1}/{total}: {len(selected)}/{len(discovered)} discovered tests', flush=True)
-            result = unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(selected))
+            result = unittest.TextTestRunner(verbosity=2, failfast=True).run(unittest.TestSuite(selected))
             raise SystemExit(0 if result.wasSuccessful() else 1)
             PY
       - run:

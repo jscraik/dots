@@ -1229,6 +1229,25 @@ def _validate_notifier_cutover_snapshot(text: str) -> None:
         raise OSError('legacy validation view changed unrelated configuration')
     _validate_runtime_snapshot(view)
 
+def _repair_file_snapshot(path: Path) -> tuple[tuple[int, ...], bytes]:
+    """Read one bounded regular generation without following recovery aliases."""
+    def generation(info):
+        return (info.st_dev, info.st_ino, info.st_mode, info.st_size,
+                info.st_mtime_ns, info.st_ctime_ns)
+
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as stream:
+        before = os.fstat(stream.fileno())
+        if not stat.S_ISREG(before.st_mode):
+            raise OSError('repair generation is not a regular file')
+        raw = stream.read(16 * 1024 * 1024 + 1)
+        if (len(raw) > 16 * 1024 * 1024
+                or generation(os.fstat(stream.fileno())) != generation(before)
+                or generation(path.lstat()) != generation(before)):
+            raise OSError('repair generation changed during inspection')
+    return generation(before), raw
+
+
 def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, unchanged: tuple[tuple[Path, bytes], ...]=()) -> None:
     if config_path.is_symlink():
         raise OSError(f'runtime config must be a regular file, not a symlink: {config_path}')
@@ -1236,12 +1255,16 @@ def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, 
     fd, tmp_name = tempfile.mkstemp(prefix=f'.{repair_path.name}.', suffix='.tmp', dir=repair_path.parent)
     tmp_path = Path(tmp_name)
     exchanged = False
+    staged_snapshot = None
+    published_snapshot = None
+    displaced_snapshot = None
     try:
         os.fchmod(fd, 384)
         with os.fdopen(fd, 'w', encoding='utf-8') as handle:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
+        staged_snapshot = _repair_file_snapshot(tmp_path)
         if expected is not None and (repair_path.is_symlink() or repair_path.read_bytes() != expected):
             raise OSError('runtime config changed during reconciliation; retry from fresh state')
         for guarded_path, guarded_bytes in unchanged:
@@ -1253,6 +1276,10 @@ def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, 
             return
         _exchange_paths(tmp_path, repair_path)
         exchanged = True
+        displaced_snapshot = _repair_file_snapshot(tmp_path)
+        published = _repair_file_snapshot(repair_path)
+        if published[0][:4] == staged_snapshot[0][:4] and published[1] == staged_snapshot[1]:
+            published_snapshot = published
         if expected is not None and (tmp_path.is_symlink() or tmp_path.read_bytes() != expected):
             raise OSError('runtime config changed during reconciliation; retry from fresh state')
         for guarded_path, guarded_bytes in unchanged:
@@ -1263,6 +1290,28 @@ def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, 
         tmp_path.unlink()
         exchanged = False
     except BaseException as exc:
+        if exchanged:
+            # A writer may have saved consent between our comparison and swap.
+            # Restore the displaced generation only while our exact publication
+            # is still live; never overwrite an independent later generation.
+            try:
+                if (displaced_snapshot is not None
+                        and published_snapshot is not None
+                        and _repair_file_snapshot(repair_path) == published_snapshot
+                        and _repair_file_snapshot(tmp_path) == displaced_snapshot):
+                    _exchange_paths(tmp_path, repair_path)
+                    # Rename changes ctime, so verify the identity and bytes;
+                    # retain both copies if either publication changed again.
+                    recovered = _repair_file_snapshot(tmp_path)
+                    restored = _repair_file_snapshot(repair_path)
+                    if (recovered[0][:4] == staged_snapshot[0][:4]
+                            and recovered[1] == staged_snapshot[1]
+                            and restored[0][:4] == displaced_snapshot[0][:4]
+                            and restored[1] == displaced_snapshot[1]):
+                        tmp_path.unlink()
+                        exchanged = False
+            except OSError:
+                pass  # Keep both generations for explicit recovery.
         if exchanged:
             raise OSError(f'repair verification failed; recovery file remains at {tmp_path}') from exc
         with contextlib.suppress(FileNotFoundError):

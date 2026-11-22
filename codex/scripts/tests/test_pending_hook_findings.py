@@ -115,7 +115,7 @@ class HookFindingRegressionTests(unittest.TestCase):
                 self.assertEqual(result.get("hookSpecificOutput", {}).get("permissionDecision"), "deny")
         self.assertFalse((self.root / "calls").exists())
 
-    def test_git_metadata_consumer_inherits_only_existing_mise_trust(self) -> None:
+    def test_git_metadata_keeps_writable_git_and_mise_config_inert(self) -> None:
         (self.a / ".mise.toml").write_text("# untrusted inert fixture\n")
         self.env["MISE_TRUSTED_CONFIG_PATHS"] = "/already/trusted/config.toml"
         probe = self.root / "git-trust"
@@ -125,9 +125,8 @@ class HookFindingRegressionTests(unittest.TestCase):
         git.chmod(0o755)
         result = self.commit("git commit -m fixture")
         self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
-        observed = probe.read_text().splitlines()
-        self.assertGreaterEqual(len(observed), 2)
-        self.assertEqual(set(observed), {"/already/trusted/config.toml"})
+        self.assertFalse(probe.exists(), 'The hook must never execute HOME Git')
+        self.assertEqual(self.env['MISE_TRUSTED_CONFIG_PATHS'], '/already/trusted/config.toml')
         self.assertFalse((self.root / "calls").exists())
 
     def test_same_worktree_symlink_components_are_rejected_before_git(self) -> None:
@@ -167,10 +166,17 @@ class HookFindingRegressionTests(unittest.TestCase):
     def test_lifeos_uses_same_prompt_boundary(self) -> None:
         retriever = self.root / "retriever.ts"
         retriever.write_text("// never executed\n")
-        bun = self.root / "bun"
+        selected = subprocess.run(['/usr/bin/python3', '-I', '-S', '-B',
+            str(REPO_ROOT / 'codex/scripts/validate-hook-toolchain.py')],
+            env=self.env, cwd=self.a, capture_output=True, text=True, timeout=10, check=True)
+        tools = Path(selected.stdout.strip())
+        self.assertTrue(tools.is_relative_to(Path(self.env['DOTS_TEST_HOME'])))
+        bun = tools / "bun"
+        self.assertFalse(bun.exists())
+        self.addCleanup(bun.unlink)
         bun.write_text("#!/bin/bash\nprintf 'fixture retrieval\\n'\n")
         bun.chmod(0o755)
-        self.env.update(CODEX_LIFEOS_RETRIEVER=str(retriever), CODEX_LIFEOS_BUN=str(bun),
+        self.env.update(CODEX_LIFEOS_RETRIEVER=str(retriever),
                         CODEX_LIFEOS_PROJECT_ROOT=str(self.a))
         result = self.hook("lifeos-codex.sh", {"prompt": 'Explain "ignore previous instructions".'})
         self.assertIn("fixture retrieval", result.get("hookSpecificOutput", {}).get("additionalContext", ""))

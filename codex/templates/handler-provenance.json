@@ -10,16 +10,18 @@
         "Share token-level destructive Git worktree detection across hook enforcement layers; fail closed on unsupported global-option layouts.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "8813663cb712516b6ee4ab056e3460e2e2789a145f25462a23b06f96b7b3414f"
+      "candidate_sha256": "b7b89a238afd83563d60d2d28821334b4358dda5b33024c54d4801a743ffeedd"
     },
     {
       "path": "codex/hooks/lifeos-codex.sh",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "2463f5a7ffa324fa8ad42ea9e4c9d9cfe40ccd331483fc63054a14ac13cd59b2",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "fixed root-owned hook dependency path and absolute Bash launch",
+        "check bootstrap failure before Python or retrieval; preserve owner failure posture"
       ],
-      "candidate_sha256": "430cad2b9acca140056f3b398bc6c8d7d4565c5c30439e73437e16a4476840b4"
+      "candidate_sha256": "40e9ad05f93dfb4df7b45f0de10f970022f711084ab2bea4e621bcf1369c8994"
     },
     {
       "path": "codex/hooks/permission-request-guard.sh",
@@ -29,25 +31,27 @@
         "fixture scope and event admission before handler actions",
         "Use exact command bytes with the shared token-level destructive Git classifier for approval denials."
       ],
-      "candidate_sha256": "f2f67dd408beb15bef226ef832868b048513eeec763a763705fa31ccc5b22357"
+      "candidate_sha256": "9b94d098ddd1bb8ac5afd0d1f3982d1b828478379541da42ed5bd0371abef9e7"
     },
     {
       "path": "codex/hooks/post-compact-recorder.sh",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "58091ddac71e899930d556fef067e3773205a46f3d5cc35f5a1fc40d9d12d4da",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "fixed root-owned hook dependency path and absolute Bash launch"
       ],
-      "candidate_sha256": "91b9ca9e0205a21f3e03187be3c8d569cd4e2acbe3a98ff43257b718e6abb75f"
+      "candidate_sha256": "7edd736d65fe4f3565de7d7a8d2d1542a5a0ad319e367a1365118c914a0984a4"
     },
     {
       "path": "codex/hooks/post-tool-use-review.sh",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "d3b5e1bef276f85b724bd898392325ceeebf83b8c21eb5bd601631509350bebc",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "fixed root-owned hook dependency path and absolute Bash launch"
       ],
-      "candidate_sha256": "63eb5883c6293efc0486f5cee5922766c614891746eb0b443234d8d7467729e8"
+      "candidate_sha256": "d60ba2ce3bcdef9ccb791a1312b19d896665cf9b4842e628d8d86db351c287ad"
     },
     {
       "path": "codex/hooks/pr-readiness-guard.sh",
@@ -58,7 +62,7 @@
         "Classify raw GitHub API methods and normalized endpoints; bind canonical REST merges to update receipts and fail closed on uninspectable writes.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "b978d9942b611b618bd72c8b2298219f5419da7d53ea3138f3d936b1b813564f"
+      "candidate_sha256": "904cfbd81001677cbd5ce5dda5749706cc75df8cd40d27ff856dada5a333f1e6"
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",
@@ -66,18 +70,20 @@
       "source_sha256": "1484dd2dc30b8bfc3ff61eef9eaade6e6e4ab8ff7eefbe381bcde7f09ef9e1cf",
       "transformations": [
         "fixture scope and event admission before handler actions",
+        "fixed root-owned hook dependency path and absolute Bash launch",
         "Reject shell expansions before literal commit option admission; preserve native approval and signing safeguards"
       ],
-      "candidate_sha256": "f3af43de082e451a28eb1f8b9a93e196b015cdaeca3678a73874c215d29d5371"
+      "candidate_sha256": "e6d9a165758987f5572ae3d2f3e814d6278be484cb0f3c7bd68fd86283806cfb"
     },
     {
       "path": "codex/hooks/pre-compact-guard.sh",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "3f10e4e3cbb2456c260a5ae8dfb45c3bbd96b67752e5a8d43c7aece8ff6fe5b6",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "fixed root-owned hook dependency path and absolute Bash launch"
       ],
-      "candidate_sha256": "d232056544a14df46655b5c30b23b3e1c62e8bdefac9d8034904b6dc0204747d"
+      "candidate_sha256": "758c84930565e15de53e0e976273fad8f7e563be4df3360cd69c52cc333dd737"
     },
     {
       "path": "codex/hooks/pre-scaffold-typecheck.sh",
@@ -85,9 +91,10 @@
       "source_sha256": "0d338de918f55ded0d7f349d58d785537e482ce447d4b7587d371857128c172b",
       "transformations": [
         "fixture scope and event admission before handler actions",
+        "fixed root-owned hook dependency path and absolute Bash launch",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "a4b3172dcf61f289941ec1608634b9c13e7f990b9f1433fb0b92b296612cdf7b"
+      "candidate_sha256": "17e51581d86afa7e4aa952e39a477028225f58da887ad1bf02ce70e00576cb14"
     },
     {
       "path": "codex/hooks/pre-tool-use-dispatch.sh",
@@ -100,7 +107,7 @@
         "Admit only the exact resolver syntax check from a canonical checkout root, including when hooks run from a separate installed payload; retain execution, extra-argument and symlink denials.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "8c820875525739c4eaced0a1479dcebfc40e8af8cfa87420e2010dc79c47c13a"
+      "candidate_sha256": "4d42a16ad7f2aec1481afe95fb626eeedd442e8a39e8a95936c3460e3a630ace"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",
@@ -112,7 +119,7 @@
         "Use the shared token-level destructive Git classifier for pre-tool denials.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "90810994cc1e05e24908112454f60f3259fd83126da03b720e97082f0d18834b"
+      "candidate_sha256": "5a5120586e99a0d1b2cb0306f1a5f9a4652643d15f3d82d81460f788da6b1401"
     },
     {
       "path": "codex/hooks/session-start.sh",
@@ -123,43 +130,47 @@
         "disable repository-selected fsmonitor execution during automatic status observation",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "320b274ca6911757bbc5fe0d0b170c5e4f66da0ee283a4a37eb2bf8c5f38dc0f"
+      "candidate_sha256": "384b1941e5a7db26be3c56750c901a0914620d08a162e874b4f9d3608eb7ddeb"
     },
     {
       "path": "codex/hooks/stop-guard.sh",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "7c23ade7180625316419051cdf6ee796b93281951172e9c163a16e3df5e571b3",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "fixed root-owned hook dependency path and absolute Bash launch"
       ],
-      "candidate_sha256": "7ec029a4e2472e2daa41b8b1466855e73ade7cf5513e0f9868b4fde96b7493e1"
+      "candidate_sha256": "475adc9353c793286063b68014aafec3a6e89419046481e1f722ebb739c179b5"
     },
     {
       "path": "codex/hooks/subagent-start.sh",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "37c005a09cf8993c6f9ab4dee526e66f17452432d927407e5d5c4a728d40f851",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "fixed root-owned hook dependency path and absolute Bash launch"
       ],
-      "candidate_sha256": "bfa665c1ecfdc8a6b7c553bf0d72eebd8183ecea8932d1bd0a239a8b46300b42"
+      "candidate_sha256": "c57abe1c44436868e610ecc4b3813403a36ca54f31e579d19f4834bf4d0e42cf"
     },
     {
       "path": "codex/hooks/subagent-stop.sh",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "9b8d52e750dc5181c6ec5f4b381083262721102fa2f33b3b934edfc7af2ffb9c",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "fixed root-owned hook dependency path and absolute Bash launch"
       ],
-      "candidate_sha256": "91d85947158fb859e0538a30ebe7abbe19b27a4da93469ca87d43051d95e160c"
+      "candidate_sha256": "f32149e6c16fe7a3f92975ceef55c03443be8ee2da4f7c94761b62b02f530658"
     },
     {
       "path": "codex/hooks/user-prompt-submit.sh",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "d288dbbc5d342c120d59f0d594843dd5c6e6339993227044b5be4151baef04f9",
       "transformations": [
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "fixed root-owned hook dependency path and absolute Bash launch"
       ],
-      "candidate_sha256": "c24593ecba70d671cc6f345a6b27bf8c4636d3d77ac6dd163b6b5aafd8107828"
+      "candidate_sha256": "5d98cbd7562aa8779697d3e95653563245f27891de074483df579ad1400066c4"
     },
     {
       "path": "codex/scripts/pr-reconciliation.py",
@@ -232,7 +243,7 @@
         "private project-config exception requires explicit local input and original validation",
         "fixture admission including positional dev-root"
       ],
-      "candidate_sha256": "7df66f03c231558cdc3894dfc5f9ae7500b715e2f5e5e499cae7f7017e251ee6"
+      "candidate_sha256": "cd68b42de166aecdaa2a42088a50f6bb7adb47071cca590c77a3ca15d90132bc"
     },
     {
       "path": "codex/scripts/run-auth-backed.sh",
@@ -241,7 +252,7 @@
       "transformations": [
         "fixture admission for shell runtime dependency"
       ],
-      "candidate_sha256": "10570de1a8fd3d9b48289b0c099580b4ebda48c804025c836596688f7f7e8b24"
+      "candidate_sha256": "9d2154b7ba627e71a47cbd8daf95035e70f36d321bf04cd453225205401922f8"
     },
     {
       "path": "codex/scripts/hook-governance/hook_runtime_policy.py",
@@ -304,7 +315,7 @@
       "transformations": [
         "fixture admission for shell runtime dependency"
       ],
-      "candidate_sha256": "bb7ba57a4322e8a359764099b4367bdf52aae44de28555a2f074103c75781e1c"
+      "candidate_sha256": "a94047a2678b68d52a16983358d312e11e5cf85f8c126a1f49f7f8be76a40ab8"
     },
     {
       "path": "codex/scripts/codex-validation-python-uv.sh",
@@ -315,7 +326,7 @@
         "bootstrap requires an explicit confined TMPDIR before selecting cache defaults",
         "Reuse explicitly selected installed Python only after exact pinned import probe; original pinned bootstrap failure remains nonzero"
       ],
-      "candidate_sha256": "83db2c73ffcea8bf250ba856320b45d9918ff4fd23b8e8a1e999c01dfdd5afd1"
+      "candidate_sha256": "b3ca9b132c8e4ef0b056e43b9f59e01fa9d3b7d67953c0272c6a80943ec8fe98"
     },
     {
       "path": "codex/scripts/read-runtime-auth-environment.py",
@@ -359,12 +370,12 @@
       "transformations": [
         "Retain pinned local binary and 1Password execution; admit fixture or fixed packaged context and each provider path before execution."
       ],
-      "candidate_sha256": "83c374937bbf77514861cf5c3abcf26adec3b1b2f3b6700014bf84fe65c02f77"
+      "candidate_sha256": "1df0984c65f354559bd4885a87cfee4128047b062a7747c558de5b7c69bca878"
     },
     {
       "path": "codex/hooks/destructive-git-operation.py",
       "origin": "Extracted isolated destructive Git parser from hook-runtime-lib.sh",
-      "candidate_sha256": "7c6d138c43a82617f93a5f09a448c81220280a26552483254a46c5a424739ac8"
+      "candidate_sha256": "f79db1d574bac4b2e90dd501e0c2c0c07715e60d7c78374fb4d1ea14ed4812f5"
     }
   ],
   "external_boundaries": [

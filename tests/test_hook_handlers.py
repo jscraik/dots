@@ -1,6 +1,7 @@
 """Real handler decisions and local-state isolation; no tool command execution."""
 import hashlib
 import json
+import shlex
 import os
 import subprocess
 import sys
@@ -12,6 +13,89 @@ from hook_fixture import HookFixture
 
 
 class HookHandlerTests(unittest.TestCase):
+    def test_admission_ignores_modules_beside_its_entrypoint(self):
+        marker = self.fixture.home / 'shadow-json-ran'
+        shadow = self.fixture.codex / 'scripts/json.py'
+        shadow.write_text('from pathlib import Path\nPath(' + repr(str(marker))
+                          + ').touch()\nraise RuntimeError("shadow module ran")\n')
+        result = self.fixture.run('pre-tool-use-guard.sh',
+                                  {'tool_input': {'command': 'git status --short'}})
+        self.assertFalse(marker.exists(), result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotEqual(json.loads(result.stdout).get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+        workspace_shadow = self.fixture.repo / 'fnmatch.py'
+        workspace_shadow.write_text('from pathlib import Path\nPath(' + repr(str(marker))
+                                   + ').touch()\nraise RuntimeError("workspace shadow ran")\n')
+        result = self.fixture.run('pre-tool-use-guard.sh',
+                                  {'tool_input': {'command': 'git status --short'}})
+        self.assertFalse(marker.exists(), result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotEqual(json.loads(result.stdout).get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+
+    def test_lifeos_selects_only_optional_provider_in_validated_payload(self):
+        tools = self.fixture.home / '.fixture-hook-tools/bin'
+        provider = tools / 'bun'
+        corpus = self.fixture.runtime / 'LIFEOS'
+        (corpus / 'TOOLS').mkdir(parents=True)
+        retriever = corpus / 'TOOLS/MemoryRetriever.ts'
+        retriever.write_text('// synthetic retriever input\n')
+        marker = self.fixture.home / 'unexpected-provider'
+        poison = self.fixture.bin / 'bun'
+        poison.write_text('#!/bin/sh\ntouch "' + str(marker) + '"\n')
+        poison.chmod(0o700)
+        event = {'prompt': 'literal $(touch SHOULD_NOT_RUN)', 'cwd': str(self.fixture.repo)}
+        environment = {'CODEX_LIFEOS_DIR': str(corpus),
+                       'CODEX_LIFEOS_PROJECT_ROOT': str(self.fixture.repo)}
+        self.assertEqual(self.output('lifeos-codex.sh', event, environment), {'continue': True})
+        self.assertFalse(marker.exists())
+        provider.write_text('#!/bin/sh\n[ "$2" = --raw ] && [ "$3" = --top ] '
+            '&& [ "$4" = 5 ] && [ "$5" = -- ] || exit 91\n'
+            '[ -z "${LIFEOS_TEST_SENTINEL+x}" ] || exit 92\nprintf "fixture bound retrieval\\n"\n')
+        provider.chmod(0o700)
+        output = self.output('lifeos-codex.sh', event, environment | {'LIFEOS_TEST_SENTINEL': 'synthetic'})
+        self.assertIn('fixture bound retrieval', output['hookSpecificOutput']['additionalContext'])
+        self.assertFalse(marker.exists())
+        self.assertFalse((self.fixture.repo / 'SHOULD_NOT_RUN').exists())
+        # A legacy in-scope override is inert; an external resource is rejected.
+        output = self.output('lifeos-codex.sh', event, environment | {'CODEX_LIFEOS_BUN': str(poison)})
+        self.assertIn('fixture bound retrieval', output['hookSpecificOutput']['additionalContext'])
+        self.assertFalse(marker.exists())
+        for override in ({'CODEX_LIFEOS_BUN': '/usr/bin/true'},
+                         {'CODEX_LIFEOS_RETRIEVER': '/etc/passwd'}):
+            rejected = self.fixture.run('lifeos-codex.sh', event, environment | override)
+            self.assertEqual(rejected.returncode, 2, rejected.stdout + rejected.stderr)
+            self.assertNotIn('fixture bound retrieval', rejected.stdout)
+        provider.chmod(0o600)
+        self.assertEqual(self.output('lifeos-codex.sh', event, environment), {'continue': True})
+
+    def test_inherited_bytecode_cache_cannot_replace_admission_modules(self):
+        import importlib.util
+        import py_compile
+        from unittest import mock
+        source = self.fixture.codex / 'scripts/migration_scope.py'
+        cache = self.fixture.home / 'tmp/poison-cache'
+        marker = self.fixture.home / 'untrusted-bytecode-ran'
+        poisoned = self.fixture.home / 'poisoned-scope.py'
+        poisoned.write_text(source.read_text() + '\nfrom pathlib import Path\nPath('
+            + repr(str(marker)) + ').touch()\n')
+        with mock.patch.object(sys, 'pycache_prefix', str(cache)):
+            cached = Path(importlib.util.cache_from_source(str(source)))
+        cached.parent.mkdir(parents=True)
+        py_compile.compile(str(poisoned), cfile=str(cached), doraise=True,
+                           invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH)
+        environment = self.fixture.env | {'PYTHONPYCACHEPREFIX': str(cache)}
+        control = subprocess.run([sys.executable, '-B',
+            str(self.fixture.codex / 'scripts/admit-hook-fixture.py'), '{}'],
+            env=environment, cwd=self.fixture.repo, capture_output=True, text=True, timeout=15)
+        self.assertEqual(control.returncode, 0, control.stderr)
+        self.assertTrue(marker.exists(), 'poisoned cache control must exercise the attack')
+        marker.unlink()
+        for hook in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
+            with self.subTest(hook=hook):
+                self.output(hook, {'tool_input': {'command': 'git status --short'}},
+                            {'PYTHONPYCACHEPREFIX': str(cache)})
+                self.assertFalse(marker.exists())
+
     def test_read_only_rest_pipeline_preserves_mutation_denial(self):
         for command in ('gh api repos/example/repo/pulls/349 | jq .state',
                         'gh --repo example/repo api repos/example/repo/pulls/349 | jq .state',
@@ -41,8 +125,18 @@ class HookHandlerTests(unittest.TestCase):
         blocked = ('rm --recursive --force "${HOME:?}"',
                    'TARGET=/; rm --recursive --force "$TARGET"',
                    'setsid rm -rf /', 'cat <(git reset --hard)',
-                   'rm --recursive --force /private/tmp/dots-fixture')
+                   'rm --recursive --force /private/tmp/dots-fixture',
+                   "rg --pre 'rm -rf /Users/alice' pattern .",
+                   'op=--pre; rg "$op" ./payload pattern notes.txt',
+                   'rg "$[OP]" notes.txt', 'rg "$=OP" ./payload pattern notes.txt',
+                   'rg "$^OP" notes.txt', 'rg "$~OP" notes.txt',
+                   'rg "$<" notes.txt', 'rg "$+OP" notes.txt',
+                   'OP=c; bash -"$OP" "rm -rf /"',
+                   'OP="pipefail -c"; bash -o $OP "rm -rf /"',
+                   'bash "$(printf %s "$TEXT" > /tmp/payload; printf /tmp/payload)"')
         allowed = ('mkdir -p /tmp/x/{one,two}', 'printf %s $((1+1))',
+                   'rg "^foo$|^bar$" notes.txt', 'rg "(foo$)|(bar$)" notes.txt',
+                   r'rg "foo$\." notes.txt',
                    'cat <(printf hello)')
         for hook in ('pre-tool-use-guard.sh', 'permission-request-guard.sh'):
             for command in blocked:
@@ -53,6 +147,11 @@ class HookHandlerTests(unittest.TestCase):
                 with self.subTest(hook=hook, command=command):
                     output = self.output(hook, {'tool_input': {'command': command}})
                     self.assertNotIn('hookSpecificOutput', output)
+
+    def test_inert_brace_paths_keep_auth_mutation_blocked(self):
+        command = 'mkdir -p ' + str(self.fixture.home) + '/.codex/auth/{one,two}'
+        output = self.output('pre-tool-use-guard.sh', {'tool_input': {'command': command}})
+        self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
 
     def test_inherited_target_environment_can_only_be_cleared_explicitly(self):
         for command, denied in (('gh pr merge 1', True),
@@ -161,12 +260,54 @@ class HookHandlerTests(unittest.TestCase):
         for groups in manifest['hooks'].values():
             for group in groups:
                 for hook in group['hooks']:
-                    if hook['command'].startswith('~/.codex/hooks/'):
-                        name = hook['command'].split('/')[-1]
+                    tokens = shlex.split(hook['command'])
+                    if (tokens[:2] == ['/bin/bash', '-p'] and len(tokens) == 3
+                            and tokens[2].startswith('~/.codex/hooks/')):
+                        name = tokens[2].split('/')[-1]
                         path = self.fixture.codex / 'hooks' / name
                         self.assertTrue(path.is_file() and path.stat().st_mode & 0o111, name)
                         names.add(name)
         self.assertEqual(len(names), 12)
+
+    def test_failure_learning_dedup_survives_minimal_hook_path(self):
+        learning = self.fixture.repo / '.harness/memory/LEARNINGS.md'
+        learning.parent.mkdir(parents=True)
+        checksum = subprocess.run(['/usr/bin/cksum'], input='false|1|synthetic failure\n',
+            text=True, capture_output=True, check=True, timeout=10).stdout.split()[0]
+        previous = f'**2000-01-01 [Codex]:** earlier failure (auto-key:{checksum})\n'
+        learning.write_text(previous)
+        event = {'tool_name': 'Bash', 'cwd': str(self.fixture.repo),
+                 'tool_input': {'command': 'false'},
+                 'tool_response': {'exit_code': 1, 'stdout': 'synthetic failure'}}
+        self.output('post-tool-use-review.sh', event)
+        self.assertEqual(learning.read_text(), previous)
+
+    def test_workspace_tool_roots_cannot_replace_hook_dependencies(self):
+        marker = self.fixture.home / 'poisoned-hook-dependency'
+        roots = (self.fixture.home / '.local/bin', self.fixture.home / '.local/share/mise/shims',
+                 self.fixture.home / '.venvs/pyyaml/bin',
+                 self.fixture.home / '.local/share/mise/installs/python/latest/bin')
+        poison = '#!/bin/sh\nprintf poisoned >> ' + shlex.quote(str(marker)) + '\nexit 97\n'
+        for root in roots:
+            root.mkdir(parents=True, exist_ok=True)
+            for name in ('python', 'python3', 'jq', 'git', 'gh'):
+                binary = root / name
+                binary.write_text(poison)
+                binary.chmod(0o755)
+
+        for name in ('json', 'tomllib', 'yaml', 'pathlib'):
+            (self.fixture.repo / (name + '.py')).write_text(
+                'import os\nopen(' + repr(str(marker)) + ', "w").write("poisoned")\n'
+                'raise RuntimeError("workspace import must be isolated")\n')
+        self.fixture.env['CODEX_VALIDATION_PYTHON'] = str(self.fixture.home / '.venvs/pyyaml/bin/python')
+        safe = self.output('pre-tool-use-guard.sh')
+        self.assertNotIn('continue', safe)
+        self.assertNotIn('hookSpecificOutput', safe)
+        self.assertTrue(self.output('session-start.sh', {'source': 'startup'})['continue'])
+        readiness = self.output('pr-readiness-guard.sh',
+                                {'tool_input': {'command': 'gh pr create --base main'}})
+        self.assertEqual(readiness['hookSpecificOutput']['permissionDecision'], 'deny')
+        self.assertFalse(marker.exists())
 
     def test_command_guards_keep_denials_and_defer_valid_commit_to_native_policy(self):
         safe = self.output('pre-tool-use-dispatch.sh')
@@ -360,6 +501,7 @@ class HookHandlerTests(unittest.TestCase):
 
     def test_raw_api_merge_accepts_only_the_receipt_target(self):
         fixture = self.fixture
+        fixture.env.pop('PYTHONDONTWRITEBYTECODE', None)
 
         def git(*args):
             return subprocess.check_output(['git', '-C', str(fixture.repo), *args],
@@ -395,7 +537,8 @@ class HookHandlerTests(unittest.TestCase):
             })['hookSpecificOutput']
 
         output = merge('example/repo/pulls/349')
-        self.assertNotIn('permissionDecision', output)
+        self.assertNotIn('permissionDecision', output,
+                         git('status', '--porcelain=v1', '--untracked-files=all'))
         self.assertIn('update readiness receipt is current and passing', output['additionalContext'])
         for endpoint, target in (('example/other/pulls/349', 'repository'),
                                  ('example/repo/pulls/350', 'PR')):
