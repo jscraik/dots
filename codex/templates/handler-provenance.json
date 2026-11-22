@@ -98,9 +98,10 @@
       "source_sha256": "cc1270d301f4334bc6ef9432c6c76989a947bbc6a102a408f6a2b06db1658e94",
       "transformations": [
         "canonical auth wrapper identity is derived from the ported helper",
-        "fixture scope and event admission before handler actions"
+        "fixture scope and event admission before handler actions",
+        "Reject implicit, symbolic, wildcard and uninspectable push destinations while preserving explicit topic refspecs."
       ],
-      "candidate_sha256": "11c5938e71c8a32bef9551c84bbbccf560ed87f94dc46801b409557856468214"
+      "candidate_sha256": "9a528895b841c4f5a4be1370fb6bfbdc58164f13673e6a7d8657e511baf78d48"
     },
     {
       "path": "codex/hooks/session-start.sh",

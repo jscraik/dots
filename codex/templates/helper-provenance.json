@@ -315,9 +315,10 @@
       "source_sha256": "30477f08592fb82e111a33b8aafe2c6573a5b51b86fd711b905e10ddd07fa0e8",
       "transformations": [
         "Original core assertions retained; canonical publisher core view, disposable event/resource plumbing and isolated synthetic FIFO canary",
-        "Reuse the validated Python launcher in the nested missing-Computer-Use home"
+        "Reuse the validated Python launcher in the nested missing-Computer-Use home",
+        "Cover fail-closed implicit push destinations and explicit topic controls."
       ],
-      "candidate_sha256": "b4fe3bf55d599681a0d7e460f304a43745fa05a36f0e6b8ab6a184f89c61001a"
+      "candidate_sha256": "bf71382d7cf5962d5edaacd9e651f03f3f261679a737b89477180a8c9d092c36"
     },
     {
       "path": "codex/README.md",

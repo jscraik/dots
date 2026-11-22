@@ -404,7 +404,21 @@ contains_git_push_no_verify() {
   done
   return 1
 }
-contains_protected_destination_push() {
+push_refspec_has_unapproved_destination() {
+  local refspec="${1#+}"
+  local destination="$refspec"
+  if [[ "$refspec" == *:* ]]; then
+    destination="${refspec##*:}"
+  fi
+  destination="${destination#refs/heads/}"
+  case "$destination" in
+    ''|main|master|head|@|*_head|*\**|*\?*|*\[*|*'@{'*|*~*|*^*)
+      return 0
+      ;;
+  esac
+  return 1
+}
+contains_unapproved_push_destination() {
   local command_text="$1"
   local -a tokens
   local encoded_tokens
@@ -415,29 +429,79 @@ contains_protected_destination_push() {
   while push_idx="$(git_subcommand_index "$command_text" push "$search_index")"; do
     search_index=$((push_idx + 1))
     local remote_seen=false
+    local refspec_seen=false
+    local options=true
     local idx
     for ((idx=push_idx+1; idx<${#tokens[@]}; idx++)); do
       local token="${tokens[idx]}"
       is_shell_separator_token "$token" && break
-      if [[ "$token" == -* || "$token" == *=* ]]; then
-        continue
+      if [[ "$options" == true ]]; then
+        if [[ "$token" == "--" ]]; then
+          options=false
+          continue
+        fi
+        case "$token" in
+          --repo=*)
+            [[ "$remote_seen" != true && -n "${token#*=}" ]] || return 0
+            remote_seen=true
+            continue
+            ;;
+          --repo)
+            [[ "$remote_seen" != true ]] || return 0
+            idx=$((idx + 1))
+            if ((idx >= ${#tokens[@]})) \
+              || is_shell_separator_token "${tokens[idx]}" \
+              || [[ -z "${tokens[idx]}" ]]; then
+              return 0
+            fi
+            remote_seen=true
+            continue
+            ;;
+          -o|--exec|--receive-pack|--recurse-submodules|--push-option|--server-option)
+            idx=$((idx + 1))
+            if ((idx >= ${#tokens[@]})) \
+              || is_shell_separator_token "${tokens[idx]}"; then
+              return 0
+            fi
+            continue
+            ;;
+          --*=*)
+            continue
+            ;;
+          --all|--atomic|--branches|--delete|--dry-run|--follow-tags|--force|--force-if-includes|--force-with-lease|--ipv4|--ipv6|--mirror|--no-atomic|--no-follow-tags|--no-force-if-includes|--no-force-with-lease|--no-progress|--no-recurse-submodules|--no-signed|--no-thin|--no-verify|--porcelain|--progress|--prune|--quiet|--set-upstream|--signed|--tags|--thin|--verbose|--verify)
+            continue
+            ;;
+          --*)
+            # An unknown long option may consume the next token. Deny instead
+            # of mistaking its value for the repository or a refspec.
+            return 0
+            ;;
+          -?*)
+            if [[ "$token" =~ ^-[^-o]*o$ ]]; then
+              idx=$((idx + 1))
+              if ((idx >= ${#tokens[@]})) \
+                || is_shell_separator_token "${tokens[idx]}"; then
+                return 0
+              fi
+            fi
+            continue
+            ;;
+        esac
       fi
       if [[ "$remote_seen" != true ]]; then
         remote_seen=true
         continue
       fi
-      # Normalize the destination side of a refspec. Git accepts both short
-      # names (feature:main) and fully qualified refs (feature:refs/heads/main),
-      # as well as an unqualified main/master ref with no colon.
-      local destination="$token"
-      if [[ "$token" == *:* ]]; then
-        destination="${token##*:}"
-      fi
-      destination="${destination#refs/heads/}"
-      if [[ "$destination" == "main" || "$destination" == "master" ]]; then
+      refspec_seen=true
+      if push_refspec_has_unapproved_destination "$token"; then
         return 0
       fi
     done
+    # Repository configuration must never supply a destination hidden from
+    # this authorization boundary. Require both a repository and a refspec.
+    if [[ "$remote_seen" != true || "$refspec_seen" != true ]]; then
+      return 0
+    fi
   done
   return 1
 }
@@ -606,7 +670,7 @@ contains_forbidden_publish_or_review_action() {
     return 0
   fi
   if git_subcommand_index "$command_text" push >/dev/null; then
-    if contains_protected_destination_push "$command_text" \
+    if contains_unapproved_push_destination "$command_text" \
       || contains_forbidden_push_option "$command_text"; then
       return 0
     fi

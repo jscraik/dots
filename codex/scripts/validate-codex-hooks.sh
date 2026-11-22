@@ -607,6 +607,32 @@ pre_tool_git_c_protected_push_block_output="$(
 )"
 assert_jq "$pre_tool_git_c_protected_push_block_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny protected push with git global options"
 
+for unapproved_push in \
+  'git push' \
+  'git push origin' \
+  'git push origin HEAD' \
+  'git push origin refs/heads/*' \
+  'git push --repo=origin'
+do
+  pre_tool_unapproved_push_output="$(
+    jq -cn --arg command "$unapproved_push" '{hook_event_name:"PreToolUse",session_id:"thr_test",turn_id:"turn_test",tool_name:"Bash",tool_use_id:"tool_test",tool_input:{command:$command},cwd:env.HOME,permission_mode:"on-request"}' \
+      | run_fixture_hook hooks/pre-tool-use-guard.sh
+  )"
+  assert_jq "$pre_tool_unapproved_push_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny implicit or ambiguous push destination: $unapproved_push"
+done
+
+for explicit_topic_push in \
+  'git push origin feature' \
+  'git push origin HEAD:feature' \
+  'git push --repo=origin feature'
+do
+  pre_tool_explicit_topic_push_output="$(
+    jq -cn --arg command "$explicit_topic_push" '{hook_event_name:"PreToolUse",session_id:"thr_test",turn_id:"turn_test",tool_name:"Bash",tool_use_id:"tool_test",tool_input:{command:$command},cwd:env.HOME,permission_mode:"on-request"}' \
+      | run_fixture_hook hooks/pre-tool-use-guard.sh
+  )"
+  assert_jq "$pre_tool_explicit_topic_push_output" '.continue == true' "PreToolUse should allow explicit topic push destination: $explicit_topic_push"
+done
+
 pre_tool_quoted_git_c_force_push_block_output="$(
   printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -C \"/tmp/path with spaces/repo\" push origin main --force"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | run_fixture_hook hooks/pre-tool-use-guard.sh
@@ -755,7 +781,7 @@ assert_jq "$pre_tool_no_verify_block_output" '.hookSpecificOutput.permissionDeci
 trace_step "pre-tool commit no-verify check passed"
 
 pre_tool_push_no_verify_block_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push --no-verify origin HEAD"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push --no-verify origin HEAD:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_push_no_verify_block_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny git push --no-verify by default"
@@ -763,7 +789,7 @@ assert_jq "$pre_tool_push_no_verify_block_output" '.hookSpecificOutput.permissio
 trace_step "pre-tool push no-verify check passed"
 
 pre_tool_push_no_verify_override_attempt_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push --no-verify origin HEAD"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push --no-verify origin HEAD:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production push" run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_push_no_verify_override_attempt_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny git push no-verify even when bypass env vars are set"
@@ -778,7 +804,7 @@ trace_step "pre-tool commit no-verify override-deny check passed"
 
 tmp_breakglass_push_audit_log="$(mktemp)"
 pre_tool_push_no_verify_allow_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push --no-verify origin HEAD"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push --no-verify origin HEAD:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production hotfix" CODEX_HOOK_BYPASS_LOG="$tmp_breakglass_push_audit_log" run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_push_no_verify_allow_output" '.continue == true' "PreToolUse should allow git push --no-verify with break-glass bypass"
@@ -960,7 +986,7 @@ assert_jq "$pre_tool_global_opt_commit_output" '.hookSpecificOutput.permissionDe
 assert_jq "$pre_tool_global_opt_commit_output" '.hookSpecificOutput.permissionDecisionReason | contains("Bypass is forbidden")' "PreToolUse global-option commit deny reason should enforce non-bypassable policy"
 
 pre_tool_global_opt_push_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -c core.hooksPath=/dev/null push --no-verify origin HEAD"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -c core.hooksPath=/dev/null push --no-verify origin HEAD:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_global_opt_push_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny git push --no-verify with global options"
@@ -973,14 +999,14 @@ pre_tool_global_opt_commit_override_attempt_output="$(
 assert_jq "$pre_tool_global_opt_commit_override_attempt_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny global-option git commit no-verify even when bypass env vars are set"
 
 pre_tool_global_opt_push_override_attempt_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -c core.hooksPath=/dev/null push --no-verify origin HEAD"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -c core.hooksPath=/dev/null push --no-verify origin HEAD:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production push" run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_global_opt_push_override_attempt_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny global-option git push no-verify even when bypass env vars are set"
 
 tmp_breakglass_global_opt_push_audit_log="$(mktemp)"
 pre_tool_global_opt_push_allow_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -c core.hooksPath=/dev/null push --no-verify origin HEAD"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -c core.hooksPath=/dev/null push --no-verify origin HEAD:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production hotfix" CODEX_HOOK_BYPASS_LOG="$tmp_breakglass_global_opt_push_audit_log" run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_global_opt_push_allow_output" '.continue == true' "PreToolUse should allow global-option git push --no-verify with break-glass bypass"
