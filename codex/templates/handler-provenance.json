@@ -123,9 +123,10 @@
         "fixture scope and event admission before handler actions",
         "Use the shared token-level destructive Git classifier for pre-tool denials.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
-        "Reject implicit or ambiguous push destinations and uninspectable auth-path expansions while retaining literal data and the protected toolchain."
+        "Reject implicit or ambiguous push destinations and uninspectable auth-path expansions while retaining literal data and the protected toolchain.",
+        "Restore literal dollar signs and backticks before inspecting auth path operands."
       ],
-      "candidate_sha256": "9d1ffddc720ce53d1704f843c95c27ddc301e69ca5a4860552c842d8d969091c"
+      "candidate_sha256": "767aac43747b75a8337ac5de9865aa31d48135710477cb0a94b376e758930255"
     },
     {
       "path": "codex/hooks/session-start.sh",
