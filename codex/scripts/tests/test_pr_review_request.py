@@ -2881,7 +2881,7 @@ class InspectionTests(unittest.TestCase):
     def test_receipt_recheck_rejects_changed_recorded_pr_url(self) -> None:
         url = "https://github.com/jscraik/configs/pull/7"
         pr = {
-            "number": 8,
+            "number": 7,
             "url": url.replace("/7", "/8"),
             "state": "OPEN",
             "headRefOid": HEAD,
@@ -2895,7 +2895,12 @@ class InspectionTests(unittest.TestCase):
             ),
         ):
             error = GATE.recheck_hosted_state(
-                Path.cwd(), "review_inspection", HEAD, expected_pr_url=url
+                Path.cwd(),
+                "review_inspection",
+                HEAD,
+                expected_pr=7,
+                expected_repo="jscraik/configs",
+                expected_pr_url=url,
             )
         self.assertIn("PR URL changed", error or "")
         with (
@@ -2910,7 +2915,12 @@ class InspectionTests(unittest.TestCase):
         ):
             self.assertIsNone(
                 GATE.recheck_hosted_state(
-                    Path.cwd(), "review_inspection", HEAD, expected_pr_url=url
+                    Path.cwd(),
+                    "review_inspection",
+                    HEAD,
+                    expected_pr=7,
+                    expected_repo="jscraik/configs",
+                    expected_pr_url=url,
                 )
             )
 
@@ -3331,11 +3341,21 @@ class InspectionTests(unittest.TestCase):
                 return_value={"status": "fail", "evidence": "failed CI"},
             ),
         ):
+            identity = {
+                "expected_pr": 7,
+                "expected_repo": "jscraik/configs",
+                "expected_pr_url": pr["url"],
+            }
             self.assertIsNone(
-                GATE.recheck_hosted_state(Path.cwd(), "review_inspection", HEAD)
+                GATE.recheck_hosted_state(
+                    Path.cwd(), "review_inspection", HEAD, **identity
+                )
             )
             self.assertIn(
-                "checks changed", GATE.recheck_hosted_state(Path.cwd(), "update", HEAD)
+                "checks changed",
+                GATE.recheck_hosted_state(
+                    Path.cwd(), "update", HEAD, **identity
+                ),
             )
 
     def test_fixed_request_has_no_arbitrary_body_or_mutation_mode(self) -> None:

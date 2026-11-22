@@ -13,6 +13,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class DesktopCompatibilityTests(unittest.TestCase):
+    def test_only_published_proposal_names_block_ordinary_repair(self):
+        adapter, _, _ = self.seven_fixture()
+        for name in ('desktop-review.json', 'desktop-review-' + 'a' * 64 + '.json'):
+            self.assertTrue(adapter.is_review_filename(name), name)
+        for name in ('desktop-review-notes.json', '.desktop-review-staging.json',
+                     'desktop-review-' + 'a' * 63 + '.json',
+                     'desktop-review-' + 'A' * 64 + '.json', 'desktop-review.json.tmp'):
+            self.assertFalse(adapter.is_review_filename(name), name)
+
     def test_native_consent_requires_exact_installation_bound_explicit_review(self):
         adapter, installed, _ = self.seven_fixture()
         source = '/fixture/.codex/hooks.json'

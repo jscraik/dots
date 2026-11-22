@@ -14,6 +14,11 @@ from pathlib import Path
 MAX_REVIEW_BYTES = 2 * 1024 * 1024
 
 
+def is_review_filename(name: str) -> bool:
+    """Recognise published review names, excluding notes and staging files."""
+    return name == 'desktop-review.json' or re.fullmatch(r'desktop-review-[0-9a-f]{64}\.json', name) is not None
+
+
 def review_path(state: Path, digest: str) -> Path:
     """Select an immutable proposal without changing older review pins."""
     if not isinstance(digest, str) or re.fullmatch(r'[0-9a-f]{64}', digest) is None:

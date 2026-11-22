@@ -36,6 +36,14 @@ computer_use_plugin_preservation_errors = _DESKTOP_COMPATIBILITY.computer_use_pl
 CONFIG_PATH = (deployment_module().ROOT / 'codex' if deployment_module() is not None else SCRIPT_DIR.parent) / 'config.toml'
 SCHEMA_VERSION = 'runtime-config-drift-repair/v1'
 SERVICE = 'runtime-config-drift-repair'
+
+
+def _installer():
+    spec = importlib.util.spec_from_file_location('runtime_repair_installer',
+        require_policy_path(SCRIPT_DIR / 'install-codex.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 EXPECTED_APPROVALS_REVIEWER = 'auto_review'
 DESKTOP_PRESENTATION_VALUES = {'model_verbosity': frozenset({'low', 'medium', 'high'}), 'model_reasoning_summary': frozenset({'auto', 'concise', 'detailed', 'none'})}
 MANAGED_ROOT_STRINGS = ('model', 'developer_instructions', 'plan_mode_reasoning_effort', 'model_verbosity', 'experimental_compact_prompt_file')
@@ -1189,11 +1197,30 @@ def _exchange_paths(first: Path, second: Path) -> None:
 class SnapshotValidationUnavailable(OSError):
     """The validator could not produce a policy verdict."""
 
+_PROTECTED_PYTHON_LOADER = '''
+import runpy
+import sys
+from pathlib import Path
+
+script = Path(sys.argv[1]).resolve(strict=True)
+sys.path.insert(0, str(script.parent))
+sys.argv = sys.argv[1:]
+runpy.run_path(str(script), run_name='__main__')
+'''.lstrip()
+
+def _protected_python_command(script: Path, *arguments: str) -> list[str]:
+    """Run one authenticated sibling without inherited Python search paths."""
+    resolved = script.resolve(strict=True)
+    if resolved.parent != SCRIPT_DIR:
+        raise OSError('protected Python child must be an authenticated sibling')
+    return [sys.executable, '-I', '-B', '-c', _PROTECTED_PYTHON_LOADER,
+            str(resolved), *arguments]
+
 def _validate_snapshot(text: str, *, option: str, label: str) -> None:
     """Validate the exact proposed bytes, not a second read of mutable source."""
     try:
         result = subprocess.run(
-            [sys.executable, str(SCRIPT_DIR / 'validate-codex-config.py'), option],
+            _protected_python_command(SCRIPT_DIR / 'validate-codex-config.py', option),
             input=text, encoding='utf-8', capture_output=True, timeout=30, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise SnapshotValidationUnavailable(
@@ -1274,7 +1301,12 @@ def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, 
         raise OSError('runtime config changed during reconciliation; retry from fresh state')
     repair_path = config_path
     recovery_dir = Path(tempfile.mkdtemp(prefix=f'.{repair_path.name}.recovery-', dir=repair_path.parent))
-    fd, tmp_name = tempfile.mkstemp(prefix='generation-', suffix='.toml', dir=recovery_dir)
+    try:
+        fd, tmp_name = tempfile.mkstemp(prefix='generation-', suffix='.toml', dir=recovery_dir)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            recovery_dir.rmdir()
+        raise
     tmp_path = Path(tmp_name)
     retain_slot = False
     try:
@@ -1290,8 +1322,7 @@ def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, 
             if guarded_path.is_symlink() or guarded_path.read_bytes() != guarded_bytes:
                 raise OSError('guarded file changed during reconciliation; retry from fresh state')
         if expected is None:
-            os.link(tmp_path, repair_path, follow_symlinks=False)
-            tmp_path.unlink()
+            _installer().rename_absent(tmp_path, repair_path)
             recovery_dir.rmdir()
             return None
         # A signal may arrive after the syscall succeeds but before it returns.
@@ -1394,6 +1425,26 @@ def _emit(payload: dict[str, object], json_output: bool, message: str='') -> Non
 
 def main(argv: list[str] | None=None) -> int:
     args = parse_args(argv)
+    deployment = deployment_module()
+    if args.repair and deployment is not None:
+        stack = contextlib.ExitStack()
+        try:
+            inherited = os.environ.get('DOTS_INSTALLATION_LOCK_FD')
+            if inherited is not None and not re.fullmatch(r'[0-9]+', inherited):
+                raise ValueError('Invalid inherited installation lock')
+            stack.enter_context(_installer().installation_lock(Path(deployment.context()['home']),
+                    inherited_fd=None if inherited is None else int(inherited)))
+        except (OSError, ValueError):
+            stack.close()
+            _emit(_payload(status='blocked', path=args.config_path,
+                reason='installation_lock_unavailable', error='Installation lock unavailable; no repair admitted'), args.json)
+            return 1
+        with stack:
+            return _main_locked(args)
+    return _main_locked(args)
+
+
+def _main_locked(args) -> int:
     config_path = args.config_path.expanduser()
     require_policy_path(config_path)
     if args.backup_path is not None:
@@ -1484,7 +1535,7 @@ def main(argv: list[str] | None=None) -> int:
         state = Path(deployment.context()['state_dir'])
         try:
             with os.scandir(state) as entries:
-                pending = any(entry.name.startswith('desktop-review') and entry.name.endswith('.json')
+                pending = any(desktop.is_review_filename(entry.name)
                               for entry in entries)
         except OSError as exc:
             _emit(_payload(status='blocked', path=config_path,
@@ -1544,6 +1595,12 @@ def main(argv: list[str] | None=None) -> int:
     except OSError as exc:
         _emit(_payload(status='blocked', path=config_path, drift=drift, reason='canonical_source_invalid', error=str(exc)), args.json)
         return 1
+    if approved_update_changes:
+        repaired_text = updater.module('restore_desktop_overlay', CONFIG_PATH.parent / 'scripts/desktop_compatibility.py').overlay(repaired_text, approved_update_changes)
+    if len(repaired_text.encode('utf-8')) > REPAIR_FILE_LIMIT:
+        _emit(_payload(status='blocked', path=config_path, drift=drift, repairs=repairs,
+            reason='config_size_limit_exceeded', error='config exceeds the 16 MiB verification limit'), args.json)
+        return 1
     if args.backup_path is None:
         backup_dir = Path(tempfile.mkdtemp(prefix='codex-config-backup-'))
         args.backup_path = backup_dir / 'config.toml'
@@ -1556,12 +1613,10 @@ def main(argv: list[str] | None=None) -> int:
             payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason='config_backup_failed', error=str(exc), backup_path=args.backup_path)
             _emit(payload, args.json)
             return 1
-    if approved_update_changes:
-        repaired_text = updater.module('restore_desktop_overlay', CONFIG_PATH.parent / 'scripts/desktop_compatibility.py').overlay(repaired_text, approved_update_changes)
     recovery_path = None
     try:
         recovery_path = _write_repair(config_path, repaired_text, expected=original_bytes, unchanged=((CONFIG_PATH, canonical_bytes),))
-        if config_path.read_bytes() != repaired_text.encode('utf-8'):
+        if _repair_file_snapshot(config_path)[1] != repaired_text.encode('utf-8'):
             raise OSError('runtime config changed after reconciliation; expected state not verified')
     except OSError as exc:
         if isinstance(exc, RepairPublicationError):

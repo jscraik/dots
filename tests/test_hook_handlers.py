@@ -426,12 +426,40 @@ class HookHandlerTests(unittest.TestCase):
         self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
         self.assertIn('receipt', output['hookSpecificOutput']['permissionDecisionReason'])
 
+    def test_pr_lifecycle_writes_require_their_operation_bound_route(self):
+        commands = (
+            'gh pr comment 12 --body fixture',
+            'gh pr ready 12',
+            'gh pr close 12',
+            'gh pr close 12 --delete-branch',
+            'gh pr reopen https://github.com/example/project/pull/12',
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                output = self.output('pre-tool-use-dispatch.sh',
+                                     {'tool_input': {'command': command}})
+                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+                reason = output['hookSpecificOutput']['permissionDecisionReason']
+                self.assertIn('update-phase readiness receipt' if ' comment ' in command
+                              else 'operation-bound', reason)
+
+    def test_pr_classifier_denies_unknown_verbs_by_default(self):
+        for command in ('gh pr lock 12', 'gh pr unlock 12',
+                        'gh pr checkout 12', 'gh pr future-write 12', 'gh pr'):
+            with self.subTest(command=command):
+                output = self.output('pre-tool-use-dispatch.sh',
+                                     {'tool_input': {'command': command}})
+                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+                self.assertIn('protected command',
+                              output['hookSpecificOutput']['permissionDecisionReason'])
+
     def test_readiness_hook_rejects_github_target_environment(self):
         cases = (
             ('GH_REPO=other/repo gh pr merge 1', {}),
             ('env GH_HOST=other.example gh pr edit 1', {}),
             ('sudo env GH_REPO=other/repo gh pr review 1', {}),
             ('env -i GH_HOST=other.example gh pr merge 1', {}),
+            ('gh --hostname other.example pr comment 1 --body fixture', {}),
         )
         for command, environment in cases:
             with self.subTest(command=command, environment=environment):
@@ -482,7 +510,11 @@ class HookHandlerTests(unittest.TestCase):
             with self.subTest(command=command):
                 output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
                 self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
-                self.assertIn('protected command', output['hookSpecificOutput']['permissionDecisionReason'])
+                reason = output['hookSpecificOutput']['permissionDecisionReason']
+                if command == 'gh api -X "$METHOD" "$ENDPOINT"':
+                    self.assertIn('uninspectable auth material access', reason)
+                else:
+                    self.assertIn('protected command', reason)
 
         for command in (
             'gh api repos/example/repo/pulls/349',
@@ -514,7 +546,7 @@ class HookHandlerTests(unittest.TestCase):
             'import runpy\nfrom pathlib import Path\n'
             'main = runpy.run_path(str(Path(__file__).with_name("pr-readiness-real.py")))["main"]\n'
             'main.__globals__.update(repository_slug=lambda root: ("example/repo", None),\n'
-            '    remote_sha=lambda root, *_: main.__globals__["git"](root, "rev-parse", "HEAD"),\n'
+            '    hosted_remote_sha=lambda root, *_: main.__globals__["git"](root, "rev-parse", "HEAD"),\n'
             '    recheck_hosted_state=lambda *args, **kwargs: None)\n'
             'raise SystemExit(main())\n')
         git('add', '.')
@@ -522,14 +554,29 @@ class HookHandlerTests(unittest.TestCase):
             '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'Fixture')
         head = git('rev-parse', 'HEAD')
         receipt = fixture.repo / '.git/pr-readiness.v1.json'
+        digest = hashlib.sha256(b'\n').hexdigest()
         receipt.write_text(json.dumps({
             'schema_version': 'pr-readiness/v1', 'phase': 'update', 'status': 'pass',
-            'repo': {'branch': git('branch', '--show-current'), 'head_sha': head,
-                     'base_branch': 'main', 'base_sha': head,
+            'checked_at': '2026-11-22T17:00:00Z',
+            'repo': {'root': str(fixture.repo),
+                     'branch': git('branch', '--show-current'), 'head_sha': head,
+                     'base_branch': 'main', 'base_sha': head, 'remote': 'origin',
                      'remote_base_sha': head, 'remote_head_sha': head},
-            'lanes': {'pull_request': {'details': {'number': 349}},
-                      'scope': {'details': {'declared_paths': []}}},
-            'receipt': {'scope_digest': hashlib.sha256(b'\n').hexdigest()},
+            'lanes': {
+                'remote_ancestry': {'status': 'pass', 'evidence': 'remote ancestry passed'},
+                'dirty_worktree': {'status': 'pass', 'evidence': 'worktree is clean'},
+                'worktree_boundary': {'status': 'pass', 'evidence': 'worktree is registered'},
+                'scope': {'status': 'pass', 'evidence': 'scope passed',
+                          'details': {'declared_paths': []}},
+                'pull_request': {'status': 'pass', 'evidence': 'pull request matched',
+                                 'details': {'number': 349, 'url': 'https://github.com/example/repo/pull/349'}},
+                'required_checks': {'status': 'pass', 'evidence': 'checks passed',
+                                    'details': {'policy_digest': 'a' * 64}},
+                'reviews': {'status': 'pass', 'evidence': 'reviews passed'},
+            },
+            'blockers': [],
+            'evidence_refs': [f'head:{head}'],
+            'receipt': {'path': str(receipt), 'scope_digest': digest},
         }))
         def merge(endpoint):
             return self.output('pre-tool-use-dispatch.sh', {
@@ -546,6 +593,32 @@ class HookHandlerTests(unittest.TestCase):
                 output = merge(endpoint)
                 self.assertEqual(output['permissionDecision'], 'deny')
                 self.assertIn(f'command {target} target does not match receipt', output['permissionDecisionReason'])
+
+        def dispatch(command):
+            return self.output('pre-tool-use-dispatch.sh', {
+                'tool_input': {'command': command},
+            })['hookSpecificOutput']
+
+        for command in ('gh pr comment 349 --body fixture',):
+            with self.subTest(command=command):
+                output = dispatch(command)
+                self.assertNotIn('permissionDecision', output)
+                self.assertIn('update readiness receipt is current and passing',
+                              output['additionalContext'])
+        for command, target in (('gh -Rexample/other pr comment 349 --body fixture', 'repository'),):
+            with self.subTest(command=command):
+                output = dispatch(command)
+                self.assertEqual(output['permissionDecision'], 'deny')
+                self.assertIn(f'command {target} target does not match receipt',
+                              output['permissionDecisionReason'])
+        for command in ('gh -Rexample/repo pr ready 349',
+                        'gh pr close 349 --delete-branch -Rexample/repo',
+                        'gh pr close 349 -d',
+                        'gh pr reopen https://github.com/example/repo/pull/349'):
+            with self.subTest(command=command):
+                output = dispatch(command)
+                self.assertEqual(output['permissionDecision'], 'deny')
+                self.assertIn('operation-bound', output['permissionDecisionReason'])
 
     def test_pr_inspection_does_not_require_a_mutation_receipt(self):
         for command in ('gh pr view 12 --json state | jq .state',
@@ -798,3 +871,96 @@ class HookHandlerTests(unittest.TestCase):
         self.assertIn('must be a FIFO', result.stderr)
         self.assertNotIn('synthetic-secret-sentinel', result.stdout + result.stderr)
         self.assertEqual(path.read_text(), 'synthetic-secret-sentinel')
+
+    def test_post_tool_failure_omits_raw_output_from_advisory_and_receipt(self):
+        cases = [
+            (
+                {'exit_code': 1, field: f'Permission denied synthetic-secret-{field}'},
+                f'synthetic-secret-{field}',
+            )
+            for field in ('stderr', 'output', 'stdout', 'message', 'error', 'text')
+        ]
+        cases.append(
+            (
+                'Rejected("approval required by policy, but AskForApproval is set to Never; '
+                'synthetic-secret-string")',
+                'synthetic-secret-string',
+            )
+        )
+        receipt = self.fixture.runtime / 'usage-data/hook-events.jsonl'
+
+        for response, sentinel in cases:
+            with self.subTest(response=response):
+                output = self.output(
+                    'post-tool-use-review.sh',
+                    {'tool_response': response},
+                    {'CODEX_HOOK_CONTEXT_DEDUP_DISABLE': '1'},
+                )
+                context = output['hookSpecificOutput']['additionalContext']
+                receipt_record = receipt.read_text().splitlines()[-1]
+
+                self.assertNotIn(sentinel, json.dumps(output))
+                self.assertNotIn(sentinel, receipt_record)
+                self.assertIn('raw output is omitted', context)
+                if isinstance(response, str):
+                    self.assertIn('policy-layer mismatch', context)
+                else:
+                    self.assertIn('exit code 1', context)
+                    self.assertIn('minimal required permission', context)
+                self.assertEqual(json.loads(receipt_record)['reason'], context)
+
+    def test_auth_path_expansions_fail_closed_without_blocking_literals(self):
+        commands = (
+            'leaf=auth.json; cat "$HOME/.codex/$leaf"',
+            'cat "$CODEX_AUTH_PATH"',
+            'printf harmless > "$CODEX_AUTH_PATH"',
+            'echo harmless >> "$CODEX_AUTH_PATH"',
+            'printf harmless < "$CODEX_AUTH_PATH"',
+            "zsh -c 'printf harmless >! \"$CODEX_AUTH_PATH\"'",
+            "zsh -c 'printf harmless >>! \"$CODEX_AUTH_PATH\"'",
+            "zsh -c 'echo harmless >&! \"$CODEX_AUTH_PATH\"'",
+            "zsh -c 'echo harmless >>&! \"$CODEX_AUTH_PATH\"'",
+            "zsh -c 'printf harmless >>| \"$CODEX_AUTH_PATH\"'",
+            "zsh -c 'printf harmless >&| \"$CODEX_AUTH_PATH\"'",
+            "zsh -c 'printf harmless >>& \"$CODEX_AUTH_PATH\"'",
+            'echo() { cat "$1"; }; echo "$CODEX_AUTH_PATH"',
+            'base="$HOME/.codex"; cat "${base}/auth.json"',
+            'cat "${paths[0]}"',
+            'cat "${!selected_path}"',
+            'cat "$1"',
+            'cat "$((1 + 1))"',
+            'read_auth() { cat "$1"; }; read_auth "$HOME/.codex/auth.json"',
+            "bash -c 'cat \"$CODEX_AUTH_PATH\"'",
+            "zsh -c 'cat $=SECRET_PATH'",
+            "zsh -c 'cat $^SECRET_PATH'",
+            "zsh -c 'cat $~SECRET_PATH'",
+            "zsh -c 'cat $+SECRET_PATH'",
+            "zsh -c 'cat $<'",
+        )
+        for hook in ('pre-tool-use-guard.sh', 'pre-tool-use-dispatch.sh'):
+            for command in commands:
+                with self.subTest(hook=hook, command=command):
+                    output = self.output(hook, {'tool_input': {'command': command}})
+                    self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+
+            for command in ('cat README.md', "cat '$HOME/.codex/$leaf'",
+                            r'cat \$HOME/.codex/\$leaf', 'echo "$USER"',
+                            'printf "%s" "$USER"'):
+                with self.subTest(hook=hook, command=command):
+                    literal = self.output(hook, {'tool_input': {'command': command}})
+                    self.assertNotEqual(literal.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+
+        # Literal destinations do not access auth material. The dispatcher
+        # independently rejects these unadmitted write commands.
+        for command in ("printf harmless > '$DESTINATION'", r'echo harmless > \$DESTINATION'):
+            literal = self.output('pre-tool-use-guard.sh', {'tool_input': {'command': command}})
+            self.assertNotEqual(literal.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+            dispatched = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
+            self.assertEqual(dispatched['hookSpecificOutput']['permissionDecision'], 'deny')
+            self.assertIn('not admitted', dispatched['hookSpecificOutput']['permissionDecisionReason'])
+
+        wrapper = shlex.quote(str(self.fixture.codex / 'scripts/run-auth-backed.sh'))
+        allowed = self.output('pre-tool-use-dispatch.sh', {
+            'tool_input': {'command': f'bash {wrapper} --env-file ~/.codex/.env --canary SYNTHETIC_TOKEN'},
+        })
+        self.assertNotEqual(allowed.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')

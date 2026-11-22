@@ -278,14 +278,15 @@ bash ${CODEX_POLICY_SOURCE}/scripts/run-auth-backed.sh \
 
 The wrapper is part of the cloud execution contract. It validates that the
 canonical path is a non-symlink FIFO owned by the current user with no
-group/other access, then lets stable `op` expose values only to the child. Do
-not replace it with `env`, direct `op run`, a sourced file, shell-exported key,
-or copied secret. Run credential-bearing FIFO stages sequentially through fresh
-wrapper invocations; concurrent reads are unsupported. Prove the route with the
-exact auto-allowed `--env-file ${HOME}/.codex/.env --canary OLLAMA_API_KEY`
-command, which prints only a fixed result and accepts no child command. Keep
-`--require-environment` as an explicit host beta-XPC route, not a Codex sandbox
-bypass. The `oss-local-code`,
+group/other access, then rebuilds the child environment from only the requested
+names and a small pre-injection runtime allowlist. Other 1Password values remain
+absent. Do not replace it with direct `op run`, a sourced file, shell-exported
+key, or copied secret. Run credential-bearing FIFO stages sequentially through
+fresh wrapper invocations; concurrent reads are unsupported. Prove the route
+with the exact auto-allowed `--env-file ${HOME}/.codex/.env --canary
+OLLAMA_API_KEY` command, which prints only a fixed result and accepts no child
+command. Keep `--require-environment` as an explicit host beta-XPC route, not a
+Codex sandbox bypass. The `oss-local-code`,
 `oss-local-fallback`, and `docs` compatibility profiles remain projected
 and are validated as explicit readonly lanes; they are not selected by the
 primary OSS workflow above.

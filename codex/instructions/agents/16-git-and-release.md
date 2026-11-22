@@ -51,6 +51,40 @@ baseline; its safeguards apply only to the selected authorized workflow.
 
 ## Receipts, review and worktrees
 
+### Operation-bound lifecycle transitions
+
+The GitHub-only `pr-readiness.py --lifecycle` route is separate from merge
+readiness. It supports exactly `ready`, `reopen`, and supersession `close`.
+Matching user authority and execution approval remain required. It cannot
+merge, submit a review, edit a body, post a comment or delete a branch.
+
+Prepare with `--expected-repo OWNER/REPO --expected-pr NUMBER
+--lifecycle-head FULL_SHA --scope-file REPO_RELATIVE_PATH --write-receipt`.
+For `close`, also supply `--replacement-pr NUMBER`: the replacement must already
+be merged into the same selected base, with verified merge ancestry, and its
+description must retain an exact two-cell coverage row:
+`| https://github.com/OWNER/REPO/pull/NUMBER | FULL_ORIGINAL_SHA |`.
+Separate mentions or mismatched rows do not prove the mapping. Keep the
+original branch and history. This route does not turn the superseded PR's
+failing CI into a pass.
+
+Read the prepared `pr-lifecycle/v1` receipt before applying it. It binds the
+operation, current hosted target and pre/post states, repository/host, local
+checkout identity, scope digest and replacement evidence. It expires after
+five minutes. Use the same arguments with `--apply-lifecycle`; the helper
+rechecks immediately before its single fixed mutation and verifies the resulting
+state and unchanged head/base afterward. A failed readback reports uncertainty;
+inspect the actual hosted state before preparing another transition.
+
+These receipts make no CI, review, thread-resolution or merge-clearance claim.
+`ready` may start review with outstanding findings. Direct lifecycle commands
+remain blocked, even with a passing update receipt. Comments retain their
+existing exact-body/review-request routes. Merge, body editing and review
+submission retain the gates below. This source contract grants no installation
+or activation authority.
+
+### Existing delivery receipts
+
 - Before `gh pr create`, require
   `python3 ~/.codex/scripts/pr-readiness.py --phase create --scope-file <scope-file> --write-receipt`;
   before PR update (except the body-only repair below) or merge-readiness

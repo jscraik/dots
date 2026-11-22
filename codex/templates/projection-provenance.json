@@ -5,8 +5,8 @@
       "path": "codex/scripts/reconcile-config-projection.sh",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "f1d04051212667d750fdae7f0d150abcd51b564d4a61910b287b87535123e169",
-      "transformation": "explicit disposable-home admission; original checks retained",
-      "candidate_sha256": "64af5514221b2ee6d30bf5488fe9e71a484569c1cc82e3a7fcfc65a42410ef0e"
+      "transformation": "explicit disposable-home admission; original checks retained Disable Python user-site startup and run protected repair scripts in isolated mode.",
+      "candidate_sha256": "b59f4b6273c66e78a94496b19514f202efadb561be2f4badf6d6e48ef331d416"
     },
     {
       "path": "codex/scripts/audit-codex-symlinks.sh",
@@ -54,8 +54,8 @@
       "path": "codex/scripts/install-codex.py",
       "source_revision": null,
       "source_sha256": null,
-      "transformation": "New local prepare/apply/check/rollback procedure reusing existing validators and publishers.; Add fixed packaged-context admission; retain default disposable admission and original checks. Apply inode-journalled temporary rename modes on Linux as well as macOS.",
-      "candidate_sha256": "21b8cc7e462a5f1c2333dca7c86888ade7edf5951ea0e31da4cd0c7f1f300ca1"
+      "transformation": "New local prepare/apply/check/rollback procedure reusing existing validators and publishers.; Add fixed packaged-context admission; retain default disposable admission and original checks. Apply inode-journalled temporary rename modes on Linux as well as macOS. Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
+      "candidate_sha256": "30b413a52653fffb6e1346ae7931748a34ec9bd962ab3aa9b71424e4ea38e77a"
     }
   ],
   "fixture_kind": "full-policy-v1",

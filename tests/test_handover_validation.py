@@ -10,6 +10,69 @@ from policy_fixture import ROOT
 
 
 class HandoverValidationTests(unittest.TestCase):
+    def test_scrub_lock_failure_respects_requested_output_format(self):
+        fixture = self.fixture
+        child = '''import contextlib,importlib.util,io,json,sys
+from pathlib import Path
+from types import SimpleNamespace
+sys.path.insert(0,str(Path(sys.argv[1]).parent))
+def load(name,path):
+    spec=importlib.util.spec_from_file_location(name,path)
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+module=load("scrub_lock_format",sys.argv[1]);home=Path(sys.argv[2])
+installer=load("parent_lock",Path(sys.argv[1]).with_name("install-codex.py"))
+module.deployment_module=lambda:SimpleNamespace(context=lambda:{"home":str(home)})
+target=home/"missing-config.toml"
+with installer.installation_lock(home):
+    for use_json in (False,True):
+        sys.argv=[sys.argv[1],"--config-path",str(target),"--repair"]+(["--json"] if use_json else [])
+        output=io.StringIO()
+        with contextlib.redirect_stdout(output):
+            assert module.main()==1
+        text=output.getvalue()
+        if use_json:
+            payload=json.loads(text)
+            assert payload["reason"]=="installation_lock_unavailable"
+            assert payload["path"]==str(target)
+        else:
+            assert text.startswith("FAIL  installation_lock_unavailable:"),text
+            assert str(target) in text
+assert not target.exists()
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/scrub-computer-use-config.py'), str(fixture.home)],
+            env=fixture.env, cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_repair_errors_after_lock_acquisition_keep_their_cause(self):
+        fixture = self.fixture
+        child = '''import importlib.util,sys
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+sys.path.insert(0,str(Path(sys.argv[1]).parent))
+spec=importlib.util.spec_from_file_location("locked_diagnostic",sys.argv[1])
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+home=Path(sys.argv[2])
+deployment=SimpleNamespace(ROOT=Path(sys.argv[1]).parents[2],context=lambda:{"home":str(home)})
+module.deployment_module=lambda:deployment
+sys.argv=[sys.argv[1],"--config-path",str(home/"config.toml"),"--repair","--json"]
+with patch.object(module,"_main_locked",side_effect=OSError("synthetic-action-failure")):
+    try:
+        module.main()
+    except OSError as error:
+        assert str(error)=="synthetic-action-failure"
+    else:
+        raise AssertionError("Action error was relabelled as lock unavailability")
+'''
+        for name in ('repair-runtime-config-drift.py', 'scrub-computer-use-config.py'):
+            with self.subTest(name=name):
+                result = subprocess.run([sys.executable, '-B', '-c', child,
+                    str(fixture.codex / 'scripts' / name), str(fixture.home)],
+                    env=fixture.env, cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(result.stdout, '')
+
     def setUp(self):
         self.fixture = HelperFixture(self)
         self.addCleanup(self.fixture.assert_preserved, self)
@@ -45,6 +108,35 @@ class HandoverValidationTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(config.read_text(), 'model = "keep"\n\n[other]\nnotify = ["keep"]\n')
         self.assertEqual(json.loads(result.stdout)['removed_count'], 1)
+
+    def test_desktop_registration_scan_failure_is_bounded_and_preserves_config(self):
+        fixture = self.fixture
+        config = fixture.home / 'scan-failure.toml'
+        original = 'model = "keep"\nnotify = ["SkyComputerUseClient"]\n'
+        config.write_text(original)
+        child = '''import importlib.util,sys
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+sys.path.insert(0, str(Path(sys.argv[1]).parent))
+spec = importlib.util.spec_from_file_location("scan_failure",sys.argv[1])
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+deployment = SimpleNamespace(ROOT=Path(sys.argv[1]).parents[2])
+state = sys.argv[3]
+deployment.context = lambda: {"state_dir":state,"home":state}
+module.deployment_module = lambda: deployment
+sys.argv=[sys.argv[1],"--config-path",sys.argv[2],"--repair","--json"]
+with patch.object(module.os,"scandir",side_effect=OSError("synthetic-private-scan-data")):
+    raise SystemExit(module.main())
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/scrub-computer-use-config.py'), str(config), str(fixture.home)],
+            env=fixture.env, cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)['reason'], 'desktop_registration_scan_failed')
+        self.assertEqual(config.read_text(), original)
+        self.assertNotIn('synthetic-private-scan-data', result.stdout + result.stderr)
+        self.assertNotIn('Traceback', result.stdout + result.stderr)
 
     def test_invalid_binding_document_is_a_bounded_cli_rejection(self):
         path = self.fixture.home / 'invalid-bindings.json'

@@ -101,11 +101,15 @@ those procedures does not authorise review requests or remote mutations.
 
 ## Rules and managed requirements
 
-The six `templates/rules/*.rules` retain the accepted command decisions,
-justifications and positive/negative examples. Only the exact paths for the two
-fixed-output authentication canaries are rendered per fixture. No arbitrary
-auth command is allowed. The strictest matching rule applies; an unmatched
-command still falls back to sandbox, hooks, approval policy and task authority.
+The six `templates/rules/*.rules` own the current command decisions,
+justifications and positive/negative examples. Their provenance records the
+accepted migration baseline without requiring an obsolete allow. Raw `git
+status` remains unmatched because repository-local `core.fsmonitor` can execute
+a helper; automatic internal probes disable that program-valued configuration
+at their call site. Only the exact paths for the two fixed-output authentication
+canaries are rendered per fixture. No arbitrary auth command is allowed. The
+strictest matching rule applies; an unmatched command still falls back to
+sandbox, hooks, approval policy and task authority.
 
 `templates/requirements.toml` preserves allowed approval and sandbox modes and
 two exact MCP identities. Its private identity URL is rendered from that

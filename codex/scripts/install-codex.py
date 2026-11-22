@@ -1103,13 +1103,22 @@ def clean_environment(home, payload, *, toolchain=None):
 
 
 @contextlib.contextmanager
-def installation_lock(home):
+def installation_lock(home, *, inherited_fd=None):
     directory = SCOPE.physical(home / '.local/state/dots')
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     path = SCOPE.physical(directory / 'installation.lock')
-    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    if inherited_fd is None:
+        fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    else:
+        if type(inherited_fd) is not int or inherited_fd < 3:
+            raise ValueError('Invalid inherited installation lock')
+        fd = os.dup(inherited_fd)
     try:
-        if os.fstat(fd).st_nlink != 1 or os.fstat(fd).st_uid != os.getuid():
+        opened, current = os.fstat(fd), path.lstat()
+        if (not stat.S_ISREG(opened.st_mode) or not stat.S_ISREG(current.st_mode)
+                or opened.st_nlink != 1 or opened.st_uid != os.getuid()
+                or opened.st_mode & 0o077
+                or (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino)):
             raise ValueError('Unsafe installation lock')
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         yield fd
@@ -1120,6 +1129,8 @@ def installation_lock(home):
 def projector(state, *args, lock_fd=None):
     context = SCOPE.context()
     env = clean_environment(Path(context['home']), ROOT)
+    if lock_fd is not None:
+        env['DOTS_INSTALLATION_LOCK_FD'] = str(lock_fd)
     for name in ('DOTS_DESKTOP_REVIEW_STATE', 'DOTS_DESKTOP_REVIEW_SHA256'):
         if name in os.environ:
             env[name] = os.environ[name]

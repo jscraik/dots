@@ -193,7 +193,7 @@ elif [[ "$output_lc" == *"command not found"* ]]; then
 fi
 
 if [[ -n "$output_excerpt" ]]; then
-  context_message="${context_message} Error excerpt: ${output_excerpt}"
+  context_message="${context_message} The failed tool returned output; raw output is omitted from this advisory and its receipt."
 fi
 
 if ! hook_runtime_should_emit_context "$input_json" "post-tool-use-review" "$context_message"; then

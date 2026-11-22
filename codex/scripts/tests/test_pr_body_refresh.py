@@ -85,6 +85,40 @@ class PrBodyRefreshTests(unittest.TestCase):
         self.assertRaises(ValueError, MODULE.parse_repo_slug, "jscraik/configs/extra")
         self.assertRaises(ValueError, MODULE.parse_repo_slug, "jscraik configs")
 
+    def test_receipt_validation_receives_the_explicit_mutation_target(self) -> None:
+        root, _template, _body_path = self._write_template_and_body(
+            body="## Problem\n\n- Summary: retained\n\n## Testing\n\n- Evidence: unit test\n"
+        )
+        with patch.object(
+            MODULE,
+            "run_command",
+            return_value=MODULE.subprocess.CompletedProcess(
+                [], 0, '{"status":"pass"}', ""
+            ),
+        ) as command:
+            payload = MODULE.receipt_for_current_pr(
+                root, 357, "jscraik/configs"
+            )
+
+        self.assertEqual(payload, {"status": "pass"})
+        self.assertEqual(
+            command.call_args.args[0],
+            [
+                MODULE.sys.executable,
+                str(MODULE_PATH.with_name("pr-readiness.py")),
+                "--phase",
+                "update",
+                "--repo-root",
+                str(root),
+                "--check-receipt",
+                "--expected-pr",
+                "357",
+                "--expected-repo",
+                "jscraik/configs",
+                "--json",
+            ],
+        )
+
     def test_rejects_a_body_that_omits_a_required_template_section(self) -> None:
         _root, template, body_path = self._write_template_and_body(
             body="## Problem\n\n- Summary: retained\n"

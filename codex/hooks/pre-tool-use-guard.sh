@@ -406,7 +406,19 @@ contains_git_push_no_verify() {
   done
   return 1
 }
-contains_protected_destination_push() {
+push_refspec_has_unapproved_destination() {
+  local refspec="${1#+}"
+  local destination="$refspec"
+  if [[ "$refspec" == *:* ]]; then
+    destination="${refspec##*:}"
+  fi
+  destination="${destination#refs/heads/}"
+  case "$destination" in
+    ''|main|master|head|@|*_head|*\**|*\?*|*\[*|*'@{'*|*~*|*^*) return 0 ;;
+  esac
+  return 1
+}
+contains_unapproved_push_destination() {
   local command_text="$1"
   local -a tokens
   local encoded_tokens
@@ -417,29 +429,68 @@ contains_protected_destination_push() {
   while push_idx="$(git_subcommand_index "$command_text" push "$search_index")"; do
     search_index=$((push_idx + 1))
     local remote_seen=false
+    local refspec_seen=false
+    local options=true
     local idx
     for ((idx=push_idx+1; idx<${#tokens[@]}; idx++)); do
       local token="${tokens[idx]}"
       is_shell_separator_token "$token" && break
-      if [[ "$token" == -* || "$token" == *=* ]]; then
-        continue
+      if [[ "$options" == true ]]; then
+        if [[ "$token" == "--" ]]; then
+          options=false
+          continue
+        fi
+        case "$token" in
+          --repo=*)
+            [[ "$remote_seen" != true && -n "${token#*=}" ]] || return 0
+            remote_seen=true
+            continue
+            ;;
+          --repo)
+            [[ "$remote_seen" != true ]] || return 0
+            idx=$((idx + 1))
+            if ((idx >= ${#tokens[@]})) || is_shell_separator_token "${tokens[idx]}" || [[ -z "${tokens[idx]}" ]]; then
+              return 0
+            fi
+            remote_seen=true
+            continue
+            ;;
+          -o|--exec|--receive-pack|--recurse-submodules|--push-option|--server-option)
+            idx=$((idx + 1))
+            if ((idx >= ${#tokens[@]})) || is_shell_separator_token "${tokens[idx]}"; then
+              return 0
+            fi
+            continue
+            ;;
+          --*=*) continue ;;
+          --all|--atomic|--branches|--delete|--dry-run|--follow-tags|--force|--force-if-includes|--force-with-lease|--ipv4|--ipv6|--mirror|--no-atomic|--no-follow-tags|--no-force-if-includes|--no-force-with-lease|--no-progress|--no-recurse-submodules|--no-signed|--no-thin|--no-verify|--porcelain|--progress|--prune|--quiet|--set-upstream|--signed|--tags|--thin|--verbose|--verify)
+            continue
+            ;;
+          --*) return 0 ;;
+          -?*)
+            if [[ "$token" =~ ^-[^-o]*o$ ]]; then
+              idx=$((idx + 1))
+              if ((idx >= ${#tokens[@]})) || is_shell_separator_token "${tokens[idx]}"; then
+                return 0
+              fi
+            fi
+            continue
+            ;;
+        esac
       fi
       if [[ "$remote_seen" != true ]]; then
         remote_seen=true
         continue
       fi
-      # Normalize the destination side of a refspec. Git accepts both short
-      # names (feature:main) and fully qualified refs (feature:refs/heads/main),
-      # as well as an unqualified main/master ref with no colon.
-      local destination="$token"
-      if [[ "$token" == *:* ]]; then
-        destination="${token##*:}"
-      fi
-      destination="${destination#refs/heads/}"
-      if [[ "$destination" == "main" || "$destination" == "master" ]]; then
+      refspec_seen=true
+      if push_refspec_has_unapproved_destination "$token"; then
         return 0
       fi
     done
+    # Never let repository configuration supply an unseen push destination.
+    if [[ "$remote_seen" != true || "$refspec_seen" != true ]]; then
+      return 0
+    fi
   done
   return 1
 }
@@ -608,7 +659,7 @@ contains_forbidden_publish_or_review_action() {
     return 0
   fi
   if git_subcommand_index "$command_text" push >/dev/null; then
-    if contains_protected_destination_push "$command_text" \
+    if contains_unapproved_push_destination "$command_text" \
       || contains_forbidden_push_option "$command_text"; then
       return 0
     fi
@@ -726,6 +777,49 @@ command_cwd = sys.argv[3]
 
 policy = runpy.run_path(sys.argv[4])
 wrapper_canonical = os.path.realpath(sys.argv[5]).lower()
+INERT_DOLLAR = "\ue200"
+INERT_BACKTICK = "\ue201"
+
+
+def protect_inert_expansions(command: str) -> str:
+    """Retain dollars and backticks that the current shell treats literally."""
+    if INERT_DOLLAR in command or INERT_BACKTICK in command:
+        raise ValueError("Reserved shell-analysis marker")
+    protected = []
+    quote = None
+    index = 0
+    while index < len(command):
+        char = command[index]
+        if char == "\\" and quote != "'" and index + 1 < len(command):
+            following = command[index + 1]
+            if following in {"$", chr(96)}:
+                protected.append(INERT_DOLLAR if following == "$" else INERT_BACKTICK)
+            else:
+                protected.extend((char, following))
+            index += 2
+            continue
+        if char in {"'", '"'}:
+            quote = None if quote == char else char if quote is None else quote
+        if quote is None and char == '!':
+            start = index
+            while start and command[start - 1] in '<>&':
+                start -= 1
+            if any(operator in command[start:index] for operator in '<>'):
+                raise ValueError('Unsupported force redirection')
+        if char == "$" and quote != "'" and command[index + 1:index + 2] == "<":
+            raise ValueError("Uninspectable shell stdin expansion")
+        if quote == "'" and char in {"$", chr(96)}:
+            protected.append(INERT_DOLLAR if char == "$" else INERT_BACKTICK)
+        else:
+            protected.append(char)
+        index += 1
+    return "".join(protected)
+
+
+def restore_inert_expansions(token: str) -> str:
+    return token.replace(INERT_DOLLAR, "$").replace(INERT_BACKTICK, chr(96))
+
+
 def command_position(segment, function_names=()):
     value_options = {"env": {"-u", "--unset", "-C", "--chdir"}, "sudo": {"-u", "--user", "-g", "--group", "-h", "--host", "-p", "--prompt", "-C", "--close-from", "-R", "--chroot", "-D", "--chdir"}, "command": set(), "builtin": set(), "exec": {"-a"}, "time": set()}
     index = 0
@@ -762,9 +856,17 @@ def command_segments(command: str, depth: int = 0, inherited_functions=frozenset
     substitutions = policy["substitution_commands"](command)
     if substitutions is None:
         raise ValueError("Uninspectable command substitution")
-    lexer = shlex.shlex(policy["protect_quoted_punctuation"](command), posix=True, punctuation_chars=";&|<>()\n")
+    protected_command = protect_inert_expansions(command)
+    lexer = shlex.shlex(policy["protect_quoted_punctuation"](protected_command), posix=True, punctuation_chars=";&|<>()\n")
     lexer.whitespace, lexer.whitespace_split, lexer.commenters = " \t\r", True, ""
     tokens = list(lexer)
+    # Redirection destinations are path operands even when the preceding
+    # command only prints data. Preserve that role before segment splitting.
+    redirects = {'<', '>', '>>', '<>', '>|', '>>|', '<&', '>&', '>&|',
+                 '>>&', '>>&|', '&>', '&>>', '&>|', '&>>|'}
+    for index, raw in enumerate(tokens[:-1]):
+        if raw in redirects and has_path_expansion(policy['decode_protected_punctuation'](tokens[index + 1])):
+            raise ValueError('Uninspectable redirection destination')
     function_names = inherited_functions | policy["declared_functions"](tokens)
     for substitution in substitutions:
         yield from command_segments(substitution, depth + 1, function_names)
@@ -784,7 +886,8 @@ def command_segments(command: str, depth: int = 0, inherited_functions=frozenset
             while args and args[0] in {"--env-file", "--environment", "--require-env", "--canary", "--require-environment", "--help", "-h"}:
                 args = args[1:] if args[0] in {"--require-environment", "--help", "-h"} else args[2:]
             if args and args[0] == "--":
-                yield from command_segments(shlex.join(args[1:]), depth + 1)
+                child = shlex.join(restore_inert_expansions(arg) for arg in args[1:])
+                yield from command_segments(child, depth + 1)
             continue
         index = command_position(segment, function_names)
         if index >= len(segment) or posixpath.basename(segment[index]) not in {"bash", "sh", "zsh"}:
@@ -799,7 +902,7 @@ def command_segments(command: str, depth: int = 0, inherited_functions=frozenset
                 index += int(index < len(segment) and segment[index] == "--")
                 if index >= len(segment):
                     raise ValueError("Missing shell payload")
-                yield from command_segments(segment[index], depth + 1, function_names)
+                yield from command_segments(restore_inert_expansions(segment[index]), depth + 1, function_names)
                 break
             if option in {"-o", "+o", "-O", "+O"} or option.endswith(("o", "O")) and not option.startswith("--"):
                 index += 1
@@ -812,6 +915,33 @@ def expanded_token(token: str) -> str:
 
 def normalized_token(token: str) -> str:
     return posixpath.normpath(expanded_token(token)).lower()
+
+
+def has_path_expansion(token: str) -> bool:
+    """Identify shell expansions that can supply an uninspectable pathname."""
+    for index, char in enumerate(token[:-1]):
+        if char == "$":
+            following = token[index + 1]
+            if following.isalnum() or following == "_" or following in "{([@*#?$!-=^~+<":
+                return True
+    return chr(96) in token
+
+
+def operands_may_name_paths(tokens, command_at: int, function_names=()) -> bool:
+    if command_at >= len(tokens):
+        return False
+    executable = tokens[command_at]
+    prefix = tokens[:command_at]
+    literal_output = (
+        executable in {"printf", "echo"}
+        and executable not in function_names
+        and all(
+            token in {"!", "if", "while", "until", "then", "do", "else", "elif", "{"}
+            or re.match(r"[A-Za-z_][A-Za-z0-9_]*\+?=", token)
+            for token in prefix
+        )
+    )
+    return not literal_output
 
 
 def pattern_recipients(path: str) -> list[str] | None:
@@ -917,7 +1047,9 @@ def wrapper_index(tokens, function_names=()) -> int | None:
 
 try:
     for tokens, function_names in command_segments(command_text):
+        command_at = command_position(tokens, function_names)
         wrapper_at = wrapper_index(tokens, function_names)
+        path_operands = operands_may_name_paths(tokens, command_at, function_names)
         skip_indices: set[int] = set()
         if wrapper_at is not None:
             idx = wrapper_at + 1
@@ -933,6 +1065,8 @@ try:
             if idx in skip_indices:
                 continue
             if is_auth_path(token):
+                raise SystemExit(0)
+            if path_operands and idx > command_at and idx != wrapper_at and has_path_expansion(token):
                 raise SystemExit(0)
 except ValueError:
     raise SystemExit(1)

@@ -13,6 +13,31 @@ from policy_fixture import PolicyFixture
 
 
 class PolicyProjectionTests(unittest.TestCase):
+    def test_staging_failure_leaves_no_empty_recovery_directory(self):
+        fixture = self.fixture
+        child = '''import importlib.util,sys
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,str(Path(sys.argv[1]).parent))
+spec=importlib.util.spec_from_file_location("staging_failure",sys.argv[1])
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+target=Path(sys.argv[2]);target.write_bytes(b"keep\\n")
+with patch.object(module.tempfile,"mkstemp",side_effect=OSError("fixture staging failure")):
+    try:
+        module._write_repair(target,"repair\\n",expected=b"keep\\n")
+    except OSError:
+        pass
+    else:
+        raise AssertionError("Staging failure did not propagate")
+assert target.read_bytes()==b"keep\\n"
+assert not list(target.parent.glob("."+target.name+".recovery-*")),"Empty recovery directory remained"
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/repair-runtime-config-drift.py'),
+            str(fixture.home / 'staging-failure.toml')], env=fixture.env, cwd=fixture.repo,
+            capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def setUp(self):
         self.fixture = PolicyFixture(self)
         self.addCleanup(self.fixture.assert_preserved, self)
@@ -20,6 +45,23 @@ class PolicyProjectionTests(unittest.TestCase):
     def success(self, result):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return result
+
+    def hostile_user_site_startup(self):
+        fixture = self.fixture
+        version = f'python{sys.version_info.major}.{sys.version_info.minor}'
+        if sys.platform == 'darwin' and getattr(sys, '_framework', ''):
+            user_site = (fixture.home / 'Library/Python' / version.removeprefix('python')
+                         / 'lib/python/site-packages')
+        else:
+            user_site = fixture.home / '.local/lib' / version / 'site-packages'
+        user_site.mkdir(parents=True)
+        markers = []
+        for startup_name in ('fixture-startup.pth', 'sitecustomize.py', 'usercustomize.py'):
+            marker = fixture.home / (startup_name.replace('.', '-') + '-ran')
+            statement = f'import pathlib; pathlib.Path({str(marker)!r}).touch()\n'
+            (user_site / startup_name).write_text(statement)
+            markers.append(marker)
+        return markers
 
     def legacy_notifier_runtime(self, *, enabled=False):
         fixture = self.fixture
@@ -94,6 +136,43 @@ class PolicyProjectionTests(unittest.TestCase):
                                     '--codex-home', str(fixture.runtime)))
         self.success(fixture.project('--check'))
         self.assertEqual(fixture.managed_snapshot(), before)
+
+    def test_reconciler_ignores_user_site_startup_and_preserves_valid_runtime(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        before = fixture.managed_snapshot()
+        markers = self.hostile_user_site_startup()
+        self.success(fixture.script('reconcile-config-projection.sh', '--repair', '--scope', 'codex',
+                                    '--codex-home', str(fixture.runtime)))
+        self.assertTrue(all(not marker.exists() for marker in markers))
+        self.assertEqual(fixture.managed_snapshot(), before)
+
+    def test_nested_snapshot_validator_ignores_user_site_startup(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        runtime = fixture.runtime / 'config.toml'
+        original = runtime.read_text()
+        runtime.write_text(original.replace('approval_policy = "on-request"',
+                                            'approval_policy = "never"', 1))
+        markers = self.hostile_user_site_startup()
+        loader = '''import runpy,sys
+from pathlib import Path
+script = Path(sys.argv[1]).resolve(strict=True)
+sys.path.insert(0, str(script.parent))
+sys.argv = sys.argv[1:]
+runpy.run_path(str(script), run_name="__main__")
+'''
+        environment = dict(fixture.env)
+        environment.pop('PYTHONNOUSERSITE', None)
+        result = subprocess.run(
+            [sys.executable, '-I', '-B', '-c', loader,
+             str(fixture.codex / 'scripts/repair-runtime-config-drift.py'),
+             '--config-path', str(runtime), '--repair', '--json'],
+            env=environment, cwd=fixture.repo, capture_output=True, text=True,
+            timeout=45, check=False)
+        self.success(result)
+        self.assertTrue(all(not marker.exists() for marker in markers))
+        self.assertEqual(tomllib.loads(runtime.read_text()), tomllib.loads(original))
 
     def test_invalid_policy_missing_schema_and_changed_map_reject_before_writes(self):
         fixture = self.fixture
@@ -322,6 +401,7 @@ assert target.read_bytes() == b"concurrent native save\\n"
 target.unlink()
 module._write_repair(target, "repair\\n", expected=None)
 assert target.read_bytes() == b"repair\\n"
+assert target.stat().st_nlink == 1
 '''
         result = subprocess.run([sys.executable, '-B', '-c', child,
             str(fixture.codex / 'scripts/repair-runtime-config-drift.py'),
@@ -371,6 +451,31 @@ assert retained.read_bytes() == b"small original\\n"
         self.assertEqual(runtime.read_bytes(), original)
         self.assertEqual(set(runtime.parent.iterdir()), before)
         self.assertFalse(backup.exists())
+
+    def test_oversized_repaired_candidate_does_not_create_backup(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        runtime = fixture.runtime / 'config.toml'
+        canonical = runtime.read_bytes()
+        original = canonical.replace(b'approval_policy = "on-request"', b'approval_policy = "never"', 1)
+        self.assertLess(len(original), len(canonical))
+        runtime.write_bytes(original)
+        backup = fixture.home / 'candidate-size-backup.toml'
+        child = '''import importlib.util,sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]).parent))
+spec = importlib.util.spec_from_file_location("candidate_size", sys.argv[1])
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+module.REPAIR_FILE_LIMIT = len(Path(sys.argv[2]).read_bytes()) + 1
+raise SystemExit(module.main(["--config-path",sys.argv[2],"--repair","--backup-path",sys.argv[3],"--json"]))
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/repair-runtime-config-drift.py'), str(runtime), str(backup)],
+            env=fixture.env, cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)['reason'], 'config_size_limit_exceeded')
+        self.assertEqual(runtime.read_bytes(), original)
+        self.assertFalse(backup.exists(), 'candidate-size rejection created a backup')
 
     def test_failed_readback_reports_retained_generation(self):
         fixture = self.fixture

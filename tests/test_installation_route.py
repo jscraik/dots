@@ -42,6 +42,30 @@ class DesktopProposalPublicationTests(unittest.TestCase):
         self.assertEqual(path.stat().st_mode & 0o777, 0o600)
         self.assertEqual(path.stat().st_nlink, 1)
 
+    def test_inherited_installation_lock_preserves_parent_ownership(self):
+        home = self.root.resolve()
+        with self.installer.installation_lock(home) as parent:
+            with self.installer.installation_lock(home, inherited_fd=parent) as child:
+                self.assertNotEqual(child, parent)
+                self.assertEqual(os.fstat(child).st_ino, os.fstat(parent).st_ino)
+            with self.assertRaises(BlockingIOError):
+                with self.installer.installation_lock(home):
+                    self.fail('Child release unlocked the parent')
+        with self.installer.installation_lock(home):
+            pass
+
+    def test_inherited_installation_lock_rejects_another_file(self):
+        home = self.root.resolve()
+        with self.installer.installation_lock(home):
+            pass
+        other = home / 'unrelated'
+        other.write_bytes(b'keep')
+        with other.open('rb') as handle:
+            with self.assertRaises(ValueError):
+                with self.installer.installation_lock(home, inherited_fd=handle.fileno()):
+                    self.fail('Unrelated descriptor admitted')
+        self.assertEqual(other.read_bytes(), b'keep')
+
     def test_racing_pin_is_preserved_and_partial_bytes_are_not_published(self):
         path = self.root / 'desktop-review.json'
         publish = self.installer.rename_absent

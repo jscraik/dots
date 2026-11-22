@@ -291,7 +291,9 @@ def collect(root: Path, args: argparse.Namespace, *, resolved: bool = False) -> 
     )
     identity = check_identity(root, args, pr)
     head = identity["reviewed_head"]
-    if GATE.checks_lane(pr, head)["status"] != "pass":
+    # The exact validate run and immutable workflow are authenticated below;
+    # this preliminary gate rejects any visible failed or incomplete sibling.
+    if GATE.observed_checks_lane(pr, head)["status"] != "pass":
         raise ValueError("all reported current-head checks must pass")
     run = read_json(root, ["gh", "api", f"repos/{args.repo}/actions/runs/{args.run}"])
     run_url = f"https://github.com/{args.repo}/actions/runs/{args.run}"
