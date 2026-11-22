@@ -111,6 +111,12 @@ class PrReadinessTests(unittest.TestCase):
                     'observed': {'ci': 'failure', 'reviews': 'CHANGES_REQUESTED'}}
         return args, snapshot
 
+    def lifecycle_response(self, target):
+        payload = {key: target[key] for key in ('number', 'node_id', 'state', 'draft', 'merged_at')}
+        payload.update(html_url=target['url'], head={'sha': target['head']},
+                       base={'ref': target['base'], 'sha': target['base_sha'], 'repo': {'full_name': 'o/r'}})
+        return subprocess.CompletedProcess([], 0, json.dumps(payload), '')
+
     def test_lifecycle_receipt_performs_only_its_exact_transition_without_clearance(self):
         for operation in ('close', 'ready', 'reopen'):
             args, snapshot = self.lifecycle_data(operation)
@@ -126,6 +132,8 @@ class PrReadinessTests(unittest.TestCase):
                 self.assertEqual(json.loads(write.call_args.args[2]), receipt)
                 args.write_receipt, args.apply_lifecycle = False, True
                 after = {**snapshot['target'], **receipt['after']}
+                if operation == 'close':
+                    mutate.return_value = self.lifecycle_response(after)
                 with patch.object(MODULE._scope, 'policy_repository_read', return_value=json.dumps(receipt).encode()), \
                         patch.object(MODULE, '_lifecycle_request', return_value=(after, {})):
                     result = MODULE._lifecycle_execute(Path('/fixture'), args, 'identity')
@@ -260,6 +268,51 @@ class PrReadinessTests(unittest.TestCase):
                         MODULE._lifecycle_local_context(Path('/fixture'), args)
                 else:
                     self.assertEqual(MODULE._lifecycle_local_context(Path('/fixture'), args)['declared_paths'], ['source.py'])
+
+    def test_supersession_close_reports_unreviewed_head_from_patch_or_readback(self):
+        args, snapshot = self.lifecycle_data('close')
+        args.repo_root = Path('/fixture')
+        args.write_receipt, args.apply_lifecycle = False, True
+        receipt = {'schema_version': 'pr-lifecycle/v1', 'status': 'pass', 'operation': 'close',
+                   'checked_at': MODULE.datetime.now(MODULE.UTC).isoformat(),
+                   'acceptance_claims_proven': False, 'snapshot': snapshot,
+                   'after': {'state': 'closed', 'draft': True}}
+        closed = snapshot['target'] | receipt['after']
+        changed = closed | {'head': 'f' * 40}
+        changed_response = self.lifecycle_response(changed)
+        failed_response = subprocess.CompletedProcess([], 1, '', '')
+        cases = {
+            'patch': ([changed_response], True),
+            'readback': ([self.lifecycle_response(closed), changed_response], True),
+            'readback after patch failure': ([failed_response, changed_response], True),
+            'unusable patch response': ([subprocess.CompletedProcess([], 0, '{}', ''),
+                                         self.lifecycle_response(closed)], False),
+        }
+        for case, (responses, unreviewed) in cases.items():
+            with self.subTest(case=case), \
+                    patch.object(MODULE, 'parse_args', return_value=args), \
+                    patch.object(MODULE, 'resolve_root', return_value=args.repo_root), \
+                    patch.object(MODULE, '_lifecycle_snapshot', return_value=snapshot), \
+                    patch.object(MODULE._scope, 'require_policy_repository_path'), \
+                    patch.object(MODULE._scope, 'policy_repository_identity', return_value='identity'), \
+                    patch.object(MODULE._scope, 'require_policy_repository_identity'), \
+                    patch.object(MODULE._scope, 'policy_repository_read', return_value=json.dumps(receipt).encode()), \
+                    patch.object(MODULE, 'run_command', side_effect=responses) as hosted, \
+                    patch('sys.stdout', new_callable=io.StringIO) as output:
+                self.assertEqual(MODULE.main(), 2)
+                report = json.loads(output.getvalue())
+                self.assertEqual(report['status'], 'blocked')
+                self.assertFalse(report['acceptance_claims_proven'])
+                if unreviewed:
+                    self.assertIn('closed on an unreviewed head', report['error'])
+                    self.assertEqual(report['expected_head'], closed['head'])
+                    self.assertEqual(report['target'], changed)
+                else:
+                    self.assertIn('a transition may have occurred', report['error'])
+                self.assertEqual(hosted.call_count, len(responses))
+                self.assertIn('state=closed', hosted.call_args_list[0].args[0])
+                if len(responses) == 2:
+                    self.assertNotIn('--method', hosted.call_args_list[1].args[0])
 
     def test_supersession_close_requires_verified_merged_replacement_and_original_mapping(self):
         args, expected = self.lifecycle_data('close')
