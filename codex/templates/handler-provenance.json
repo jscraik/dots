@@ -136,9 +136,10 @@
       "transformations": [
         "fixture scope and event admission before handler actions",
         "disable repository-selected fsmonitor execution during automatic status observation",
-        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
       ],
-      "candidate_sha256": "384b1941e5a7db26be3c56750c901a0914620d08a162e874b4f9d3608eb7ddeb"
+      "candidate_sha256": "6c8ab76e6316b9ca28ca2b7ec7d5149b0887247a420d32949d3095e80e29e1ab"
     },
     {
       "path": "codex/hooks/stop-guard.sh",
@@ -244,7 +245,7 @@
         "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
         "Qualify atomic absent-file repair publication, exact published Desktop proposal names, and installation locking across proposal inspection and config publication; verify inherited descriptors against the fixed lock inode without releasing parent ownership. Remove an empty pre-staging recovery directory on creation failure and preserve the scrubber output-format contract when lock acquisition fails."
       ],
-      "candidate_sha256": "be4d11f78925c74a079a28528f43cca8da8a40d16ad1ad4a9b6de2d0a480bf60"
+      "candidate_sha256": "4e4b91053e061c6571d16eeae4fcbe1da4aa3601cdcce365059a2db05abf905c"
     },
     {
       "path": "codex/scripts/audit-project-codex-config-overrides.sh",

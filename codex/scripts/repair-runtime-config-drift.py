@@ -1421,6 +1421,11 @@ def parse_args(argv: list[str] | None=None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 def _emit(payload: dict[str, object], json_output: bool, message: str='') -> None:
+    if not json_output and payload.get('retained_generation_path'):
+        message = str(message or payload.get('error') or payload['status'])
+        retained = str(payload['retained_generation_path'])
+        if retained not in message:
+            message += f'; retained generation: {retained}; inspect native saves before explicit recovery'
     print(json.dumps(payload, sort_keys=True) if json_output else f'''service:"{SERVICE}" {message or payload.get('error') or payload['status']}''')
 
 def main(argv: list[str] | None=None) -> int:

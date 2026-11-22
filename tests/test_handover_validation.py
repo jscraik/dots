@@ -4,12 +4,25 @@ import json
 import subprocess
 import sys
 import unittest
+from pathlib import Path
 
 from helper_fixture import HelperFixture
 from policy_fixture import ROOT
 
 
 class HandoverValidationTests(unittest.TestCase):
+    def test_scrub_operator_output_names_the_retained_generation(self):
+        fixture = self.fixture
+        target = fixture.home / 'operator-scrub.toml'
+        original = 'notify = ["SkyComputerUseClient"]\n'
+        target.write_text(original)
+        result = fixture.helper('scrub-computer-use-config.py', '--config-path', str(target), '--repair')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        line = next(line for line in result.stdout.splitlines() if line.startswith('Retained generation: '))
+        retained = Path(line.removeprefix('Retained generation: ').split(';', 1)[0])
+        self.assertEqual(retained.read_text(), original)
+        self.assertIn('inspect native saves before explicit recovery', result.stdout)
+
     def test_scrub_retains_the_generation_displaced_by_a_native_save(self):
         fixture = self.fixture
         child = '''import contextlib,importlib.util,io,json,sys

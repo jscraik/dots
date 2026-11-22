@@ -249,6 +249,8 @@ def _main_locked(args) -> int:
     else:
         label = "OK" if exit_code == 0 else "FAIL"
         print(f"{label}  {reason}: {config_path} (removed_count={removed})")
+        if payload.get('retained_generation_path'):
+            print(f"Retained generation: {payload['retained_generation_path']}; inspect native saves before explicit recovery")
     return exit_code
 
 

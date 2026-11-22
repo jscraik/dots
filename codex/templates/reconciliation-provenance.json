@@ -207,7 +207,7 @@
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "07fb70afa1d41060932c8619489ee95cd89cb129686fc7c28139508988564780",
+      "candidate_sha256": "1fedc0600357ae50be86b84840ed4677c0836c98fff17d020bd8028354455cf5",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment. Add automatic SessionStart fsmonitor non-execution and dirty-state regression coverage. Prove exact resolver syntax admission through the actual hook from a separate checkout and preserve execution, extra-argument and symlink denials. Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
