@@ -114,13 +114,14 @@ Existing machine-specific files are preserved; conflicting managed paths require
 manual review. No package installation, tool trust, shell activation, background
 updater, credential access or live projection occurs.
 
-The reusable Aikido launcher is included under `codex/scripts/`. Its executable
-and 1Password reference file remain local. The launcher retains the existing
-1Password route and pinned-binary requirement; tests use synthetic providers
-inside disposable homes. No provider is installed or authenticated by the port.
-Packaged provider admission recognises its named local binary/reference inputs
-and the existing 1Password CLI locations. It adds no writable helper roots;
-rehearsals continue to reject host providers and escaping symlinks.
+The reusable Aikido launcher is included under `codex/scripts/`. Its 1Password
+reference remains local, while machine mode resolves the provider only from the
+sealed protected toolchain version captured by installation. Arbitrary
+`AIKIDO_MCP_BIN` overrides are rejected there. Credential-free rehearsals retain
+synthetic providers inside disposable homes. No provider is installed or
+authenticated by the port. Packaged provider admission recognises the local
+reference and existing 1Password CLI locations without adding writable helper
+roots; rehearsals continue to reject host providers and escaping symlinks.
 
 Machine admission treats `CODEX_APP_TOOLS_PIPE_PATH`, `CODEX_TECTONIC_PATH`,
 `CODEX_APP_RUNTIME_CLI_PATH` and `CODEX_MCP_NODE_PATH` as unused native app
@@ -197,6 +198,19 @@ from the launch environment. The private retriever and data paths retain their
 existing resource admission. Without optional Bun, retrieval returns no context;
 it does not clear a security decision. The retained LifeOS harness covers synthetic provider routing and
 the minimal child environment.
+
+Aikido MCP needs an independently reviewed `@aikidosec/mcp@1.0.10` launcher at
+`bin/aikido-mcp` in the same payload. Stage its self-contained runtime and
+dependencies inside that payload; the launcher must not resolve executable code
+from the caller's home or inherited `PATH`. Add `providers/aikido-mcp.json` with
+exactly `schema_version` 1, package `@aikidosec/mcp`, version `1.0.10`, and the
+lowercase SHA-256 of `bin/aikido-mcp` as `executable_sha256` before inspecting
+the payload. Installation validates this receipt, and machine launch recomputes
+the complete content-addressed inventory and receipt hash after checking the
+root-owned directory chain, modes and link counts. A missing or changed provider
+fails before `op run`; changing Aikido requires a newly reviewed payload,
+selection and installation preparation.
+
 Readiness helpers use a separate repository-scoped contract for verified managed
 worktrees. It admits contained scope and waiver inputs without adding general
 resource roots. Receipts use regular JSON leaves in an existing owned `.tmp`

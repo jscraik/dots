@@ -13,6 +13,46 @@ from pathlib import Path
 
 
 PREFIX = Path("/opt/dots-hook-tools")
+AIKIDO_MCP_PACKAGE = "@aikidosec/mcp"
+AIKIDO_MCP_VERSION = "1.0.10"
+
+
+def unique(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError("Duplicate provider receipt key")
+        value[key] = item
+    return value
+
+
+def aikido_provider(root):
+    """Validate the reviewed Aikido launcher and its version receipt."""
+    executable = root / "bin/aikido-mcp"
+    receipt = root / "providers/aikido-mcp.json"
+    if not executable.exists() and not receipt.exists():
+        return None
+    for path in (executable, receipt):
+        info = path.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            raise ValueError("Aikido provider files must be unshared regular files")
+    if not os.access(executable, os.X_OK):
+        raise ValueError("Aikido provider launcher must be executable")
+    if receipt.stat().st_size > 4096:
+        raise ValueError("Aikido provider receipt is too large")
+    record = json.loads(receipt.read_text(), object_pairs_hook=unique)
+    expected = {"schema_version", "package", "version", "executable_sha256"}
+    digest = record.get("executable_sha256") if isinstance(record, dict) else None
+    if (not isinstance(record, dict) or set(record) != expected
+            or type(record.get("schema_version")) is not int or record["schema_version"] != 1
+            or record.get("package") != AIKIDO_MCP_PACKAGE
+            or record.get("version") != AIKIDO_MCP_VERSION
+            or not isinstance(digest, str) or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)):
+        raise ValueError("Aikido provider receipt is invalid or has the wrong version")
+    if hashlib.sha256(executable.read_bytes()).hexdigest() != digest:
+        raise ValueError("Aikido provider launcher differs from its receipt")
+    return executable
 
 
 def check_runtime(root):
@@ -31,6 +71,7 @@ def check_runtime(root):
         if not (root / 'bin/bun').is_file() or not os.access(root / 'bin/bun', os.X_OK):
             raise ValueError('Optional Bun provider must be executable')
         commands += ([str(root / 'bin/bun'), '--version'],)
+    aikido_provider(root)
     with tempfile.TemporaryDirectory(prefix='dots-hook-runtime-check-', dir=Path('/tmp').resolve()) as temporary:
         home = Path(temporary).resolve()
         environment = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "PYTHONNOUSERSITE": "1",
