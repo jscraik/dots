@@ -166,7 +166,7 @@ class PrReadinessTests(unittest.TestCase):
         review = {"state": "COMMENTED", "commit_id": head,
                   "user": {"login": "chatgpt-codex-connector[bot]"}, "body": body}
         self.assertTrue(MODULE._bot_review_is_acceptable(review, head))
-        for ending in ("Nice work!", "Wonderful patch!", "What shall we delve into next?"):
+        for ending in ("Nice work! Findings remain.", "Wonderful patch!", "What shall we delve into next?"):
             with self.subTest(ending=ending):
                 changed = body.replace("Already looking forward to the next diff.", ending)
                 self.assertNotEqual(changed, body)
@@ -962,6 +962,7 @@ class PrReadinessTests(unittest.TestCase):
                             ("chatgpt-codex-connector", codex.replace("Already looking forward to the next diff.", ":tada:")),
                             ("chatgpt-codex-connector", codex.replace("Already looking forward to the next diff.", "Delightful!")),
                             ("chatgpt-codex-connector", codex.replace("Already looking forward to the next diff.", "Keep it up!")),
+                            ("chatgpt-codex-connector", codex.replace("Already looking forward to the next diff.", "Nice work!")),
                             ("chatgpt-codex-connector", codex.replace("Already looking forward to the next diff.", "Swish!")),
                             ("chatgpt-codex-connector", codex.replace("Already looking forward to the next diff.", "Hooray!")),
                             ("chatgpt-codex-connector", codex.replace("Already looking forward to the next diff.", ":rocket:")),
