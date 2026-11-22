@@ -12,7 +12,8 @@
     "repo",
     "lanes",
     "blockers",
-    "evidence_refs"
+    "evidence_refs",
+    "receipt"
   ],
   "properties": {
     "schema_version": { "const": "pr-readiness/v1" },
@@ -22,14 +23,14 @@
     "repo": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["root", "branch", "head_sha", "base_branch", "base_sha", "remote"],
+      "required": ["root", "branch", "head_sha", "base_branch", "base_sha", "remote", "remote_base_sha", "remote_head_sha"],
       "properties": {
         "root": { "type": "string", "minLength": 1 },
         "branch": { "type": "string", "minLength": 1 },
         "head_sha": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
         "base_branch": { "type": "string", "minLength": 1 },
         "base_sha": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
-        "remote": { "type": "string", "minLength": 1 },
+        "remote": { "const": "origin" },
         "remote_base_sha": { "type": ["string", "null"] },
         "remote_head_sha": { "type": ["string", "null"] }
       }
@@ -90,6 +91,19 @@
   },
   "allOf": [
     {
+      "if": { "properties": { "status": { "const": "pass" } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "repo": {
+            "properties": {
+              "remote_base_sha": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+              "remote_head_sha": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" }
+            }
+          }
+        }
+      }
+    },
+    {
       "if": {
         "properties": { "phase": { "enum": ["review_reconciliation", "review_inspection"] } },
         "required": ["phase"]
@@ -117,7 +131,7 @@
       "properties": {
         "status": { "enum": ["pass", "fail", "blocked", "not_applicable"] },
         "evidence": { "type": "string", "minLength": 1 },
-        "details": {}
+        "details": { "type": "object" }
       }
     }
   }

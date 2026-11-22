@@ -514,7 +514,7 @@ class HookHandlerTests(unittest.TestCase):
             'import runpy\nfrom pathlib import Path\n'
             'main = runpy.run_path(str(Path(__file__).with_name("pr-readiness-real.py")))["main"]\n'
             'main.__globals__.update(repository_slug=lambda root: ("example/repo", None),\n'
-            '    remote_sha=lambda root, *_: main.__globals__["git"](root, "rev-parse", "HEAD"),\n'
+            '    hosted_remote_sha=lambda root, *_: main.__globals__["git"](root, "rev-parse", "HEAD"),\n'
             '    recheck_hosted_state=lambda *args, **kwargs: None)\n'
             'raise SystemExit(main())\n')
         git('add', '.')
@@ -522,14 +522,28 @@ class HookHandlerTests(unittest.TestCase):
             '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'Fixture')
         head = git('rev-parse', 'HEAD')
         receipt = fixture.repo / '.git/pr-readiness.v1.json'
+        digest = hashlib.sha256(b'\n').hexdigest()
         receipt.write_text(json.dumps({
             'schema_version': 'pr-readiness/v1', 'phase': 'update', 'status': 'pass',
-            'repo': {'branch': git('branch', '--show-current'), 'head_sha': head,
-                     'base_branch': 'main', 'base_sha': head,
+            'checked_at': '2026-11-22T17:00:00Z',
+            'repo': {'root': str(fixture.repo),
+                     'branch': git('branch', '--show-current'), 'head_sha': head,
+                     'base_branch': 'main', 'base_sha': head, 'remote': 'origin',
                      'remote_base_sha': head, 'remote_head_sha': head},
-            'lanes': {'pull_request': {'details': {'number': 349}},
-                      'scope': {'details': {'declared_paths': []}}},
-            'receipt': {'scope_digest': hashlib.sha256(b'\n').hexdigest()},
+            'lanes': {
+                'remote_ancestry': {'status': 'pass', 'evidence': 'remote ancestry passed'},
+                'dirty_worktree': {'status': 'pass', 'evidence': 'worktree is clean'},
+                'worktree_boundary': {'status': 'pass', 'evidence': 'worktree is registered'},
+                'scope': {'status': 'pass', 'evidence': 'scope passed',
+                          'details': {'declared_paths': []}},
+                'pull_request': {'status': 'pass', 'evidence': 'pull request matched',
+                                 'details': {'number': 349}},
+                'required_checks': {'status': 'pass', 'evidence': 'checks passed'},
+                'reviews': {'status': 'pass', 'evidence': 'reviews passed'},
+            },
+            'blockers': [],
+            'evidence_refs': [f'head:{head}'],
+            'receipt': {'path': str(receipt), 'scope_digest': digest},
         }))
         def merge(endpoint):
             return self.output('pre-tool-use-dispatch.sh', {

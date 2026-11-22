@@ -69,6 +69,16 @@ def _coderabbit_summary_adapter() -> Any:
 SCHEMA_VERSION = "pr-readiness/v1"
 SERVICE_NAME = "pr-readiness"
 PHASES = ("create", "review_inspection", "review_reconciliation", "update")
+TRUSTED_REMOTE = "origin"
+RECEIPT_LANES = (
+    "remote_ancestry",
+    "dirty_worktree",
+    "worktree_boundary",
+    "scope",
+    "pull_request",
+    "required_checks",
+    "reviews",
+)
 REVIEW_WAIVER_SCHEMA = "pr-readiness-review-waiver/v1"
 REVIEW_WAIVER_SCOPE = "missing independent bot approvals only"
 REVIEW_WAIVER_GOVERNANCE_FIELDS = (
@@ -272,11 +282,13 @@ def current_worktree(root: Path) -> tuple[str, str, str, str, str]:
 
 
 def remote_sha(root: Path, remote: str, ref: str) -> str | None:
-    result = run_command(["git", "ls-remote", remote, f"refs/heads/{ref}"], root, check=False)
-    if result.returncode != 0:
+    """Read the trusted hosted branch without invoking Git remote machinery."""
+    if remote != TRUSTED_REMOTE:
         return None
-    line = next((line for line in result.stdout.splitlines() if line.strip()), "")
-    return line.split()[0] if line and SHA_RE.fullmatch(line.split()[0]) else None
+    repository, error = repository_slug(root)
+    if error or repository is None:
+        return None
+    return hosted_remote_sha(root, repository, ref)
 
 
 def parse_scope(path: Path, root: Path) -> tuple[list[str], str]:
@@ -426,6 +438,35 @@ def repository_slug(root: Path) -> tuple[str | None, str | None]:
     if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value) or any(segment in {".", ".."} for segment in value.split("/")):
         return None, "gh repo view returned an invalid repository identity"
     return value, None
+
+
+def hosted_remote_sha(root: Path, repository: str, ref: str) -> str | None:
+    """Read one exact GitHub branch without consulting workspace Git configuration."""
+    if (not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository)
+            or any(segment in {".", ".."} for segment in repository.split("/"))
+            or not isinstance(ref, str) or not ref
+            or any(character in ref for character in "\x00\r\n")):
+        return None
+    endpoint = f"repos/{repository}/git/ref/heads/{quote(ref, safe='')}"
+    result = run_command(["gh", "api", endpoint], root, check=False)
+    if result.returncode != 0:
+        return None
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    git_object = payload.get("object")
+    if not isinstance(git_object, dict):
+        return None
+    sha = git_object.get("sha")
+    if (payload.get("ref") != f"refs/heads/{ref}"
+            or git_object.get("type") != "commit"
+            or not isinstance(sha, str)
+            or SHA_RE.fullmatch(sha) is None):
+        return None
+    return sha
 
 
 def _parse_review_thread_page(
@@ -3459,7 +3500,10 @@ def build_result(args: argparse.Namespace) -> dict[str, Any]:
     result["repo"]["remote_head_sha"] = remote_head
     if remote_base is None:
         result["lanes"]["remote_ancestry"] = lane("blocked", f"remote base {args.remote}/{base_branch} could not be read")
-        result["blockers"].append(blocker("remote_base_unavailable", "git ls-remote did not return the current remote base"))
+        result["blockers"].append(blocker(
+            "remote_base_unavailable",
+            "the hosted repository did not return the current remote base",
+        ))
     elif remote_head != head_sha:
         result["lanes"]["remote_ancestry"] = lane("fail", "remote branch does not point at the current local HEAD", remote_base_sha=remote_base, remote_head_sha=remote_head, head_sha=head_sha)
         result["blockers"].append(blocker("remote_head_drift", "push the current commit before creating or updating the PR"))
@@ -3651,13 +3695,140 @@ def validate_command_target(
     return None
 
 
+def validate_receipt_schema(payload: Any) -> str | None:
+    """Validate the complete persisted receipt shape before it affects commands."""
+    if not isinstance(payload, dict):
+        return "receipt must be a JSON object"
+    phase = payload.get("phase")
+    if phase not in PHASES:
+        return "receipt phase is invalid"
+    expected_fields = {
+        "schema_version",
+        "status",
+        "phase",
+        "checked_at",
+        "repo",
+        "lanes",
+        "blockers",
+        "evidence_refs",
+        "receipt",
+    }
+    if phase in {"review_inspection", "review_reconciliation"}:
+        expected_fields.add("authority")
+    if set(payload) != expected_fields:
+        return "receipt must contain exactly the required fields"
+    if payload.get("schema_version") != SCHEMA_VERSION:
+        return "receipt schema_version is not pr-readiness/v1"
+    status = payload.get("status")
+    if not isinstance(status, str) or status not in {"pass", "fail", "blocked"}:
+        return "receipt status is invalid"
+    if not isinstance(payload.get("checked_at"), str) or not payload["checked_at"]:
+        return "receipt checked_at is invalid"
+
+    receipt_repo = payload.get("repo")
+    repo_fields = {
+        "root",
+        "branch",
+        "head_sha",
+        "base_branch",
+        "base_sha",
+        "remote",
+        "remote_base_sha",
+        "remote_head_sha",
+    }
+    if not isinstance(receipt_repo, dict) or set(receipt_repo) != repo_fields:
+        return "receipt repository details are malformed"
+    for field in ("root", "branch", "base_branch"):
+        if not isinstance(receipt_repo.get(field), str) or not receipt_repo[field]:
+            return f"receipt repository {field} is invalid"
+    for field in ("head_sha", "base_sha"):
+        value = receipt_repo.get(field)
+        if not isinstance(value, str) or SHA_RE.fullmatch(value) is None:
+            return f"receipt repository {field} is not a full commit SHA"
+    for field in ("remote_base_sha", "remote_head_sha"):
+        value = receipt_repo.get(field)
+        if value is not None and (not isinstance(value, str) or SHA_RE.fullmatch(value) is None):
+            return f"receipt repository {field} is invalid"
+        if status == "pass" and value is None:
+            return f"receipt repository {field} is not a full commit SHA"
+    if receipt_repo.get("remote") != TRUSTED_REMOTE:
+        return f"receipt repository remote must be {TRUSTED_REMOTE}"
+
+    lanes = payload.get("lanes")
+    if not isinstance(lanes, dict) or set(lanes) != set(RECEIPT_LANES):
+        return "receipt lanes are malformed"
+    for name in RECEIPT_LANES:
+        lane_value = lanes[name]
+        if (not isinstance(lane_value, dict)
+                or not {"status", "evidence"} <= set(lane_value)
+                <= {"status", "evidence", "details"}):
+            return f"receipt lane {name} is malformed"
+        lane_status = lane_value.get("status")
+        if (not isinstance(lane_status, str)
+                or lane_status not in {"pass", "fail", "blocked", "not_applicable"}):
+            return f"receipt lane {name} status is invalid"
+        if not isinstance(lane_value.get("evidence"), str) or not lane_value["evidence"]:
+            return f"receipt lane {name} evidence is invalid"
+        if "details" in lane_value and not isinstance(lane_value["details"], dict):
+            return f"receipt lane {name} details are malformed"
+    scope_details = lanes["scope"].get("details")
+    declared_paths = scope_details.get("declared_paths") if isinstance(scope_details, dict) else None
+    if (not isinstance(declared_paths, list)
+            or any(not isinstance(item, str) or not item for item in declared_paths)
+            or declared_paths != sorted(set(declared_paths))):
+        return "receipt declared scope paths are malformed"
+
+    blockers = payload.get("blockers")
+    if not isinstance(blockers, list):
+        return "receipt blockers are malformed"
+    for item in blockers:
+        if (not isinstance(item, dict) or set(item) != {"code", "reason"}
+                or any(not isinstance(item.get(field), str) or not item[field]
+                       for field in ("code", "reason"))):
+            return "receipt blocker is malformed"
+    evidence_refs = payload.get("evidence_refs")
+    if (not isinstance(evidence_refs, list)
+            or any(not isinstance(item, str) or not item for item in evidence_refs)):
+        return "receipt evidence references are malformed"
+
+    receipt = payload.get("receipt")
+    if (not isinstance(receipt, dict) or set(receipt) != {"path", "scope_digest"}
+            or not isinstance(receipt.get("path"), str) or not receipt["path"]
+            or not isinstance(receipt.get("scope_digest"), str)
+            or SCOPE_DIGEST_RE.fullmatch(receipt["scope_digest"]) is None):
+        return "receipt publication details are malformed"
+    if phase == "review_inspection":
+        if payload.get("authority") != review_inspection_authority():
+            return "inspection receipt authority is malformed"
+    elif phase == "review_reconciliation":
+        expected_authority = {
+            "allowed_mutations": ["review_thread_reply", "review_thread_resolve"],
+            "prohibited_mutations": [
+                "source_update",
+                "pr_body_update",
+                "review_submission",
+                "approval",
+                "merge",
+            ],
+            "acceptance_claims_proven": False,
+        }
+        if payload.get("authority") != expected_authority:
+            return "reconciliation receipt authority is malformed"
+    return None
+
+
 def validate_receipt(path: Path, args: argparse.Namespace) -> tuple[dict[str, Any], str | None]:
     try:
         payload = json.loads(_scope.policy_repository_read(args.repo_root or Path.cwd(), path))
     except (OSError, json.JSONDecodeError) as exc:
         return {}, f"receipt could not be read: {exc}"
-    if not isinstance(payload, dict) or payload.get("schema_version") != SCHEMA_VERSION:
-        return {}, "receipt schema_version is not pr-readiness/v1"
+    schema_error = validate_receipt_schema(payload)
+    if schema_error:
+        return {}, schema_error
+    if args.remote != TRUSTED_REMOTE:
+        return {}, f"receipt checks require the trusted {TRUSTED_REMOTE} remote"
+    if payload.get("status") != "pass":
+        return {}, f"receipt status is {payload.get('status')!r}"
     root = resolve_root(args.repo_root)
     branch, head_sha, inferred_base, _git_dir, _common = current_worktree(root)
     base_branch = args.base or inferred_base
@@ -3680,10 +3851,6 @@ def validate_receipt(path: Path, args: argparse.Namespace) -> tuple[dict[str, An
     )
     if target_error:
         return {}, target_error
-    if payload.get("status") != "pass":
-        return {}, f"receipt status is {payload.get('status')!r}"
-    if args.phase == "review_inspection" and payload.get("authority") != review_inspection_authority():
-        return {}, "inspection receipt authority is malformed"
     age = datetime.now(UTC).timestamp() - path.stat().st_mtime
     if age > args.max_receipt_age:
         return {}, f"receipt is older than {args.max_receipt_age} seconds"
@@ -3695,9 +3862,8 @@ def validate_receipt(path: Path, args: argparse.Namespace) -> tuple[dict[str, An
     boundary = worktree_lane(root)
     if boundary["status"] != "pass":
         return {}, "current checkout is no longer a registered worktree"
-    remote = str(receipt_repo.get("remote") or args.remote)
-    remote_base = remote_sha(root, remote, base_branch)
-    remote_head = remote_sha(root, remote, branch)
+    remote_base = hosted_remote_sha(root, slug, base_branch)
+    remote_head = hosted_remote_sha(root, slug, branch)
     if remote_base != receipt_repo.get("remote_base_sha") or remote_head != receipt_repo.get("remote_head_sha"):
         return {}, "remote ancestry changed after the receipt was written"
     scope_details = payload.get("lanes", {}).get("scope", {}).get("details", {})
@@ -3739,7 +3905,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--phase", choices=PHASES, required=True)
     parser.add_argument("--repo-root", type=Path)
     parser.add_argument("--base")
-    parser.add_argument("--remote", default="origin")
+    parser.add_argument("--remote", choices=(TRUSTED_REMOTE,), default=TRUSTED_REMOTE)
     parser.add_argument("--scope-file", type=Path)
     parser.add_argument("--review-waiver-file", type=Path)
     parser.add_argument("--export-review-clearance", action="store_true",

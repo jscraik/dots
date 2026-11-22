@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import hashlib
 import importlib.util
 import json
 import os
@@ -2195,12 +2196,129 @@ class PrReadinessTests(unittest.TestCase):
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
 
         self.assertIn("review_reconciliation", schema["properties"]["phase"]["enum"])
+        self.assertIn("receipt", schema["required"])
+        self.assertEqual(
+            schema["properties"]["repo"]["properties"]["remote"],
+            {"const": "origin"},
+        )
         authority = schema["properties"]["authority"]["properties"]
         self.assertEqual(
             authority["allowed_mutations"]["enum"],
             [["review_thread_reply", "review_thread_resolve"], ["review_request_comment"]],
         )
         self.assertFalse(authority["acceptance_claims_proven"]["const"])
+
+    def test_receipt_schema_rejects_untrusted_remote_before_commands(self) -> None:
+        head = "a" * 40
+        digest = hashlib.sha256(b"\n").hexdigest()
+        payload = {
+            "schema_version": MODULE.SCHEMA_VERSION,
+            "status": "pass",
+            "phase": "update",
+            "checked_at": "2026-11-22T17:00:00Z",
+            "repo": {
+                "root": "/fixture/repository",
+                "branch": "candidate",
+                "head_sha": head,
+                "base_branch": "main",
+                "base_sha": head,
+                "remote": "origin",
+                "remote_base_sha": head,
+                "remote_head_sha": head,
+            },
+            "lanes": {
+                name: {"status": "pass", "evidence": f"{name} passed"}
+                for name in MODULE.RECEIPT_LANES
+            },
+            "blockers": [],
+            "evidence_refs": [f"head:{head}"],
+            "receipt": {"path": ".tmp/pr-readiness.v1.json", "scope_digest": digest},
+        }
+        payload["lanes"]["scope"]["details"] = {"declared_paths": []}
+
+        self.assertIsNone(MODULE.validate_receipt_schema(payload))
+        for remote in (
+            "--upload-pack=./payload",
+            "ext::./payload %S",
+            "helper::payload",
+            "upstream",
+            "origin\n--upload-pack=./payload",
+        ):
+            with self.subTest(remote=remote):
+                payload["repo"]["remote"] = remote
+                self.assertEqual(
+                    MODULE.validate_receipt_schema(payload),
+                    "receipt repository remote must be origin",
+                )
+        payload["repo"]["remote"] = "--upload-pack=./payload"
+        args = MODULE.argparse.Namespace(repo_root=Path.cwd(), remote="origin")
+        with (
+            patch.object(
+                MODULE._scope,
+                "policy_repository_read",
+                return_value=json.dumps(payload).encode(),
+            ),
+            patch.object(MODULE, "resolve_root") as resolve_root,
+            patch.object(MODULE, "hosted_remote_sha") as hosted_remote_sha,
+        ):
+            _receipt, error = MODULE.validate_receipt(Path("receipt.json"), args)
+        self.assertEqual(error, "receipt repository remote must be origin")
+        resolve_root.assert_not_called()
+        hosted_remote_sha.assert_not_called()
+
+        payload["repo"]["remote"] = "origin"
+        payload["unexpected"] = True
+        self.assertEqual(
+            MODULE.validate_receipt_schema(payload),
+            "receipt must contain exactly the required fields",
+        )
+
+    def test_remote_probe_accepts_only_origin_and_uses_hosted_api(self) -> None:
+        head = "a" * 40
+        with (
+            patch.object(
+                MODULE, "repository_slug", return_value=("example/repository", None)
+            ) as repository_slug,
+            patch.object(MODULE, "hosted_remote_sha", return_value=head) as hosted,
+        ):
+            self.assertEqual(MODULE.remote_sha(Path.cwd(), "origin", "main"), head)
+            self.assertIsNone(
+                MODULE.remote_sha(Path.cwd(), "--upload-pack=./payload", "main")
+            )
+
+        repository_slug.assert_called_once_with(Path.cwd())
+        hosted.assert_called_once_with(
+            Path.cwd(), "example/repository", "main"
+        )
+
+    def test_receipt_remote_recheck_uses_exact_hosted_branch(self) -> None:
+        head = "a" * 40
+        completed = subprocess.CompletedProcess(
+            [],
+            0,
+            json.dumps({
+                "ref": "refs/heads/candidate/topic",
+                "object": {"type": "commit", "sha": head},
+            }),
+            "",
+        )
+        with patch.object(MODULE, "run_command", return_value=completed) as run:
+            self.assertEqual(
+                MODULE.hosted_remote_sha(
+                    Path.cwd(), "example/repository", "candidate/topic"
+                ),
+                head,
+            )
+
+        run.assert_called_once_with(
+            [
+                "gh",
+                "api",
+                "repos/example/repository/git/ref/heads/candidate%2Ftopic",
+            ],
+            Path.cwd(),
+            check=False,
+        )
 
     def test_scope_digest_is_order_independent_and_repository_relative(self) -> None:
         with tempfile.TemporaryDirectory(prefix="pr-scope-") as tmpdir:
