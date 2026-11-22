@@ -232,7 +232,7 @@
         "Keep parse-error fallback; unexpected parser exceptions stop before publication. Clear Ruff diagnostics without changing file modes.",
         "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
       ],
-      "candidate_sha256": "c30800f309a611e80c155fedc13a296dcff6de9bc3b10f2e73da918d82ca4bd2"
+      "candidate_sha256": "9e4e1070c6efa2ef9d1bba897b368264186c68712e3b8d533425d8b33b553362"
     },
     {
       "path": "codex/scripts/audit-project-codex-config-overrides.sh",

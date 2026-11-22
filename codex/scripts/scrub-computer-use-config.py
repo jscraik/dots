@@ -9,6 +9,7 @@ require_policy_scope()
 import argparse  # noqa: E402
 import importlib.util  # noqa: E402
 import json  # noqa: E402
+import os  # noqa: E402
 import tomllib  # noqa: E402
 from pathlib import Path  # noqa: E402
 
@@ -136,7 +137,9 @@ def main() -> int:
             desktop = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(desktop)
             state = Path(deployment.context()['state_dir'])
-            pending = any(state.glob('desktop-review*.json'))
+            with os.scandir(state) as entries:
+                pending = any(entry.name.startswith('desktop-review') and entry.name.endswith('.json')
+                              for entry in entries)
             if desktop.requires_preservation(parsed) or pending:
                 raise ValueError('Packaged Desktop registration requires preservation review')
         scrubbed, removed = scrub_forbidden_notify(original)

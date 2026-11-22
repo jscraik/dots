@@ -314,14 +314,17 @@ def renameable_directories(state, *paths):
             raise error
 
 
-def retire_created_target(target, state, expected):
+def retire_created_target(target, state, expected, *, before_move=None):
     """Retain newly installed resources rather than recursively delete in place."""
     recovery = Path(tempfile.mkdtemp(prefix='.restore-created-', dir=state))
     displaced = recovery / target.name
+    if before_move is not None:
+        before_move(displaced)
     with renameable_directories(state, target, displaced):
         os.rename(target, displaced)
     if describe(displaced) != expected:
         raise ValueError('Concurrent replacement preserved in private recovery directory')
+    return displaced
 
 
 def install_absent(staged, target):
@@ -1350,23 +1353,34 @@ def load_plan(state, digest, *, verified_context=None, package_root=None):
     return plan
 
 
+def validate_recovery_metadata(result, state, plan):
+    """Validate output-only recovery locations; never select an action from them."""
+    for field, parent, directory_pattern, file_pattern in (
+        ('retained_generation_path', Path(plan['home']) / '.codex',
+         r'\.config\.toml\.recovery-[A-Za-z0-9_-]+', r'generation-[A-Za-z0-9_-]+\.toml'),
+        ('rollback_retained_generation_path', state, r'\.restore-[A-Za-z0-9_-]+', r'config\.toml'),
+    ):
+        if field not in result:
+            continue
+        raw = result[field]
+        if not isinstance(raw, str):
+            raise ValueError('Invalid retained generation path')
+        path = Path(raw)
+        if (not path.is_absolute() or '..' in path.parts or path.parent.parent != parent
+                or not re.fullmatch(directory_pattern, path.parent.name)
+                or not re.fullmatch(file_pattern, path.name)):
+            raise ValueError('Invalid retained generation path')
+
+
 def load_result(state, plan):
     result = read_json(state / 'result.json')
     fields = {'status', 'after'}
-    if (not isinstance(result, dict) or set(result) not in (fields, fields | {'retained_generation_path'})
+    optional = {'retained_generation_path', 'rollback_retained_generation_path'}
+    if (not isinstance(result, dict) or not fields <= set(result) or set(result) - fields - optional
             or not isinstance(result['after'], dict)
             or result['status'] not in {'prepared', 'applying', 'failed', 'applied', 'restoring', 'rolled_back'}):
         raise ValueError('Invalid installation result')
-    if 'retained_generation_path' in result:
-        retained = result['retained_generation_path']
-        if not isinstance(retained, str):
-            raise ValueError('Invalid retained generation path')
-        path = Path(retained)
-        if (not path.is_absolute() or '..' in path.parts
-                or path.parent.parent != Path(plan['home']) / '.codex'
-                or not re.fullmatch(r'\.config\.toml\.recovery-[A-Za-z0-9_-]+', path.parent.name)
-                or not re.fullmatch(r'generation-[A-Za-z0-9_-]+\.toml', path.name)):
-            raise ValueError('Invalid retained generation path')
+    validate_recovery_metadata(result, state, plan)
     complete = result['status'] in {'applied', 'restoring', 'rolled_back'}
     if set(result['after']) != (set(plan['before']) if complete else set()):
         raise ValueError('Incomplete installation result')
@@ -1506,9 +1520,14 @@ def apply(state, digest):
             repair._validate_runtime_snapshot(validation_text)
             verify_hook_toolchain(plan)
             if original != merged.encode():
+                def record_exchange_slot(path):
+                    save(state / 'result.json', dict(applying_result,
+                        retained_generation_path=str(path)))
+
                 try:
                     retained_generation = repair._write_repair(target, merged, expected=original,
-                        unchanged=((ROOT / 'codex/config.toml', canonical),))
+                        unchanged=((ROOT / 'codex/config.toml', canonical),),
+                        before_exchange=record_exchange_slot)
                 except repair.RepairPublicationError as exc:
                     retained_generation = exc.recovery_path
                     raise
@@ -1610,6 +1629,8 @@ def restore_selected(state, digest, review_digest=None):
                 result = load_desktop_result(result_path, plan)
             else:
                 result = {'status': 'applied', 'after': after}
+        recovery_metadata = {key: result[key] for key in (
+            'retained_generation_path', 'rollback_retained_generation_path') if key in result}
         if result['status'] == 'prepared':
             observed = {name: describe(runtime / name) for name in plan['before']}
             if observed != prepared_before:
@@ -1631,7 +1652,7 @@ def restore_selected(state, digest, review_digest=None):
             if semantic(current[name]) != semantic(before) and semantic(current[name]) != semantic(observed[name]):
                 raise ValueError('Newer managed state detected; backup retained')
         observed = current  # Bind exchanges to this verified generation, including prior rollback copies.
-        save(result_path, {'status': 'restoring', 'after': observed})
+        save(result_path, {'status': 'restoring', 'after': observed, **recovery_metadata})
         repair = module('restoration_exchange', ROOT / 'codex/scripts/repair-runtime-config-drift.py')
         for name, before in reversed(list(plan['before'].items())):
             target = runtime / name
@@ -1641,7 +1662,13 @@ def restore_selected(state, digest, review_digest=None):
             if actual != observed[name]:
                 raise ValueError('Target changed during restoration')
             if before['kind'] == 'absent':
-                retire_created_target(target, state, observed[name])
+                if name == 'config.toml':
+                    def record_retired_config(path):
+                        recovery_metadata['rollback_retained_generation_path'] = str(path)
+                        save(result_path, {'status': 'restoring', 'after': observed, **recovery_metadata})
+                    retire_created_target(target, state, observed[name], before_move=record_retired_config)
+                else:
+                    retire_created_target(target, state, observed[name])
                 continue
             if name == 'usage-data' and usage_repair is not None:
                 if SCOPE.usage_directory_pair(Path(plan['home']), usage_repair) != 'migrated':
@@ -1666,26 +1693,32 @@ def restore_selected(state, digest, review_digest=None):
                     raise ValueError('Managed directory backup changed')
             else:
                 raise ValueError('Runtime directories are never replaced')
+            retain_config = name == 'config.toml' and actual['kind'] == 'file'
+            if retain_config:
+                recovery_metadata['rollback_retained_generation_path'] = str(staged)
+                save(result_path, {'status': 'restoring', 'after': observed, **recovery_metadata})
             with renameable_directories(state, staged, target):
                 repair._exchange_paths(staged, target)
             if describe(staged) != observed[name]:
                 raise ValueError('Concurrent replacement preserved in private recovery file')
-            if actual['kind'] != 'directory':
+            if actual['kind'] != 'directory' and not retain_config:
                 remove_resource(staged)
                 staging.rmdir()
         if any(semantic(describe(runtime / name)) != semantic(before) for name, before in plan['before'].items()):
             raise ValueError('Restoration readback failed')
         save(result_path, {'status': 'rolled_back', 'after': {
-            name: describe(runtime / name) for name in plan['before']}})
-    return {'schema_version': 1, 'status': 'rolled_back', 'plan_digest': digest}
+            name: describe(runtime / name) for name in plan['before']}, **recovery_metadata})
+    return {'schema_version': 1, 'status': 'rolled_back', 'plan_digest': digest, **recovery_metadata}
 
 
 def load_desktop_result(path, plan):
     result = read_json(path)
-    if (not isinstance(result, dict) or set(result) != {'status', 'after'}
+    fields = {'status', 'after'}
+    if (not isinstance(result, dict) or set(result) not in (fields, fields | {'rollback_retained_generation_path'})
             or result['status'] not in {'restoring', 'rolled_back'}
             or not isinstance(result['after'], dict) or set(result['after']) != set(plan['before'])):
         raise ValueError('Invalid Desktop recovery receipt')
+    validate_recovery_metadata(result, path.parent, plan)
     for name, row in result['after'].items():
         if (semantic(row) != semantic(plan['before'][name])
                 and (result['status'] != 'restoring' or semantic(row) != plan['expected'][name])):

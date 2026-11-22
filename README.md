@@ -802,6 +802,18 @@ preserves recoverable data but cannot guarantee that every concurrent save
 remains active. Stop native writers before retrying repair or recovering a
 selected generation. Passing readback describes the observed generation only.
 
+Applying and restoring records name the generated recovery slot before an
+exchange is attempted. An interrupted slot can contain either staged candidate
+bytes or the displaced configuration; inspect it before choosing recovery.
+Once a config generation is displaced, retries that skip publication preserve
+its recorded `retained_generation_path`. A never-published inspection candidate
+may be superseded by a newly allocated slot on retry; neither recorded slot
+proves that an exchange occurred. Rollback reports
+`rollback_retained_generation_path` for the config parked in the private
+installation state directory. These fields are
+observational locations and grant no recovery authority. This bookkeeping is
+tested for process interruption; power-loss durability has not been verified.
+
 Browser/pet assets, external adapters and live cutover remain separate migration
 surfaces. Passing this generated-policy integration does not retire Configs
 checks or prove that those remaining surfaces have been migrated.

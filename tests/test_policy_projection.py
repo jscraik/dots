@@ -360,6 +360,65 @@ raise SystemExit(module.main(["--config-path",sys.argv[2],"--repair","--json"]))
         self.assertEqual(retained.read_bytes(), original)
         self.assertIn('# save after publication', runtime.read_text())
 
+    def test_interruption_after_recording_slot_keeps_staged_candidate(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        child = '''import importlib.util,sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]).parent))
+spec = importlib.util.spec_from_file_location("journal_interrupt", sys.argv[1])
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+target = Path(sys.argv[2]); target.write_bytes(b"original\\n")
+recorded = []
+def record_then_interrupt(slot):
+    recorded.append(slot)
+    raise KeyboardInterrupt("synthetic interruption after recording slot")
+try:
+    module._write_repair(target, "repair\\n", expected=b"original\\n", before_exchange=record_then_interrupt)
+except module.RepairPublicationError as error:
+    assert recorded == [error.recovery_path]
+    assert error.recovery_path.read_bytes() == b"repair\\n"
+else:
+    raise AssertionError("interrupted publication reported success")
+assert target.read_bytes() == b"original\\n"
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/repair-runtime-config-drift.py'),
+            str(fixture.runtime / 'journal-interrupt.toml')], env=fixture.env,
+            cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_exception_after_exchange_keeps_the_displaced_inode_named(self):
+        fixture = self.fixture
+        self.success(fixture.project())
+        child = '''import importlib.util,os,sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]).parent))
+spec = importlib.util.spec_from_file_location("exchange_interrupt", sys.argv[1])
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+target = Path(sys.argv[2]); target.write_bytes(b"original\\n")
+writer = os.open(target, os.O_WRONLY | os.O_APPEND)
+exchange = module._exchange_paths
+def interrupted(first, second):
+    exchange(first, second)
+    raise KeyboardInterrupt("synthetic interruption after successful syscall")
+module._exchange_paths = interrupted
+try:
+    module._write_repair(target, "repair\\n", expected=b"original\\n")
+except module.RepairPublicationError as error:
+    retained = error.recovery_path
+else:
+    raise AssertionError("interrupted publication reported success")
+os.write(writer, b"late native save\\n"); os.close(writer)
+assert retained.read_bytes() == b"original\\nlate native save\\n"
+assert target.read_bytes() == b"repair\\n"
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/repair-runtime-config-drift.py'),
+            str(fixture.runtime / 'interrupted-exchange.toml')], env=fixture.env,
+            cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_open_native_writers_keep_named_generations_after_publication(self):
         fixture = self.fixture
         self.success(fixture.project())

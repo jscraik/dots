@@ -200,7 +200,7 @@ class InstallationRouteTests(unittest.TestCase):
         self.success(self.operation('check', digest))
         self.success(self.operation('rollback', digest))
         self.assertFalse(marker.exists(), 'bootstrap executed a PATH-selected Python shim')
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
 
     def test_selected_interpreter_with_spaces_does_not_shadow_other_tools(self):
         self.require_operator_toolchain()
@@ -423,6 +423,13 @@ class InstallationRouteTests(unittest.TestCase):
             'CODEX_VALIDATION_PYTHON': sys.executable,
         }
 
+    def test_snapshot_detects_new_retained_generation(self):
+        before = self.snapshot()
+        directory = self.runtime / '.config.toml.recovery-synthetic'
+        directory.mkdir(mode=0o700)
+        (directory / 'generation-fixture.toml').write_bytes(b'fixture recovery generation')
+        self.assertNotEqual(self.snapshot(), before)
+
     def snapshot(self):
         result = {}
         for path in self.runtime.iterdir():
@@ -436,6 +443,7 @@ class InstallationRouteTests(unittest.TestCase):
                 self.assertTrue(generations[0].name.startswith('generation-'))
                 self.assertFalse(generations[0].is_symlink())
                 self.assertTrue(generations[0].is_file())
+                result[path.name] = ('retained_generation', generations[0].name, generations[0].read_bytes())
                 continue
             if path.is_symlink():
                 result[path.name] = ('link', str(path.readlink()))
@@ -449,6 +457,17 @@ class InstallationRouteTests(unittest.TestCase):
                 else:
                     result[path.name] = ('directory',)
         return result
+
+    def assert_restored_snapshot(self, expected):
+        """Managed rollback preserves caller state and adds recovery material."""
+        observed = self.snapshot()  # Validate and capture recovery entries too.
+        for name, value in expected.items():
+            if value[0] == 'retained_generation':
+                self.assertEqual(observed.get(name), value, 'Existing recovery material changed during rollback')
+        def caller_state(snapshot):
+            return {name: value for name, value in snapshot.items()
+                    if value[0] != 'retained_generation'}
+        self.assertEqual(caller_state(observed), caller_state(expected))
 
     def success(self, result):
         details = ''.join(path.read_text() for path in self.state.glob('*diagnostic.json')) if result.returncode else ''
@@ -601,6 +620,36 @@ class InstallationRouteTests(unittest.TestCase):
             self.assertEqual(config.read_bytes(), before)
             pending.unlink()
 
+    def test_proposal_scan_errors_block_both_repair_helpers(self):
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        config = self.runtime / 'config.toml'
+        before = config.read_bytes()
+        child = '''import importlib.util,os,sys
+from pathlib import Path
+script = Path(sys.argv[1]); sys.path.insert(0, str(script.parent))
+spec = importlib.util.spec_from_file_location("blocked_scan", script)
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+scan = os.scandir
+blocked_state = Path(sys.argv[3])
+def denied(path):
+    if Path(path) == blocked_state:
+        raise PermissionError("synthetic unreadable proposal directory")
+    return scan(path)
+os.scandir = denied
+sys.argv = [str(script), "--config-path", sys.argv[2], "--repair", "--json"]
+raise SystemExit(module.main())
+'''
+        for name in ('repair-runtime-config-drift.py', 'scrub-computer-use-config.py'):
+            with self.subTest(helper=name):
+                result = subprocess.run([sys.executable, '-B', '-c', child,
+                    str(self.payload / 'codex/scripts' / name), str(config), str(self.state)],
+                    cwd=self.payload, env=self.installed_env(), capture_output=True,
+                    text=True, timeout=30, check=False)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(json.loads(result.stdout)['status'], 'blocked')
+                self.assertEqual(config.read_bytes(), before)
+
     def test_oversized_desktop_review_leaves_no_proposal_and_can_retry(self):
         path = self.runtime / 'config.toml'
         path.unlink()
@@ -627,6 +676,58 @@ class InstallationRouteTests(unittest.TestCase):
         restored = tomllib.loads((self.runtime / 'config.toml').read_text())
         self.assertEqual(set(restored), {'hooks'})
         self.assertFalse((self.state / 'backups/config.toml').exists())
+
+    def test_absent_baseline_rollback_records_open_writer_generation(self):
+        config = self.runtime / 'config.toml'
+        config.unlink()
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        installed = config.read_bytes()
+        with config.open('ab') as writer:
+            rolled = self.success(self.operation('rollback', digest))
+            retained = Path(rolled['rollback_retained_generation_path'])
+            self.assertEqual(retained.read_bytes(), installed)
+            writer.write(b'\n# late absent-baseline writer\n')
+            writer.flush()
+        self.assertFalse(config.exists())
+        self.assertTrue(retained.read_bytes().endswith(b'# late absent-baseline writer\n'))
+        repeated = self.success(self.operation('rollback', digest))
+        self.assertEqual(repeated['rollback_retained_generation_path'], str(retained))
+        self.assertFalse(config.exists())
+
+    def test_preserving_rollback_retains_open_native_writer_and_retry_path(self):
+        config = self.runtime / 'config.toml'
+        config.unlink()
+        digest = self.success(self.prepare())['plan_digest']
+        self.success(self.operation('apply', digest))
+        data = tomllib.loads(config.read_text())
+        key = 'user:' + str(self.runtime / 'hooks.json') + ':pre_tool_use:0:0'
+        data['hooks'] = {'state': {key: {'trusted_hash': 'sha256:' + 'a' * 64}}}
+        config.write_text(GEN.toml_document(data))
+        observed = config.read_bytes()
+        pin = self.success(self.operation('prepare-desktop-review', digest))['review_sha256']
+        arguments = ('rollback', '--state-dir', self.state, '--plan-digest', digest,
+                     '--desktop-review-sha256', pin)
+        with config.open('ab') as writer:
+            rolled = self.success(self.run_cli(*arguments))
+            retained = Path(rolled['rollback_retained_generation_path'])
+            self.assertEqual(retained.read_bytes(), observed)
+            writer.write(b'\n# late native rollback writer\n')
+            writer.flush()
+        self.assertTrue(retained.read_bytes().endswith(b'# late native rollback writer\n'))
+        self.assertEqual(set(tomllib.loads(config.read_text())), {'hooks'})
+        receipt = self.state / ('desktop-' + pin + '-result.json')
+        saved = receipt.read_bytes()
+        invalid = json.loads(saved)
+        invalid['rollback_retained_generation_path'] = str(self.home / 'outside.toml')
+        receipt.write_text(json.dumps(invalid))
+        current = config.read_bytes()
+        self.assertNotEqual(self.run_cli(*arguments).returncode, 0)
+        self.assertEqual(config.read_bytes(), current)
+        receipt.write_bytes(saved)
+        retried = self.success(self.run_cli(*arguments))
+        self.assertEqual(retried['rollback_retained_generation_path'], str(retained))
+        self.assertEqual(config.read_bytes(), current)
 
     def test_absent_config_review_rejects_empty_and_non_consent_deltas(self):
         path = self.runtime / 'config.toml'
@@ -1090,7 +1191,7 @@ class InstallationRouteTests(unittest.TestCase):
             self.assertEqual(actual, decision)
         rolled = self.success(self.run_cli('rollback', '--state-dir', self.state, '--plan-digest', digest))
         self.assertEqual(rolled['status'], 'rolled_back')
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
         self.success(self.run_cli('rollback', '--state-dir', self.state, '--plan-digest', digest))
 
     def second_installation(self):
@@ -1359,7 +1460,7 @@ with installer.renameable_directories(state, staged, target):
                 self.assertFalse(marker.exists())
                 self.assertFalse(list((self.runtime / 'scripts').rglob('*.pyc')))
         self.success(self.operation('rollback', digest))
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
 
     def test_reviewed_desktop_update_preserves_accepted_state_and_rollback(self):
         first_digest = self.success(self.prepare())['plan_digest']
@@ -1404,7 +1505,7 @@ with installer.renameable_directories(state, staged, target):
         self.assertEqual(config.read_bytes(), newer)
         config.write_bytes(accepted)
         self.success(self.operation('rollback', digest))
-        self.assertEqual(self.snapshot(), observed)
+        self.assert_restored_snapshot(observed)
         self.success(self.run_cli('check', '--state-dir', first_state,
             '--plan-digest', first_digest, '--desktop-review-sha256', pin))
 
@@ -1499,7 +1600,7 @@ with installer.renameable_directories(state, staged, target):
         config.write_bytes(reformatted)
         self.success(self.run_cli('rollback', '--state-dir', self.state, '--plan-digest', digest,
                                  '--desktop-review-sha256', review))
-        self.assertEqual(self.snapshot(), previous)
+        self.assert_restored_snapshot(previous)
 
     def formatting_review_args(self, digest):
         import hashlib
@@ -1868,7 +1969,7 @@ with installer.renameable_directories(state, staged, target):
         for project in projects:
             self.assertEqual(actual['projects'][project], selected['projects'][project])
         self.success(self.operation('rollback', digest))
-        self.assertEqual(self.snapshot(), before)
+        self.assert_restored_snapshot(before)
         old_check = subprocess.run([sys.executable, '-B', str(previous_payload / 'scripts/install-codex.py'),
             'check', '--state-dir', str(previous_state), '--plan-digest', previous_digest],
             cwd=previous_payload, env=self.env | {'CODEX_CONFIG_SOURCE_ROOT': str(previous_payload / 'codex')},
@@ -2061,7 +2162,7 @@ with installer.renameable_directories(state, staged, target):
         self.assertEqual(config['projects'][str(self.home / 'Documents/Codex/another-workspace')], {'trust_level': 'trusted'})
         self.assertTrue(all(value.get('enabled') is False for value in config['hooks']['state'].values()))
         self.success(self.packaged_operation('rollback', digest))
-        self.assertEqual(self.snapshot(), before)
+        self.assert_restored_snapshot(before)
 
     def test_unselected_additional_project_still_blocks_migration(self):
         with self.assertRaisesRegex(AssertionError, 'Desktop delta contains an unreviewable policy change'):
@@ -2071,7 +2172,7 @@ with installer.renameable_directories(state, staged, target):
     def test_usage_policy_update_cancel_preserves_nonempty_logs(self):
         digest, before, repair_state = self.prepare_usage_policy_update()
         self.success(self.packaged_operation('rollback', digest))
-        self.assertEqual(self.snapshot(), before)
+        self.assert_restored_snapshot(before)
         self.assertEqual((repair_state / 'usage-data/new-log').read_text(), 'retained after rollback')
         self.success(self.packaged_operation('rollback', digest))
 
@@ -2091,7 +2192,7 @@ with installer.renameable_directories(state, staged, target):
         expected = json.loads((self.state / 'plan.json').read_text())['expected']['config.toml']
         self.assertEqual(hashlib.sha256(config.read_bytes()).hexdigest(), expected['sha256'])
         self.success(self.packaged_operation('rollback', digest))
-        self.assertEqual(self.snapshot(), before)
+        self.assert_restored_snapshot(before)
         self.assertEqual((repair_state / 'usage-data/new-log').read_text(), 'retained after rollback')
 
     def test_usage_policy_update_applied_rollback_is_replayable(self):
@@ -2100,7 +2201,7 @@ with installer.renameable_directories(state, staged, target):
         self.success(self.operation('check', digest))
         applied = json.loads((self.state / 'result.json').read_text())
         self.success(self.packaged_operation('rollback', digest))
-        self.assertEqual(self.snapshot(), before)
+        self.assert_restored_snapshot(before)
         self.assertEqual((repair_state / 'usage-data/new-log').read_text(), 'retained after rollback')
         # Crash after the inverse exchange but before the final journal write:
         # the prior restoring snapshot still describes the applied generation.
@@ -2250,10 +2351,10 @@ with installer.renameable_directories(state, staged, target):
         self.assertNotEqual((self.runtime / 'config.toml').read_bytes(), first_snapshot['config.toml'][1])
         self.assertEqual((self.runtime / 'scripts').is_symlink(), False)
         self.success(self.operation('rollback', digest))
-        self.assertEqual(self.snapshot(), first_snapshot)
+        self.assert_restored_snapshot(first_snapshot)
         self.success(self.run_cli('check', '--state-dir', first_state, '--plan-digest', first_digest))
         self.success(self.run_cli('rollback', '--state-dir', first_state, '--plan-digest', first_digest))
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
 
     def test_update_stops_on_directory_drift_and_keeps_private_state(self):
         digest = self.success(self.prepare())['plan_digest']
@@ -2289,7 +2390,7 @@ with installer.renameable_directories(state, staged, target):
             text=True, capture_output=True, timeout=120, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         moved.rename(self.fixture.repo)
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
 
     def test_copied_script_and_profile_hardlinks_are_rejected(self):
         digest = self.success(self.prepare())['plan_digest']
@@ -2573,7 +2674,7 @@ with installer.renameable_directories(state, staged, target):
         self.assertEqual(self.success(self.operation('apply', digest))['retained_generation_path'], str(retained))
         self.assertFalse(session_root.exists(), 'Installation must not create or copy sessions')
         self.success(self.operation('rollback', digest))
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
         self.assertEqual(retained.read_bytes(), original_config)
 
     def test_bound_session_storage_cannot_escape_rehearsal_home(self):
@@ -2606,7 +2707,7 @@ with installer.renameable_directories(state, staged, target):
             self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(sentinel.read_bytes(), b'local session must survive')
         self.success(self.operation('rollback', digest))
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
 
     def test_packaged_validator_discovers_its_source_without_environment_override(self):
         digest = self.success(self.prepare())['plan_digest']
@@ -2619,7 +2720,7 @@ with installer.renameable_directories(state, staged, target):
             timeout=20, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.success(self.operation('rollback', digest))
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
 
     def test_rollback_cancels_an_unapplied_plan(self):
         digest = self.success(self.prepare())['plan_digest']
@@ -2705,7 +2806,7 @@ except ValueError:
         result['status'] = 'restoring'
         result_path.write_text(json.dumps(result))
         self.success(self.operation('rollback', digest))
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
         self.assertEqual(stale_stage.read_bytes(), original, 'Prior recovery material must be retained')
         self.success(self.operation('rollback', digest))
 
@@ -2758,7 +2859,7 @@ except ValueError:
         self.success(self.operation('check', digest))
         self.success(self.operation('rollback', digest))
         self.assertFalse(marker.exists())
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
 
     def check_failed_apply_generation_retry(self, internal_failure):
         original = (self.runtime / 'config.toml').read_bytes()
@@ -2794,6 +2895,61 @@ except ValueError:
         self.assertEqual(self.success(self.operation('check', digest))['retained_generation_path'], str(retained))
         self.assertEqual(retained.read_bytes(), original)
 
+    def check_interrupted_apply_generation(self, after_exchange):
+        config = self.runtime / 'config.toml'
+        original = config.read_bytes()
+        digest = self.success(self.prepare())['plan_digest']
+        child = '''import importlib.util,os,sys
+from pathlib import Path
+script = Path(sys.argv[1]); sys.path.insert(0, str(script.parent))
+spec = importlib.util.spec_from_file_location("interrupted_install", script)
+installer = importlib.util.module_from_spec(spec); spec.loader.exec_module(installer)
+load_module = installer.module
+def injected_module(name, path):
+    loaded = load_module(name, path)
+    if name == "installation_repair":
+        exchange = loaded._exchange_paths
+        def stop_at_syscall(first, second):
+            if sys.argv[4] == "after":
+                exchange(first, second)
+            os._exit(73)
+        loaded._exchange_paths = stop_at_syscall
+    return loaded
+installer.module = injected_module
+installer.apply(Path(sys.argv[2]), sys.argv[3])
+'''
+        writer = os.open(config, os.O_WRONLY | os.O_APPEND)
+        try:
+            stopped = subprocess.run([sys.executable, '-B', '-c', child,
+                str(self.payload / 'codex/scripts/install-codex.py'), str(self.state), digest,
+                'after' if after_exchange else 'before'], env=self.installed_env(), cwd=self.payload,
+                capture_output=True, text=True, timeout=60, check=False)
+            self.assertEqual(stopped.returncode, 73, stopped.stdout + stopped.stderr)
+            interrupted = json.loads((self.state / 'result.json').read_text())
+            self.assertEqual(interrupted['status'], 'applying')
+            slot = Path(interrupted['retained_generation_path'])
+            self.assertTrue(slot.is_file())
+            if after_exchange:
+                self.assertEqual(slot.read_bytes(), original)
+            else:
+                self.assertEqual(config.read_bytes(), original)
+            retried = self.success(self.operation('apply', digest))
+            retained = Path(retried['retained_generation_path'])
+            if after_exchange:
+                self.assertEqual(retained, slot)
+            self.assertEqual(retained.read_bytes(), original)
+            os.write(writer, b'\n# late held native writer\n')
+            self.assertTrue(retained.read_bytes().endswith(b'# late held native writer\n'))
+            self.assertNotIn(b'# late held native writer', config.read_bytes())
+        finally:
+            os.close(writer)
+
+    def test_interruption_before_exchange_keeps_recoverable_slot(self):
+        self.check_interrupted_apply_generation(after_exchange=False)
+
+    def test_interruption_after_exchange_keeps_recoverable_slot(self):
+        self.check_interrupted_apply_generation(after_exchange=True)
+
     def test_failed_apply_keeps_generation_across_successful_retry(self):
         self.check_failed_apply_generation_retry(internal_failure=False)
 
@@ -2815,7 +2971,7 @@ except ValueError:
                 os.environ, self.installed_env(), clear=True), mock.patch.dict(sys.modules):
             sys.modules.pop('migration_scope', None)
             installer.restore(self.state, digest)
-        self.assertEqual(self.snapshot(), self.before)
+        self.assert_restored_snapshot(self.before)
 
     def test_rehearsal_refuses_credentials_and_nested_auth_alias(self):
         self.success(self.prepare())

@@ -20,6 +20,7 @@ import subprocess  # noqa: E402
 import sys  # noqa: E402
 import tempfile  # noqa: E402
 import tomllib  # noqa: E402
+from collections.abc import Callable  # noqa: E402
 from fnmatch import fnmatchcase  # noqa: E402
 from pathlib import Path  # noqa: E402
 
@@ -1256,14 +1257,14 @@ class RepairPublicationError(OSError):
         super().__init__(f'repair verification failed; recovery file remains at {recovery_path}')
 
 
-def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, unchanged: tuple[tuple[Path, bytes], ...]=()) -> Path | None:
+def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, unchanged: tuple[tuple[Path, bytes], ...]=(), before_exchange: Callable[[Path], None] | None=None) -> Path | None:
     if config_path.is_symlink():
         raise OSError(f'runtime config must be a regular file, not a symlink: {config_path}')
     repair_path = config_path
     recovery_dir = Path(tempfile.mkdtemp(prefix=f'.{repair_path.name}.recovery-', dir=repair_path.parent))
     fd, tmp_name = tempfile.mkstemp(prefix='generation-', suffix='.toml', dir=recovery_dir)
     tmp_path = Path(tmp_name)
-    exchanged = False
+    retain_slot = False
     try:
         os.fchmod(fd, 384)
         with os.fdopen(fd, 'w', encoding='utf-8') as handle:
@@ -1281,8 +1282,12 @@ def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, 
             tmp_path.unlink()
             recovery_dir.rmdir()
             return None
+        # A signal may arrive after the syscall succeeds but before it returns.
+        # Retain before handing the slot to durable bookkeeping as well.
+        retain_slot = True
+        if before_exchange is not None:
+            before_exchange(tmp_path)
         _exchange_paths(tmp_path, repair_path)
-        exchanged = True
         displaced = _repair_file_snapshot(tmp_path)
         if displaced[1] != expected:
             raise OSError('runtime config changed during reconciliation; retry from fresh state')
@@ -1296,7 +1301,7 @@ def _write_repair(config_path: Path, text: str, *, expected: bytes | None=None, 
         # Keep its name even on success; the private directory bounds access.
         return tmp_path
     except BaseException as exc:
-        if exchanged:
+        if retain_slot:
             # There is no conditional exchange primitive: compensation could
             # displace another native save after its last comparison. Leave
             # both generations named and require explicit recovery instead.
@@ -1461,7 +1466,14 @@ def main(argv: list[str] | None=None) -> int:
         desktop = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(desktop)
         state = Path(deployment.context()['state_dir'])
-        pending = any(state.glob('desktop-review*.json'))
+        try:
+            with os.scandir(state) as entries:
+                pending = any(entry.name.startswith('desktop-review') and entry.name.endswith('.json')
+                              for entry in entries)
+        except OSError as exc:
+            _emit(_payload(status='blocked', path=config_path,
+                reason='desktop_registration_scan_failed', error=str(exc)), args.json)
+            return 1
         if runtime is None or desktop.requires_preservation(runtime) or pending:
             _emit(_payload(status='blocked', path=config_path,
                 reason='desktop_registration_preservation_required',
