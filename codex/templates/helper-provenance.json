@@ -865,9 +865,10 @@
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
         "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection.",
         "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
-        "Exercise supersession close races and verify the blocked CLI result."
+        "Exercise supersession close races and verify the blocked CLI result.",
+        "Isolate the fsmonitor test from inherited Git repository overrides and verify the monitor can run."
       ],
-      "candidate_sha256": "f22d8b0bd54ed38a9f221bed2ddc74c402d31d32abca84f3610ffb10a86d2c79"
+      "candidate_sha256": "5d9ac37faa265191a442ff1c37ea0a46435a78e38e20be52c81d0d7c26a9c4e7"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",

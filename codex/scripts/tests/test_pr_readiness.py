@@ -90,17 +90,25 @@ class PrReadinessTests(unittest.TestCase):
     def test_dirty_probe_does_not_execute_repository_fsmonitor(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            git_env = {key: value for key, value in os.environ.items()
+                       if key not in {'GIT_DIR', 'GIT_COMMON_DIR'}}
+
             def git(*arguments):
                 return subprocess.run(['git', '-C', str(root), *arguments],
-                    check=True, capture_output=True, text=True)
+                    check=True, capture_output=True, text=True, env=git_env)
+
             git('init', '-q')
+            git('read-tree', '--empty')
             marker = root / 'should-not-run'
             provider = root / '.git/hostile-monitor'
             provider.write_text('#!/bin/sh\ntouch ' + shlex.quote(str(marker)) + '\n')
             provider.chmod(0o700)
             git('config', 'core.fsmonitor', str(provider))
-            self.assertEqual(MODULE.dirty_lane(root)['status'], 'pass')
+            with patch.dict(os.environ, git_env, clear=True):
+                self.assertEqual(MODULE.dirty_lane(root)['status'], 'pass')
             self.assertFalse(marker.exists())
+            git('status', '--porcelain=v1')
+            self.assertTrue(marker.exists())
 
     def test_context_only_branch_summary_fetches_authoritative_app_identities(self):
         base = 'b' * 40
