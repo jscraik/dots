@@ -168,10 +168,11 @@ EXPLICIT_SHA_BINDING_RE = re.compile(
 
 class LifecycleOutcomeUnverified(ValueError):
     """An observed hosted result does not match the authorised transition."""
-    def __init__(self, operation: str, observed: dict[str, Any]):
-        super().__init__('Lifecycle transition may have occurred; exact readback did not verify it; explicit recovery inspection is required')
+    def __init__(self, operation: str, observed: dict[str, Any] | None = None):
+        super().__init__('Lifecycle transition may have occurred; hosted evidence did not verify it; explicit recovery inspection is required')
         self.operation = operation
-        self.observed = {key: observed[key] for key in ('number', 'state', 'draft', 'head')}
+        self.observed = ({key: observed[key] for key in ('number', 'state', 'draft', 'head')}
+                         if observed is not None else None)
 
 
 class CommandFailure(RuntimeError):
@@ -4796,10 +4797,30 @@ def _lifecycle_execute(root: Path, args: argparse.Namespace, identity: Any) -> d
         if applied and (report := unreviewed_close(applied)):
             return report
 
-    after, _raw = _lifecycle_request(root, args.expected_repo, args.expected_pr)
+    ready_verified = False
+    if args.lifecycle == 'ready' and not response.returncode:
+        try:
+            payload = json.loads(response.stdout)
+            pull = payload['data']['markPullRequestReadyForReview']['pullRequest']
+            ready_verified = (not payload.get('errors')
+                              and pull['id'] == expected['node_id']
+                              and pull['headRefOid'] == expected['head']
+                              and pull['state'] == expected['state'].upper()
+                              and pull['isDraft'] is expected['draft'])
+        except (ValueError, TypeError, KeyError):
+            pass  # Still read back the current state before reporting uncertainty.
+
+    try:
+        after, _raw = _lifecycle_request(root, args.expected_repo, args.expected_pr)
+    except (ValueError, TypeError, KeyError, AttributeError) as exc:
+        if args.lifecycle == 'ready':
+            raise LifecycleOutcomeUnverified(args.lifecycle) from exc
+        raise
     if report := unreviewed_close(after):
         return report
-    if response.returncode or after != expected or (args.lifecycle == 'close' and applied != expected):
+    if (response.returncode or after != expected
+            or (args.lifecycle == 'close' and applied != expected)
+            or (args.lifecycle == 'ready' and not ready_verified)):
         raise LifecycleOutcomeUnverified(args.lifecycle, after)
     _scope.require_policy_repository_identity(root, identity)
     return {'schema_version': 'pr-lifecycle/v1', 'status': 'pass', 'operation': args.lifecycle,

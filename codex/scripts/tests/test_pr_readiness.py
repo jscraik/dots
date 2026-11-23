@@ -251,6 +251,48 @@ class PrReadinessTests(unittest.TestCase):
                        base={'ref': target['base'], 'sha': target['base_sha'], 'repo': {'full_name': 'o/r'}})
         return subprocess.CompletedProcess([], 0, json.dumps(payload), '')
 
+    def ready_response(self, target, *, fields=None, **extra):
+        pull_request = {'id': target['node_id'], 'headRefOid': target['head'],
+                        'state': target['state'].upper(), 'isDraft': target['draft']}
+        payload = {'data': {'markPullRequestReadyForReview': {'pullRequest': pull_request | (fields or {})}},
+                   **extra}
+        return subprocess.CompletedProcess([], 0, json.dumps(payload), '')
+
+    def test_ready_requires_matching_mutation_response_and_readback(self):
+        args, snapshot = self.lifecycle_data()
+        args.write_receipt, args.apply_lifecycle = False, True
+        receipt = {'schema_version': 'pr-lifecycle/v1', 'status': 'pass', 'operation': 'ready',
+                   'checked_at': MODULE.datetime.now(MODULE.UTC).isoformat(),
+                   'acceptance_claims_proven': False, 'snapshot': snapshot,
+                   'after': {'state': 'open', 'draft': False}}
+        ready = snapshot['target'] | receipt['after']
+        readback = self.lifecycle_response(ready)
+        mutation = self.ready_response(ready)
+        cases = {
+            'wrong node': (self.ready_response(ready, fields={'id': 'PR_other'}), readback),
+            'wrong head': (self.ready_response(ready, fields={'headRefOid': 'f' * 40}), readback),
+            'wrong state': (self.ready_response(ready, fields={'state': 'CLOSED'}), readback),
+            'still draft': (self.ready_response(ready, fields={'isDraft': True}), readback),
+            'non-boolean draft': (self.ready_response(ready, fields={'isDraft': 0}), readback),
+            'GraphQL errors': (self.ready_response(ready, errors=[{'message': 'fixture error'}]), readback),
+            'missing response fields': (subprocess.CompletedProcess([], 0, '{}', ''), readback),
+            'invalid JSON': (subprocess.CompletedProcess([], 0, '{', ''), readback),
+            'wrong readback': (mutation, self.lifecycle_response(ready | {'draft': True})),
+            'unavailable readback': (mutation, subprocess.CompletedProcess([], 1, '', '')),
+        }
+        for case, responses in cases.items():
+            with (
+                self.subTest(case=case),
+                patch.object(MODULE, '_lifecycle_snapshot', return_value=snapshot),
+                patch.object(MODULE._scope, 'require_policy_repository_path'),
+                patch.object(MODULE._scope, 'require_policy_repository_identity'),
+                patch.object(MODULE._scope, 'policy_repository_read', return_value=json.dumps(receipt).encode()),
+                patch.object(MODULE, 'run_command', side_effect=responses) as hosted,
+            ):
+                with self.assertRaises(MODULE.LifecycleOutcomeUnverified):
+                    MODULE._lifecycle_execute(Path('/fixture'), args, 'identity')
+                self.assertEqual(hosted.call_count, 2)
+
     def test_lifecycle_receipt_performs_only_its_exact_transition_without_clearance(self):
         for operation in ('close', 'ready', 'reopen'):
             args, snapshot = self.lifecycle_data(operation)
@@ -268,6 +310,8 @@ class PrReadinessTests(unittest.TestCase):
                 after = {**snapshot['target'], **receipt['after']}
                 if operation == 'close':
                     mutate.return_value = self.lifecycle_response(after)
+                elif operation == 'ready':
+                    mutate.return_value = self.ready_response(after)
                 with patch.object(MODULE._scope, 'policy_repository_read', return_value=json.dumps(receipt).encode()), \
                         patch.object(MODULE, '_lifecycle_request', return_value=(after, {})):
                     result = MODULE._lifecycle_execute(Path('/fixture'), args, 'identity')
@@ -339,6 +383,7 @@ class PrReadinessTests(unittest.TestCase):
                    'checked_at': checked.isoformat(), 'acceptance_claims_proven': False,
                    'snapshot': snapshot, 'after': {'state': 'open', 'draft': False}}
         args.write_receipt, args.apply_lifecycle = False, True
+        ready = {**snapshot['target'], 'draft': False}
         for final_age in (300, 301):
             with (
                 self.subTest(final_age=final_age),
@@ -347,8 +392,8 @@ class PrReadinessTests(unittest.TestCase):
                 patch.object(MODULE._scope, 'require_policy_repository_identity'),
                 patch.object(MODULE._scope, 'policy_repository_read', return_value=json.dumps(receipt).encode()),
                 patch.object(MODULE, 'datetime', wraps=MODULE.datetime) as clock,
-                patch.object(MODULE, 'run_command', return_value=subprocess.CompletedProcess([], 0, '{}', '')) as mutate,
-                patch.object(MODULE, '_lifecycle_request', return_value=({**snapshot['target'], 'draft': False}, {})),
+                patch.object(MODULE, 'run_command', return_value=self.ready_response(ready)) as mutate,
+                patch.object(MODULE, '_lifecycle_request', return_value=(ready, {})),
             ):
                 clock.now.side_effect = [checked + timedelta(seconds=299),
                                          checked + timedelta(seconds=final_age),

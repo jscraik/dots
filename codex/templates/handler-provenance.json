@@ -296,7 +296,7 @@
         "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance.",
         "Report a supersession close on a head outside the receipt using the mutation response or readback."
       ],
-      "candidate_sha256": "ce7ebca748c270b5aac3b48f8d5c40d92185a4c7f7c35bda56a5f260da28df6e"
+      "candidate_sha256": "0d6f7dadffc621a5bead6b3efa183e1e591f387564cbe95a14aa547343087efb"
     },
     {
       "path": "codex/scripts/pr_repair_ci.py",
