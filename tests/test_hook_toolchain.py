@@ -348,6 +348,43 @@ class HookToolchainTests(unittest.TestCase):
                 (prefix / 'current').symlink_to(replacement.name)
                 self.assertNotEqual(validator.identity(), identity)
 
+    def test_aikido_provider_requires_versioned_content_binding(self):
+        def load(name):
+            spec = importlib.util.spec_from_file_location(name, ROOT / ('codex/scripts/' + name + '.py'))
+            result = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(result)
+            return result
+        validator = load('validate-hook-toolchain')
+        publisher = load('install-hook-toolchain')
+        with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as directory:
+            prefix = Path(directory)
+            payload = prefix / 'staging'
+            (payload / 'bin').mkdir(parents=True)
+            for name in ('python3', 'jq', 'gh', 'aikido-mcp'):
+                path = payload / 'bin' / name
+                path.write_text('#!/bin/sh\nexit 0\n')
+                path.chmod(0o700)
+            receipt = payload / 'providers/aikido-mcp.json'
+            receipt.parent.mkdir()
+            executable = payload / 'bin/aikido-mcp'
+            record = {'schema_version': 1, 'package': '@aikidosec/mcp', 'version': '1.0.10',
+                      'executable_sha256': hashlib.sha256(executable.read_bytes()).hexdigest()}
+            receipt.write_text(json.dumps(record))
+            self.assertEqual(publisher.aikido_provider(payload), executable)
+            receipt.write_text(json.dumps(record | {'version': '1.0.9'}))
+            with self.assertRaisesRegex(ValueError, 'wrong version'):
+                publisher.aikido_provider(payload)
+            receipt.write_text(json.dumps(record))
+            digest = publisher.digest(publisher.inventory(payload))
+            payload = payload.rename(prefix / digest)
+            (prefix / 'current').symlink_to(payload.name)
+            with mock.patch.object(validator, 'PREFIX', prefix), \
+                    mock.patch.object(validator, 'protected', side_effect=lambda path: path.lstat()):
+                self.assertEqual(validator.runtime_aikido(), payload / 'bin/aikido-mcp')
+                (payload / 'bin/aikido-mcp').write_text('#!/bin/sh\nexit 1\n')
+                with self.assertRaisesRegex(ValueError, 'contents or selection changed'):
+                    validator.runtime_aikido()
+
     def test_missing_toolchain_blocks_policy_and_stop_retry_terminates(self):
         with tempfile.TemporaryDirectory(dir=Path('/tmp').resolve()) as directory:
             root = Path(directory)

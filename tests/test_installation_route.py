@@ -3066,6 +3066,13 @@ installer.apply(Path(sys.argv[2]), sys.argv[3])
                     scope.require_provider_input(path, 'onepassword', context)
             with self.assertRaises(ValueError):
                 scope.require_provider_input('/bin/sh', 'onepassword', context | {'mode': 'machine'})
+            protected = Path('/opt/dots-hook-tools') / ('a' * 64) / 'bin/aikido-mcp'
+            self.assertEqual(scope.require_provider_input(binary, 'aikido-binary', context), binary)
+            self.assertEqual(scope.require_provider_input(binary, 'aikido-binary',
+                context | {'mode': 'machine'}, _aikido_resolver=lambda: protected), protected)
+            with self.assertRaisesRegex(ValueError, 'overrides are not admitted'):
+                scope.require_provider_input('/bin/sh', 'aikido-binary',
+                    context | {'mode': 'machine'}, _aikido_resolver=lambda: protected)
             for output in (binary, reference):
                 with self.assertRaises(ValueError):
                     scope.require_path(output, output=True, data=context)
