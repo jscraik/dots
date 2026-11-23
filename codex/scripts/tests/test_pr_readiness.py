@@ -134,6 +134,7 @@ class PrReadinessTests(unittest.TestCase):
                 return subprocess.run(['git', '-C', str(root), *arguments],
                     check=True, capture_output=True, text=True, env=environment)
             git('init', '-q')
+            git('read-tree', '--empty')
             marker = root / 'should-not-run'
             provider = root / '.git/hostile-monitor'
             provider.write_text('#!/bin/sh\ntouch ' + shlex.quote(str(marker)) + '\n')
@@ -294,10 +295,11 @@ class PrReadinessTests(unittest.TestCase):
                        base={'ref': target['base'], 'sha': target['base_sha'], 'repo': {'full_name': 'o/r'}})
         return subprocess.CompletedProcess([], 0, json.dumps(payload), '')
 
-    def ready_response(self, target):
-        payload = {'data': {'markPullRequestReadyForReview': {'pullRequest': {
-            'id': target['node_id'], 'isDraft': target['draft'],
-            'state': target['state'].upper(), 'headRefOid': target['head']}}}}
+    def ready_response(self, target, *, fields=None, **extra):
+        pull_request = {'id': target['node_id'], 'headRefOid': target['head'],
+                        'state': target['state'].upper(), 'isDraft': target['draft']}
+        payload = {'data': {'markPullRequestReadyForReview': {'pullRequest': pull_request | (fields or {})}},
+                   **extra}
         return subprocess.CompletedProcess([], 0, json.dumps(payload), '')
 
     def test_ready_response_cannot_hide_changed_head_behind_readback(self):
@@ -5212,6 +5214,85 @@ class PrReadinessTests(unittest.TestCase):
             result = MODULE.reviews_lane(Path.cwd(), pr, head)
         self.assertEqual(result["status"], "fail")
         self.assertIn("provenance does not match", result["evidence"])
+
+    def test_ready_requires_matching_mutation_response_and_readback(self):
+        args, snapshot = self.lifecycle_data()
+        args.write_receipt, args.apply_lifecycle = False, True
+        receipt = {'schema_version': 'pr-lifecycle/v1', 'status': 'pass', 'operation': 'ready',
+                   'checked_at': MODULE.datetime.now(MODULE.UTC).isoformat(),
+                   'acceptance_claims_proven': False, 'snapshot': snapshot,
+                   'after': {'state': 'open', 'draft': False}}
+        ready = snapshot['target'] | receipt['after']
+        readback = self.lifecycle_response(ready)
+        mutation = self.ready_response(ready)
+        cases = {
+            'wrong node': (self.ready_response(ready, fields={'id': 'PR_other'}), readback),
+            'wrong head': (self.ready_response(ready, fields={'headRefOid': 'f' * 40}), readback),
+            'wrong state': (self.ready_response(ready, fields={'state': 'CLOSED'}), readback),
+            'still draft': (self.ready_response(ready, fields={'isDraft': True}), readback),
+            'non-boolean draft': (self.ready_response(ready, fields={'isDraft': 0}), readback),
+            'GraphQL errors': (self.ready_response(ready, errors=[{'message': 'fixture error'}]), readback),
+            'missing response fields': (subprocess.CompletedProcess([], 0, '{}', ''), readback),
+            'invalid JSON': (subprocess.CompletedProcess([], 0, '{', ''), readback),
+            'wrong readback': (mutation, self.lifecycle_response(ready | {'draft': True})),
+            'unavailable readback': (mutation, subprocess.CompletedProcess([], 1, '', '')),
+        }
+        for case, responses in cases.items():
+            with (
+                self.subTest(case=case),
+                patch.object(MODULE, '_lifecycle_snapshot', return_value=snapshot),
+                patch.object(MODULE._scope, 'require_policy_repository_path'),
+                patch.object(MODULE._scope, 'require_policy_repository_identity'),
+                patch.object(MODULE._scope, 'policy_repository_read', return_value=json.dumps(receipt).encode()),
+                patch.object(MODULE, 'run_command', side_effect=responses) as hosted,
+            ):
+                with self.assertRaises(MODULE.LifecycleOutcomeUnverified):
+                    MODULE._lifecycle_execute(Path('/fixture'), args, 'identity')
+                self.assertEqual(hosted.call_count, 2)
+
+
+    def test_write_receipt_preserves_scope_mismatch_and_rejects_unparsed_scope(self) -> None:
+        root = Path("/fixture")
+        head, base = "a" * 40, "b" * 40
+        receipt = root / "receipt.json"
+        for scope_args, scope_text, expected_exit in (
+            (["--scope-file", "scope.txt"], b"declared.py\n", 1),
+            (["--scope-file", "scope.txt"], b"/invalid.py\n", 2),
+            ([], b"", 2),
+        ):
+            with (
+                self.subTest(scope_args=scope_args, scope_text=scope_text),
+                patch("sys.argv", ["pr-readiness", "--phase", "create", "--write-receipt", *scope_args]),
+                patch("sys.stdout", new_callable=io.StringIO) as output,
+                patch.object(MODULE, "resolve_root", return_value=root),
+                patch.object(MODULE, "current_worktree", return_value=("candidate", head, "main", ".git", ".git")),
+                patch.object(MODULE, "git", return_value=base),
+                patch.object(MODULE, "remote_sha", side_effect=[base, head]),
+                patch.object(MODULE, "run_command", return_value=subprocess.CompletedProcess([], 0)),
+                patch.object(MODULE, "dirty_lane", return_value=MODULE.lane("pass", "clean")),
+                patch.object(MODULE, "worktree_lane", return_value=MODULE.lane("pass", "valid worktree")),
+                patch.object(MODULE, "changed_paths", return_value=["extra.py"]),
+                patch.object(MODULE, "gh_pr", return_value=(None, None)),
+                patch.object(MODULE._scope, "require_policy_repository_path"),
+                patch.object(MODULE._scope, "policy_repository_identity"),
+                patch.object(MODULE._scope, "require_policy_repository_identity"),
+                patch.object(MODULE._scope, "policy_repository_receipt", return_value=receipt),
+                patch.object(MODULE._scope, "policy_repository_read", return_value=scope_text) as read,
+                patch.object(MODULE._scope, "write_policy_repository_receipt") as write,
+            ):
+                self.assertEqual(MODULE.main(), expected_exit, output.getvalue())
+                if expected_exit == 2:
+                    write.assert_not_called()
+                    continue
+                write.assert_called_once()
+                saved = json.loads(write.call_args.args[2])
+                self.assertEqual(saved["lanes"]["scope"]["details"]["declared_paths"], ["declared.py"])
+                self.assertEqual(saved["lanes"]["scope"]["details"]["undeclared"], ["extra.py"])
+                self.assertIn({"code": "scope_mismatch", "reason": "extra.py"}, saved["blockers"])
+                read.return_value = write.call_args.args[2]
+                _, error = MODULE.validate_receipt(receipt, MODULE.parse_args())
+                self.assertEqual(error, "receipt status is 'fail'")
+
 
 
 def load_tests(loader, tests, pattern):

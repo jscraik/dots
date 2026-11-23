@@ -756,7 +756,7 @@
         "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance.",
         "Report a supersession close on a head outside the receipt using the mutation response or readback."
       ],
-      "candidate_sha256": "5a6ca38cddba3962999ed4e601c530c74c061213e8580a60b8f2f5a84f9cabb6"
+      "candidate_sha256": "9b7af770cb19d236d1730426ccdc0d2c42ce59169101afe6fabcf136eb86b10f"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
@@ -865,9 +865,10 @@
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
         "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection.",
         "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
-        "Exercise supersession close races and verify the blocked CLI result."
+        "Exercise supersession close races and verify the blocked CLI result.",
+        "Isolate the fsmonitor test from inherited Git repository overrides and verify the monitor can run."
       ],
-      "candidate_sha256": "9f9880adbba0aa8593ab392d8f93695144265597a14807652c7da4c9f46bdcf3"
+      "candidate_sha256": "108547933fb0d643612c8eab98d933c7b0d729f63a643a87ed533082ff89de41"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",

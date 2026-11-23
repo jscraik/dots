@@ -168,10 +168,11 @@ EXPLICIT_SHA_BINDING_RE = re.compile(
 
 class LifecycleOutcomeUnverified(ValueError):
     """An observed hosted result does not match the authorised transition."""
-    def __init__(self, operation: str, observed: dict[str, Any]):
-        super().__init__('Lifecycle transition may have occurred; exact readback did not verify it; explicit recovery inspection is required')
+    def __init__(self, operation: str, observed: dict[str, Any] | None = None):
+        super().__init__('Lifecycle transition may have occurred; hosted evidence did not verify it; explicit recovery inspection is required')
         self.operation = operation
-        self.observed = {key: observed[key] for key in ('number', 'state', 'draft', 'head')}
+        self.observed = ({key: observed[key] for key in ('number', 'state', 'draft', 'head')}
+                         if observed is not None else None)
 
 
 class CommandFailure(RuntimeError):
@@ -4835,7 +4836,12 @@ def _lifecycle_execute(root: Path, args: argparse.Namespace, identity: Any) -> d
         if applied and (report := unreviewed_close(applied)):
             return report
 
-    after, _raw = _lifecycle_request(root, args.expected_repo, args.expected_pr)
+    try:
+        after, _raw = _lifecycle_request(root, args.expected_repo, args.expected_pr)
+    except (ValueError, TypeError, KeyError, AttributeError) as exc:
+        if args.lifecycle == 'ready':
+            raise LifecycleOutcomeUnverified(args.lifecycle) from exc
+        raise
     if report := unreviewed_close(after):
         return report
     if response.returncode or after != expected or applied != expected:
