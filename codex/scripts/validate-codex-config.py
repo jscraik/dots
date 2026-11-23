@@ -46,7 +46,8 @@ CANON_ROOT_DEFAULT = Path(local_path_text('@HOME@/dev/dots/codex'))
 HOME_PROJECTION_SOURCE_ROOT = Path(os.environ.get('CODEX_CONFIG_SOURCE_ROOT', CANON_ROOT_DEFAULT if CANON_ROOT_DEFAULT.exists() else REPO_ROOT)).expanduser()
 HOOKS_CONFIG_PATH = HOME_PROJECTION_SOURCE_ROOT / 'hooks' / 'hooks.json'
 CANONICAL_AGENTS_MANIFEST_PATH = HOME_PROJECTION_SOURCE_ROOT / 'agents' / 'manifest.json'
-CODEX_SESSION_EVIDENCE_PATHS = (local_path_text('@HOME@/.local/share/codex-storage/sessions'), local_path_text('@HOME@/dev/dots/codex/usage-data'), local_path_text('@HOME@/.agents/session-collector'))
+CODEX_USAGE_EVIDENCE_PATH = local_path_text('@HOME@/dev/dots/codex/usage-data')
+CODEX_SESSION_EVIDENCE_PATHS = (local_path_text('@HOME@/.local/share/codex-storage/sessions'), CODEX_USAGE_EVIDENCE_PATH, local_path_text('@HOME@/.agents/session-collector'))
 BORUMI_GENERATED_CONFIG_PATH = Path(local_path_text('@HOME@/Documents/Borumi AI Workspace/.codex/config.toml'))
 ALLOWED_PROJECT_LOCAL_CONFIG_PATHS = (Path(local_path_text('@HOME@/dev/lifeOS/.codex/config.toml')), BORUMI_GENERATED_CONFIG_PATH)
 ALLOWED_LIFEOS_PROJECT_CONFIG_KEYS = frozenset({'model_verbosity'})
@@ -298,7 +299,9 @@ def validate_codex_session_evidence_access(config: dict[str, object]) -> list[st
     selected_name, _ = active_permission_profile(config)
     writable_roots = permission_profile_workspace_roots(config)
     for required_path in CODEX_SESSION_EVIDENCE_PATHS:
-        if required_path not in writable_roots:
+        usage_target_present = (required_path == CODEX_USAGE_EVIDENCE_PATH
+                                and str(Path(required_path).resolve()) in writable_roots)
+        if required_path not in writable_roots and not usage_target_present:
             errors.append(f'permissions.{selected_name}.workspace_roots must include {required_path} for Codex session evidence access')
     return errors
 

@@ -89,8 +89,8 @@ or activation authority.
   `python3 ~/.codex/scripts/pr-readiness.py --phase create --scope-file <scope-file> --write-receipt`;
   before PR update (except the body-only repair below) or merge-readiness
   claims, require the `--phase update` receipt. The projected
-  `pr-readiness-guard.sh` rejects raw PR creation when
-  that receipt is missing, stale, or bound to another HEAD.
+  `pr-readiness-guard.sh` enforces this on shell routes where rejection has
+  been verified. Do not infer connector enforcement from a shell-hook result.
 - Review inspection can proceed with pending, failed, missing or unknown CI;
   its receipt records the observed CI outcome and proves no acceptance or merge
   readiness. Current published identity and HEAD remain mandatory. Evidence-backed

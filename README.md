@@ -20,6 +20,20 @@ this repository does not install itself into the live home.
 - `requirements/python-document-reading.txt`: pinned optional document-reading libraries.
 - `MIGRATION.md`: public, private and local boundaries, including Codex state.
 
+## Pull request guidance
+
+For pull requests that use the shared format, start with the
+[five-section template](codex/instructions/PULL_REQUEST_TEMPLATE.md). Apply the
+target repository’s own template when it has one. PR Writer helps turn the
+change and its evidence into a concise description. Use the target repository’s
+documented checks and receipt commands to establish readiness.
+
+The public [jscraik/.github repository](https://github.com/jscraik/.github) is the
+intended destination for a copy of the shared template as a GitHub account
+default. Publishing a copy there is a separate step. If a repository’s
+validator reads a template from its own Git tree, keep a tracked local copy and
+verify it against that validator before adopting the shared format.
+
 ## Verify locally
 
 ### Desktop restart compatibility candidate
@@ -138,6 +152,15 @@ directory and its descendants, rejects aliases and unsafe directory modes, and
 retains the installed managed-worktree checks. Runtime trust does not add
 helper-output or environment-resource roots. Rehearsals retain sealed-policy
 containment; session and credential stores remain protected.
+
+Ordinary installation preparation records a private effective binding for the physical usage-data
+directory, so the sandbox writable-root list contains its resolved target.
+The existing usage-data alias and contents remain intact. Validation accepts
+the exact physical evidence directory as well as its canonical spelling.
+Policy-update preparation renders its explicitly selected bindings unchanged in
+both preview and payload. A transition from a physically bound installation
+must select the reviewed physical binding with its exact pin; it cannot
+silently switch back to an alias or accept an unselected writable-root change.
 
 ## First-machine installation candidate
 

@@ -111,6 +111,13 @@ verified target state. This file grants no installation or activation authority.
   [Git and release governance](instructions/agents/16-git-and-release.md).
   It owns signing, bounded lifecycle authority, receipts and independent review.
   Preserve hooks and permissions; never infer remote authority from local work.
+- For PR writing, read the repository's own template first. Where the repository
+  explicitly adopts the shared five-section template, use
+  [the canonical source](instructions/PULL_REQUEST_TEMPLATE.md); otherwise keep
+  the repository's exact required structure. Use PR Writer for writing judgement
+  and evidence presentation, while repository instructions own commands,
+  receipts, exceptions and enforcement. A central file is not a GitHub template
+  unless a repository includes a checked copy or an applicable account default.
 - Continue through the named acceptance criteria and repository-required proof;
   an intermediate smoke test is not completion. Stop at completion, material
   scope change, or an authority boundary. Defer non-blocking adjacent work.

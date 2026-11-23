@@ -124,7 +124,7 @@ Detailed rules for Mermaid, HTML, plist/XML, KDL, `.env`, signatures, checksums,
 ### Commit trailer requirement
 
 - Preserve existing trailers.
-- Include this trailer exactly once as the final trailer line:
+- For every commit prepared with Codex, include this trailer exactly once as the final trailer line:
   - `Co-authored-by: Codex <noreply@openai.com>`
 
 ### Pull request template contract (enforced)

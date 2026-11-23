@@ -5,6 +5,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import test_governance_port as governance
+
 
 
 class RuntimeProjectAdmissionTests(unittest.TestCase):
@@ -80,3 +82,40 @@ class RuntimeProjectAdmissionTests(unittest.TestCase):
         with mock.patch.object(self.scope, 'require_path', return_value=sessions):
             with self.assertRaises(ValueError):
                 self.scope.require_event_directory(sessions, data=self.data)
+
+
+class EvidenceAliasValidationTests(unittest.TestCase):
+    def fixture(self):
+        fixture = governance.GovernancePortTests('test_complete_snapshot_and_negative_policy')
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        return fixture
+
+    def test_usage_alias_accepts_exact_physical_target(self):
+        fixture = self.fixture()
+        alias = fixture.home / 'dev/dots/codex/usage-data'
+        target = fixture.home / 'private-storage/usage-data'
+        target.mkdir(parents=True)
+        alias.symlink_to(target)
+        policy = fixture.root
+        roots = policy['permissions'][policy['default_permissions']]['workspace_roots']
+        roots.pop(str(alias))
+        roots[str(target)] = True
+        result = fixture.validate(governance.GEN.toml_document(policy))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_session_alias_still_requires_exact_declared_root(self):
+        fixture = self.fixture()
+        alias = fixture.home / '.local/share/codex-storage/sessions'
+        alias.parent.mkdir(parents=True)
+        target = fixture.home / 'private-storage/sessions'
+        target.mkdir(parents=True)
+        alias.symlink_to(target)
+        policy = fixture.root
+        roots = policy['permissions'][policy['default_permissions']]['workspace_roots']
+        roots.pop(str(alias))
+        roots[str(target)] = True
+        result = fixture.validate(governance.GEN.toml_document(policy))
+        self.assertEqual(result.returncode, 65, result.stdout + result.stderr)
+        self.assertIn(f'must include {alias} for Codex session evidence access',
+                      result.stdout + result.stderr)

@@ -36,7 +36,7 @@
     {
       "path": "README.md",
       "prior_candidate_sha256": "ced157af36e675f8d6c890a5b04a70805e0835432efc957efc85c92f1e98ab01",
-      "candidate_sha256": "b4c1a489cda663d8f1d049995c3e98fa076d4882eeaf4b0dd7a249d6da6c0699",
+      "candidate_sha256": "a1f462e437959d0d12c05b5ac5d800e74a64047a10c65fc1f728ed0fed5c517e",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Document the native distinction between on-disk hook consent and loaded-thread acceptance, verified by a disposable native regression without a model turn. Document the two additional exact native app metadata names; preserve the existing installation and permission boundaries. Document app-bundled CLI validation and isolated pinned dependency setup. Require an exact reviewed source commit and document clean-checkout, immutable-tree packaging and private provenance receipts. Document complete discovered test-case CircleCI partitioning plus repeated diagnostic checks across three dated medium Linux VMs with protected pinned Python bootstrap, retained security checks and the separate hosted-timing acceptance requirement. Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance. Document the version receipt and protected inventory required before machine-mode Aikido activation."
     },
     {
@@ -65,7 +65,7 @@
     {
       "path": "codex/instructions/agents/16-git-and-release.md",
       "prior_candidate_sha256": "6831a23a8697fba882b6561d7e528f0842f4aeded557ddac580ff3b0283f5068",
-      "candidate_sha256": "ceb1a32ad93c08fcba4f2c5995de58c00ec8a608a0fb3f516c0ebd75cdec194e",
+      "candidate_sha256": "9d378210d3333c01cbb2224a0fc640d95afdac115333253cbc3cf0a017d80d65",
       "transformation": "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
@@ -191,7 +191,7 @@
     {
       "path": "codex/scripts/validate-codex-config.py",
       "prior_candidate_sha256": "e9cdebab1d97447c1ac3ff1dce5894c7c13ccf095c2a1cc8e44716c103768e61",
-      "candidate_sha256": "e5bb59d105a3b8c1d71b78f8613a53635a26159c2e5756b0729208bb44fc5241",
+      "candidate_sha256": "4e9375efe148a3e6f58762ea78973e42f56b4f176d6b3d7ec54144cdcda89c09",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
     },
     {

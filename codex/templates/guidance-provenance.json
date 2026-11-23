@@ -208,7 +208,7 @@
       "source_sha256": "dfd4f91164e826bd903b05a2e90d2d83767a8df26a532525089e3498c2e23d94",
       "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "ceb1a32ad93c08fcba4f2c5995de58c00ec8a608a0fb3f516c0ebd75cdec194e",
+      "candidate_sha256": "9d378210d3333c01cbb2224a0fc640d95afdac115333253cbc3cf0a017d80d65",
       "transformation": "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
@@ -281,7 +281,7 @@
       "source_sha256": "0be9fb65d396f6ac275f3b65672e0944996805cfdac032b3483c414ed29dbf97",
       "decision": "Public paths and scoped source recipes; safeguards preserved",
       "deferred_context_pointers": [],
-      "candidate_sha256": "0a23a5ad9fcd2a70f45f1ce528c64573e4a0662db0877478c03f6f18ad690a8c"
+      "candidate_sha256": "218331932416f86306f2cadc3d85cf7a752a1f4bedd7a1ed313d0795932a1fba"
     },
     {
       "path": "codex/instructions/codestyle/05-quality-security-ops.md",
@@ -524,7 +524,7 @@
       "deferred_context_pointers": [
         "../scripts/build-log-summary.md"
       ],
-      "candidate_sha256": "fb470fabfcf1bbf5eabbe01fbece818b3d74ed70a8b1164363891494d06661d3",
+      "candidate_sha256": "18965f3f55819c6c04f0fcd4220bb697b19767829c51a506687944c22635218c",
       "transformation": "State installation authority separately from each machine's verified active or rollback state."
     },
     {
@@ -596,7 +596,7 @@
       "path": "AGENTS.md",
       "origin": "local migration adaptation",
       "decision": "Explicit public scope, serialization and proving checks; no new live authority; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
-      "candidate_sha256": "f4f30f8c1d5238f7ab9cd2f0603996aa6d944b33a16262bed1f81f945ebd7ab4",
+      "candidate_sha256": "b2e0fa738efee1869eb8c82fc34469d282dcb4062728118d80cff68466223813",
       "transformation": "State installation authority separately from each machine's verified active or rollback state."
     },
     {

@@ -1788,6 +1788,14 @@ with installer.renameable_directories(state, staged, target):
             target = source / row['path']
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(self.source_root / row['path'], target)
+        # Historical generations used literal usage bindings. Do not silently
+        # retrofit the new ordinary-prepare alias normalisation into the past.
+        legacy_installer = source / 'codex/scripts/install-codex.py'
+        legacy_text = legacy_installer.read_text()
+        normalisation = "effective_bindings['value_0007'] = str(usage_root.resolve())"
+        self.assertEqual(legacy_text.count(normalisation), 1)
+        legacy_installer.write_text(legacy_text.replace(normalisation,
+            "effective_bindings['value_0007'] = str(usage_root)"))
         bundle_path = source / 'codex/templates/policy-bundle.json'
         bundle = json.loads(bundle_path.read_text())
         legacy = json.loads((ROOT / 'tests/fixtures/legacy-root-preferences.json').read_text())
@@ -2678,6 +2686,9 @@ with installer.renameable_directories(state, staged, target):
         canonical = tomllib.loads((self.payload / 'codex/config.toml').read_text())
         roots = canonical['permissions'][canonical['default_permissions']]['workspace_roots']
         self.assertIn(str(session_root), roots)
+        self.assertNotIn(str(self.runtime / 'usage-data'), roots)
+        self.assertIn(str((self.runtime / 'usage-data').resolve()), roots)
+        self.assertTrue((self.runtime / 'usage-data').is_symlink())
         self.assertNotIn(str(self.home / '.local/share/codex-storage/sessions'), roots)
         digest = prepared['plan_digest']
         original_config = (self.runtime / 'config.toml').read_bytes()
