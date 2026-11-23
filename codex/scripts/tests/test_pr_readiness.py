@@ -3013,6 +3013,7 @@ class PrReadinessTests(unittest.TestCase):
                 {
                     "__typename": "CheckRun",
                     "name": "test",
+                    "isRequired": True,
                     "workflowName": "unit",
                     "app": {"slug": "circleci"},
                     "status": "COMPLETED",
@@ -3022,6 +3023,7 @@ class PrReadinessTests(unittest.TestCase):
                 {
                     "__typename": "CheckRun",
                     "name": "test",
+                    "isRequired": True,
                     "workflowName": "integration",
                     "app": {"slug": "circleci"},
                     "status": "COMPLETED",
@@ -3044,6 +3046,7 @@ class PrReadinessTests(unittest.TestCase):
                 {
                     "__typename": "CheckRun",
                     "name": "test",
+                    "isRequired": True,
                     "status": "COMPLETED",
                     "conclusion": "FAILURE",
                     "completedAt": "2026-08-02T19:05:47Z",
@@ -3051,6 +3054,7 @@ class PrReadinessTests(unittest.TestCase):
                 {
                     "__typename": "CheckRun",
                     "name": "test",
+                    "isRequired": True,
                     "status": "COMPLETED",
                     "conclusion": "SUCCESS",
                     "completedAt": "2026-08-02T19:17:42Z",
@@ -3110,6 +3114,34 @@ class PrReadinessTests(unittest.TestCase):
         self.assertEqual(result["status"], "blocked")
         self.assertEqual(result["details"]["missing"], ["required (App 42)"])
 
+    def test_same_named_check_run_needs_pr_eligibility(self) -> None:
+        head = "a" * 40
+        check = {"__typename": "CheckRun", "name": "build", "app": {"id": 42},
+                 "status": "COMPLETED", "conclusion": "SUCCESS"}
+        for app_id in (None, 42):
+            for evidence, expected in (({}, "blocked"), ({"isRequired": False}, "blocked"),
+                                       ({"isRequired": 1}, "blocked"), ({"isRequired": True}, "pass")):
+                with self.subTest(app_id=app_id, evidence=evidence):
+                    pr = required_check_pr([{**check, **evidence}], head,
+                                           required=[{"context": "build", "app_id": app_id}])
+                    result = MODULE.checks_lane(pr, head)
+                    self.assertEqual(result["status"], expected)
+                    if expected == "blocked":
+                        self.assertTrue(result["details"]["missing"])
+
+    def test_optional_success_cannot_supersede_required_failure(self) -> None:
+        head = "a" * 40
+        failed = {"__typename": "CheckRun", "name": "build", "app": {"id": 42},
+                  "workflowName": "workflow-one", "status": "COMPLETED", "conclusion": "FAILURE",
+                  "isRequired": True, "startedAt": "2026-11-22T17:00:00Z"}
+        optional = {**failed, "conclusion": "SUCCESS", "isRequired": False,
+                    "startedAt": "2026-11-22T17:01:00Z"}
+        pr = required_check_pr([failed, optional], head, required=[{"context": "build", "app_id": 42}])
+        pr["statusCheckRollup"] = [optional]
+        result = MODULE.checks_lane(pr, head)
+        self.assertEqual(result["status"], "fail")
+        self.assertEqual(result["details"]["failures"], ["build"])
+
     def test_checks_lane_requires_explicit_conclusion_and_app_identity(self) -> None:
         head = "a" * 40
         requirement = [{"context": "validate", "app_id": 42}]
@@ -3118,6 +3150,7 @@ class PrReadinessTests(unittest.TestCase):
                 {
                     "__typename": "CheckRun",
                     "name": "validate",
+                    "isRequired": True,
                     "app": {"id": 42},
                     "status": "COMPLETED",
                     "conclusion": None,
@@ -3131,6 +3164,7 @@ class PrReadinessTests(unittest.TestCase):
                 {
                     "__typename": "CheckRun",
                     "name": "validate",
+                    "isRequired": True,
                     "app": {"id": 99},
                     "status": "COMPLETED",
                     "conclusion": "SUCCESS",
@@ -3144,6 +3178,7 @@ class PrReadinessTests(unittest.TestCase):
                 {
                     "__typename": "CheckRun",
                     "name": "validate",
+                    "isRequired": True,
                     "app": {"id": 42},
                     "status": "IN_PROGRESS",
                     "conclusion": "SUCCESS",
@@ -3164,6 +3199,7 @@ class PrReadinessTests(unittest.TestCase):
                 {
                     "__typename": "CheckRun",
                     "name": "validate",
+                    "isRequired": True,
                     "app": {"id": 42},
                     "status": "COMPLETED",
                     "conclusion": "SUCCESS",
@@ -3171,6 +3207,7 @@ class PrReadinessTests(unittest.TestCase):
                 {
                     "__typename": "CheckRun",
                     "name": "optional",
+                    "isRequired": False,
                     "app": {"id": 42},
                     "status": "COMPLETED",
                     "conclusion": "FAILURE",
@@ -3234,6 +3271,7 @@ class PrReadinessTests(unittest.TestCase):
     def test_required_workflow_join_keeps_failures_and_valid_reruns(self) -> None:
         head = 'a' * 40
         earlier = {'__typename': 'CheckRun', 'name': 'build', 'app': {'id': 42},
+                   'isRequired': True,
                    'workflowName': 'workflow-one', 'status': 'COMPLETED', 'conclusion': 'FAILURE',
                    'completedAt': '2026-11-22T17:00:00Z'}
         later = {**earlier, 'conclusion': 'SUCCESS', 'completedAt': '2026-11-22T17:01:00Z'}
@@ -3250,24 +3288,35 @@ class PrReadinessTests(unittest.TestCase):
                   'head_sha': head, 'status': 'completed', 'conclusion': None,
                   'startedAt': None, 'completedAt': None, 'app': {'id': 42}}
         node = {'__typename': 'CheckRun', 'id': 'CR_fixture', 'databaseId': 1, 'name': 'build',
+                'isRequired': True,
                 'status': 'COMPLETED', 'conclusion': None, 'startedAt': None, 'completedAt': None,
                 'checkSuite': {'commit': {'oid': head}, 'repository': {'nameWithOwner': 'o/r'},
                                'workflowRun': {'workflow': {'id': 'workflow-one', 'name': 'CI'}}}}
         for payload, accepted in (({'data': {'nodes': [node]}}, True),
+                                  ({'data': {'nodes': [{**node, 'isRequired': False}]}}, True),
+                                  ({'data': {'nodes': [{**node, 'isRequired': None}]}}, False),
+                                  ({'data': {'nodes': [{**node, 'isRequired': 'true'}]}}, False),
                                   ({'data': {'nodes': []}}, False),
                                   ({'data': {'nodes': [node]}, 'errors': []}, False),
                                   ({'data': {'nodes': [{**node, 'status': 'IN_PROGRESS'}]}}, False),
                                   ({'data': {'nodes': [{**node, 'id': 'CR_other'}]}}, False)):
             with self.subTest(payload=payload), patch.object(MODULE, 'run_command',
-                    return_value=subprocess.CompletedProcess([], 0, json.dumps(payload), '')):
-                joined, error = MODULE._enrich_check_workflows(Path.cwd(), 'o/r', head, 'github.com', [record])
+                    return_value=subprocess.CompletedProcess([], 0, json.dumps(payload), '')) as command:
+                joined, error = MODULE._enrich_check_workflows(
+                    Path.cwd(), 'o/r', head, 'github.com', [record], pr_number=7,
+                )
+                args = command.call_args.args[0]
+                self.assertIn('isRequired(pullRequestNumber:$pr)', args[6])
+                self.assertIn('pr=7', args)
                 self.assertEqual(error is None, accepted)
                 if accepted:
                     self.assertEqual(joined[0]['workflowName'], 'workflow-one')
+                    self.assertIs(joined[0]['isRequired'], payload['data']['nodes'][0]['isRequired'])
 
     def test_newer_required_attempt_stays_pending_when_older_run_finishes_later(self) -> None:
         head = 'a' * 40
         earlier = {'__typename': 'CheckRun', 'name': 'build', 'app': {'id': 42},
+                   'isRequired': True,
                    'workflowName': 'workflow-one', 'status': 'COMPLETED', 'conclusion': 'SUCCESS',
                    'startedAt': '2026-11-22T17:00:00Z', 'completedAt': '2026-11-22T17:10:00Z'}
         later = {**earlier, 'status': 'IN_PROGRESS', 'conclusion': None,
@@ -3287,7 +3336,9 @@ class PrReadinessTests(unittest.TestCase):
                 subprocess.CompletedProcess([], 0, json.dumps([{'check_runs': []}]), ''),
                 subprocess.CompletedProcess([], 0, json.dumps([[status | changes]]), ''),
             ]) as command:
-                inventory, error = MODULE._current_check_inventory(Path.cwd(), 'o/r', head, 'github.com')
+                inventory, error = MODULE._current_check_inventory(
+                    Path.cwd(), 'o/r', head, 'github.com', pr_number=7,
+                )
                 self.assertEqual(error is None, accepted)
                 if accepted:
                     self.assertEqual(inventory[0]['head_sha'], head)

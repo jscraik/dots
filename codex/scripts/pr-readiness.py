@@ -428,6 +428,7 @@ def gh_pr(root: Path, *, for_export: bool = False, number: int | None = None) ->
             pr.get("baseRefOid"),
             pr.get("headRefOid"),
             hostname,
+            pr_number=pr["number"],
         )
         policy_error = error
         reviews, error = review_inventory_collection(root, f"repos/{slug}/pulls/{pr['number']}/reviews", hostname)
@@ -828,6 +829,8 @@ def _current_check_inventory(
     slug: str,
     head_sha: Any,
     hostname: str,
+    *,
+    pr_number: int,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Read exact-head statuses and check runs with provider App identities."""
     if not isinstance(head_sha, str) or not SHA_RE.fullmatch(head_sha):
@@ -932,27 +935,30 @@ def _current_check_inventory(
                     "createdAt": status["created_at"],
                 }
             )
-        return _enrich_check_workflows(root, slug, head_sha, hostname, evidence)
+        return _enrich_check_workflows(root, slug, head_sha, hostname, evidence, pr_number=pr_number)
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         return [], f"current-head check inventory malformed: {exc}"
 
 
 def _enrich_check_workflows(
     root: Path, slug: str, head_sha: str, hostname: str, records: list[dict[str, Any]],
+    *, pr_number: int,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Join immutable CheckRun identity before evaluating workflow-aware reruns."""
     checks = [item for item in records if item.get("__typename") == "CheckRun"]
     by_node = {item['node_id']: item for item in checks}
     if len(by_node) != len(checks):
         return [], 'current-head check inventory has duplicate node identities'
-    query = ('query($ids:[ID!]!){nodes(ids:$ids){__typename ... on CheckRun{'
+    query = ('query($ids:[ID!]!,$pr:Int!){nodes(ids:$ids){__typename ... on CheckRun{'
              'id databaseId name status conclusion startedAt completedAt '
+             'isRequired(pullRequestNumber:$pr) '
              'checkSuite{commit{oid} repository{nameWithOwner} '
              'workflowRun{workflow{id name}}}}}}')
     joined = {}
     for start in range(0, len(checks), 100):
         selected = checks[start:start + 100]
-        command = ['gh', 'api', 'graphql', '--hostname', hostname, '-f', 'query=' + query]
+        command = ['gh', 'api', 'graphql', '--hostname', hostname, '-f', 'query=' + query,
+                   '-F', f'pr={pr_number}']
         for item in selected:
             command.extend(['-f', 'ids[]=' + item['node_id']])
         result = run_command(command, root, check=False)
@@ -983,6 +989,8 @@ def _enrich_check_workflows(
                         or suite['commit']['oid'] != head_sha
                         or suite['repository']['nameWithOwner'].casefold() != slug.casefold()):
                     raise ValueError('check execution changed during identity join')
+                if type(node.get('isRequired')) is not bool:
+                    raise ValueError('invalid check eligibility')
                 workflow_run = suite.get('workflowRun')
                 workflow_id = ''
                 if workflow_run is not None:
@@ -990,7 +998,7 @@ def _enrich_check_workflows(
                     workflow_id = workflow['id']
                     if not isinstance(workflow_id, str) or not workflow_id:
                         raise ValueError('invalid workflow identity')
-                joined[identity] = {**record, 'workflowName': workflow_id}
+                joined[identity] = {**record, 'workflowName': workflow_id, 'isRequired': node['isRequired']}
         except (KeyError, TypeError, AttributeError, ValueError, json.JSONDecodeError):
             return [], 'required-check workflow identity inventory malformed or unstable'
     # REST pages are newest first; increasing IDs make same-second ordering
@@ -1006,12 +1014,14 @@ def required_checks_snapshot(
     base_sha: Any,
     head_sha: Any,
     hostname: str,
+    *,
+    pr_number: int,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], str | None]:
     """Bind exact-head execution evidence to one stable required-check policy."""
     policy, error = _required_check_policy(root, slug, base_branch, base_sha, hostname)
     if error:
         return {}, [], error
-    checks, error = _current_check_inventory(root, slug, head_sha, hostname)
+    checks, error = _current_check_inventory(root, slug, head_sha, hostname, pr_number=pr_number)
     if error:
         return {}, [], error
     final_policy, error = _required_check_policy(root, slug, base_branch, base_sha, hostname)
@@ -1105,7 +1115,11 @@ def observed_checks_lane(pr: dict[str, Any], head_sha: str, *, attempt_order: bo
     for index, item in enumerate(checks):
         if not isinstance(item, dict):
             continue
-        grouped.setdefault(_check_identity(item, index), []).append((index, item))
+        identity = _check_identity(item, index)
+        if attempt_order and item.get('__typename') == 'CheckRun':
+            # An optional run cannot replace a required attempt, or vice versa.
+            identity += ('required' if item.get('isRequired') is True else 'optional',)
+        grouped.setdefault(identity, []).append((index, item))
     for identity, entries in grouped.items():
         for position, (index, item) in enumerate(entries):
             started = item.get('startedAt') if attempt_order and item.get('__typename') == 'CheckRun' else None
@@ -1199,6 +1213,8 @@ def _check_matches_requirement(
         return False
     context = item.get("context") or item.get("name")
     if context != requirement["context"]:
+        return False
+    if item.get("__typename") == "CheckRun" and item.get("isRequired") is not True:
         return False
     required_app = requirement["app_id"]
     if required_app is None:
