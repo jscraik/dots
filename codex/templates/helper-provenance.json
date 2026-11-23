@@ -756,7 +756,7 @@
         "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance.",
         "Report a supersession close on a head outside the receipt using the mutation response or readback."
       ],
-      "candidate_sha256": "60e898cca12229d78e1b8e094b2d527620e66afe3f56307821deb179e82166fc"
+      "candidate_sha256": "7ba1ccce4ac30cbf05f1f1aaee65a3666494a7a03bbc448374c2d636a66cea79"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
@@ -867,7 +867,7 @@
         "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
         "Exercise supersession close races and verify the blocked CLI result."
       ],
-      "candidate_sha256": "a99d8c77dacecb9f8a312d2ba431610e32193da7a0a038a9390224663e5747a5"
+      "candidate_sha256": "9b3b3f5f4cc49cd3eb4458681daee3326435b20d1deceac6caf19032caa17e3e"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",

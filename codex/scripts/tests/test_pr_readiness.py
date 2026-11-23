@@ -30,7 +30,7 @@ def required_check_pr(
     required: list[dict] | None = None,
 ) -> dict:
     base = "b" * 40
-    evidence = [{**check, "head_sha": head} for check in checks]
+    evidence = [{"required_for_pr": 7, **check, "head_sha": head} for check in checks]
     if required is None:
         required = []
         seen = set()
@@ -51,6 +51,7 @@ def required_check_pr(
         json.dumps(policy, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
     return {
+        "number": 7,
         "baseRefName": "main",
         "baseRefOid": base,
         "headRefOid": head,
@@ -61,6 +62,41 @@ def required_check_pr(
 
 
 class PrReadinessTests(unittest.TestCase):
+    def test_required_check_run_needs_exact_pr_eligibility(self):
+        head = 'a' * 40
+        check = {'__typename': 'CheckRun', 'name': 'build', 'app': {'id': 42},
+                 'status': 'COMPLETED', 'conclusion': 'SUCCESS'}
+        for eligibility, expected in ((7, 'pass'), (8, 'blocked'), (None, 'blocked'),
+                                      (True, 'blocked'), ('7', 'blocked')):
+            with self.subTest(eligibility=eligibility):
+                pr = required_check_pr([{**check, 'required_for_pr': eligibility}], head)
+                self.assertEqual(MODULE.checks_lane(pr, head)['status'], expected)
+
+    def test_ineligible_success_cannot_clear_eligible_required_failure(self):
+        head = 'a' * 40
+        old = {'__typename': 'CheckRun', 'name': 'build', 'app': {'id': 42},
+               'workflowName': 'workflow-one', 'status': 'COMPLETED', 'conclusion': 'FAILURE',
+               'startedAt': '2026-11-23T12:00:00Z', 'completedAt': '2026-11-23T12:01:00Z'}
+        newer = {**old, 'required_for_pr': None, 'conclusion': 'SUCCESS',
+                 'startedAt': '2026-11-23T12:02:00Z', 'completedAt': '2026-11-23T12:03:00Z'}
+        pr = required_check_pr([old, newer], head, required=[{'context': 'build', 'app_id': 42}])
+        self.assertEqual(MODULE.checks_lane(pr, head)['status'], 'fail')
+
+    def test_fsmonitor_fixture_preserves_external_git_overrides(self):
+        with tempfile.TemporaryDirectory() as directory:
+            external = Path(directory)
+            environment = {'PATH': os.defpath, 'HOME': directory,
+                           'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': os.devnull}
+            subprocess.run(['git', 'init', '-q', str(external)], env=environment,
+                           check=True, capture_output=True, timeout=15)
+            config = external / '.git/config'
+            before = config.read_bytes()
+            with patch.dict(os.environ, {'GIT_DIR': str(external / '.git'),
+                    'GIT_COMMON_DIR': str(external / '.git'), 'GIT_WORK_TREE': directory,
+                    'GIT_INDEX_FILE': str(external / 'caller-index')}, clear=False):
+                self.test_dirty_probe_does_not_execute_repository_fsmonitor()
+            self.assertEqual(config.read_bytes(), before)
+            self.assertFalse((external / 'caller-index').exists())
     def test_supersession_head_race_reports_closed_unreviewed_head_without_rollback(self):
         args, snapshot = self.lifecycle_data('close')
         args.repo_root, args.phase = Path('/fixture'), None
@@ -90,17 +126,24 @@ class PrReadinessTests(unittest.TestCase):
     def test_dirty_probe_does_not_execute_repository_fsmonitor(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            # Never let inherited Git selectors redirect fixture setup into the
+            # caller's repository or load its global configuration.
+            environment = {'PATH': os.defpath, 'HOME': directory,
+                           'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': os.devnull}
             def git(*arguments):
                 return subprocess.run(['git', '-C', str(root), *arguments],
-                    check=True, capture_output=True, text=True)
+                    check=True, capture_output=True, text=True, env=environment)
             git('init', '-q')
             marker = root / 'should-not-run'
             provider = root / '.git/hostile-monitor'
             provider.write_text('#!/bin/sh\ntouch ' + shlex.quote(str(marker)) + '\n')
             provider.chmod(0o700)
             git('config', 'core.fsmonitor', str(provider))
-            self.assertEqual(MODULE.dirty_lane(root)['status'], 'pass')
+            with patch.dict(os.environ, environment, clear=True):
+                self.assertEqual(MODULE.dirty_lane(root)['status'], 'pass')
             self.assertFalse(marker.exists())
+            git('-c', 'core.fsmonitorHookVersion=2', 'status', '--porcelain=v1')
+            self.assertTrue(marker.exists(), 'The owned monitor must detect an actual invocation')
 
     def test_context_only_branch_summary_fetches_authoritative_app_identities(self):
         base = 'b' * 40
@@ -251,6 +294,36 @@ class PrReadinessTests(unittest.TestCase):
                        base={'ref': target['base'], 'sha': target['base_sha'], 'repo': {'full_name': 'o/r'}})
         return subprocess.CompletedProcess([], 0, json.dumps(payload), '')
 
+    def ready_response(self, target):
+        payload = {'data': {'markPullRequestReadyForReview': {'pullRequest': {
+            'id': target['node_id'], 'isDraft': target['draft'],
+            'state': target['state'].upper(), 'headRefOid': target['head']}}}}
+        return subprocess.CompletedProcess([], 0, json.dumps(payload), '')
+
+    def test_ready_response_cannot_hide_changed_head_behind_readback(self):
+        args, snapshot = self.lifecycle_data()
+        after = {**snapshot['target'], 'draft': False}
+        receipt = {'schema_version': 'pr-lifecycle/v1', 'status': 'pass', 'operation': 'ready',
+                   'checked_at': MODULE.datetime.now(MODULE.UTC).isoformat(),
+                   'acceptance_claims_proven': False, 'snapshot': snapshot,
+                   'after': {'state': 'open', 'draft': False}}
+        args.write_receipt, args.apply_lifecycle = False, True
+        for response_target in (after, {**after, 'head': 'f' * 40},
+                                {**after, 'node_id': 'PR_other'}, {**after, 'draft': True}):
+            with self.subTest(response_target=response_target), \
+                    patch.object(MODULE, '_lifecycle_snapshot', return_value=snapshot), \
+                    patch.object(MODULE._scope, 'require_policy_repository_path'), \
+                    patch.object(MODULE._scope, 'require_policy_repository_identity'), \
+                    patch.object(MODULE._scope, 'policy_repository_read', return_value=json.dumps(receipt).encode()), \
+                    patch.object(MODULE, 'run_command', return_value=self.ready_response(response_target)) as mutate, \
+                    patch.object(MODULE, '_lifecycle_request', return_value=(after, {})):
+                if response_target == after:
+                    self.assertTrue(MODULE._lifecycle_execute(Path('/fixture'), args, 'identity')['transition_verified'])
+                else:
+                    with self.assertRaises(MODULE.LifecycleOutcomeUnverified):
+                        MODULE._lifecycle_execute(Path('/fixture'), args, 'identity')
+                mutate.assert_called_once()
+
     def test_lifecycle_receipt_performs_only_its_exact_transition_without_clearance(self):
         for operation in ('close', 'ready', 'reopen'):
             args, snapshot = self.lifecycle_data(operation)
@@ -266,8 +339,8 @@ class PrReadinessTests(unittest.TestCase):
                 self.assertEqual(json.loads(write.call_args.args[2]), receipt)
                 args.write_receipt, args.apply_lifecycle = False, True
                 after = {**snapshot['target'], **receipt['after']}
-                if operation == 'close':
-                    mutate.return_value = self.lifecycle_response(after)
+                mutate.return_value = (self.ready_response(after) if operation == 'ready'
+                                       else self.lifecycle_response(after))
                 with patch.object(MODULE._scope, 'policy_repository_read', return_value=json.dumps(receipt).encode()), \
                         patch.object(MODULE, '_lifecycle_request', return_value=(after, {})):
                     result = MODULE._lifecycle_execute(Path('/fixture'), args, 'identity')
@@ -354,6 +427,7 @@ class PrReadinessTests(unittest.TestCase):
                                          checked + timedelta(seconds=final_age),
                                          checked + timedelta(seconds=final_age)]
                 if final_age == 300:
+                    mutate.return_value = self.ready_response({**snapshot['target'], 'draft': False})
                     self.assertTrue(MODULE._lifecycle_execute(Path('/fixture'), args, 'identity')['transition_verified'])
                     mutate.assert_called_once()
                 else:
@@ -2818,8 +2892,10 @@ class PrReadinessTests(unittest.TestCase):
         head = "a" * 40
         with (
             patch.object(
-                MODULE, "repository_slug", return_value=("example/repository", None)
+                MODULE, "repository_slug", return_value=("upstream/repository", None)
             ) as repository_slug,
+            patch.object(MODULE, 'run_command', return_value=subprocess.CompletedProcess(
+                [], 0, 'git@github.com:example/repository.git\n', '')),
             patch.object(MODULE, "hosted_remote_sha", return_value=head) as hosted,
         ):
             self.assertEqual(MODULE.remote_sha(Path.cwd(), "origin", "main"), head)
@@ -2827,10 +2903,44 @@ class PrReadinessTests(unittest.TestCase):
                 MODULE.remote_sha(Path.cwd(), "--upload-pack=./payload", "main")
             )
 
-        repository_slug.assert_called_once_with(Path.cwd())
+        repository_slug.assert_not_called()
         hosted.assert_called_once_with(
             Path.cwd(), "example/repository", "main"
         )
+
+    def test_scope_mismatch_retains_publishable_declared_scope(self):
+        root, head, base = Path.cwd(), 'a' * 40, 'b' * 40
+        args = MODULE.argparse.Namespace(repo_root=root, base='main', remote='origin',
+            phase='create', scope_file=root / 'scope.txt', review_waiver_file=None)
+        with patch.object(MODULE, 'resolve_root', return_value=root), \
+                patch.object(MODULE, 'current_worktree', return_value=('codex/test', head, 'main', '.git', '.git')), \
+                patch.object(MODULE, 'git', return_value=base), \
+                patch.object(MODULE, 'remote_sha', side_effect=[base, head]), \
+                patch.object(MODULE, 'run_command', return_value=subprocess.CompletedProcess([], 0, '', '')), \
+                patch.object(MODULE, 'dirty_lane', return_value=MODULE.lane('pass', 'clean')), \
+                patch.object(MODULE, 'worktree_lane', return_value=MODULE.lane('pass', 'registered')), \
+                patch.object(MODULE, 'parse_scope', return_value=(['declared.py'], 'e' * 64)), \
+                patch.object(MODULE, 'changed_paths', return_value=['outside.py']), \
+                patch.object(MODULE, 'gh_pr', return_value=(None, None)), \
+                patch.object(MODULE, 'default_receipt', return_value=root / 'receipt.json'):
+            result = MODULE.build_result(args)
+        self.assertEqual(result['status'], 'fail')
+        self.assertEqual(result['lanes']['scope']['details']['declared_paths'], ['declared.py'])
+        self.assertIn('scope_mismatch', [item['code'] for item in result['blockers']])
+        self.assertIsNone(MODULE.validate_receipt_schema(result))
+        args.lifecycle, args.receipt = None, root / 'receipt.json'
+        args.export_review_clearance, args.check_receipt, args.write_receipt = False, False, True
+        with patch.object(MODULE, 'parse_args', return_value=args), \
+                patch.object(MODULE, 'resolve_root', return_value=root), \
+                patch.object(MODULE._scope, 'require_policy_repository_path'), \
+                patch.object(MODULE._scope, 'policy_repository_identity', return_value='identity'), \
+                patch.object(MODULE._scope, 'require_policy_repository_identity'), \
+                patch.object(MODULE, 'build_result', return_value=result), \
+                patch.object(MODULE._scope, 'write_policy_repository_receipt') as write, \
+                patch('sys.stdout', new_callable=io.StringIO) as output:
+            self.assertEqual(MODULE.main(), 1)
+            self.assertIn('scope_mismatch', [item['code'] for item in json.loads(output.getvalue())['blockers']])
+            write.assert_called_once()
 
     def test_receipt_remote_recheck_uses_exact_hosted_branch(self) -> None:
         head = "a" * 40
@@ -2843,7 +2953,8 @@ class PrReadinessTests(unittest.TestCase):
             }),
             "",
         )
-        with patch.object(MODULE, "run_command", return_value=completed) as run:
+        with patch.dict(os.environ, {'GH_HOST': 'enterprise.example'}), \
+                patch.object(MODULE, "run_command", return_value=completed) as run:
             self.assertEqual(
                 MODULE.hosted_remote_sha(
                     Path.cwd(), "example/repository", "candidate/topic"
@@ -2856,6 +2967,7 @@ class PrReadinessTests(unittest.TestCase):
                 "gh",
                 "api",
                 "repos/example/repository/git/ref/heads/candidate%2Ftopic",
+                '--hostname', 'github.com',
             ],
             Path.cwd(),
             check=False,
@@ -3264,6 +3376,16 @@ class PrReadinessTests(unittest.TestCase):
                 self.assertEqual(error is None, accepted)
                 if accepted:
                     self.assertEqual(joined[0]['workflowName'], 'workflow-one')
+        for required, accepted in ((True, True), (False, True), (None, False), ('true', False)):
+            with self.subTest(required=required), patch.object(MODULE, 'run_command',
+                    return_value=subprocess.CompletedProcess([], 0, json.dumps(
+                        {'data': {'nodes': [{**node, 'isRequired': required}]}}), '')) as call:
+                joined, error = MODULE._enrich_check_workflows(
+                    Path.cwd(), 'o/r', head, 'github.com', [record], 7)
+                self.assertEqual(error is None, accepted)
+                if accepted:
+                    self.assertEqual(joined[0]['required_for_pr'], 7 if required else None)
+                self.assertIn('pr=7', call.call_args.args[0])
 
     def test_newer_required_attempt_stays_pending_when_older_run_finishes_later(self) -> None:
         head = 'a' * 40

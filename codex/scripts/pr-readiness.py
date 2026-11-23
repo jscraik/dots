@@ -290,12 +290,27 @@ def current_worktree(root: Path) -> tuple[str, str, str, str, str]:
     return branch, head, base_branch or "main", git(root, "rev-parse", "--git-dir"), git(root, "rev-parse", "--git-common-dir")
 
 
+def origin_repository_slug(root: Path) -> str | None:
+    """Resolve the fixed origin locally, independently of gh's upstream choice."""
+    origin = run_command(['git', 'remote', 'get-url', TRUSTED_REMOTE], root, check=False)
+    if origin.returncode:
+        return None
+    match = re.fullmatch(
+        r'(?:https?://github\.com(?::443)?/|ssh://git@github\.com(?::22)?/|git@github\.com:)'
+        r'([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/?',
+        origin.stdout.rstrip('\n'), re.IGNORECASE)
+    if match is None:
+        return None
+    slug = match[1].removesuffix('.git')
+    return slug if all(part and part not in {'.', '..'} for part in slug.split('/')) else None
+
+
 def remote_sha(root: Path, remote: str, ref: str) -> str | None:
     """Read the trusted hosted branch without invoking Git remote machinery."""
     if remote != TRUSTED_REMOTE:
         return None
-    repository, error = repository_slug(root)
-    if error or repository is None:
+    repository = origin_repository_slug(root)
+    if repository is None:
         return None
     return hosted_remote_sha(root, repository, ref)
 
@@ -428,6 +443,7 @@ def gh_pr(root: Path, *, for_export: bool = False, number: int | None = None) ->
             pr.get("baseRefOid"),
             pr.get("headRefOid"),
             hostname,
+            pr['number'],
         )
         policy_error = error
         reviews, error = review_inventory_collection(root, f"repos/{slug}/pulls/{pr['number']}/reviews", hostname)
@@ -476,7 +492,7 @@ def hosted_remote_sha(root: Path, repository: str, ref: str) -> str | None:
             or any(character in ref for character in "\x00\r\n")):
         return None
     endpoint = f"repos/{repository}/git/ref/heads/{quote(ref, safe='')}"
-    result = run_command(["gh", "api", endpoint], root, check=False)
+    result = run_command(["gh", "api", endpoint, '--hostname', 'github.com'], root, check=False)
     if result.returncode != 0:
         return None
     try:
@@ -828,6 +844,7 @@ def _current_check_inventory(
     slug: str,
     head_sha: Any,
     hostname: str,
+    pr_number: int | None = None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Read exact-head statuses and check runs with provider App identities."""
     if not isinstance(head_sha, str) or not SHA_RE.fullmatch(head_sha):
@@ -932,20 +949,26 @@ def _current_check_inventory(
                     "createdAt": status["created_at"],
                 }
             )
-        return _enrich_check_workflows(root, slug, head_sha, hostname, evidence)
+        return _enrich_check_workflows(root, slug, head_sha, hostname, evidence, pr_number)
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         return [], f"current-head check inventory malformed: {exc}"
 
 
 def _enrich_check_workflows(
     root: Path, slug: str, head_sha: str, hostname: str, records: list[dict[str, Any]],
+    pr_number: int | None = None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Join immutable CheckRun identity before evaluating workflow-aware reruns."""
     checks = [item for item in records if item.get("__typename") == "CheckRun"]
     by_node = {item['node_id']: item for item in checks}
     if len(by_node) != len(checks):
         return [], 'current-head check inventory has duplicate node identities'
-    query = ('query($ids:[ID!]!){nodes(ids:$ids){__typename ... on CheckRun{'
+    if pr_number is not None and (type(pr_number) is not int or pr_number <= 0):
+        return [], 'required-check workflow identity inventory malformed or unstable'
+    variables = '$ids:[ID!]!' + (',$pr:Int!' if pr_number is not None else '')
+    eligibility = 'isRequired(pullRequestNumber:$pr) ' if pr_number is not None else ''
+    query = ('query(' + variables + '){nodes(ids:$ids){__typename ... on CheckRun{'
+             + eligibility +
              'id databaseId name status conclusion startedAt completedAt '
              'checkSuite{commit{oid} repository{nameWithOwner} '
              'workflowRun{workflow{id name}}}}}}')
@@ -953,6 +976,8 @@ def _enrich_check_workflows(
     for start in range(0, len(checks), 100):
         selected = checks[start:start + 100]
         command = ['gh', 'api', 'graphql', '--hostname', hostname, '-f', 'query=' + query]
+        if pr_number is not None:
+            command.extend(['-F', 'pr=' + str(pr_number)])
         for item in selected:
             command.extend(['-f', 'ids[]=' + item['node_id']])
         result = run_command(command, root, check=False)
@@ -975,6 +1000,7 @@ def _enrich_check_workflows(
                 record = by_node[identity]
                 suite = node['checkSuite']
                 if (type(node.get('databaseId')) is not int or node['databaseId'] != record['id']
+                        or (pr_number is not None and type(node.get('isRequired')) is not bool)
                         or node.get('name') != record['name']
                         or node.get('status', '').lower() != record['status'].lower()
                         or (node.get('conclusion') or '').lower() != (record.get('conclusion') or '').lower()
@@ -990,7 +1016,8 @@ def _enrich_check_workflows(
                     workflow_id = workflow['id']
                     if not isinstance(workflow_id, str) or not workflow_id:
                         raise ValueError('invalid workflow identity')
-                joined[identity] = {**record, 'workflowName': workflow_id}
+                joined[identity] = {**record, 'workflowName': workflow_id,
+                                    'required_for_pr': pr_number if node.get('isRequired') is True else None}
         except (KeyError, TypeError, AttributeError, ValueError, json.JSONDecodeError):
             return [], 'required-check workflow identity inventory malformed or unstable'
     # REST pages are newest first; increasing IDs make same-second ordering
@@ -1006,12 +1033,13 @@ def required_checks_snapshot(
     base_sha: Any,
     head_sha: Any,
     hostname: str,
+    pr_number: int | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], str | None]:
     """Bind exact-head execution evidence to one stable required-check policy."""
     policy, error = _required_check_policy(root, slug, base_branch, base_sha, hostname)
     if error:
         return {}, [], error
-    checks, error = _current_check_inventory(root, slug, head_sha, hostname)
+    checks, error = _current_check_inventory(root, slug, head_sha, hostname, pr_number)
     if error:
         return {}, [], error
     final_policy, error = _required_check_policy(root, slug, base_branch, base_sha, hostname)
@@ -1194,11 +1222,16 @@ def _check_matches_requirement(
     item: dict[str, Any],
     requirement: dict[str, Any],
     head_sha: str,
+    pr_number: Any = None,
 ) -> bool:
     if item.get("head_sha") != head_sha:
         return False
     context = item.get("context") or item.get("name")
     if context != requirement["context"]:
+        return False
+    if item.get('__typename') == 'CheckRun' and (
+            type(pr_number) is not int or type(item.get('required_for_pr')) is not int
+            or item['required_for_pr'] != pr_number):
         return False
     required_app = requirement["app_id"]
     if required_app is None:
@@ -1244,10 +1277,10 @@ def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
         return lane("blocked", "authenticated required-check execution inventory is unavailable",
                     head_sha=head_sha, policy_digest=policy["digest"])
     missing = [requirement["context"] + (f" (App {requirement['app_id']})" if requirement["app_id"] is not None else "") for requirement in policy["required_checks"]
-               if not any(_check_matches_requirement(item, requirement, head_sha) for item in evidence)]
+               if not any(_check_matches_requirement(item, requirement, head_sha, pr.get('number')) for item in evidence)]
     if missing:
         unsupported = [item['context'] for item in policy['required_checks'] if item['app_id'] is not None
-                       and not any(_check_matches_requirement(record, item, head_sha) for record in evidence)
+                       and not any(_check_matches_requirement(record, item, head_sha, pr.get('number')) for record in evidence)
                        and any(record.get('__typename') == 'StatusContext'
                                and record.get('context') == item['context'] for record in evidence)]
         if unsupported:
@@ -1259,13 +1292,25 @@ def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
         return lane("blocked", "authenticated execution inventory lacks current-head evidence",
                     head_sha=head_sha, policy_digest=policy["digest"])
     inventory = observed_checks_lane({'statusCheckRollup': evidence}, head_sha, attempt_order=True)
+    required_attempts = [item for item in evidence if any(
+        _check_matches_requirement(item, requirement, head_sha, pr.get('number'))
+        for requirement in policy['required_checks'])]
+    required_outcome = (observed_checks_lane({'statusCheckRollup': required_attempts},
+                                            head_sha, attempt_order=True)
+                        if policy['required_checks'] else None)
     # Evaluate both snapshots. A later REST failure or queued rerun must not be
     # hidden by an earlier successful GraphQL rollup; neither can clear the other.
     observed = observed_checks_lane(pr, head_sha)
     unknown_current = bool(inventory.get('details', {}).get('unknown_checks')
-                           or observed.get('details', {}).get('unknown_checks'))
+                           or observed.get('details', {}).get('unknown_checks')
+                           or (required_outcome or {}).get('details', {}).get('unknown_checks'))
     if inventory['status'] == 'fail' or (inventory['status'] == 'blocked' and observed['status'] != 'fail'):
         observed = inventory
+    # An ineligible run cannot supersede the required run's outcome, even when
+    # both share a head, name, App and workflow. Keep optional failures above.
+    if required_outcome and (required_outcome['status'] == 'fail'
+            or (required_outcome['status'] == 'blocked' and observed['status'] != 'fail')):
+        observed = required_outcome
     observed.setdefault("details", {}).update(policy_digest=policy["digest"],
         required_checks=policy["required_checks"], missing=[],
         unknown_required=unknown_current)
@@ -4139,7 +4184,7 @@ def build_result(args: argparse.Namespace) -> dict[str, Any]:
             changed = changed_paths(root, base_sha, head_sha)
             undeclared = sorted(set(changed) - set(scope))
             if undeclared:
-                result["lanes"]["scope"] = lane("fail", "changed paths are outside the declared PR scope", changed_paths=changed, undeclared=undeclared, scope_digest=digest_or_error)
+                result["lanes"]["scope"] = lane("fail", "changed paths are outside the declared PR scope", changed_paths=changed, declared_paths=scope, undeclared=undeclared, scope_digest=digest_or_error)
                 result["blockers"].append(blocker("scope_mismatch", ", ".join(undeclared)))
             else:
                 result["lanes"]["scope"] = lane("pass", "all committed PR paths are declared in the scope file", changed_paths=changed, declared_paths=scope, scope_digest=digest_or_error)
@@ -4500,8 +4545,8 @@ def validate_receipt(path: Path, args: argparse.Namespace) -> tuple[dict[str, An
     boundary = worktree_lane(root)
     if boundary["status"] != "pass":
         return {}, "current checkout is no longer a registered worktree"
-    remote_base = hosted_remote_sha(root, slug, base_branch)
-    remote_head = hosted_remote_sha(root, slug, branch)
+    remote_base = remote_sha(root, TRUSTED_REMOTE, base_branch)
+    remote_head = remote_sha(root, TRUSTED_REMOTE, branch)
     if remote_base != receipt_repo.get("remote_base_sha") or remote_head != receipt_repo.get("remote_head_sha"):
         return {}, "remote ancestry changed after the receipt was written"
     scope_details = payload.get("lanes", {}).get("scope", {}).get("details", {})
@@ -4604,17 +4649,8 @@ def _lifecycle_local_context(root: Path, args: argparse.Namespace) -> dict[str, 
 
 
 def _lifecycle_origin_matches(root: Path, repo: str) -> bool:
-    # gh may prefer a GitHub upstream over the checkout's origin.
-    origin = run_command(['git', 'remote', 'get-url', TRUSTED_REMOTE], root, check=False)
-    if origin.returncode:
-        return False
-    match = re.fullmatch(
-        r'(?:https?://github\.com(?::443)?/|ssh://git@github\.com(?::22)?/|git@github\.com:)'
-        r'([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/?',
-        origin.stdout.rstrip('\n'),
-        re.IGNORECASE,
-    )
-    return match is not None and match[1].removesuffix('.git').casefold() == repo.casefold()
+    origin = origin_repository_slug(root)
+    return origin is not None and origin.casefold() == repo.casefold()
 
 
 def _lifecycle_snapshot(root: Path, args: argparse.Namespace) -> dict[str, Any]:
@@ -4769,13 +4805,26 @@ def _lifecycle_execute(root: Path, args: argparse.Namespace, identity: Any) -> d
                     'expected_head': expected['head'], 'target': target}
         return None
 
-    # GitHub's close PATCH has no expected-head precondition. Check its response
-    # before the readback can obscure a head change or fail independently.
+    # Check the mutation response before readback can obscure a head change.
+    # No automatic compensation may overwrite a later independent transition.
     applied = None
-    if args.lifecycle == 'close' and not response.returncode:
+    if not response.returncode:
         try:
-            applied = _lifecycle_target(json.loads(response.stdout), args.expected_repo, args.expected_pr)
-        except (ValueError, TypeError, AttributeError):
+            payload = json.loads(response.stdout)
+            if args.lifecycle == 'ready':
+                node = payload['data']['markPullRequestReadyForReview']['pullRequest']
+                if ('errors' not in payload and isinstance(node, dict)
+                        and node.get('id') == expected['node_id']
+                        and node.get('headRefOid') == expected['head']
+                        and node.get('state') == expected['state'].upper()
+                        and type(node.get('isDraft')) is bool
+                        and node['isDraft'] == expected['draft']):
+                    # The ready mutation exposes these four identity/state
+                    # fields; the full REST readback must independently match.
+                    applied = expected
+            else:
+                applied = _lifecycle_target(payload, args.expected_repo, args.expected_pr)
+        except (KeyError, ValueError, TypeError, AttributeError):
             pass  # Still read back the current state before reporting uncertainty.
         if applied and (report := unreviewed_close(applied)):
             return report
@@ -4783,7 +4832,7 @@ def _lifecycle_execute(root: Path, args: argparse.Namespace, identity: Any) -> d
     after, _raw = _lifecycle_request(root, args.expected_repo, args.expected_pr)
     if report := unreviewed_close(after):
         return report
-    if response.returncode or after != expected or (args.lifecycle == 'close' and applied != expected):
+    if response.returncode or after != expected or applied != expected:
         raise LifecycleOutcomeUnverified(args.lifecycle, after)
     _scope.require_policy_repository_identity(root, identity)
     return {'schema_version': 'pr-lifecycle/v1', 'status': 'pass', 'operation': args.lifecycle,
