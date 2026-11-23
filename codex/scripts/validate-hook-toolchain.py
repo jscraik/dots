@@ -1,9 +1,9 @@
 """Resolve only the administrator-published, root-protected hook toolchain."""
 
-import os
-import stat
 import importlib.util
 import json
+import os
+import stat
 import sys
 from pathlib import Path
 
@@ -59,6 +59,25 @@ def identity():
     return {'schema_version': 1, 'bin_dir': str(binary_dir), 'payload_sha256': digest}
 
 
+def runtime_aikido():
+    """Resolve Aikido only after binding its exact protected payload contents."""
+    binary_dir = runtime_resolve()
+    selected = identity()
+    if (selected['bin_dir'] != str(binary_dir)
+            or selected['payload_sha256'] != binary_dir.parent.name):
+        raise ValueError('Protected Aikido selection changed during validation')
+    spec = importlib.util.spec_from_file_location(
+        'aikido_toolchain_inventory', Path(__file__).with_name('install-hook-toolchain.py'))
+    inventory_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(inventory_module)
+    executable = inventory_module.aikido_provider(binary_dir.parent)
+    if executable is None:
+        raise ValueError('Protected Aikido provider is not installed')
+    if runtime_resolve() != binary_dir:
+        raise ValueError('Protected Aikido selection changed before execution')
+    return executable
+
+
 def runtime_resolve():
     """Keep installed hooks on their sealed selection before child execution."""
     binary_dir = resolve()
@@ -91,6 +110,8 @@ if __name__ == "__main__":
     try:
         if sys.argv[1:] == ['--identity']:
             print(json.dumps(identity(), sort_keys=True))
+        elif sys.argv[1:] == ['--aikido-mcp']:
+            print(runtime_aikido())
         elif not sys.argv[1:]:
             print(runtime_resolve())
         else:

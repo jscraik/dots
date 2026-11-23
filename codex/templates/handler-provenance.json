@@ -365,17 +365,18 @@
       "path": "codex/scripts/deployment_scope.py",
       "source_revision": null,
       "source_sha256": null,
-      "transformation": "New fixed private-package identity and resource adapter; fixture defaults retained.; Add fixed packaged-context admission; retain default disposable admission and original checks. Classify only the two unused native app metadata fields separately in machine mode; retain resource/output and rehearsal checks. Attach fixed stage and field diagnostics to existing admission rejections without changing guards or exception behaviour. Extend only the machine-mode unused metadata set with CODEX_APP_RUNTIME_CLI_PATH and CODEX_MCP_NODE_PATH after names-only native-parent replay; retain direct resource/output checks, strict rehearsals and unknown-name denials. Admit only event working directories of verified managed Git worktrees linked to trusted project roots; retain all other resource and output checks. Reject session stores as event working directories while preserving transcript admission.",
-      "candidate_sha256": "aa84901c64fc35e90c1df583e004e96249f6e1342f56952bae7875d96a62eba6"
+      "transformation": "New fixed private-package identity and resource adapter; fixture defaults retained.; Add fixed packaged-context admission; retain default disposable admission and original checks. Classify only the two unused native app metadata fields separately in machine mode; retain resource/output and rehearsal checks. Attach fixed stage and field diagnostics to existing admission rejections without changing guards or exception behaviour. Extend only the machine-mode unused metadata set with CODEX_APP_RUNTIME_CLI_PATH and CODEX_MCP_NODE_PATH after names-only native-parent replay; retain direct resource/output checks, strict rehearsals and unknown-name denials. Admit only event working directories of verified managed Git worktrees linked to trusted project roots; retain all other resource and output checks. Reject session stores as event working directories while preserving transcript admission. Resolve machine-mode Aikido only from the versioned protected toolchain while retaining disposable rehearsal providers.",
+      "candidate_sha256": "ae2be6506e3f09a88c3ec0527733d5535cbd7d3bcaddd40a36818ee6c36e8fb4"
     },
     {
       "path": "codex/scripts/aikido-mcp.sh",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "e391752936c1a6f2eb4a05f4922bedbe51441b53f32fd43d2957e71899afd0ec",
       "transformations": [
-        "Retain pinned local binary and 1Password execution; admit fixture or fixed packaged context and each provider path before execution."
+        "Retain pinned local binary and 1Password execution; admit fixture or fixed packaged context and each provider path before execution.",
+        "Bind machine-mode Aikido execution to the exact installation-selected protected inventory before 1Password resolves credentials; retain synthetic disposable providers for rehearsals."
       ],
-      "candidate_sha256": "1df0984c65f354559bd4885a87cfee4128047b062a7747c558de5b7c69bca878"
+      "candidate_sha256": "40ed7fafbf503112bdaa20877be5fff1b91becdc99db817c7a1fc3212e493f45"
     },
     {
       "path": "codex/hooks/destructive-git-operation.py",

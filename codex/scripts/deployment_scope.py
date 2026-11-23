@@ -3,6 +3,7 @@ import functools
 import ctypes
 import errno
 import hashlib
+import importlib.util
 import json
 import os
 import pwd
@@ -742,7 +743,16 @@ def require_path(value, *, output=False, data=None, _root_resolver=None):
     return path
 
 
-def require_provider_input(value, role, data=None):
+def protected_aikido_binary():
+    """Resolve the versioned provider from the sealed protected inventory."""
+    validator = Path(__file__).with_name('validate-hook-toolchain.py')
+    spec = importlib.util.spec_from_file_location('aikido_toolchain_validator', validator)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.runtime_aikido()
+
+
+def require_provider_input(value, role, data=None, _aikido_resolver=None):
     """Admit named provider inputs without adding read/write resource roots."""
     data = context() if data is None else data
     home = Path(data['home'])
@@ -751,7 +761,13 @@ def require_provider_input(value, role, data=None):
         raise ValueError('Provider inputs need absolute paths without traversal')
     if role == 'aikido-binary':
         root = home / '.codex/utilities/aikido-mcp'
-        if path == root / 'bin/aikido-mcp':
+        local_binary = root / 'bin/aikido-mcp'
+        if data['mode'] == 'machine':
+            if path != local_binary:
+                raise ValueError('Aikido binary overrides are not admitted in machine mode')
+            resolver = protected_aikido_binary if _aikido_resolver is None else _aikido_resolver
+            return resolver()
+        if path == local_binary:
             physical(root)
             if not path.resolve().is_relative_to(root):
                 raise ValueError('Aikido binary leaves its local installation')
