@@ -971,7 +971,7 @@ def _enrich_check_workflows(
              'id databaseId name status conclusion startedAt completedAt '
              'isRequired(pullRequestNumber:$pr) '
              'checkSuite{commit{oid} repository{nameWithOwner} '
-             'workflowRun{workflow{id name}}}}}}')
+             'workflowRun{id}}}}}')
     joined = {}
     for start in range(0, len(checks), 100):
         selected = checks[start:start + 100]
@@ -1011,13 +1011,12 @@ def _enrich_check_workflows(
                 if type(node.get('isRequired')) is not bool:
                     raise ValueError('invalid check eligibility')
                 workflow_run = suite.get('workflowRun')
-                workflow_id = ''
+                run_id = None
                 if workflow_run is not None:
-                    workflow = workflow_run['workflow']
-                    workflow_id = workflow['id']
-                    if not isinstance(workflow_id, str) or not workflow_id:
-                        raise ValueError('invalid workflow identity')
-                joined[identity] = {**record, 'workflowName': workflow_id,
+                    run_id = workflow_run['id']
+                    if not isinstance(run_id, str) or not run_id:
+                        raise ValueError('invalid workflow run identity')
+                joined[identity] = {**record, 'workflowRunId': run_id,
                                     'isRequired': node['isRequired'],
                                     'required_for_pr': pr_number if node['isRequired'] else None}
         except (KeyError, TypeError, AttributeError, ValueError, json.JSONDecodeError):
@@ -1090,13 +1089,11 @@ def _check_app_identity(item: dict[str, Any]) -> str:
     return ""
 
 
-def _check_identity(item: dict[str, Any], index: int) -> tuple[str, ...]:
+def _check_identity(item: dict[str, Any], index: int, *, attempt_order: bool) -> tuple[str, ...]:
     """Return a safe dedupe key for one GitHub status/check entry.
 
-    Status contexts are keyed by their context name. Check runs need their
-    workflow/app identity as well as their display name; when GitHub omits
-    that identity, keep the entry distinct instead of treating an unrelated
-    same-named run as a rerun of the same check.
+    Status contexts are keyed by context name. For the authenticated inventory,
+    a check name and App identify a rerun only within a shared workflow run.
     """
     typename = str(item.get("__typename") or "")
     context = str(item.get("context") or "")
@@ -1106,6 +1103,11 @@ def _check_identity(item: dict[str, Any], index: int) -> tuple[str, ...]:
     workflow = str(item.get("workflowName") or "")
     app = _check_app_identity(item)
     if typename == "CheckRun":
+        if attempt_order:
+            run_id = item.get("workflowRunId")
+            if isinstance(run_id, str) and run_id and app:
+                return ("check", name, run_id, app)
+            return ("check-unidentified", name, str(index))
         if workflow or app:
             return ("check", name, workflow, app)
         return ("check-unidentified", name, str(index))
@@ -1136,7 +1138,7 @@ def observed_checks_lane(pr: dict[str, Any], head_sha: str, *, attempt_order: bo
     for index, item in enumerate(checks):
         if not isinstance(item, dict):
             continue
-        identity = _check_identity(item, index)
+        identity = _check_identity(item, index, attempt_order=attempt_order)
         if attempt_order and item.get('__typename') == 'CheckRun':
             # An optional run cannot replace a required attempt, or vice versa.
             identity += ('required' if item.get('isRequired') is True else 'optional',)

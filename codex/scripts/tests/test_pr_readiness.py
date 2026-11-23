@@ -75,7 +75,7 @@ class PrReadinessTests(unittest.TestCase):
     def test_ineligible_success_cannot_clear_eligible_required_failure(self):
         head = 'a' * 40
         old = {'__typename': 'CheckRun', 'name': 'build', 'app': {'id': 42},
-               'workflowName': 'workflow-one', 'status': 'COMPLETED', 'conclusion': 'FAILURE',
+               'workflowName': 'workflow-one', 'workflowRunId': 'run-one', 'status': 'COMPLETED', 'conclusion': 'FAILURE',
                'startedAt': '2026-11-23T12:00:00Z', 'completedAt': '2026-11-23T12:01:00Z'}
         newer = {**old, 'required_for_pr': None, 'conclusion': 'SUCCESS',
                  'startedAt': '2026-11-23T12:02:00Z', 'completedAt': '2026-11-23T12:03:00Z'}
@@ -178,7 +178,7 @@ class PrReadinessTests(unittest.TestCase):
     def test_superseded_unknown_attempt_does_not_block_pending_reconciliation(self):
         head = 'a' * 40
         old = {'__typename': 'CheckRun', 'name': 'lint', 'app': {'id': 42},
-               'workflowName': 'lint-workflow', 'status': 'COMPLETED', 'conclusion': 'NEUTRAL',
+               'workflowName': 'lint-workflow', 'workflowRunId': 'lint-run', 'status': 'COMPLETED', 'conclusion': 'NEUTRAL',
                'startedAt': '2026-11-22T17:00:00Z', 'completedAt': '2026-11-22T17:01:00Z'}
         new = {**old, 'conclusion': 'SUCCESS', 'startedAt': '2026-11-22T17:02:00Z',
                'completedAt': '2026-11-22T17:03:00Z'}
@@ -3386,15 +3386,32 @@ class PrReadinessTests(unittest.TestCase):
 
     def test_required_workflow_join_keeps_failures_and_valid_reruns(self) -> None:
         head = 'a' * 40
-        earlier = {'__typename': 'CheckRun', 'name': 'build', 'app': {'id': 42},
-                   'isRequired': True,
-                   'workflowName': 'workflow-one', 'status': 'COMPLETED', 'conclusion': 'FAILURE',
-                   'completedAt': '2026-11-22T17:00:00Z'}
-        later = {**earlier, 'conclusion': 'SUCCESS', 'completedAt': '2026-11-22T17:01:00Z'}
-        for workflow, expected in (('workflow-one', 'pass'), ('workflow-two', 'fail')):
-            with self.subTest(workflow=workflow):
-                pr = required_check_pr([earlier, {**later, 'workflowName': workflow}], head,
-                                      required=[{'context': 'build', 'app_id': 42}])
+        for run_ids, expected in (
+            ((None, None), 'fail'), (('run-one', 'run-two'), 'fail'), (('run-one', 'run-one'), 'pass'),
+        ):
+            with self.subTest(run_ids=run_ids):
+                records = []
+                nodes = []
+                for check_id, (run_id, conclusion) in enumerate(zip(run_ids, ('FAILURE', 'SUCCESS')), 1):
+                    record = {'__typename': 'CheckRun', 'id': check_id, 'node_id': f'CR_{check_id}',
+                              'name': 'build', 'head_sha': head, 'app': {'id': 42}, 'status': 'COMPLETED',
+                              'conclusion': conclusion, 'completedAt': f'2026-11-22T17:0{check_id}:00Z'}
+                    records.append(record)
+                    workflow_run = ({'id': run_id, 'workflow': {'id': 'workflow-one'}}
+                                    if run_id is not None else None)
+                    nodes.append({'__typename': 'CheckRun', 'id': record['node_id'], 'databaseId': check_id,
+                                  'name': 'build', 'isRequired': True, 'status': record['status'],
+                                  'conclusion': conclusion, 'completedAt': record['completedAt'],
+                                  'checkSuite': {'commit': {'oid': head}, 'repository': {'nameWithOwner': 'o/r'},
+                                                 'workflowRun': workflow_run}})
+                with patch.object(MODULE, 'run_command', return_value=subprocess.CompletedProcess(
+                    [], 0, json.dumps({'data': {'nodes': nodes}}), '',
+                )):
+                    joined, error = MODULE._enrich_check_workflows(
+                        Path.cwd(), 'o/r', head, 'github.com', records, pr_number=7,
+                    )
+                self.assertIsNone(error)
+                pr = required_check_pr(joined, head, required=[{'context': 'build', 'app_id': 42}])
                 pr['statusCheckRollup'] = [{'name': 'unrelated', 'state': 'SUCCESS'}]
                 self.assertEqual(MODULE.checks_lane(pr, head)['status'], expected)
 
@@ -3407,7 +3424,7 @@ class PrReadinessTests(unittest.TestCase):
                 'isRequired': True,
                 'status': 'COMPLETED', 'conclusion': None, 'startedAt': None, 'completedAt': None,
                 'checkSuite': {'commit': {'oid': head}, 'repository': {'nameWithOwner': 'o/r'},
-                               'workflowRun': {'workflow': {'id': 'workflow-one', 'name': 'CI'}}}}
+                               'workflowRun': {'id': 'run-one', 'workflow': {'id': 'workflow-one'}}}}
         for payload, accepted in (({'data': {'nodes': [node]}}, True),
                                   ({'data': {'nodes': [{**node, 'isRequired': False}]}}, True),
                                   ({'data': {'nodes': [{**node, 'isRequired': None}]}}, False),
@@ -3423,10 +3440,11 @@ class PrReadinessTests(unittest.TestCase):
                 )
                 args = command.call_args.args[0]
                 self.assertIn('isRequired(pullRequestNumber:$pr)', args[6])
+                self.assertIn('workflowRun{id}', args[6])
                 self.assertIn('pr=7', args)
                 self.assertEqual(error is None, accepted)
                 if accepted:
-                    self.assertEqual(joined[0]['workflowName'], 'workflow-one')
+                    self.assertEqual(joined[0]['workflowRunId'], 'run-one')
                     self.assertIs(joined[0]['isRequired'], payload['data']['nodes'][0]['isRequired'])
         for required, accepted in ((True, True), (False, True), (None, False), ('true', False)):
             with self.subTest(required=required), patch.object(MODULE, 'run_command',
@@ -3443,7 +3461,7 @@ class PrReadinessTests(unittest.TestCase):
         head = 'a' * 40
         earlier = {'__typename': 'CheckRun', 'name': 'build', 'app': {'id': 42},
                    'isRequired': True,
-                   'workflowName': 'workflow-one', 'status': 'COMPLETED', 'conclusion': 'SUCCESS',
+                   'workflowName': 'workflow-one', 'workflowRunId': 'run-one', 'status': 'COMPLETED', 'conclusion': 'SUCCESS',
                    'startedAt': '2026-11-22T17:00:00Z', 'completedAt': '2026-11-22T17:10:00Z'}
         later = {**earlier, 'status': 'IN_PROGRESS', 'conclusion': None,
                  'startedAt': '2026-11-22T17:05:00Z', 'completedAt': None}
