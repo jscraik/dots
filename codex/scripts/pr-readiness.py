@@ -4156,7 +4156,7 @@ def build_result(args: argparse.Namespace) -> dict[str, Any]:
             changed = changed_paths(root, base_sha, head_sha)
             undeclared = sorted(set(changed) - set(scope))
             if undeclared:
-                result["lanes"]["scope"] = lane("fail", "changed paths are outside the declared PR scope", changed_paths=changed, undeclared=undeclared, scope_digest=digest_or_error)
+                result["lanes"]["scope"] = lane("fail", "changed paths are outside the declared PR scope", changed_paths=changed, declared_paths=scope, undeclared=undeclared, scope_digest=digest_or_error)
                 result["blockers"].append(blocker("scope_mismatch", ", ".join(undeclared)))
             else:
                 result["lanes"]["scope"] = lane("pass", "all committed PR paths are declared in the scope file", changed_paths=changed, declared_paths=scope, scope_digest=digest_or_error)

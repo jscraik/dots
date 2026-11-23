@@ -2906,6 +2906,48 @@ class PrReadinessTests(unittest.TestCase):
             check=False,
         )
 
+    def test_write_receipt_preserves_scope_mismatch_and_rejects_unparsed_scope(self) -> None:
+        root = Path("/fixture")
+        head, base = "a" * 40, "b" * 40
+        receipt = root / "receipt.json"
+        for scope_args, scope_text, expected_exit in (
+            (["--scope-file", "scope.txt"], b"declared.py\n", 1),
+            (["--scope-file", "scope.txt"], b"/invalid.py\n", 2),
+            ([], b"", 2),
+        ):
+            with (
+                self.subTest(scope_args=scope_args, scope_text=scope_text),
+                patch("sys.argv", ["pr-readiness", "--phase", "create", "--write-receipt", *scope_args]),
+                patch("sys.stdout", new_callable=io.StringIO) as output,
+                patch.object(MODULE, "resolve_root", return_value=root),
+                patch.object(MODULE, "current_worktree", return_value=("candidate", head, "main", ".git", ".git")),
+                patch.object(MODULE, "git", return_value=base),
+                patch.object(MODULE, "remote_sha", side_effect=[base, head]),
+                patch.object(MODULE, "run_command", return_value=subprocess.CompletedProcess([], 0)),
+                patch.object(MODULE, "dirty_lane", return_value=MODULE.lane("pass", "clean")),
+                patch.object(MODULE, "worktree_lane", return_value=MODULE.lane("pass", "valid worktree")),
+                patch.object(MODULE, "changed_paths", return_value=["extra.py"]),
+                patch.object(MODULE, "gh_pr", return_value=(None, None)),
+                patch.object(MODULE._scope, "require_policy_repository_path"),
+                patch.object(MODULE._scope, "policy_repository_identity"),
+                patch.object(MODULE._scope, "require_policy_repository_identity"),
+                patch.object(MODULE._scope, "policy_repository_receipt", return_value=receipt),
+                patch.object(MODULE._scope, "policy_repository_read", return_value=scope_text) as read,
+                patch.object(MODULE._scope, "write_policy_repository_receipt") as write,
+            ):
+                self.assertEqual(MODULE.main(), expected_exit, output.getvalue())
+                if expected_exit == 2:
+                    write.assert_not_called()
+                    continue
+                write.assert_called_once()
+                saved = json.loads(write.call_args.args[2])
+                self.assertEqual(saved["lanes"]["scope"]["details"]["declared_paths"], ["declared.py"])
+                self.assertEqual(saved["lanes"]["scope"]["details"]["undeclared"], ["extra.py"])
+                self.assertIn({"code": "scope_mismatch", "reason": "extra.py"}, saved["blockers"])
+                read.return_value = write.call_args.args[2]
+                _, error = MODULE.validate_receipt(receipt, MODULE.parse_args())
+                self.assertEqual(error, "receipt status is 'fail'")
+
     def test_scope_digest_is_order_independent_and_repository_relative(self) -> None:
         with tempfile.TemporaryDirectory(prefix="pr-scope-") as tmpdir:
             scope = Path(tmpdir) / "scope.txt"
