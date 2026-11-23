@@ -50,14 +50,14 @@ class PublicControlsTests(unittest.TestCase):
     def test_all_accepted_native_cases_and_exact_managed_identities(self):
         result = self.controls(binary=os.environ["DOTS_CODEX_BIN"])
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("Validated 93 execpolicy cases", result.stdout)
+        self.assertIn("Validated 94 execpolicy cases", result.stdout)
         self.assertIn("2 MCP identities", result.stdout)
         self.fixture.assert_preserved(self)
 
     def test_missing_cli_never_reports_native_success(self):
         result = self.controls(binary=str(self.fixture.home / "no-such-codex"))
         self.assertNotEqual(result.returncode, 0)
-        self.assertNotIn("Validated 93", result.stdout)
+        self.assertNotIn("Validated 94", result.stdout)
 
     def test_managed_constraint_or_identity_drift_blocks_before_projection(self):
         fixture = self.fixture

@@ -1,14 +1,19 @@
 """Exercise migrated helpers, missing-input denial and isolation with accepted tests."""
 
+import hashlib
+import io
 import json
 import os
 import pwd
+import runpy
+import shlex
 import subprocess
 import sys
 import tempfile
 import tomllib
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from helper_fixture import HelperFixture
 
@@ -16,6 +21,29 @@ from helper_fixture import HelperFixture
 class HelperDependencyTests(unittest.TestCase):
     def setUp(self):
         self.fixture = HelperFixture(self)
+
+    def test_selected_python_missing_dependencies_never_falls_through_to_path(self):
+        fixture = self.fixture
+        isolated = fixture.home / 'stdlib-python'
+        created = subprocess.run([sys.executable, '-I', '-B', '-m', 'venv', '--without-pip', str(isolated)],
+                                 env=fixture.env, cwd=fixture.repo, capture_output=True, text=True, timeout=30)
+        self.assertEqual(created.returncode, 0, created.stdout + created.stderr)
+        marker = fixture.home / 'fallback-shim-ran'
+        for name in ('python3', 'uv'):
+            (fixture.bin / name).write_text('#!/bin/sh\n/usr/bin/touch "' + str(marker) + '"\nexit 75\n')
+            (fixture.bin / name).chmod(0o700)
+        command = ['/bin/bash', '-p', '-c', '. "$1"; codex_select_validation_python',
+                   'validation-probe', str(fixture.codex / 'scripts/codex-validation-lib.sh')]
+        for selected, expected in ((str(isolated / 'bin/python'), 1), (sys.executable, 0)):
+            result = subprocess.run(command, env=fixture.env | {'CODEX_VALIDATION_PYTHON': selected},
+                                    cwd=fixture.repo, capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+            if expected == 0:
+                self.assertEqual(result.stdout.strip(), selected)
+            else:
+                self.assertIn('PyYAML', result.stderr)
+            self.assertFalse(marker.exists())
+        fixture.assert_preserved(self)
 
     def test_git_reported_metadata_cannot_probe_outside_the_fixture(self):
         fixture = self.fixture
@@ -426,6 +454,76 @@ class HelperDependencyTests(unittest.TestCase):
         self.assertIn("Complete hook manifest validation failed", result.stderr)
         fixture.assert_preserved(self)
 
+    def test_core_capture_rejects_invalid_sources_and_bounds_growth(self):
+        fixture = self.fixture
+        environment = mock.patch.dict(os.environ, fixture.env)
+        environment.start()
+        self.addCleanup(environment.stop)
+        with mock.patch.object(
+            sys, "path", [str(fixture.codex / "scripts"), *sys.path]
+        ):
+            adapter = runpy.run_path(str(fixture.codex / "scripts/core-hook-fixture-manifest.py"))
+        capture = adapter["capture_artifact"]
+        publisher = adapter["publisher"]
+        raw = b"synthetic executable"
+        digest = hashlib.sha256(raw).hexdigest()
+        artifact = fixture.home / ("braid-" + digest) / "braid"
+        artifact.parent.mkdir()
+        artifact.write_bytes(raw)
+        artifact.chmod(0o500)
+        target = fixture.home / "capture" / "braid"
+        capture(artifact, target)
+        publisher.validate_braid_copy(target, digest)
+        target.unlink()
+        target.parent.rmdir()
+        for kind in ("symlink", "hardlink", "oversize", "growth"):
+            with self.subTest(kind=kind):
+                if kind == "symlink":
+                    saved = artifact.with_name("saved")
+                    artifact.rename(saved)
+                    artifact.symlink_to(saved)
+                    context = mock.patch.object(publisher, "MAX_BRAID_BYTES", 32)
+                elif kind == "hardlink":
+                    os.link(artifact, artifact.with_name("alias"))
+                    context = mock.patch.object(publisher, "MAX_BRAID_BYTES", 32)
+                elif kind == "oversize":
+                    context = mock.patch.object(publisher, "MAX_BRAID_BYTES", len(raw) - 1)
+                else:
+                    # Grow only the capture read after source validation succeeds.
+                    original_validate = publisher.validate_braid_copy
+                    def validate_then_grow(*args, original_validate=original_validate):
+                        original_validate(*args)
+                        artifact.chmod(0o700)
+                        artifact.write_bytes(b"x" * 33)
+                        artifact.chmod(0o500)
+                    context = mock.patch.object(publisher, "validate_braid_copy", validate_then_grow)
+                with context, self.assertRaises((OSError, ValueError)):
+                    capture(artifact, target)
+                self.assertFalse(target.parent.exists())
+                if kind == "symlink":
+                    artifact.unlink()
+                    saved.rename(artifact)
+                elif kind == "hardlink":
+                    artifact.with_name("alias").unlink()
+        # Simulate a source growing after fstat: the bounded read must fail
+        # before creating a destination, even if its metadata appears stable.
+        artifact.chmod(0o700)
+        artifact.write_bytes(raw)
+        artifact.chmod(0o500)
+        with mock.patch.object(publisher, "MAX_BRAID_BYTES", 32):
+            original_fdopen = os.fdopen
+            calls = 0
+            def growing_stream(*args, **kwargs):
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    return original_fdopen(*args, **kwargs)
+                return io.BytesIO(b"x" * 33)
+            with mock.patch.object(os, "fdopen", growing_stream), self.assertRaises(ValueError):
+                capture(artifact, target)
+        self.assertFalse(target.parent.exists())
+        fixture.assert_preserved(self)
+
     def test_auth_helpers_work_with_isolated_system_python_without_source_shadowing(
         self,
     ):
@@ -501,7 +599,9 @@ class HelperDependencyTests(unittest.TestCase):
             (runtime / "config.toml").read_bytes(),
             (destination / "codex/config.toml").read_bytes(),
         )
-        projects = tomllib.loads((destination / "codex/config.toml").read_text())["projects"]
+        projects = tomllib.loads((destination / "codex/config.toml").read_text())[
+            "projects"
+        ]
         self.assertTrue(projects)
         for project in projects:
             path = Path(project)
@@ -521,7 +621,9 @@ class HelperDependencyTests(unittest.TestCase):
             config = fixture.codex / "config.toml"
             injected = fixture.home / "escape" / "must-not-be-created"
             config.write_text(
-                config.read_text() + "\n[projects." + json.dumps(str(injected))
+                config.read_text()
+                + "\n[projects."
+                + json.dumps(str(injected))
                 + ']\ntrust_level = "trusted"\n'
             )
             code = (
@@ -530,13 +632,98 @@ class HelperDependencyTests(unittest.TestCase):
                 "create_runtime_checkout(Path(sys.argv[1]), Path(sys.argv[2]))"
             )
             result = subprocess.run(
-                [sys.executable, "-B", "-c", code, str(nested_home / "dev/dots"), str(fixture.repo)],
-                cwd=fixture.repo, env=fixture.env, text=True, capture_output=True,
-                timeout=75, check=False,
+                [
+                    sys.executable,
+                    "-B",
+                    "-c",
+                    code,
+                    str(nested_home / "dev/dots"),
+                    str(fixture.repo),
+                ],
+                cwd=fixture.repo,
+                env=fixture.env,
+                text=True,
+                capture_output=True,
+                timeout=75,
+                check=False,
             )
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("Nested fixture project leaves its disposable HOME", result.stderr)
+            self.assertIn(
+                "Nested fixture project leaves its disposable HOME", result.stderr
+            )
             self.assertFalse((Path(outside) / "must-not-be-created").exists())
+        fixture.assert_preserved(self)
+
+    def test_allowed_project_audit_preserves_valid_config_and_import_failures(self):
+        fixture = self.fixture
+        scan = fixture.home / 'audit-projects'
+        project = scan / 'lifeOS'
+        project.mkdir(parents=True)
+        subprocess.run(['/usr/bin/git', 'init', '-q', str(project)], env=fixture.env,
+                       capture_output=True, check=True, timeout=10)
+        # Keep discovery deterministic; the behavior under test is the audit's
+        # isolated validator and its decision to preserve or remove this file.
+        finder = fixture.bin / 'fd'
+        finder.write_text('#!/bin/sh\nprintf "%s\\n" ' + shlex.quote(str(project / '.git')) + '\n')
+        finder.chmod(0o755)
+        config = project / '.codex/config.toml'
+        config.parent.mkdir()
+        valid = b'model_verbosity = "low"\n'
+        config.write_bytes(valid)
+        (project / '.gitignore').write_text('.codex/config.toml\n')
+        marker = fixture.home / 'workspace-imported'
+        (fixture.codex / 'migration_scope.py').write_text(
+            'open(' + repr(str(marker)) + ', "w").write("poisoned")\nraise RuntimeError("poison")\n')
+        for mode in ('--check', '--repair'):
+            result = fixture.helper('audit-project-codex-config-overrides.sh', mode, str(scan))
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertNotIn('SKIP', result.stdout, result.stdout + result.stderr)
+            self.assertEqual(config.read_bytes(), valid)
+            self.assertFalse(marker.exists())
+        neighbour = scan / 'neighbour'
+        (neighbour / '.git').mkdir(parents=True)
+        (neighbour / '.codex').mkdir()
+        neighbour_config = neighbour / '.codex/config.toml'
+        neighbour_config.write_text('approval_policy = "never"\n')
+        finder.write_text('#!/bin/sh\nprintf "%s\\n" '
+                          + shlex.quote(str(project / '.git')) + ' '
+                          + shlex.quote(str(neighbour / '.git')) + '\n')
+        repaired = fixture.helper('audit-project-codex-config-overrides.sh', '--repair', str(scan))
+        self.assertEqual(repaired.returncode, 0, repaired.stdout + repaired.stderr)
+        self.assertEqual(config.read_bytes(), valid)
+        self.assertFalse(neighbour_config.exists())
+        fixture.assert_preserved(self)
+        config.write_text('approval_policy = "never"\n')
+        invalid = fixture.helper('audit-project-codex-config-overrides.sh', '--check', str(scan))
+        self.assertNotEqual(invalid.returncode, 0)
+        self.assertTrue(config.exists())
+        removed = fixture.helper('audit-project-codex-config-overrides.sh', '--repair', str(scan))
+        self.assertEqual(removed.returncode, 0, removed.stdout + removed.stderr)
+        self.assertFalse(config.exists())
+        config.write_bytes(valid)
+        validator = fixture.codex / 'scripts/validate-codex-config.py'
+        validator.write_text('raise ImportError("synthetic unavailable validator")\n')
+        unavailable = fixture.helper('audit-project-codex-config-overrides.sh', '--repair', str(scan))
+        self.assertNotEqual(unavailable.returncode, 0)
+        self.assertIn('validator unavailable', unavailable.stderr)
+        self.assertEqual(config.read_bytes(), valid)
+
+    def test_nested_hook_home_does_not_reuse_parent_runtime_aliases(self):
+        fixture = self.fixture
+        projected = fixture.project()
+        self.assertEqual(projected.returncode, 0, projected.stdout + projected.stderr)
+        child = fixture.home / "optional-runtime-home"
+        child.mkdir()
+        inherited = fixture.helper(
+            "admit-hook-fixture.py", "{}", extra_env={"HOME": str(child)}
+        )
+        self.assertNotEqual(inherited.returncode, 0)
+        self.assertIn("Mutable fixture resource directories", inherited.stderr)
+        isolated = fixture.helper(
+            "admit-hook-fixture.py", "{}",
+            extra_env={"HOME": str(child), "CODEX_HOME": ""},
+        )
+        self.assertEqual(isolated.returncode, 0, isolated.stdout + isolated.stderr)
         fixture.assert_preserved(self)
 
     def test_full_hook_harness_and_fast_aggregate(self):
@@ -569,14 +756,23 @@ class HelperDependencyTests(unittest.TestCase):
         probe = fixture.home / "repair-runtime-config-drift.py"
         probe.write_text("import tomllib\n")
         fallback = subprocess.run(
-            ["python3", str(probe)], executable=sys.executable,
-            env=fixture.env, capture_output=True, text=True, timeout=10, check=False,
+            ["python3", str(probe)],
+            executable=sys.executable,
+            env=fixture.env,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
         )
         self.assertNotEqual(fallback.returncode, 0, "fallback simulation must fail")
         self.assertIn("tomllib", fallback.stderr)
         selected = subprocess.run(
-            [sys.executable, str(probe)], env=fixture.env, capture_output=True,
-            text=True, timeout=10, check=False,
+            [sys.executable, str(probe)],
+            env=fixture.env,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
         )
         self.assertEqual(selected.returncode, 0, selected.stderr)
         result = fixture.helper(
@@ -627,18 +823,25 @@ class HelperDependencyTests(unittest.TestCase):
                 result = subprocess.run(
                     [sys.executable, "-B", "-c", program],
                     env=env | {"DOTS_FAKE_HOOK_TRUST": trust},
-                    cwd=fixture.codex, capture_output=True, text=True,
-                    timeout=30, check=False,
+                    cwd=fixture.codex,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=False,
                 )
                 self.assertEqual(result.returncode, expected, result.stderr)
                 if trust == "untrusted":
-                    self.assertIn("enabled runtime hooks are not trusted", result.stderr)
+                    self.assertIn(
+                        "enabled runtime hooks are not trusted", result.stderr
+                    )
         homes = [Path(path) for path in evidence.read_text().splitlines()]
         self.assertEqual(len(homes), 2)
         self.assertNotEqual(homes[0], homes[1])
         for home in homes:
             self.assertTrue(home.is_relative_to(fixture.home))
-            self.assertFalse(home.exists(), "disposable runtime home should be cleaned up")
+            self.assertFalse(
+                home.exists(), "disposable runtime home should be cleaned up"
+            )
         fixture.assert_preserved(self)
 
     def test_accepted_governance_regressions(self):
@@ -672,4 +875,10 @@ class HelperDependencyTests(unittest.TestCase):
                 result = self.fixture.accepted_tests(pattern, timeout=240)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertNotIn("skipped=", result.stderr)
+        self.fixture.assert_preserved(self)
+
+    def test_review_request_retry_regressions_preserve_caller_state(self):
+        result = self.fixture.accepted_tests("test_pr_review_request.py", timeout=240)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("skipped=", result.stderr)
         self.fixture.assert_preserved(self)

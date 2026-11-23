@@ -104,8 +104,10 @@ not global write roots for Configs and Agent-Skills. The
 validator rejects enclosing parent roots and symlink aliases across permission
 profiles. Global filesystem writes require exact paths, optionally ending in
 `/**`; other wildcard write grants are rejected without expanding them.
-Read and deny patterns remain permitted. The authentication FIFO has exact read access rather than being
-declared a workspace directory.
+Read and deny patterns remain permitted. Both networked profiles explicitly deny
+the authentication FIFO. The two fixed-output canaries retain exact command-policy
+exceptions; any credential-bearing child requires normal outside-sandbox approval,
+so ordinary workspace code cannot open the FIFO.
 Session evidence access is independent of project trust; confirmed non-project
 trust entries and the duplicate Agent-Skills spelling are removed. Existing
 Git repositories and Desktop-owned scratch-task entries are preserved.
@@ -260,8 +262,9 @@ profile failure.
 The cloud profile uses `OLLAMA_API_KEY` through the custom `ollama-cloud`
 provider configured with Ollama's cloud endpoint. The built-in `ollama` provider
 is reserved for the local endpoint and must not be overridden; never put that
-secret in a TOML file. Inside Codex, inject it through the checked-in wrapper
-and the 1Password Desktop-owned `${HOME}/.codex/.env` FIFO:
+secret in a TOML file. Inside Codex, use the checked-in wrapper and normal
+outside-sandbox approval for the credential-bearing child; the ordinary
+networked profiles deny the 1Password Desktop-owned `${HOME}/.codex/.env` FIFO:
 
 ```sh
 bash ${CODEX_POLICY_SOURCE}/scripts/run-auth-backed.sh \
@@ -275,13 +278,15 @@ bash ${CODEX_POLICY_SOURCE}/scripts/run-auth-backed.sh \
 
 The wrapper is part of the cloud execution contract. It validates that the
 canonical path is a non-symlink FIFO owned by the current user with no
-group/other access, then lets stable `op` expose values only to the child. Do
-not replace it with `env`, direct `op run`, a sourced file, shell-exported key,
-or copied secret. Run credential-bearing FIFO stages sequentially through fresh
-wrapper invocations; concurrent reads are unsupported. Prove the agent route
-with `--env-file ${HOME}/.codex/.env --canary OLLAMA_API_KEY`, which prints only
-a fixed result. Keep `--require-environment` as an explicit host beta-XPC route,
-not a Codex sandbox bypass. The `oss-local-code`,
+group/other access, then rebuilds the child environment from only the requested
+names and a small pre-injection runtime allowlist. Other 1Password values remain
+absent. Do not replace it with direct `op run`, a sourced file, shell-exported
+key, or copied secret. Run credential-bearing FIFO stages sequentially through
+fresh wrapper invocations; concurrent reads are unsupported. Prove the route
+with the exact auto-allowed `--env-file ${HOME}/.codex/.env --canary
+OLLAMA_API_KEY` command, which prints only a fixed result and accepts no child
+command. Keep `--require-environment` as an explicit host beta-XPC route, not a
+Codex sandbox bypass. The `oss-local-code`,
 `oss-local-fallback`, and `docs` compatibility profiles remain projected
 and are validated as explicit readonly lanes; they are not selected by the
 primary OSS workflow above.
@@ -413,10 +418,10 @@ The old daemon entrypoint is a no-op so an older installed job cannot restart it
 
 ```bash
 # Check projection state without repairing it
-bash ${DOTS_CHECKOUT}/scripts/link-configs.sh --check
+/bin/bash -p "${DOTS_CHECKOUT}/scripts/link-configs.sh" --check
 
 # Verify ~/.codex symlinks point at this repo
-bash ${CODEX_POLICY_SOURCE}/scripts/audit-codex-symlinks.sh
+/bin/bash -p ${CODEX_POLICY_SOURCE}/scripts/audit-codex-symlinks.sh
 
 # Verify that live schedules are isolated from the repository
 python3 - <<'PY'
@@ -455,7 +460,7 @@ python3 ${CODEX_POLICY_SOURCE}/scripts/hook-governance/rollout_check.py \
 
 Installation and repair are separate, mutating operations. When authorized, use
 `bash scripts/install-codex-hooks.sh` from this subtree for hooks or
-`bash scripts/link-configs.sh --repair` from the repository root for projections.
+`/bin/bash -p scripts/link-configs.sh --repair` from the repository root for projections.
 Do not run them merely to inspect state. Report generators above also write
 their declared output files; preserve unrelated dirty reports.
 

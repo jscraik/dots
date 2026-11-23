@@ -1,6 +1,9 @@
 """Validate a packaged deployment context; this is scope, never task authority."""
 import functools
+import ctypes
+import errno
 import hashlib
+import importlib.util
 import json
 import os
 import pwd
@@ -8,6 +11,7 @@ import stat
 import subprocess
 import sys
 import tomllib
+import secrets
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -80,8 +84,15 @@ def physical(path):
     return path
 
 
-def read_regular(path, limit=16 * 1024 * 1024):
+def read_regular(path, limit=None):
     path = physical(path)
+    if limit is None:
+        # Only content-addressed adapter payloads receive the larger default.
+        packaged_braid = (path.name == 'braid' and path.parent.name.startswith('braid-')
+                          and len(path.parent.name) == 70
+                          and all(char in '0123456789abcdef' for char in path.parent.name[6:])
+                          and path.parent.parent.name == 'hooks')
+        limit = (64 if packaged_braid else 16) * 1024 * 1024
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
         before = os.fstat(fd)
@@ -148,7 +159,134 @@ def target_home(value, mode):
     return home
 
 
-def context():
+def usage_directory_parents(home, backup):
+    """Bind directory identities without pinning mutable log contents or mtimes."""
+    parents = set()
+    for leaf in (home / '.codex/usage-data', backup):
+        physical(leaf.parent)
+        for parent in leaf.parents:
+            if not parent.is_relative_to(home):
+                break
+            parents.add(parent)
+    result = []
+    for parent in sorted(parents):
+        info = parent.stat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o022:
+            raise ValueError('Retained repair parent is unsafe')
+        result.append({'path': str(parent), 'device': info.st_dev, 'inode': info.st_ino,
+                       'uid': info.st_uid, 'mode': stat.S_IMODE(info.st_mode)})
+    return result
+
+
+def usage_directory_pair(home, proof):
+    """Validate both ends of a reversible, explicitly selected retained repair."""
+    fields = {'schema_version', 'home', 'previous_state', 'previous_package_digest',
+              'previous_plan_digest', 'previous_marker_sha256', 'observed_config_sha256',
+              'backup', 'old_link', 'new_directory', 'parents', 'target_parents'}
+    if (not isinstance(proof, dict) or set(proof) != fields or type(proof['schema_version']) is not int or proof['schema_version'] != 1
+            or proof['home'] != str(home)):
+        raise ValueError('Invalid retained usage repair proof')
+    for name in ('previous_package_digest', 'previous_plan_digest', 'previous_marker_sha256', 'observed_config_sha256'):
+        value = proof[name]
+        if not isinstance(value, str) or len(value) != 64 or any(c not in '0123456789abcdef' for c in value):
+            raise ValueError('Retained repair requires exact previous-generation pins')
+    backup = Path(proof['backup'])
+    if (not backup.is_absolute() or '..' in backup.parts or backup.name != 'usage-data'
+            or not backup.is_relative_to(home) or backup.is_relative_to(home / '.codex')):
+        raise ValueError('Retained repair backup leaves its private boundary')
+    physical(backup.parent)
+    if usage_directory_parents(home, backup) != proof['parents']:
+        raise ValueError('Retained repair parent identities changed')
+    for parent in (backup.parent, *backup.parent.parents):
+        if parent == home:
+            break
+        info = parent.stat()
+        if info.st_uid != os.getuid() or info.st_mode & 0o022:
+            raise ValueError('Retained repair backup parent is unsafe')
+    old = proof['old_link']
+    if (not isinstance(old, dict) or set(old) != {'kind', 'mode', 'device', 'inode', 'mtime_ns', 'link'}
+            or old['kind'] != 'symlink' or not isinstance(old['link'], str) or not old['link']):
+        raise ValueError('Retained repair requires the original symlink record')
+    runtime = home / '.codex/usage-data'
+    physical(runtime.parent)
+    # Relative targets retain their ORIGINAL parent, never the backup parent.
+    if os.path.lexists(runtime.parent / old['link']):
+        raise ValueError('Retained repair target is no longer absent')
+    if usage_target_parents(home, old['link']) != proof['target_parents']:
+        raise ValueError('Retained repair target ancestors changed')
+    new = proof['new_directory']
+    if (not isinstance(new, dict) or set(new) != {'device', 'inode', 'uid', 'mode'}
+            or new['uid'] != os.getuid() or new['mode'] != 0o700
+            or any(type(value) is not int for value in new.values())):
+        raise ValueError('Retained repair requires an owned private directory')
+
+    def link_matches(path):
+        info = path.lstat()
+        return stat.S_ISLNK(info.st_mode) and old == {
+            'kind': 'symlink', 'mode': stat.S_IMODE(info.st_mode), 'device': info.st_dev,
+            'inode': info.st_ino, 'mtime_ns': info.st_mtime_ns, 'link': os.readlink(path)}
+
+    def directory_matches(path):
+        info = path.lstat()
+        return stat.S_ISDIR(info.st_mode) and new == {
+            'device': info.st_dev, 'inode': info.st_ino, 'uid': info.st_uid,
+            'mode': stat.S_IMODE(info.st_mode)}
+
+    if link_matches(runtime) and directory_matches(backup):
+        return 'original'
+    if directory_matches(runtime) and link_matches(backup):
+        return 'migrated'
+    raise ValueError('Retained usage repair identities changed')
+
+
+def usage_target_parents(home, link):
+    target = physical(Path(os.path.abspath(home / '.codex' / link)))
+    if not target.is_relative_to(home) or target == home:
+        raise ValueError('Retained usage target leaves the selected home')
+    rows = []
+    for parent in target.parents:
+        if not parent.is_relative_to(home):
+            break
+        if not parent.exists():
+            rows.append({'path': str(parent), 'kind': 'absent'})
+            continue
+        info = parent.stat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o022:
+            raise ValueError('Retained usage target ancestor is unsafe')
+        rows.append({'path': str(parent), 'device': info.st_dev, 'inode': info.st_ino,
+                     'uid': info.st_uid, 'mode': stat.S_IMODE(info.st_mode)})
+    return rows
+
+
+def exchange_usage_directory(home, proof):
+    """Exchange the verified pair atomically; never fall back to unlink/rename."""
+    before = usage_directory_pair(home, proof)
+    library = ctypes.CDLL(None, use_errno=True)
+    first, second = os.fsencode(proof['backup']), os.fsencode(home / '.codex/usage-data')
+    if sys.platform == 'darwin':
+        rename = getattr(library, 'renamex_np', None)
+        arguments = (first, second, 2)
+        types = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint)
+    elif sys.platform.startswith('linux'):
+        rename = getattr(library, 'renameat2', None)
+        arguments = (-100, first, -100, second, 2)
+        types = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
+    else:
+        rename = None
+    if rename is None:
+        raise OSError(errno.ENOTSUP, 'atomic path exchange is unavailable')
+    rename.argtypes, rename.restype = types, ctypes.c_int
+    if rename(*arguments) != 0:
+        number = ctypes.get_errno()
+        raise OSError(number, os.strerror(number))
+    if usage_directory_pair(home, proof) == before:
+        raise ValueError('Retained usage exchange readback failed')
+
+
+_ROLLBACK_ADMISSION = None
+
+
+def context(*, retained_usage_repair=None):
     global _CHECKED_MARKER, ROOT, MARKER
     code_root = Path(__file__).resolve().parents[1]
     reference = code_root / '.dots-package.json'
@@ -236,6 +374,24 @@ def context():
         actual = {'type': 'symlink', 'target': os.readlink(path)} if path.is_symlink() else {
             'type': 'directory' if path.is_dir() else 'absent' if not path.exists() else 'conflict'}
         if actual != expected:
+            if name == 'usage-data' and retained_usage_repair is not None:
+                proof = retained_usage_repair
+                if (proof['previous_state'] == str(state)
+                        and proof['previous_package_digest'] == data['package_digest']
+                        and expected == {'type': 'symlink', 'target': proof['old_link']['link']}
+                        and data['before']['usage-data'] == proof['old_link']
+                        and usage_directory_pair(home, proof) == 'migrated'):
+                    continue
+            transition_path = ROOT / 'codex/.policy-transition.json'
+            if name == 'usage-data' and expected == {'type': 'directory'} and transition_path.exists():
+                transition = json.loads(read_regular(transition_path), object_pairs_hook=unique)
+                proof = transition.get('usage_directory_repair')
+                result = json.loads(read_regular(state / 'result.json'), object_pairs_hook=unique)
+                if _ROLLBACK_ADMISSION is not None:
+                    result = _ROLLBACK_ADMISSION(data, proof, result)
+                if (proof is not None and result.get('status') in {'restoring', 'rolled_back'}
+                        and usage_directory_pair(home, proof) == 'original'):
+                    continue
             raise ValueError('Retained-state ownership changed')
     session_root = data['session_evidence_root']
     if (not isinstance(session_root, str) or not Path(session_root).is_absolute()
@@ -322,11 +478,9 @@ def _require_managed_event_directory(value, *, data):
     if any(_within(candidate, root) for candidate in (path, path.resolve())
            for root in (*retained, *(item.resolve() for item in retained))):
         raise ValueError('Retained session storage is not an event directory')
-    try:
-        return require_path(path, data=data)
-    except ValueError:
-        pass
     base = home / '.codex/worktrees'
+    if not _within(path, base):
+        return require_path(path, data=data)
     if not path.is_absolute() or '..' in path.parts or not _within(path, base):
         raise ValueError('Event directory leaves deployment scope')
     relative = path.relative_to(base)
@@ -355,7 +509,13 @@ def _require_managed_event_directory(value, *, data):
             trusted.append(root)
     if not any(_within(repository, root) and _within(repository.resolve(), root.resolve()) for root in trusted):
         raise ValueError('Managed worktree source is not a trusted project')
-    for directory in (base, worktree.parent, worktree, gitdir.parent.parent, gitdir.parent, gitdir):
+    source_ancestors = []
+    current = repository
+    while current != home and _within(current, home):
+        source_ancestors.append(current)
+        current = current.parent
+    for directory in (base, worktree.parent, worktree, *source_ancestors,
+                      gitdir.parent.parent, gitdir.parent, gitdir):
         identity = _event_directory_identity(directory)
         if identity[2] != os.getuid() or identity[3] & 0o022:
             raise ValueError('Managed worktree metadata directory is unsafe')
@@ -415,6 +575,127 @@ def require_event_directory(value, *, data):
     raise ValueError('Event directory is not a trusted project')
 
 
+
+def require_repository_path(repository, value, *, output=False, data=None):
+    """Admit readiness resources in one verified managed checkout, never a root."""
+    data = context() if data is None else data
+    root, path = Path(repository).absolute(), Path(value).absolute()
+    if output and _within(root, Path(data['home']) / '.codex/worktrees'):
+        if path.parent != root / '.tmp' or path.suffix != '.json':
+            raise ValueError('Managed readiness receipts require an existing .tmp JSON destination')
+    base = Path(data['home']) / '.codex/worktrees'
+    if _within(root, base):
+        if not _within(root, base) or len(root.relative_to(base).parts) != 2:
+            raise ValueError('Readiness requires an exact managed repository root') from None
+        require_event_directory(root, data=data)
+        if path.is_symlink():
+            raise ValueError('Readiness resource cannot be a symlink')
+        if output and os.path.lexists(path):
+            leaf = path.lstat()
+            if (not stat.S_ISREG(leaf.st_mode) or leaf.st_nlink != 1
+                    or leaf.st_uid != os.getuid() or stat.S_IMODE(leaf.st_mode) & 0o022):
+                raise ValueError('Readiness receipt destination is unsafe')
+        if '..' in path.parts or not _within(path, root):
+            raise ValueError('Readiness resource leaves its repository')
+        retained = [Path(data['session_evidence_root']), ROOT, Path(data['state_dir'])]
+        retained.extend(Path(data['home']) / '.codex' / name for name in (
+            'sessions', 'archived_sessions', 'auth.json', '.env', 'plugins', 'browser',
+            'pets', 'automations', 'state.db', 'sqlite', 'session_index.json'))
+        if any(_within(path.resolve(), item.resolve()) for item in retained):
+            raise ValueError('Readiness cannot use retained or installed resources')
+        if path != root and path.relative_to(root).parts[0] == '.git':
+            raise ValueError('Readiness resources cannot use Git administration')
+        parent = path if path.exists() else path.parent
+        physical(parent)
+        if not parent.exists() or not _within(parent.resolve(), root):
+            raise ValueError('Readiness resource parent is unavailable')
+        if path.exists() and path.is_file() and path.stat().st_nlink != 1:
+            raise ValueError('Readiness resource shares an inode')
+        require_event_directory(root, data=data)
+        return path
+    return require_path(path, output=output, data=data)
+
+
+def repository_read(repository, value):
+    path = require_repository_path(repository, value)
+    raw = read_regular(path)
+    require_repository_path(repository, value)
+    return raw
+
+
+def repository_identity(repository):
+    data = context()
+    root = Path(repository).absolute()
+    if not _within(root, Path(data['home']) / '.codex/worktrees'):
+        return None
+    require_repository_path(root, root, data=data)
+    marker = read_regular(root / '.git')
+    gitdir = Path(marker.decode().splitlines()[0][8:])
+    paths = dict.fromkeys((root, *root.parents, gitdir, *gitdir.parents))
+    result = (tuple((str(path), _event_directory_identity(path)) for path in paths),
+              marker, read_regular(gitdir / 'commondir'), read_regular(gitdir / 'gitdir'))
+    require_repository_path(root, root, data=data)
+    return result
+
+
+def require_repository_identity(repository, expected):
+    if repository_identity(repository) != expected:
+        raise ValueError('Readiness repository identity changed')
+
+
+def repository_receipt(repository, fallback):
+    data = context()
+    root = Path(repository).absolute()
+    if _within(root, Path(data['home']) / '.codex/worktrees'):
+        require_repository_path(root, root, data=data)
+        receipt = root / '.tmp/pr-readiness.v1.json'
+        ignored = subprocess.run(['git', '-C', str(root), 'check-ignore', '--quiet',
+                                  str(receipt)], check=False, capture_output=True)
+        if ignored.returncode != 0:
+            raise ValueError('Managed receipt destination requires a Git ignore rule or local info/exclude entry')
+        receipt.parent.mkdir(mode=0o700, exist_ok=True)
+        require_repository_path(root, receipt, output=True, data=data)
+        return receipt
+    return fallback
+
+
+def write_repository_receipt(repository, value, raw, expected_identity=None):
+    data = context()
+    path = require_repository_path(repository, value, output=True, data=data)
+    root = Path(repository).absolute()
+    if not _within(root, Path(data['home']) / '.codex/worktrees'):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+        return
+    parent_identity = _event_directory_identity(path.parent)
+    if parent_identity[2] != os.getuid() or parent_identity[3] & 0o022:
+        raise ValueError('Readiness receipt parent is unsafe')
+    descriptor = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    temporary = '.readiness-' + secrets.token_hex(16)
+    try:
+        info = os.fstat(descriptor)
+        if (info.st_dev, info.st_ino) != parent_identity[:2]:
+            raise ValueError('Readiness receipt parent changed')
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                     0o600, dir_fd=descriptor)
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(raw)
+            stream.flush()
+            os.fsync(stream.fileno())
+        require_repository_path(root, path, output=True, data=data)
+        if expected_identity is not None:
+            require_repository_identity(root, expected_identity)
+        if _event_directory_identity(path.parent) != parent_identity:
+            raise ValueError('Readiness receipt parent changed before publication')
+        os.replace(temporary, path.name, src_dir_fd=descriptor, dst_dir_fd=descriptor)
+    finally:
+        try:
+            os.unlink(temporary, dir_fd=descriptor)
+        except FileNotFoundError:
+            pass
+        os.close(descriptor)
+
+
 def require_path(value, *, output=False, data=None, _root_resolver=None):
     data = context() if data is None else data
     home = Path(data['home'])
@@ -462,7 +743,16 @@ def require_path(value, *, output=False, data=None, _root_resolver=None):
     return path
 
 
-def require_provider_input(value, role, data=None):
+def protected_aikido_binary():
+    """Resolve the versioned provider from the sealed protected inventory."""
+    validator = Path(__file__).with_name('validate-hook-toolchain.py')
+    spec = importlib.util.spec_from_file_location('aikido_toolchain_validator', validator)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.runtime_aikido()
+
+
+def require_provider_input(value, role, data=None, _aikido_resolver=None):
     """Admit named provider inputs without adding read/write resource roots."""
     data = context() if data is None else data
     home = Path(data['home'])
@@ -471,7 +761,13 @@ def require_provider_input(value, role, data=None):
         raise ValueError('Provider inputs need absolute paths without traversal')
     if role == 'aikido-binary':
         root = home / '.codex/utilities/aikido-mcp'
-        if path == root / 'bin/aikido-mcp':
+        local_binary = root / 'bin/aikido-mcp'
+        if data['mode'] == 'machine':
+            if path != local_binary:
+                raise ValueError('Aikido binary overrides are not admitted in machine mode')
+            resolver = protected_aikido_binary if _aikido_resolver is None else _aikido_resolver
+            return resolver()
+        if path == local_binary:
             physical(root)
             if not path.resolve().is_relative_to(root):
                 raise ValueError('Aikido binary leaves its local installation')

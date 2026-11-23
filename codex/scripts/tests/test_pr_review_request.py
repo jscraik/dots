@@ -90,6 +90,148 @@ def inspection_receipt() -> dict:
 
 
 class InspectionTests(unittest.TestCase):
+    def quota_pair(self) -> tuple[dict, dict, dict]:
+        actor = {"id": 93, "login": "jscraik"}
+        prefix = "https://github.com/jscraik/configs/pull/7#issuecomment-"
+        request = {
+            "html_url": prefix + "7",
+            "body": MODULE.request_body("coderabbitai", HEAD, False),
+            "created_at": "2020-01-01T00:00:00Z",
+            "updated_at": "2020-01-01T00:00:00Z",
+            "user": actor,
+        }
+        reply = {
+            "html_url": prefix + "8",
+            "body": (
+                "<!-- coderabbit-ai-generated:v1 -->\n\n"
+                "<!-- This is an auto-generated reply by CodeRabbit -->\n"
+                "<!-- CodeRabbit review command invocation: v2:" + "c" * 64 + " -->\n"
+                "<details>\n<summary>Action not completed</summary>\n<dl>\n<dd>\n<br>\n\n"
+                "Review rate limited.\n\n---\n\n"
+                "Your included review limit is currently reached under our "
+                "[Fair Usage Limits Policy](https://docs.coderabbit.ai/management/rate-limits#fair-usage-limits-policy). "
+                "Your current included review allowance is based on your included PR review attempts over the past 7 days. "
+                "This review may still proceed through usage-based billing if eligible. "
+                "Your next included review will be available in 11 minutes.\n\n"
+                "</dd>\n</dl>\n</details>"
+            ),
+            "created_at": "2020-01-01T00:00:05Z",
+            "updated_at": "2020-01-01T00:00:05Z",
+            "user": {"login": "coderabbitai[bot]", "type": "Bot", "id": 136622811},
+        }
+        return actor, request, reply
+
+    def test_sha_less_quota_reply_binds_one_authenticated_current_head_request(
+        self,
+    ) -> None:
+        actor, request, reply = self.quota_pair()
+        selected = MODULE.retry_sources(
+            [request, reply], reply["html_url"], HEAD, actor
+        )
+        self.assertEqual(len(selected), 1)
+        self.assertEqual(selected[0]["retry_request_binding"], request)
+        self.assertEqual(selected[0]["html_url"], reply["html_url"])
+        self.assertNotIn(HEAD, reply["body"])
+        self.assertEqual(
+            MODULE.retry_sources([request, reply], reply["html_url"], HEAD), []
+        )
+
+    def test_sha_less_quota_reply_rejects_unknown_or_ambiguous_binding(self) -> None:
+        actor, request, reply = self.quota_pair()
+        invalid_requests = (
+            {**request, "body": request["body"].replace(HEAD, "b" * 40)},
+            {**request, "updated_at": "2020-01-01T00:00:01Z"},
+            {
+                **request,
+                "created_at": "2019-12-31T23:58:00Z",
+                "updated_at": "2019-12-31T23:58:00Z",
+            },
+            {
+                **request,
+                "created_at": reply["created_at"],
+                "updated_at": reply["created_at"],
+            },
+            {**request, "user": {"id": 94, "login": "other"}},
+            {**request, "html_url": request["html_url"].replace("/7#", "/9#")},
+        )
+        for changed in invalid_requests:
+            with self.subTest(changed=changed):
+                self.assertEqual(
+                    MODULE.retry_sources(
+                        [changed, reply], reply["html_url"], HEAD, actor
+                    ),
+                    [],
+                )
+        for changed in (
+            {**reply, "body": reply["body"] + "\nNo findings."},
+            {**reply, "updated_at": "2020-01-01T00:00:06Z"},
+            {
+                **reply,
+                "created_at": "2099-01-01T00:00:05Z",
+                "updated_at": "2099-01-01T00:00:05Z",
+            },
+            {**reply, "user": {**reply["user"], "id": 99}},
+            {**reply, "user": {**reply["user"], "type": "User"}},
+        ):
+            with self.subTest(changed=changed):
+                self.assertEqual(
+                    MODULE.retry_sources(
+                        [request, changed], reply["html_url"], HEAD, actor
+                    ),
+                    [],
+                )
+        competing = {
+            **request,
+            "html_url": request["html_url"] + "0",
+            "body": "@coderabbitai review",
+        }
+        edited = {
+            **competing,
+            "body": "ordinary text after editing",
+            "updated_at": "2020-01-01T00:00:06Z",
+        }
+        for inventory in (
+            [reply],
+            [request, reply, reply],
+            [request, competing, reply],
+            [request, edited, reply],
+        ):
+            self.assertEqual(
+                MODULE.retry_sources(inventory, reply["html_url"], HEAD, actor), []
+            )
+
+    def test_sha_less_quota_binding_retains_both_records_for_revalidation(self) -> None:
+        actor, request, reply = self.quota_pair()
+        original = MODULE.retry_sources(
+            [request, reply], reply["html_url"], HEAD, actor
+        )
+        changed = {**request, "extra": "changed hosted request metadata"}
+        refreshed = MODULE.retry_sources(
+            [changed, reply], reply["html_url"], HEAD, actor
+        )
+        self.assertNotEqual(original, refreshed)
+
+    def test_sha_less_quota_waits_for_longer_advertised_allowance_delay(self) -> None:
+        actor, request, reply = self.quota_pair()
+        reply["body"] = reply["body"].replace("11 minutes", "90 minutes")
+        before = MODULE.datetime.fromisoformat("2020-01-01T01:10:00+00:00")
+        after = MODULE.datetime.fromisoformat("2020-01-01T02:00:00+00:00")
+        with patch.object(MODULE, "datetime") as clock:
+            clock.now.return_value = before
+            self.assertEqual(
+                MODULE.retry_sources([request, reply], reply["html_url"], HEAD, actor),
+                [],
+            )
+            clock.now.return_value = after
+            self.assertEqual(
+                len(
+                    MODULE.retry_sources(
+                        [request, reply], reply["html_url"], HEAD, actor
+                    )
+                ),
+                1,
+            )
+
     def reinspection_source(
         self, root: Path, args: argparse.Namespace, head: str, entries: list[dict]
     ) -> dict:
@@ -2739,28 +2881,46 @@ class InspectionTests(unittest.TestCase):
     def test_receipt_recheck_rejects_changed_recorded_pr_url(self) -> None:
         url = "https://github.com/jscraik/configs/pull/7"
         pr = {
-            "number": 8,
+            "number": 7,
             "url": url.replace("/7", "/8"),
             "state": "OPEN",
             "headRefOid": HEAD,
         }
         with (
             patch.object(GATE, "gh_pr", return_value=(pr, None)),
-            patch.object(GATE, "checks_lane", return_value={"status": "pass"}),
+            patch.object(
+                GATE,
+                "checks_lane",
+                return_value={"status": "pass", "evidence": "checks passed"},
+            ),
         ):
             error = GATE.recheck_hosted_state(
-                Path.cwd(), "review_inspection", HEAD, expected_pr_url=url
+                Path.cwd(),
+                "review_inspection",
+                HEAD,
+                expected_pr=7,
+                expected_repo="jscraik/configs",
+                expected_pr_url=url,
             )
         self.assertIn("PR URL changed", error or "")
         with (
             patch.object(
                 GATE, "gh_pr", return_value=({**pr, "url": url, "number": 7}, None)
             ),
-            patch.object(GATE, "checks_lane", return_value={"status": "pass"}),
+            patch.object(
+                GATE,
+                "checks_lane",
+                return_value={"status": "pass", "evidence": "checks passed"},
+            ),
         ):
             self.assertIsNone(
                 GATE.recheck_hosted_state(
-                    Path.cwd(), "review_inspection", HEAD, expected_pr_url=url
+                    Path.cwd(),
+                    "review_inspection",
+                    HEAD,
+                    expected_pr=7,
+                    expected_repo="jscraik/configs",
+                    expected_pr_url=url,
                 )
             )
 
@@ -3160,7 +3320,7 @@ class InspectionTests(unittest.TestCase):
         ):
             self.assertIn(mutation, result["details"]["prohibited_mutations"])
 
-    def test_closed_or_changed_head_and_failed_ci_block_inspection(self) -> None:
+    def test_inspection_rejects_changed_identity_but_observes_failed_ci(self) -> None:
         pr = {
             "number": 7,
             "url": "https://github.com/jscraik/configs/pull/7",
@@ -3181,9 +3341,21 @@ class InspectionTests(unittest.TestCase):
                 return_value={"status": "fail", "evidence": "failed CI"},
             ),
         ):
+            identity = {
+                "expected_pr": 7,
+                "expected_repo": "jscraik/configs",
+                "expected_pr_url": pr["url"],
+            }
+            self.assertIsNone(
+                GATE.recheck_hosted_state(
+                    Path.cwd(), "review_inspection", HEAD, **identity
+                )
+            )
             self.assertIn(
                 "checks changed",
-                GATE.recheck_hosted_state(Path.cwd(), "review_inspection", HEAD),
+                GATE.recheck_hosted_state(
+                    Path.cwd(), "update", HEAD, **identity
+                ),
             )
 
     def test_fixed_request_has_no_arbitrary_body_or_mutation_mode(self) -> None:

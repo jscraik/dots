@@ -1,13 +1,14 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
 set -euo pipefail
-export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
+# shellcheck source=codex/hooks/hook-runtime-path.sh
+. "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh" || exit 2
 input_json="$(cat)"
 dots_hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python3 "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit $?
+python3 -I -S -B "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit $?
 hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 codex_repo_root="$(cd -P "$hook_dir/.." && pwd -P)"
 # shellcheck source=codex/hooks/hook-runtime-lib.sh
-. "$hook_dir/hook-runtime-lib.sh"
+. "$hook_dir/hook-runtime-lib.sh" || exit 2
 runtime_policy_script="$codex_repo_root/scripts/hook-governance/hook_runtime_policy.py"
 timeout_class="pre_safety_fail_closed"
 if [[ -f "$runtime_policy_script" ]]; then
@@ -22,10 +23,10 @@ parsed_fields="$(printf '%s' "$input_json" | jq -r '
     // .command
     // "";
   def tool_cwd:
-    ((if (.tool_input? | type) == "object" then .tool_input.cwd else null end) | select(. != ""))
-    // ((if (.tool_input? | type) == "object" then .tool_input.workdir else null end) | select(. != ""))
-    // (.cwd | select(. != ""))
-    // "";
+    ([if (.tool_input? | type) == "object" then .tool_input.cwd, .tool_input.workdir else null end, .cwd]
+    | map(select(. != null and . != "")) | if length > 0 then .[0] else "" end)
+    | if type != "string" then "__codex_invalid_cwd__"
+      elif test("[\\x00-\\x1f\\x7f]") then "__codex_invalid_cwd__" else . end;
   def edit_payload:
     (if (.tool_input? | type) == "object" then
       [
@@ -61,8 +62,9 @@ parsed_fields="$(printf '%s' "$input_json" | jq -r '
 ')"
 IFS=$'\x1f' read -r tool_name encoded_command _command_cwd permission_mode session_id turn_id edit_targets <<<"$parsed_fields"
 raw_command="$(printf '%s' "$encoded_command" | jq -Rr '@base64d')"
+git_worktree_risk=""
 run_ok() {
-  jq -n '{continue: true}'
+  jq -n '{}'
 }
 run_block() {
   local reason="$1"
@@ -94,7 +96,7 @@ run_block() {
     }'
 }
 tokenize_command() {
-  python3 - "$1" <<'PY'
+  python3 -I -S - "$1" <<'PY'
 import shlex
 import sys
 import re
@@ -404,7 +406,18 @@ contains_git_push_no_verify() {
   done
   return 1
 }
-contains_protected_destination_push() {
+push_refspec_has_unapproved_destination() {
+  local refspec="${1#+}"
+  # A source-only refspec can use the remote's configured push mapping.
+  [[ "$refspec" == *:* ]] || return 0
+  local destination="${refspec##*:}"
+  destination="${destination#refs/heads/}"
+  case "$destination" in
+    ''|main|master|head|@|*_head|*\**|*\?*|*\[*|*'@{'*|*~*|*^*) return 0 ;;
+  esac
+  return 1
+}
+contains_unapproved_push_destination() {
   local command_text="$1"
   local -a tokens
   local encoded_tokens
@@ -415,29 +428,68 @@ contains_protected_destination_push() {
   while push_idx="$(git_subcommand_index "$command_text" push "$search_index")"; do
     search_index=$((push_idx + 1))
     local remote_seen=false
+    local refspec_seen=false
+    local options=true
     local idx
     for ((idx=push_idx+1; idx<${#tokens[@]}; idx++)); do
       local token="${tokens[idx]}"
       is_shell_separator_token "$token" && break
-      if [[ "$token" == -* || "$token" == *=* ]]; then
-        continue
+      if [[ "$options" == true ]]; then
+        if [[ "$token" == "--" ]]; then
+          options=false
+          continue
+        fi
+        case "$token" in
+          --repo=*)
+            [[ "$remote_seen" != true && -n "${token#*=}" ]] || return 0
+            remote_seen=true
+            continue
+            ;;
+          --repo)
+            [[ "$remote_seen" != true ]] || return 0
+            idx=$((idx + 1))
+            if ((idx >= ${#tokens[@]})) || is_shell_separator_token "${tokens[idx]}" || [[ -z "${tokens[idx]}" ]]; then
+              return 0
+            fi
+            remote_seen=true
+            continue
+            ;;
+          -o|--exec|--receive-pack|--recurse-submodules|--push-option|--server-option)
+            idx=$((idx + 1))
+            if ((idx >= ${#tokens[@]})) || is_shell_separator_token "${tokens[idx]}"; then
+              return 0
+            fi
+            continue
+            ;;
+          --*=*) continue ;;
+          --all|--atomic|--branches|--delete|--dry-run|--follow-tags|--force|--force-if-includes|--force-with-lease|--ipv4|--ipv6|--mirror|--no-atomic|--no-follow-tags|--no-force-if-includes|--no-force-with-lease|--no-progress|--no-recurse-submodules|--no-signed|--no-thin|--no-verify|--porcelain|--progress|--prune|--quiet|--set-upstream|--signed|--tags|--thin|--verbose|--verify)
+            continue
+            ;;
+          --*) return 0 ;;
+          -?*)
+            if [[ "$token" =~ ^-[^-o]*o$ ]]; then
+              idx=$((idx + 1))
+              if ((idx >= ${#tokens[@]})) || is_shell_separator_token "${tokens[idx]}"; then
+                return 0
+              fi
+            fi
+            continue
+            ;;
+        esac
       fi
       if [[ "$remote_seen" != true ]]; then
         remote_seen=true
         continue
       fi
-      # Normalize the destination side of a refspec. Git accepts both short
-      # names (feature:main) and fully qualified refs (feature:refs/heads/main),
-      # as well as an unqualified main/master ref with no colon.
-      local destination="$token"
-      if [[ "$token" == *:* ]]; then
-        destination="${token##*:}"
-      fi
-      destination="${destination#refs/heads/}"
-      if [[ "$destination" == "main" || "$destination" == "master" ]]; then
+      refspec_seen=true
+      if push_refspec_has_unapproved_destination "$token"; then
         return 0
       fi
     done
+    # Never let repository configuration supply an unseen push destination.
+    if [[ "$remote_seen" != true || "$refspec_seen" != true ]]; then
+      return 0
+    fi
   done
   return 1
 }
@@ -606,7 +658,7 @@ contains_forbidden_publish_or_review_action() {
     return 0
   fi
   if git_subcommand_index "$command_text" push >/dev/null; then
-    if contains_protected_destination_push "$command_text" \
+    if contains_unapproved_push_destination "$command_text" \
       || contains_forbidden_push_option "$command_text"; then
       return 0
     fi
@@ -665,7 +717,7 @@ is_git_no_verify_bypass=false
 canonicalize_edit_target() {
   local target="$1"
   local base_dir="${_command_cwd:-$PWD}"
-  python3 - "$base_dir" "$target" <<'PY'
+  python3 -I -S - "$base_dir" "$target" <<'PY'
 import sys
 from pathlib import Path
 
@@ -701,7 +753,12 @@ is_sensitive_edit_target() {
 contains_direct_auth_material_access() {
   local command_text="$1"
   local analysis_result
-  analysis_result="$(python3 - "$command_text" "$HOME" "$_command_cwd" "$codex_repo_root/scripts/pr-reconciliation.py" "$codex_repo_root/scripts/run-auth-backed.sh" <<'PY'
+  # Heredoc bytes from a known data consumer are not executable shell text.
+  # Unsupported consumers or expansions remain a denial, never an empty scan.
+  if ! command_text="$(python3 -I -S "$hook_dir/destructive-git-operation.py" --prepare-literals "$command_text")"; then
+    return 0
+  fi
+  analysis_result="$(python3 -I -S - "$command_text" "$HOME" "$_command_cwd" "$codex_repo_root/scripts/pr-reconciliation.py" "$codex_repo_root/scripts/run-auth-backed.sh" <<'PY'
 from __future__ import annotations
 
 import fnmatch
@@ -719,6 +776,49 @@ command_cwd = sys.argv[3]
 
 policy = runpy.run_path(sys.argv[4])
 wrapper_canonical = os.path.realpath(sys.argv[5]).lower()
+INERT_DOLLAR = "\ue200"
+INERT_BACKTICK = "\ue201"
+
+
+def protect_inert_expansions(command: str) -> str:
+    """Retain dollars and backticks that the current shell treats literally."""
+    if INERT_DOLLAR in command or INERT_BACKTICK in command:
+        raise ValueError("Reserved shell-analysis marker")
+    protected = []
+    quote = None
+    index = 0
+    while index < len(command):
+        char = command[index]
+        if char == "\\" and quote != "'" and index + 1 < len(command):
+            following = command[index + 1]
+            if following in {"$", chr(96)}:
+                protected.append(INERT_DOLLAR if following == "$" else INERT_BACKTICK)
+            else:
+                protected.extend((char, following))
+            index += 2
+            continue
+        if char in {"'", '"'}:
+            quote = None if quote == char else char if quote is None else quote
+        if quote is None and char == '!':
+            start = index
+            while start and command[start - 1] in '<>&':
+                start -= 1
+            if any(operator in command[start:index] for operator in '<>'):
+                raise ValueError('Unsupported force redirection')
+        if char == "$" and quote != "'" and command[index + 1:index + 2] == "<":
+            raise ValueError("Uninspectable shell stdin expansion")
+        if quote == "'" and char in {"$", chr(96)}:
+            protected.append(INERT_DOLLAR if char == "$" else INERT_BACKTICK)
+        else:
+            protected.append(char)
+        index += 1
+    return "".join(protected)
+
+
+def restore_inert_expansions(token: str) -> str:
+    return token.replace(INERT_DOLLAR, "$").replace(INERT_BACKTICK, chr(96))
+
+
 def command_position(segment, function_names=()):
     value_options = {"env": {"-u", "--unset", "-C", "--chdir"}, "sudo": {"-u", "--user", "-g", "--group", "-h", "--host", "-p", "--prompt", "-C", "--close-from", "-R", "--chroot", "-D", "--chdir"}, "command": set(), "builtin": set(), "exec": {"-a"}, "time": set()}
     index = 0
@@ -755,9 +855,17 @@ def command_segments(command: str, depth: int = 0, inherited_functions=frozenset
     substitutions = policy["substitution_commands"](command)
     if substitutions is None:
         raise ValueError("Uninspectable command substitution")
-    lexer = shlex.shlex(policy["protect_quoted_punctuation"](command), posix=True, punctuation_chars=";&|<>()\n")
+    protected_command = protect_inert_expansions(command)
+    lexer = shlex.shlex(policy["protect_quoted_punctuation"](protected_command), posix=True, punctuation_chars=";&|<>()\n")
     lexer.whitespace, lexer.whitespace_split, lexer.commenters = " \t\r", True, ""
     tokens = list(lexer)
+    # Redirection destinations are path operands even when the preceding
+    # command only prints data. Preserve that role before segment splitting.
+    redirects = {'<', '>', '>>', '<>', '>|', '>>|', '<&', '>&', '>&|',
+                 '>>&', '>>&|', '&>', '&>>', '&>|', '&>>|'}
+    for index, raw in enumerate(tokens[:-1]):
+        if raw in redirects and has_path_expansion(policy['decode_protected_punctuation'](tokens[index + 1])):
+            raise ValueError('Uninspectable redirection destination')
     function_names = inherited_functions | policy["declared_functions"](tokens)
     for substitution in substitutions:
         yield from command_segments(substitution, depth + 1, function_names)
@@ -777,7 +885,8 @@ def command_segments(command: str, depth: int = 0, inherited_functions=frozenset
             while args and args[0] in {"--env-file", "--environment", "--require-env", "--canary", "--require-environment", "--help", "-h"}:
                 args = args[1:] if args[0] in {"--require-environment", "--help", "-h"} else args[2:]
             if args and args[0] == "--":
-                yield from command_segments(shlex.join(args[1:]), depth + 1)
+                child = shlex.join(restore_inert_expansions(arg) for arg in args[1:])
+                yield from command_segments(child, depth + 1)
             continue
         index = command_position(segment, function_names)
         if index >= len(segment) or posixpath.basename(segment[index]) not in {"bash", "sh", "zsh"}:
@@ -792,19 +901,53 @@ def command_segments(command: str, depth: int = 0, inherited_functions=frozenset
                 index += int(index < len(segment) and segment[index] == "--")
                 if index >= len(segment):
                     raise ValueError("Missing shell payload")
-                yield from command_segments(segment[index], depth + 1, function_names)
+                yield from command_segments(restore_inert_expansions(segment[index]), depth + 1, function_names)
                 break
             if option in {"-o", "+o", "-O", "+O"} or option.endswith(("o", "O")) and not option.startswith("--"):
                 index += 1
 
 
-def expanded_token(token: str) -> str:
-    token = token.strip(" \t\r\n'\";,()").replace("${HOME}", home).replace("$HOME", home)
+def expanded_token(token: str, *, restore_literals: bool = False) -> str:
+    token = token.strip(" \t\r\n'\";,()")
+    if restore_literals:
+        # Decode command bytes separately from the actual home pathname.
+        parts = re.split(r"(\$\{HOME\}|\$HOME)", token)
+        token = "".join(home if index % 2 else restore_inert_expansions(part)
+                        for index, part in enumerate(parts))
+    else:
+        token = token.replace("${HOME}", home).replace("$HOME", home)
     return f"{home}/{token[2:]}" if token.startswith("~/") else token
 
 
 def normalized_token(token: str) -> str:
     return posixpath.normpath(expanded_token(token)).lower()
+
+
+def has_path_expansion(token: str) -> bool:
+    """Identify shell expansions that can supply an uninspectable pathname."""
+    for index, char in enumerate(token[:-1]):
+        if char == "$":
+            following = token[index + 1]
+            if following.isalnum() or following == "_" or following in "{([@*#?$!-=^~+<":
+                return True
+    return chr(96) in token
+
+
+def operands_may_name_paths(tokens, command_at: int, function_names=()) -> bool:
+    if command_at >= len(tokens):
+        return False
+    executable = tokens[command_at]
+    prefix = tokens[:command_at]
+    literal_output = (
+        executable in {"printf", "echo"}
+        and executable not in function_names
+        and all(
+            token in {"!", "if", "while", "until", "then", "do", "else", "elif", "{"}
+            or re.match(r"[A-Za-z_][A-Za-z0-9_]*\+?=", token)
+            for token in prefix
+        )
+    )
+    return not literal_output
 
 
 def pattern_recipients(path: str) -> list[str] | None:
@@ -835,7 +978,7 @@ def pattern_recipients(path: str) -> list[str] | None:
 
 
 def is_auth_path(token: str) -> bool:
-    expanded = expanded_token(token)
+    expanded = expanded_token(token, restore_literals=True)
     # An unresolved pattern may select a symlink. Collapsing a later '..'
     # would discard its protected destination, so reject that ambiguity.
     unresolved_pattern = False
@@ -844,7 +987,7 @@ def is_auth_path(token: str) -> bool:
             return True
         if any(char in part for char in "*?[{}"):
             unresolved_pattern = True
-    normalized = normalized_token(token)
+    normalized = posixpath.normpath(expanded).lower()
     joined = posixpath.join(command_cwd, expanded) if command_cwd else expanded
     candidates = {normalized, os.path.realpath(joined).lower()}
     if unresolved_pattern:
@@ -910,7 +1053,9 @@ def wrapper_index(tokens, function_names=()) -> int | None:
 
 try:
     for tokens, function_names in command_segments(command_text):
+        command_at = command_position(tokens, function_names)
         wrapper_at = wrapper_index(tokens, function_names)
+        path_operands = operands_may_name_paths(tokens, command_at, function_names)
         skip_indices: set[int] = set()
         if wrapper_at is not None:
             idx = wrapper_at + 1
@@ -927,6 +1072,8 @@ try:
                 continue
             if is_auth_path(token):
                 raise SystemExit(0)
+            if path_operands and idx > command_at and idx != wrapper_at and has_path_expansion(token):
+                raise SystemExit(0)
 except ValueError:
     raise SystemExit(1)
 print("no-auth-material-access")
@@ -934,7 +1081,9 @@ PY
 )" || return 0
   [[ "$analysis_result" != "no-auth-material-access" ]]
 }
-if [[ "$tool_name" == "apply_patch" || "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
+if [[ "$_command_cwd" == "__codex_invalid_cwd__" ]]; then
+  block_reason="Blocked uninspectable working directory transport."
+elif [[ "$tool_name" == "apply_patch" || "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
   if [[ -z "$edit_targets" ]]; then
     block_reason="Blocked edit tool without inspectable path target."
   else
@@ -959,14 +1108,24 @@ elif contains_forbidden_publish_or_review_action "$command_lc"; then
 elif contains_destructive_branch_option "$command_lc" \
   || contains_destructive_update_ref "$command_lc"; then
   block_reason="Blocked local branch deletion or rename. Re-run only with explicit scoped intent and approval."
-elif [[ "$command_lc" == *"git reset --hard"* ]]; then
-  block_reason="Blocked potentially destructive git reset --hard. Re-run with explicit scoped intent and confirmation."
-elif [[ "$command_lc" == *"git checkout --"* ]]; then
-  block_reason="Blocked git checkout -- because it can discard local changes. Use a targeted non-destructive approach."
-elif [[ "$command_lc" == *"rm -rf /"* \
-     || "$command_lc" == *"rm -rf ~"* \
-     || "$command_lc" == *"rm -rf ${home_lc}"* ]]; then
-  block_reason="Blocked broad rm -rf target (root/home). Use a scoped path and confirm intent."
+elif git_worktree_risk="$(hook_runtime_destructive_git_operation "$raw_command" "${_command_cwd:-$PWD}")"; then
+  case "$git_worktree_risk" in
+    reset-hard)
+      block_reason="Blocked potentially destructive git reset --hard. Re-run with explicit scoped intent and confirmation."
+      ;;
+    checkout-paths|checkout-destructive)
+      block_reason="Blocked destructive git checkout because it can discard local changes. Use a targeted non-destructive approach."
+      ;;
+    checkout-unresolved)
+      block_reason="Cannot prove the checkout operand is a local revision. For a remote branch, use an explicit git checkout --track origin/branch operand; implicit branch guessing is unsupported."
+      ;;
+    broad-delete)
+      block_reason="Blocked broad rm -rf target (root/home). Use a scoped path and confirm intent."
+      ;;
+    *)
+      block_reason="Blocked unsupported shell command syntax because destructive intent cannot be ruled out."
+      ;;
+  esac
 elif [[ "$command_lc" == *"| sh"* || "$command_lc" == *"| bash"* ]]; then
   block_reason="Blocked pipe-to-shell execution. Download and inspect scripts before execution."
 fi
@@ -1000,7 +1159,6 @@ if [[ -n "$block_reason" ]]; then
       jq -n \
         --arg reason "$bypass_reason" \
         '{
-          continue: true,
           hookSpecificOutput: {
             hookEventName: "PreToolUse",
             additionalContext: ("Break-glass bypass accepted for git push --no-verify. Reason: " + $reason)

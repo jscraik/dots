@@ -85,6 +85,40 @@ class PrBodyRefreshTests(unittest.TestCase):
         self.assertRaises(ValueError, MODULE.parse_repo_slug, "jscraik/configs/extra")
         self.assertRaises(ValueError, MODULE.parse_repo_slug, "jscraik configs")
 
+    def test_receipt_validation_receives_the_explicit_mutation_target(self) -> None:
+        root, _template, _body_path = self._write_template_and_body(
+            body="## Problem\n\n- Summary: retained\n\n## Testing\n\n- Evidence: unit test\n"
+        )
+        with patch.object(
+            MODULE,
+            "run_command",
+            return_value=MODULE.subprocess.CompletedProcess(
+                [], 0, '{"status":"pass"}', ""
+            ),
+        ) as command:
+            payload = MODULE.receipt_for_current_pr(
+                root, 357, "jscraik/configs"
+            )
+
+        self.assertEqual(payload, {"status": "pass"})
+        self.assertEqual(
+            command.call_args.args[0],
+            [
+                MODULE.sys.executable,
+                str(MODULE_PATH.with_name("pr-readiness.py")),
+                "--phase",
+                "update",
+                "--repo-root",
+                str(root),
+                "--check-receipt",
+                "--expected-pr",
+                "357",
+                "--expected-repo",
+                "jscraik/configs",
+                "--json",
+            ],
+        )
+
     def test_rejects_a_body_that_omits_a_required_template_section(self) -> None:
         _root, template, body_path = self._write_template_and_body(
             body="## Problem\n\n- Summary: retained\n"
@@ -178,6 +212,18 @@ class PrBodyRefreshTests(unittest.TestCase):
             encoding="utf-8",
         )
         self.assertEqual(MODULE.validation_command_errors(template, body_path), [])
+
+    def test_shared_evidence_section_requires_truthful_command_outcome(self) -> None:
+        template_text = "## Summary\n\n## Impact and risk\n\n## Evidence\n\n## Reviewer focus\n\n## Readiness\n"
+        for evidence, accepted in (("- Command: `python -m unittest` -> not run (preservation checkpoint)", True),
+                                   ("- Command: `python -m unittest` -> not run", False),
+                                   ("- Behaviour: supplied claim only", False)):
+            with self.subTest(evidence=evidence):
+                _root, template, body_path = self._write_template_and_body(
+                    template_text=template_text,
+                    body="## Summary\n\n## Impact and risk\n\n## Evidence\n" + evidence
+                         + "\n\n## Reviewer focus\n\n## Readiness\n")
+                self.assertEqual(MODULE.validation_command_errors(template, body_path) == [], accepted)
 
     def test_rejects_placeholder_command_without_echoing_body_text(self) -> None:
         template_text = "## Testing\n\n- Regression coverage:\n"

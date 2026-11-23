@@ -31,29 +31,31 @@
     {
       "path": "MIGRATION.md",
       "prior_candidate_sha256": "df64a7222cb2a17cba4561734eb0efb27474ea72d092d1885a22f382b0b36bcd",
-      "candidate_sha256": "5f0623b16ba3d2a1ec81638f0b3a0c24a593961716edc255f6ee1e921202ede4"
+      "candidate_sha256": "381d6a54509392a633b7d5dcc251541a68f22f5398abd9ccaee9eec3c4b7404f"
     },
     {
       "path": "README.md",
       "prior_candidate_sha256": "ced157af36e675f8d6c890a5b04a70805e0835432efc957efc85c92f1e98ab01",
-      "candidate_sha256": "b2d67cde79132d25f21d8edc70b56726177388f98153a68142a94f971af4e4d4",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Document the native distinction between on-disk hook consent and loaded-thread acceptance, verified by a disposable native regression without a model turn. Document the two additional exact native app metadata names; preserve the existing installation and permission boundaries. Document app-bundled CLI validation and isolated pinned dependency setup."
+      "candidate_sha256": "a1f462e437959d0d12c05b5ac5d800e74a64047a10c65fc1f728ed0fed5c517e",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Document the native distinction between on-disk hook consent and loaded-thread acceptance, verified by a disposable native regression without a model turn. Document the two additional exact native app metadata names; preserve the existing installation and permission boundaries. Document app-bundled CLI validation and isolated pinned dependency setup. Require an exact reviewed source commit and document clean-checkout, immutable-tree packaging and private provenance receipts. Document complete discovered test-case CircleCI partitioning plus repeated diagnostic checks across three dated medium Linux VMs with protected pinned Python bootstrap, retained security checks and the separate hosted-timing acceptance requirement. Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance. Document the version receipt and protected inventory required before machine-mode Aikido activation."
     },
     {
       "path": "codex/hooks/README.md",
       "prior_candidate_sha256": "70d11c516963bd86c8e082f0fda7101cabdcf55e424d26f2b7954fb958abd3aa",
-      "candidate_sha256": "f504948c350155241ed5979ef7112b94e9551150e80a614de58cdf9a81cd0845"
+      "candidate_sha256": "32301c5b62d145275161b2436efabb7fe9bd3a113814474065ad13d206122809",
+      "transformation": "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",
       "prior_candidate_sha256": "da8c32b3ee00003e38fabaea57151d518935326235741e2cbc4ac92a2bb5eb7b",
-      "candidate_sha256": "35abad05fbdab305a7c9cb9b364093a0a64c75ed4ef8f679d4397dfb5e2f6302"
+      "candidate_sha256": "e6d9a165758987f5572ae3d2f3e814d6278be484cb0f3c7bd68fd86283806cfb",
+      "transformation": "Use the fixed root-owned hook dependency path and absolute Bash launch."
     },
     {
       "path": "codex/hooks/pre-tool-use-dispatch.sh",
       "prior_candidate_sha256": "410160a1e4cf544151c390af3e2f56548926d42cd13cfa942dd7efd87c75c515",
-      "candidate_sha256": "7e04548226a18b2984e29f297af7c239807fdf86035101b93d5bd6569cc2fa30",
-      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
+      "candidate_sha256": "603b487d3b24ce6fd9ef1d3000d54da190cbe8f7b5d5b417bf35670934a1a999",
+      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Deny xargs command construction before protected child routing; retain direct-command behavior. Admit the exact resolver syntax check from a canonical checkout root independently of the installed hook payload; preserve execution, extra-argument and symlink denials. Use the shared PR lifecycle classifier while preserving supported inspection routes.",
       "additional_source": {
         "revision": "283db198d281e239524da23563bd3390fa9910c9",
         "sha256": "a2fe193fa5bf198a86910b1ee5c64306142dcd08ef16323842bb86079bef76e9",
@@ -63,12 +65,13 @@
     {
       "path": "codex/instructions/agents/16-git-and-release.md",
       "prior_candidate_sha256": "6831a23a8697fba882b6561d7e528f0842f4aeded557ddac580ff3b0283f5068",
-      "candidate_sha256": "2422617f3a4f848d59a1de110eab8d39518aea064615df212a44298d2e641a99"
+      "candidate_sha256": "9d378210d3333c01cbb2224a0fc640d95afdac115333253cbc3cf0a017d80d65",
+      "transformation": "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
       "path": "codex/instructions/agents/16a-review-reply-parsing.md",
       "prior_candidate_sha256": "3161d0862dfd778f43b309e4f862371fe24988b2fb05f3a8963c98a3148e4d07",
-      "candidate_sha256": "6be30d2a20b3763592b94fe7ffa73a6e88f1f4b1fd5d6afaffa1c1e64f440f14"
+      "candidate_sha256": "9a788df788e291903ab0bd0a532b36f2bbbf73bce5011d81981e8bd19157bfef"
     },
     {
       "path": "codex/instructions/managed-configuration.md",
@@ -78,13 +81,14 @@
     {
       "path": "codex/instructions/migration-scope.md",
       "prior_candidate_sha256": "085a3aece03f77510bf5f4f8d85a459f9735069dbb028428539066cdc7c2c741",
-      "candidate_sha256": "a8ad0c51e80b11398915be16be50a9e912ba7dbc429afb47f4030238fcfe78bf",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. State installation authority separately from each machine's verified active or rollback state. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+      "candidate_sha256": "b5194ba415d88dc71dd3b602786bdd8d4db7a1c740bc5b0ceae9a3d2d1d5aca7",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. State installation authority separately from each machine's verified active or rollback state. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks. Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
       "path": "codex/schemas/pr-readiness.v1.schema.json",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "f8ca2c7202842e2175d1abb6c8160b6b2e4ac321798d8c6190e4f2c4813d70b1"
+      "candidate_sha256": "d95c63e348522ebcb94400b6d444b2c56a47b3b940e3a0e1de66c8b227af6e95",
+      "transformation": "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
       "path": "codex/scripts/hook-governance/hook_runtime_policy.py",
@@ -95,18 +99,18 @@
     {
       "path": "codex/scripts/pr-readiness.py",
       "prior_candidate_sha256": "6c47ce8d869fb46b338f6ed354ec95eb554471c215bc90b9c1d76c69e9cb60ee",
-      "candidate_sha256": "e35256f37685e934619af6cd23e3071f0043a03e599e872edaa4db1d3ea174df",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+      "candidate_sha256": "3890f1d8f7fa3166c862882f7472fe4ad1d7b24df4984d255c345e420fc8a35b",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks. Accept the observed fixed Codex closing phrases Keep it up! and Nice work! while retaining the complete authenticated, head-bound report and footer contract. Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance. Use the provider workflow run ID to group reruns and keep checks without a workflow run separate."
     },
     {
       "path": "codex/scripts/pr-review-request.py",
       "prior_candidate_sha256": "fa6e0acb662715f177204c584a96ce13e2ae71bd571dafeef4a3cb3878a35e19",
-      "candidate_sha256": "4d9c25c84201431336607c284df38711db5852a5fc733c041b765223966df4d7"
+      "candidate_sha256": "4aea32c620651d36ba44fa18e3d04850b3a107fc822cc3f591ed4cbde263b840"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "73fa14a573ec007defea803f122fbbe181d3bf7a47f06069d8262fd65f120604",
+      "candidate_sha256": "c832835fbd0a72e6d1006bad3f840e854fcdc6a24cfd24377fe8591baef2eee5",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
@@ -147,19 +151,20 @@
     {
       "path": "codex/scripts/tests/test_pending_hook_findings.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "dcfcf4601197ee0b32cc9fb71f084097e659ed34e0234d506b24ff4f27ae36dd",
-      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
+      "candidate_sha256": "3f8a00b5e1a3880945d473f80a1197dc92e95ff26aab7303496b9f52f490fa4e",
+      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
       "path": "codex/scripts/tests/test_pr_coderabbit_structured.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "fd7c06ce229160ba75b0656fceca663d2480e05422ca3355fc8621c9d73cfeec"
+      "candidate_sha256": "8cce4c2c83cb60ea2a247cdf9647ef2526faf90f54409d0e77d15a95a462164c",
+      "transformation": "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
       "path": "codex/scripts/tests/test_pr_codex_completion.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "0531109f33d4a754040f92a0c146c99ee61d7550e06c6658cf47be14b15d9835",
-      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+      "candidate_sha256": "5bd2a07b8594c6e8cd789184a9db8da4056d03a5935b2a54c86842d641785861",
+      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks. Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection."
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",
@@ -170,8 +175,8 @@
     {
       "path": "codex/scripts/tests/test_pr_readiness.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "f40d992d8871c69b1fe60635cfcac68ddc8bdcd731ceb349688e6b60223456be",
-      "transformation": "Preserve selected checks and add synthetic missing-check and dismissed historical-review scenarios from the coordinated follow-up; production policy is unchanged.",
+      "candidate_sha256": "d55993ddc0c19830198f741f952306a5eb5faf80418f0d14b23ec91bbf69bd09",
+      "transformation": "Preserve selected checks and add synthetic missing-check and dismissed historical-review scenarios from the coordinated follow-up; production policy is unchanged. Exercise the observed Keep it up! report through existing author, head, review-state, footer and appended-failure rejection controls. Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection. Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance. Isolate the fsmonitor test from inherited Git repository overrides and verify the monitor can run. Cover shared, distinct and absent workflow run identities in the readiness gate.",
       "additional_source": {
         "revision": "d3b8f231dc659bde32ebac5e5c305b75b7589d4e",
         "status": "unpublished source follow-up; scenarios independently reimplemented from the coordination handoff"
@@ -180,12 +185,13 @@
     {
       "path": "codex/scripts/tests/test_pr_review_request.py",
       "prior_candidate_sha256": "b2ee06b9e74579d2b0211e73fb9063d0ed491ca39e648fc01962ed2420a99e18",
-      "candidate_sha256": "e87b5f8b4e6be7e0c5c768353b4f84e98565595f670e19fb6ef84d190f0bc932"
+      "candidate_sha256": "349a3d6213e5971eed816e425d7b61a1d2ef54f8afccf38259b1bfa99d0b6a8c",
+      "transformation": "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
       "path": "codex/scripts/validate-codex-config.py",
       "prior_candidate_sha256": "e9cdebab1d97447c1ac3ff1dce5894c7c13ccf095c2a1cc8e44716c103768e61",
-      "candidate_sha256": "8a396f4298aab02714dd47e0140c0d1e5ee77a3841389c4b690b9e5b495aa6b9",
+      "candidate_sha256": "4e9375efe148a3e6f58762ea78973e42f56b4f176d6b3d7ec54144cdcda89c09",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
     },
     {
@@ -196,13 +202,13 @@
     {
       "path": "tests/test_helper_dependencies.py",
       "prior_candidate_sha256": "f8c74a3d7d96e5791162b6abdf902c1705a78226deb56347f56a2a09096384b9",
-      "candidate_sha256": "dd529f9f732f24f0250b6d3189c0552b41bfcc6a49b18c3e9f3bff9fc01675d1"
+      "candidate_sha256": "ce89a22c399b2506758d3c313d5d062e5ea65930f004ae8454562b2ec33c1927"
     },
     {
       "path": "tests/test_hook_handlers.py",
       "prior_candidate_sha256": "39a7f836a61985d69a4637e64b334d5baff62b12329a88ab493def05934a0d0f",
-      "candidate_sha256": "c5cb77678ba5bc83f5ace7c23e5415eaf047a5496575facc1b1bacd59586e9c5",
-      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment."
+      "candidate_sha256": "d64dfd3d8d7532fde7fafe00680e9b9929c1bc8ef04d1a0d29dfb0c39bec2279",
+      "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Verify fixture Python retains the parent virtual environment. Add automatic SessionStart fsmonitor non-execution and dirty-state regression coverage. Prove exact resolver syntax admission through the actual hook from a separate checkout and preserve execution, extra-argument and symlink denials. Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
       "path": "tests/test_pending_fixes.py",

@@ -1,5 +1,6 @@
 """Build a second canonical fixture using public code and generated test policy."""
 
+import importlib.util
 import json
 import os
 import re
@@ -8,7 +9,11 @@ import subprocess
 import tomllib
 from pathlib import Path
 
-from helper_fixture_scope import admit_file, output, resource
+SPEC = importlib.util.spec_from_file_location(
+    'runtime_fixture_scope', Path(__file__).resolve().parents[1] / 'helper_fixture_scope.py')
+SCOPE = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(SCOPE)
+admit_file, output, resource = SCOPE.admit_file, SCOPE.output, SCOPE.resource
 
 
 def create_runtime_checkout(repo: Path, source_root: Path) -> None:
@@ -46,6 +51,10 @@ def create_runtime_checkout(repo: Path, source_root: Path) -> None:
     generated.extend(
         path.relative_to(source_root).as_posix()
         for path in (source_root / "codex/rules").glob("*.rules")
+    )
+    generated.extend(
+        path.relative_to(source_root).as_posix()
+        for path in (source_root / "codex/hooks").glob("braid-*/braid")
     )
     for name in sorted(set(filter(None, tracked + generated))):
         source = resource(source_root / name)
@@ -90,17 +99,11 @@ def create_runtime_checkout(repo: Path, source_root: Path) -> None:
         ):
             raise ValueError("Nested fixture project leaves its disposable HOME")
         output(project).mkdir(parents=True, exist_ok=True)
+    original_config = tomllib.loads(resource(source_root / "codex/config.toml").read_text())
     for name, marketplace in parsed.get("marketplaces", {}).items():
         registry = repo / "fixture-marketplaces" / name
-        registry.mkdir(parents=True)
-        entries = [
-            {"name": plugin.rsplit("@", 1)[0]}
-            for plugin in parsed.get("plugins", {})
-            if plugin.endswith("@" + name)
-        ]
-        (registry / "marketplace.json").write_text(
-            json.dumps({"name": name, "plugins": entries})
-        )
+        source = resource(Path(original_config["marketplaces"][name]["source"]))
+        shutil.copytree(source, registry, symlinks=True)
         canonical = canonical.replace(marketplace["source"], str(registry))
     config.write_text(canonical)
     environment = os.environ | {

@@ -30,7 +30,12 @@ def _fixture_scope():
 
 
 def _fixture_args(arguments):
-    return _fixture_scope().admit_file(__file__, arguments)
+    scope = _fixture_scope()
+    scope.admit_file(__file__)
+    root = arguments.repo_root.expanduser().absolute()
+    scope.SCOPE.require_policy_repository_path(root, root)
+    # Keep the body's spelling until execute checks traversal and symlinks.
+    return arguments
 
 
 def _fixture_resource(value):
@@ -392,7 +397,9 @@ def run_command(command: list[str], root: Path) -> subprocess.CompletedProcess[s
     )
 
 
-def receipt_for_current_pr(root: Path) -> dict[str, object]:
+def receipt_for_current_pr(
+    root: Path, pr_number: int, repo_slug: str
+) -> dict[str, object]:
     """Consume the projected update receipt and return its validated payload."""
     readiness_script = Path(__file__).resolve().with_name("pr-readiness.py")
     if not readiness_script.is_file():
@@ -408,6 +415,10 @@ def receipt_for_current_pr(root: Path) -> dict[str, object]:
             "--repo-root",
             str(root),
             "--check-receipt",
+            "--expected-pr",
+            str(pr_number),
+            "--expected-repo",
+            repo_slug,
             "--json",
         ],
         root,
@@ -520,7 +531,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def _execute_snapshot(args: argparse.Namespace) -> dict[str, object]:
     """Validate fixed inputs, then perform only the approved body-file update."""
     root = args.repo_root.expanduser().resolve()
-    template_path = root / ".github" / "PULL_REQUEST_TEMPLATE.md"
+    template_path = getattr(args, "_template_snapshot", root / ".github" / "PULL_REQUEST_TEMPLATE.md")
     body_path = args.body_file.expanduser().resolve()
     if not body_path.is_file():
         raise RefreshBlocked(f"--body-file must name a regular file: {body_path}")
@@ -569,13 +580,15 @@ def _execute_snapshot(args: argparse.Namespace) -> dict[str, object]:
     if args.repair:
         receipt = repair_preflight_for_current_pr(root, args.pr)
     else:
-        receipt = receipt_for_current_pr(root)
+        receipt = receipt_for_current_pr(root, args.pr, args.repo)
         if receipt_pr_number(receipt) != args.pr:
             raise RefreshBlocked(
                 "--pr does not match the current receipt-bound pull request"
             )
     if current_repository_slug(root) != args.repo:
         raise RefreshBlocked("--repo does not match the current repository")
+    if hasattr(args, "_repository_identity"):
+        _fixture_scope().SCOPE.require_policy_repository_identity(root, args._repository_identity)
     command = build_edit_command(args.pr, args.repo, body_path)
     if args.dry_run:
         return {
@@ -609,7 +622,11 @@ def execute(args: argparse.Namespace) -> dict[str, object]:
     if ".." in supplied.parts:
         raise RefreshBlocked("PR body path must not contain parent-directory traversal")
     source = supplied.absolute()
+    root = args.repo_root.expanduser().absolute()
+    scope = _fixture_scope().SCOPE
+    identity = scope.policy_repository_identity(root)
     try:
+        scope.require_policy_repository_path(root, source)
         directory = _fixture_resource(os).open(
             source.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
         )
@@ -634,7 +651,8 @@ def execute(args: argparse.Namespace) -> dict[str, object]:
                 raise RefreshBlocked("--body-file must name a regular non-symlink file")
             content = stream.read()
         content.decode("utf-8")
-    except (OSError, UnicodeError) as exc:
+        scope.require_policy_repository_path(root, source)
+    except (OSError, UnicodeError, ValueError) as exc:
         raise RefreshBlocked(
             "PR body file must be readable UTF-8 and not a symlink"
         ) from exc
@@ -644,6 +662,20 @@ def execute(args: argparse.Namespace) -> dict[str, object]:
         _fixture_scope().output(snapshot).chmod(384)
         copied = argparse.Namespace(**vars(args))
         copied.body_file = snapshot
+        copied._repository_identity = identity
+        template = root / ".github" / "PULL_REQUEST_TEMPLATE.md"
+        copied._template_snapshot = Path(directory) / 'template.md'
+        if template.exists():
+            try:
+                raw = scope.policy_repository_read(root, template)
+                raw.decode("utf-8")
+            except (OSError, UnicodeError, ValueError) as exc:
+                raise RefreshBlocked("PR template must be readable UTF-8 in the selected repository") from exc
+            template_snapshot = Path(directory) / "template.md"
+            _fixture_scope().output(template_snapshot).write_bytes(raw)
+            _fixture_scope().output(template_snapshot).chmod(384)
+            copied._template_snapshot = template_snapshot
+        scope.require_policy_repository_identity(root, identity)
         return _execute_snapshot(copied)
 
 

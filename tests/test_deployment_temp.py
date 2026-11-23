@@ -35,6 +35,24 @@ class DeploymentTempTests(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
+    def test_braid_read_default_does_not_override_an_explicit_limit(self):
+        braid = self.root / 'hooks' / ('braid-' + 'a' * 64) / 'braid'
+        braid.parent.mkdir(parents=True)
+        ordinary = braid.with_name('ordinary')
+        size = 16 * 1024 * 1024 + 1
+        for path in (braid, ordinary):
+            with path.open('wb') as stream:
+                stream.truncate(size)
+        self.assertEqual(len(SCOPE.read_regular(braid)), size)
+        with self.assertRaises(ValueError):
+            SCOPE.read_regular(ordinary)
+        with self.assertRaises(ValueError):
+            SCOPE.read_regular(braid, 2 * 1024 * 1024)
+        with braid.open('r+b') as stream:
+            stream.truncate(64 * 1024 * 1024 + 1)
+        with self.assertRaises(ValueError):
+            SCOPE.read_regular(braid)
+
     def test_owned_os_temp_matches_workspace_machine_only(self):
         self.assertEqual(SCOPE.native_temp_roots(self.data, self.policy), [self.temp])
         path = self.temp / 'report.json'

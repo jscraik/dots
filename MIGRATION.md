@@ -42,8 +42,27 @@ The staging script supports disposable temporary homes only. It does not install
 packages, activate runtimes, move credentials, sync sessions, or update the live
 Codex home. Review the staged result before designing a live installation path.
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:adb77a8007c445281a8f248615a9f0fbff6d5be7f6cb5ea7eba3cfb3c905437c -->
+
+## LifeOS hook installation migration
+
+The protected hook bootstrap restricts PATH to its selected toolchain and system
+binaries. Remove the former `CODEX_LIFEOS_BUN` launch override. Before reviewing
+the toolchain inventory digest, stage a separately verified Bun artifact at
+`bin/bun` inside the prepared payload, then use the documented separate admin
+installation. The optional executable participates in the same protected,
+versioned inventory and package binding as Python/jq/gh; there is no Homebrew or
+user-runtime fallback. This repository supplies no Bun artifact pin. Review its
+provenance and platform compatibility separately. Private retriever and corpus
+paths still require admission. Missing optional Bun returns no context and
+continues the prompt; it never supplies a security clearance.
+
 ## CI boundary
 
+
+<!-- /coderabbit-ai-generated:v1 -->
 The CircleCI configuration validates only the contents of this repository:
 source integrity, staging behaviour, shell syntax and secret scanning. It does
 not replace Configs' existing governance, security, review or CI checks. No

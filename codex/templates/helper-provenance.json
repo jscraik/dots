@@ -130,9 +130,12 @@
       "transformations": [
         "public local path literals",
         "fixture-only CLI and Path I/O admission",
-        "Add fixed packaged-context admission; retain default disposable admission and original checks."
+        "Add fixed packaged-context admission; retain default disposable admission and original checks.",
+        "Admit selected managed-worktree body and template inputs without widening general resource roots; preserve receipt and identity checks.",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Bind body update receipt consumption to its explicit repository and PR."
       ],
-      "candidate_sha256": "54ec603bcc69bbf95cba210ecda88d5acdb3cde64efad6dbc55f2f171aac0b29"
+      "candidate_sha256": "164358737ee172ba7dc5b7aab36995a0337558f51d493ffba344e28b7359bb9a"
     },
     {
       "path": "codex/scripts/pr-review-request.py",
@@ -141,7 +144,7 @@
         "public local path literals",
         "fixture-only CLI and Path I/O admission"
       ],
-      "candidate_sha256": "4d9c25c84201431336607c284df38711db5852a5fc733c041b765223966df4d7"
+      "candidate_sha256": "4aea32c620651d36ba44fa18e3d04850b3a107fc822cc3f591ed4cbde263b840"
     },
     {
       "path": "codex/scripts/pr-post-merge-reconciliation.py",
@@ -149,9 +152,10 @@
       "transformations": [
         "public local path literals",
         "fixture-only CLI and Path I/O admission",
-        "Add fixed packaged-context admission; retain default disposable admission and original checks."
+        "Add fixed packaged-context admission; retain default disposable admission and original checks.",
+        "Retain observed CI classification for the separately authenticated post-merge workflow proof."
       ],
-      "candidate_sha256": "6f0256e6d44c8fba704719241807c733172d99b7a3b6730f4c53d4c39dca6f62"
+      "candidate_sha256": "2be6be4e1d5b6e1611acefa7f6c11bdd2af530402655c235e1ef2cc6f4d2955d"
     },
     {
       "path": "codex/scripts/git-metadata-preflight.py",
@@ -279,9 +283,10 @@
       "path": "codex/scripts/verify-work.sh",
       "source_sha256": "2592de7e548814facbd17e3376faf88cf9b089b19136f94879a17ad506e9f374",
       "transformations": [
-        "Original check selection and assertions retained; disposable admission and required helper inventory before execution"
+        "Original check selection and assertions retained; disposable admission and required helper inventory before execution",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "c28fa5a37a3be2ee204e5c632c4f5290471f796a88cdca5c89d3cb537c73e603"
+      "candidate_sha256": "6c59ca8ed63fbba562d7038bc1b45425e7cb56ba0da6c44898838f218ae57b8c"
     },
     {
       "path": "codex/scripts/codex-preflight.sh",
@@ -290,7 +295,7 @@
         "fixture admission before shell helper execution",
         "public local paths"
       ],
-      "candidate_sha256": "806c750dd648c49b33ed140890104341c7f676a7e33579fd52e597de490b1ea4"
+      "candidate_sha256": "2512f2ff529460dfe43f951bd4717a7232a2ce3f9342a3d5c8f49dcce7162254"
     },
     {
       "path": "codex/scripts/with-writable-tmpdir.sh",
@@ -299,7 +304,7 @@
         "fixture admission before shell helper execution",
         "public local paths"
       ],
-      "candidate_sha256": "7d39a2af545edc210d19a3c1b80832e426b1b74dfc3d3dbce95a87a6e81c649d"
+      "candidate_sha256": "bce85ccb2c620c0cec80ccf25793ef6240cd865194ac15ac94dfbf20feda66df"
     },
     {
       "path": "codex/scripts/validate-auto-review-scope.sh",
@@ -308,7 +313,7 @@
         "fixture admission before shell helper execution",
         "public local paths"
       ],
-      "candidate_sha256": "e416c176fea381a74572d1fa9101f892fe2948ecfe95c65b4ba44086921a2ae1"
+      "candidate_sha256": "8b4fd44010c314e56b505eb14b6d5876817d9fede834dcfaf7f4fb4aa7f0db47"
     },
     {
       "path": "codex/scripts/validate-codex-hooks.sh",
@@ -316,25 +321,31 @@
       "transformations": [
         "Original core assertions retained; canonical publisher core view, disposable event/resource plumbing and isolated synthetic FIFO canary",
         "Reuse the validated Python launcher in the nested missing-Computer-Use home",
-        "Use the imported Path class in the native hook trust probe"
+        "Use the imported Path class in the native hook trust probe",
+        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
+        "Verify that required names matching launcher state fail when missing and retain their values when present.",
+        "Exercise explicit push destinations while preserving the existing force and bypass controls."
       ],
-      "candidate_sha256": "4c96b133ee1c21ada58a1c336b7b94b02bb38ab44ad57a46433480d92395ad68"
+      "candidate_sha256": "6d85ea6b577ddaf249bc6dff96ec38c8b5475bacd6e92185d621591dd1935e15"
     },
     {
       "path": "codex/README.md",
       "source_sha256": "dfde30ca45cc79ffa05fb46e5f328bcc01872f170569366c248b355b9dfdf9a3",
       "transformations": [
-        "public path placeholders; accepted schema/policy content retained"
+        "public path placeholders; accepted schema/policy content retained",
+        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
       ],
-      "candidate_sha256": "96d4dd98121274c2f820ef6a8e66b7ef7852d4c5f51be329679b9a537c34f5cb"
+      "candidate_sha256": "681ae0e95430a2cc85cfb307d321c38a7fdc72ec486065ba911faffe5f0f2a27"
     },
     {
       "path": "codex/hooks/README.md",
       "source_sha256": "ac8b428c26865a5ba69164e65b499d94d6ed2c53c73bacd478016375c14e6be1",
       "transformations": [
-        "public path placeholders; accepted schema/policy content retained"
+        "public path placeholders; accepted schema/policy content retained",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
       ],
-      "candidate_sha256": "f504948c350155241ed5979ef7112b94e9551150e80a614de58cdf9a81cd0845"
+      "candidate_sha256": "32301c5b62d145275161b2436efabb7fe9bd3a113814474065ad13d206122809"
     },
     {
       "path": "codex/duplication-policy.json",
@@ -549,17 +560,20 @@
       "path": "codex/scripts/tests/test_pr_body_refresh.py",
       "source_sha256": "9c80f3bc4ee2e8f8d2b0446d5b0ac2e6876759347f853ca349058bb2d9cd7122",
       "transformations": [
-        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+        "accepted regression logic; synthetic local paths and fixture I/O confinement",
+        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
       ],
-      "candidate_sha256": "279d6665349ef86010374a130ba7415d39cfb14df2707a3554bbbf0d73f8bff8"
+      "candidate_sha256": "8746ef97123ba5c57aadb7a909f7c14b0f314109a30c230a0a810f53b4f9212d"
     },
     {
       "path": "codex/scripts/tests/test_pr_review_request.py",
       "source_sha256": "d3b6abfb78691baeb9c128e106701240f9d8d58a9d39714ae4fbbc8617d9c374",
       "transformations": [
-        "accepted regression logic; synthetic local paths and fixture I/O confinement"
+        "accepted regression logic; synthetic local paths and fixture I/O confinement",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
       ],
-      "candidate_sha256": "e87b5f8b4e6be7e0c5c768353b4f84e98565595f670e19fb6ef84d190f0bc932"
+      "candidate_sha256": "349a3d6213e5971eed816e425d7b61a1d2ef54f8afccf38259b1bfa99d0b6a8c"
     },
     {
       "path": "codex/scripts/tests/test_pr_post_merge_reconciliation.py",
@@ -706,16 +720,17 @@
         "Bind only generic harness resource placeholders, preserving tool commands as data",
         "Add fixed packaged-context admission; retain default disposable admission and original checks."
       ],
-      "candidate_sha256": "ff5ae651c06ef4210d2658d8081a8494c8742b0efa9c5b8b8aaf5af7630a9cdd"
+      "candidate_sha256": "50ae36a4abbf172cfb91420c511d18b7174d2540c211d76682be04ff89fba9c4"
     },
     {
       "path": "codex/scripts/core-hook-fixture-manifest.py",
       "origin": "dots migration implementation",
       "transformations": [
         "Consume the publisher-validated original-core view from one captured snapshot",
-        "Add fixed packaged-context admission; retain default disposable admission and original checks."
+        "Add fixed packaged-context admission; retain default disposable admission and original checks.",
+        "Validate unshared sealed sources without following symlinks; capture stable bytes within the Braid size bound before validating the captured manifest."
       ],
-      "candidate_sha256": "2634b864810b9ba18c819e03f4d50c949bc89764e46bcc656533ef20b3e99a00"
+      "candidate_sha256": "7f4c55b5bb794088058c2d2551a3f66d649034a5cc0c3df58014cc5b6230a65d"
     },
     {
       "path": "codex/scripts/tests/runtime_config_fixture.py",
@@ -725,7 +740,7 @@
       ],
       "source_sha256": "218b9f4398ef58a8604855a5ff82456b80cd33204b27b950146dede8002acb7a",
       "source_path": "codex/scripts/tests/runtime_config_fixture.py",
-      "candidate_sha256": "24fbeb1785cba7887609dfca88f249fba6ad133fe426c3525187fa8f1f6672da"
+      "candidate_sha256": "e04d0b3d579c141a63b2ffc84b5531523cd60e856be909b9413e75e5d27e391e"
     },
     {
       "path": "codex/scripts/pr-readiness.py",
@@ -734,18 +749,25 @@
         "synthetic fixture resources; original selected checks retained",
         "Add fixed packaged-context admission; retain default disposable admission and original checks.",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
-        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection.",
+        "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository.",
+        "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance.",
+        "Report a supersession close on a head outside the receipt using the mutation response or readback.",
+        "Use the provider workflow run ID to group reruns and keep checks without a workflow run separate."
       ],
-      "candidate_sha256": "e35256f37685e934619af6cd23e3071f0043a03e599e872edaa4db1d3ea174df"
+      "candidate_sha256": "3890f1d8f7fa3166c862882f7472fe4ad1d7b24df4984d255c345e420fc8a35b"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
       "origin": "reconciled public source recorded in reconciliation-provenance.json",
       "transformations": [
         "synthetic fixture resources; original selected checks retained",
-        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "73fa14a573ec007defea803f122fbbe181d3bf7a47f06069d8262fd65f120604"
+      "candidate_sha256": "c832835fbd0a72e6d1006bad3f840e854fcdc6a24cfd24377fe8591baef2eee5"
     },
     {
       "path": "codex/scripts/tests/fixtures/coderabbit-completed-source-verdict.txt",
@@ -808,17 +830,20 @@
       "origin": "reconciled public source recorded in reconciliation-provenance.json",
       "transformations": [
         "synthetic fixture resources; original selected checks retained",
-        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
+        "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
+        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
       ],
-      "candidate_sha256": "dcfcf4601197ee0b32cc9fb71f084097e659ed34e0234d506b24ff4f27ae36dd"
+      "candidate_sha256": "3f8a00b5e1a3880945d473f80a1197dc92e95ff26aab7303496b9f52f490fa4e"
     },
     {
       "path": "codex/scripts/tests/test_pr_coderabbit_structured.py",
       "origin": "reconciled public source recorded in reconciliation-provenance.json",
       "transformations": [
-        "synthetic fixture resources; original selected checks retained"
+        "synthetic fixture resources; original selected checks retained",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
       ],
-      "candidate_sha256": "fd7c06ce229160ba75b0656fceca663d2480e05422ca3355fc8621c9d73cfeec"
+      "candidate_sha256": "8cce4c2c83cb60ea2a247cdf9647ef2526faf90f54409d0e77d15a95a462164c"
     },
     {
       "path": "codex/scripts/tests/test_pr_codex_completion.py",
@@ -826,9 +851,10 @@
       "transformations": [
         "synthetic fixture resources; original selected checks retained",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
-        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
+        "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection."
       ],
-      "candidate_sha256": "0531109f33d4a754040f92a0c146c99ee61d7550e06c6658cf47be14b15d9835"
+      "candidate_sha256": "5bd2a07b8594c6e8cd789184a9db8da4056d03a5935b2a54c86842d641785861"
     },
     {
       "path": "codex/scripts/tests/test_pr_readiness.py",
@@ -836,9 +862,15 @@
       "transformations": [
         "synthetic fixture resources; original selected checks retained",
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
-        "Add missing-check and dismissed historical-review scenarios from the coordinated follow-up."
+        "Add missing-check and dismissed historical-review scenarios from the coordinated follow-up.",
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection.",
+        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
+        "Exercise supersession close races and verify the blocked CLI result.",
+        "Isolate the fsmonitor test from inherited Git repository overrides and verify the monitor can run.",
+        "Cover shared, distinct and absent workflow run identities in the readiness gate."
       ],
-      "candidate_sha256": "f40d992d8871c69b1fe60635cfcac68ddc8bdcd731ceb349688e6b60223456be"
+      "candidate_sha256": "d55993ddc0c19830198f741f952306a5eb5faf80418f0d14b23ec91bbf69bd09"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",
@@ -854,9 +886,10 @@
       "path": "codex/schemas/pr-readiness.v1.schema.json",
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "f8ca2c7202842e2175d1abb6c8160b6b2e4ac321798d8c6190e4f2c4813d70b1",
-      "candidate_sha256": "f8ca2c7202842e2175d1abb6c8160b6b2e4ac321798d8c6190e4f2c4813d70b1",
+      "candidate_sha256": "d95c63e348522ebcb94400b6d444b2c56a47b3b940e3a0e1de66c8b227af6e95",
       "transformations": [
-        "unchanged receipt schema; original phase/authority assertions retained"
+        "unchanged receipt schema; original phase/authority assertions retained",
+        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
       ]
     }
   ],

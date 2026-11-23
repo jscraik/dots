@@ -1,10 +1,19 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
+
+# shellcheck source=codex/hooks/hook-runtime-path.sh
+if . "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh"; then
+  :
+else
+  bootstrap_status=$?
+  printf 'Hook runtime unavailable: bootstrap failed (status %s)\n' "$bootstrap_status" >&2
+  return "$bootstrap_status" 2>/dev/null || exit "$bootstrap_status"
+fi
 
 dots_lib_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python3 "$dots_lib_dir/../scripts/admit-hook-fixture.py" '{}' || return $?
+python3 -I -S -B "$dots_lib_dir/../scripts/admit-hook-fixture.py" '{}' || return $?
 
-# Shared helpers for Codex hook receipts. This file is sourced by hook scripts;
-# keep it dependency-light and fail-open for telemetry writes.
+# Shared helpers for Codex hook safety and receipts. This file is sourced by
+# hook scripts; keep it dependency-light and fail-open only for telemetry writes.
 
 : "${HOOK_RUNTIME_INVOCATION_SUFFIX:=$(date -u '+%Y%m%dT%H%M%SZ' 2>/dev/null || printf 'unknown-time')-$$-${RANDOM:-0}}"
 
@@ -107,6 +116,23 @@ for phrases, message in zip(groups, messages):
         print(message)
         raise SystemExit(0)
 PY
+}
+
+hook_runtime_destructive_git_operation() {
+  local result
+  local status=0
+
+  result=$(python3 -I -S "$dots_lib_dir/destructive-git-operation.py" "$1" "${2:-$PWD}") || status=$?
+
+  if [[ "$status" -ne 0 ]]; then
+    result="unsupported"
+  fi
+  case "$result" in
+    safe) return 1 ;;
+    reset-hard|checkout-destructive|checkout-paths|checkout-unresolved|broad-delete|unsupported) ;;
+    *) result="unsupported" ;;
+  esac
+  printf '%s\n' "$result"
 }
 
 hook_runtime_otel_enabled() {
@@ -509,6 +535,7 @@ hook_runtime_write_card() {
   shift 9
   local project_override_drift="$1"
   local project_override_excerpt="$2"
+  local project_override_audit_status="${3:-unknown}"
   local card_path
   local tmp_path
   local card_record
@@ -533,6 +560,7 @@ hook_runtime_write_card() {
       --arg preflight_summary "$preflight_summary" \
       --arg project_override_drift "$project_override_drift" \
       --arg project_override_excerpt "$project_override_excerpt" \
+      --arg project_override_audit_status "$project_override_audit_status" \
       '{
         schema_version: $schema_version,
         recorded_at: $recorded_at,
@@ -565,6 +593,7 @@ hook_runtime_write_card() {
           preflight_status: $preflight_status,
           preflight_summary: (if $preflight_summary == "" then null else $preflight_summary end),
           project_override_drift: ($project_override_drift == "1"),
+          project_override_audit_status: $project_override_audit_status,
           project_override_excerpt: (if $project_override_excerpt == "" then null else $project_override_excerpt end)
         },
         resume_reconciliation: {

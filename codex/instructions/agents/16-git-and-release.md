@@ -51,16 +51,51 @@ baseline; its safeguards apply only to the selected authorized workflow.
 
 ## Receipts, review and worktrees
 
+### Operation-bound lifecycle transitions
+
+The GitHub-only `pr-readiness.py --lifecycle` route is separate from merge
+readiness. It supports exactly `ready`, `reopen`, and supersession `close`.
+Matching user authority and execution approval remain required. It cannot
+merge, submit a review, edit a body, post a comment or delete a branch.
+
+Prepare with `--expected-repo OWNER/REPO --expected-pr NUMBER
+--lifecycle-head FULL_SHA --scope-file REPO_RELATIVE_PATH --write-receipt`.
+For `close`, also supply `--replacement-pr NUMBER`: the replacement must already
+be merged into the same selected base, with verified merge ancestry, and its
+description must retain an exact two-cell coverage row:
+`| https://github.com/OWNER/REPO/pull/NUMBER | FULL_ORIGINAL_SHA |`.
+Separate mentions or mismatched rows do not prove the mapping. Keep the
+original branch and history. This route does not turn the superseded PR's
+failing CI into a pass.
+
+Read the prepared `pr-lifecycle/v1` receipt before applying it. It binds the
+operation, current hosted target and pre/post states, repository/host, local
+checkout identity, scope digest and replacement evidence. It expires after
+five minutes. Use the same arguments with `--apply-lifecycle`; the helper
+rechecks immediately before its single fixed mutation and verifies the resulting
+state and unchanged head/base afterward. A failed readback reports uncertainty;
+inspect the actual hosted state before preparing another transition.
+
+These receipts make no CI, review, thread-resolution or merge-clearance claim.
+`ready` may start review with outstanding findings. Direct lifecycle commands
+remain blocked, even with a passing update receipt. Comments retain their
+existing exact-body/review-request routes. Merge, body editing and review
+submission retain the gates below. This source contract grants no installation
+or activation authority.
+
+### Existing delivery receipts
+
 - Before `gh pr create`, require
   `python3 ~/.codex/scripts/pr-readiness.py --phase create --scope-file <scope-file> --write-receipt`;
   before PR update (except the body-only repair below) or merge-readiness
   claims, require the `--phase update` receipt. The projected
   `pr-readiness-guard.sh` enforces this on shell routes where rejection has
   been verified. Do not infer connector enforcement from a shell-hook result.
-- Pending current-head CI permits review-inspection requests and evidence-backed
-  thread reconciliation; those receipts record CI as pending and prove no
-  acceptance or merge readiness. Failed, missing or unknown check evidence
-  still blocks these phases. Update receipts and merge readiness continue to
+- Review inspection can proceed with pending, failed, missing or unknown CI;
+  its receipt records the observed CI outcome and proves no acceptance or merge
+  readiness. Current published identity and HEAD remain mandatory. Evidence-backed
+  thread reconciliation permits pending CI but still blocks failed, missing or
+  unknown check evidence. Update receipts and merge readiness continue to
   require all current-head checks and final review gates to pass. Receipt
   consumption rechecks hosted identity, CI state and target-thread eligibility.
 - An explicitly authorised independent review request or verdict clarification
@@ -97,6 +132,15 @@ baseline; its safeguards apply only to the selected authorized workflow.
   `--retry-unavailable-source <issue-comment-url>` once that authenticated
   response is at least one hour old. The source must belong to the same PR;
   the source-bound request is deduplicated and never enables paid reviews.
+  A supported SHA-less quota notification may bind to one unedited canonical
+  current-head request by the authenticated actor within the preceding sixty
+  seconds, with no competing invocation. Require the fixed CodeRabbit identity,
+  complete notification format and unchanged request/reply records at consumption.
+  This temporal association permits inspection only; it proves no provider
+  linkage, completed review or clearance. Wait at least one hour or the stated
+  allowance delay, whichever is longer. This evidence does not establish billing
+  policy; verify included capacity and the existing paid-continuation boundary
+  before consuming it. Request wording cannot enforce provider billing.
   If a later authenticated CodeRabbit concern leaves the same head outstanding,
   use `--reinspect-source <issue-or-inline-comment-url>` for one fresh full inspection.
   This route requires that exact PR's current-head bot concern to follow an
@@ -177,6 +221,15 @@ baseline; its safeguards apply only to the selected authorized workflow.
   from the complete committed diff. Ordinary changes require CodeRabbit
   (`coderabbitai`) or Codex (`chatgpt-codex-connector`); high-risk changes require
   both. Zero unresolved threads and passing required checks remain mandatory.
+  Ordinary includes application source, tests, formatting helpers and routine
+  configuration. Security/authentication, governance and review gates, CI and
+  runner privileges, releases/deployment, migrations, dependency manifests,
+  new executable permissions, symlinks/submodules and unclassified files require
+  two independent reviews. A stable executable formatting helper is ordinary;
+  a filename such as design `tokens.json` is not an authentication boundary.
+  The implementation author cannot supply either independent review. A second
+  human maintainer is not required. Content review can still identify consequential
+  risk that a path-based classifier cannot infer.
   Without verified repair evidence, only those exact identities and
   current-head `APPROVED` or `COMMENTED` submissions/comments carrying explicit
   no-findings text bound to the full or abbreviated HEAD SHA count. Bare or
@@ -184,7 +237,11 @@ baseline; its safeguards apply only to the selected authorized workflow.
   responses, stale, unknown, human, or `CHANGES_REQUESTED` reviews do not
   satisfy the bot quorum. A current-head human `APPROVED` review remains valid
   through the strict human-approval path.
-- Native completion needs no duplicate clearance; validate Codex state using the
+- Native completion needs no duplicate clearance. A later empty current-head CodeRabbit approval
+  must not replace an already verified current-head native completion with an
+  empty verdict. Keep the original completion timestamp and all later-finding
+  checks; an empty approval alone remains insufficient.
+  Validate Codex state using the
   [reply-parsing contract](./16a-review-reply-parsing.md). CodeRabbit automatic evidence
   supports metadata-only and structured summaries: require the automatic envelope,
   no-actionable outcome, repository/run identity,
@@ -220,8 +277,12 @@ baseline; its safeguards apply only to the selected authorized workflow.
   this run's unique pending revision. Match both start and completion within five
   seconds, retaining the earlier immutable completion time. Summary and Check Run
   UUIDs identify separate provider records and are not presumed equal. Reject
-  truncated/deleted history, changed sources, ambiguous matches and terminal edits
-  that reuse the same run identity. In-progress summaries can retain an older
+  truncated/deleted history, changed sources and ambiguous matches. A contiguous
+  same-run refresh may add or remove only the validated approval-policy metadata;
+  all other review text must remain byte-identical and clearance retains the
+  original terminal revision's time. Native UI pending metadata may say the
+  commit is unavailable only when the official App check independently binds
+  the exact repository, PR, head and base. In-progress summaries can retain an older
   no-actionable statement and cannot supply completion. Re-read native sources.
   Canonical hosted PR URLs may identify repositories if local lookup fails. Re-read the
   complete repository/PR/head/review/comment/finding snapshot before normalising completion.

@@ -1,22 +1,26 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
 
 if [[ -z "${BASH_VERSION:-}" ]]; then
-  printf '❌ audit-codex-symlinks.sh requires bash. Run: bash scripts/audit-codex-symlinks.sh [options]\n' >&2
+  printf '❌ audit-codex-symlinks.sh requires bash. Run: /bin/bash -p scripts/audit-codex-symlinks.sh [options]\n' >&2
   # shellcheck disable=SC2317
   return 2 2>/dev/null || exit 2
 fi
 
 if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
-  printf '❌ audit-codex-symlinks.sh is CLI-only; do not source it. Run: bash scripts/audit-codex-symlinks.sh [options]\n' >&2
+  printf '❌ audit-codex-symlinks.sh is CLI-only; do not source it. Run: /bin/bash -p scripts/audit-codex-symlinks.sh [options]\n' >&2
   return 2
 fi
 
 set -euo pipefail
-dots_script_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python3 "$dots_script_dir/admit-hook-fixture.py" '{}' || exit $?
+PATH='/usr/bin:/bin:/usr/sbin:/sbin'
+readonly PATH
+export PATH
+unset PYTHONHOME PYTHONPATH PYTHONSTARTUP PYTHONINSPECT PYTHONPYCACHEPREFIX
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-POLICY_ROOT="$(python3 "$SCRIPT_DIR/migration_scope.py" --source-root)"
+# shellcheck source=codex/scripts/codex-validation-lib.sh
+. "${SCRIPT_DIR}/codex-validation-lib.sh"
+POLICY_ROOT="$("$dots_bootstrap_python" -B -E -s "$SCRIPT_DIR/migration_scope.py" --source-root)"
 REPO_ROOT="$(dirname "$POLICY_ROOT")"
 
 declare -a codex_homes=()
@@ -26,7 +30,7 @@ legacy_plugins_canon=""
 usage() {
   cat <<'USAGE'
 Usage:
-  bash codex/scripts/audit-codex-symlinks.sh [--codex-home PATH]...
+  /bin/bash -p codex/scripts/audit-codex-symlinks.sh [--codex-home PATH]...
 
 Options:
   --codex-home PATH  Codex home to audit (repeatable). Defaults to ~/.codex
@@ -91,7 +95,9 @@ if [[ ${#codex_homes[@]} -eq 0 ]]; then
   append_home_unique "${HOME}/.codex"
 fi
 
-cmd=(bash "${REPO_ROOT}/scripts/link-configs.sh" --check --scope codex)
+validation_python="$(codex_select_toml_python "codex-symlink-auditor")"
+validation_python="$(command -v "$validation_python")"
+cmd=(/bin/bash -p "${REPO_ROOT}/scripts/link-configs.sh" --check --scope codex)
 for home in "${codex_homes[@]}"; do
   cmd+=(--codex-home "$home")
 done
@@ -101,7 +107,7 @@ if [[ -n "$legacy_skills_canon" ]]; then
   echo "warning: SKILLS_CANON is retired and ignored; standalone skills are not projected" >&2
 fi
 if [[ -n "$legacy_plugins_canon" ]]; then
-  PLUGINS_CANON="$legacy_plugins_canon" "${cmd[@]}"
+  CODEX_VALIDATION_PYTHON="$validation_python" PLUGINS_CANON="$legacy_plugins_canon" "${cmd[@]}"
 else
-  "${cmd[@]}"
+  CODEX_VALIDATION_PYTHON="$validation_python" "${cmd[@]}"
 fi

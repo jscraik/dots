@@ -5,6 +5,8 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
+import tomllib
 from pathlib import Path
 
 import test_governance_port as governance
@@ -14,6 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class HookFixture:
     def __init__(self, testcase):
+        # In-process helpers may initialise this cache while fixture TMPDIR is active.
+        testcase.addCleanup(setattr, tempfile, "tempdir", tempfile.tempdir)
         self.base = governance.GovernancePortTests()
         self.base.setUp()
         testcase.addCleanup(self.base.doCleanups)
@@ -26,6 +30,9 @@ class HookFixture:
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target)
         shutil.copy2(ROOT / 'codex/scripts/admit-hook-fixture.py', self.codex / 'scripts/admit-hook-fixture.py')
+        # These native bootstrap files are not imported Configs handler ports.
+        for relative in ('hooks/hook-runtime-path.sh',):
+            shutil.copy2(ROOT / 'codex' / relative, self.codex / relative)
         (self.codex / 'hooks/hooks.json').write_bytes(self.source.read_bytes())
         self.runtime = self.target.parent
         (self.runtime / 'hooks').symlink_to(self.codex / 'hooks')
@@ -40,6 +47,43 @@ class HookFixture:
         python = self.bin / 'python3'
         python.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' "$@"\n')
         python.chmod(0o755)
+        # Run the real jq without a caller-owned runtime-manager shim loading
+        # the disposable HOME's deliberately untrusted projected config.
+        jq = shutil.which('jq')
+        mise = shutil.which('mise')
+        if jq and mise and Path(jq).resolve() == Path(mise).resolve():
+            tools = tomllib.loads((ROOT / 'mise/config.toml').read_text())['tools']
+            resolved = subprocess.run([mise, 'which', 'jq', '--tool', 'jq@' + tools['jq']], cwd=Path.home(),
+                env=os.environ.copy(), text=True, capture_output=True,
+                timeout=20, check=False)
+            jq = resolved.stdout.strip() if resolved.returncode == 0 else None
+        if (not jq or not Path(jq).is_absolute() or not Path(jq).is_file()
+                or not os.access(jq, os.X_OK)
+                or mise and Path(jq).resolve() == Path(mise).resolve()):
+            raise RuntimeError('Hook fixtures require a resolved jq executable')
+        jq_launcher = self.bin / 'jq'
+        jq_launcher.write_text('#!/bin/sh\nexec ' + shlex.quote(jq) + ' "$@"\n')
+        jq_launcher.chmod(0o755)
+        # Handler assertions exercise real guards with fixture-owned providers.
+        # Production prefix/ownership/selection is covered by toolchain tests
+        # and the separate protected-runtime installation lane, never this shim.
+        tools = self.home / '.fixture-hook-tools/bin'
+        tools.mkdir(parents=True)
+        shutil.copy2(python, tools / 'python3')
+        shutil.copy2(jq_launcher, tools / 'jq')
+        (tools / 'gh').write_text('#!/bin/sh\nexit 127\n')
+        (tools / 'gh').chmod(0o700)
+        selector = self.codex / 'scripts/validate-hook-toolchain.py'
+        selector.write_text('import importlib.util, pathlib\n'
+            + 'root = pathlib.Path(' + repr(str(self.home)) + ')\n'
+            + 'spec = importlib.util.spec_from_file_location("fixture_scope", pathlib.Path(__file__).with_name("migration_scope.py"))\n'
+            + 'scope = importlib.util.module_from_spec(spec); spec.loader.exec_module(scope)\n'
+            + 'try:\n'
+            + '    home = scope.require_disposable_scope()\n'
+            + '    if not home.is_relative_to(root): raise ValueError("outside fixture")\n'
+            + 'except (RuntimeError, ValueError, OSError):\n'
+            + '    raise SystemExit("hook fixture admission failed: disposable identity mismatch")\n'
+            + 'print(' + repr(str(tools)) + ')\n')
         # This launcher is test-only. Discovery does not run it. It neither
         # captures real prompts nor supplies production Braid consent.
         (self.bin / 'braid').write_text('#!/bin/sh\nprintf \'{"continue":true}\\n\'\n')

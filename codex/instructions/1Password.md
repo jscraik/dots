@@ -61,8 +61,13 @@ bash ${CODEX_POLICY_SOURCE}/scripts/run-auth-backed.sh \
   --canary OLLAMA_API_KEY
 ```
 
-The canary prints only a fixed pass/fail result. When a child needs a secret,
-require its name without exposing its value and keep the injected material in
+Both networked permission profiles explicitly deny the FIFO. The two exact
+fixed-output canary commands are the only auto-allowed FIFO routes; any
+credential-bearing child requires normal outside-sandbox approval. Ordinary
+workspace children therefore cannot open the credential channel directly.
+
+The canary prints only a fixed pass/fail result. When a child needs secrets,
+require every name without exposing its value and keep the injected material in
 that one short-lived process:
 
 ```sh
@@ -71,6 +76,13 @@ bash ${CODEX_POLICY_SOURCE}/scripts/run-auth-backed.sh \
   --require-env REQUIRED_VARIABLE_NAME \
   -- command arg
 ```
+
+After 1Password injection, the trusted wrapper rebuilds the child environment
+from only the requested names and a small benign runtime allowlist captured
+before injection. Other values from the selected Environment are absent. A
+command with no `--require-env` receives no injected values. Approval must cover
+the exact requested-name list and child command; repeat `--require-env` when a
+child legitimately needs more than one variable.
 
 The 1Password FIFO is reusable across sequential opens but does not support
 concurrent consumers. Catalog discovery, A, B, and any later authenticated
@@ -123,7 +135,8 @@ Use this procedure:
 
 `--require-environment` validates the ID, selects managed `op-beta`, and refuses
 FIFO fallback. Status 69 means only the writable mise copy is present. The child
-receives the Environment; the parent does not. Use one fresh wrapper invocation per child.
+receives only its explicitly requested names; the parent receives no injected
+values. Use one fresh wrapper invocation per child.
 
 If the beta route cannot connect to 1Password Desktop while the stable FIFO
 canary passes, classify the failure as host-XPC reachability. Reopen or unlock

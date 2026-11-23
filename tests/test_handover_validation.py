@@ -4,12 +4,140 @@ import json
 import subprocess
 import sys
 import unittest
+from pathlib import Path
 
 from helper_fixture import HelperFixture
 from policy_fixture import ROOT
 
 
 class HandoverValidationTests(unittest.TestCase):
+    def test_scrub_preserves_raw_crlf_bytes_for_publication_comparison(self):
+        target = self.fixture.home / 'crlf-scrub.toml'
+        original = b'notify = ["SkyComputerUseClient"]\r\nmodel = "fixture"\r\n'
+        target.write_bytes(original)
+        result = self.fixture.helper('scrub-computer-use-config.py', '--config-path', str(target), '--repair', '--json')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload['status'], 'repaired')
+        self.assertEqual(Path(payload['retained_generation_path']).read_bytes(), original)
+        self.assertNotIn(b'SkyComputerUseClient', target.read_bytes())
+        self.assertIn(b'model = "fixture"', target.read_bytes())
+
+    def test_scrub_operator_output_names_the_retained_generation(self):
+        fixture = self.fixture
+        target = fixture.home / 'operator-scrub.toml'
+        original = 'notify = ["SkyComputerUseClient"]\n'
+        target.write_text(original)
+        result = fixture.helper('scrub-computer-use-config.py', '--config-path', str(target), '--repair')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        line = next(line for line in result.stdout.splitlines() if line.startswith('Retained generation: '))
+        retained = Path(line.removeprefix('Retained generation: ').split(';', 1)[0])
+        self.assertEqual(retained.read_text(), original)
+        self.assertIn('inspect native saves before explicit recovery', result.stdout)
+
+    def test_scrub_retains_the_generation_displaced_by_a_native_save(self):
+        fixture = self.fixture
+        child = '''import contextlib,importlib.util,io,json,sys
+from pathlib import Path
+sys.path.insert(0,str(Path(sys.argv[1]).parent))
+spec=importlib.util.spec_from_file_location("scrub_race",sys.argv[1])
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+target=Path(sys.argv[2]);original='notify = ["SkyComputerUseClient"]\\n'
+target.write_text(original)
+native=original+'native_preference = true\\n'
+original_spec=importlib.util.spec_from_file_location
+def intercept(name,path,*args,**kwargs):
+    selected=original_spec(name,path,*args,**kwargs)
+    if name=="scrub_retained_publication":
+        execute=selected.loader.exec_module
+        def load(loaded):
+            execute(loaded);write=loaded._write_repair
+            def racing_write(path,text,**options):
+                options["before_exchange"]=lambda slot: target.write_text(native)
+                return write(path,text,**options)
+            loaded._write_repair=racing_write
+        selected.loader.exec_module=load
+    return selected
+importlib.util.spec_from_file_location=intercept
+sys.argv=[sys.argv[1],"--config-path",str(target),"--repair","--json"]
+output=io.StringIO()
+with contextlib.redirect_stdout(output): status=module.main()
+result=json.loads(output.getvalue())
+assert status==1 and result["status"]=="blocked",result
+retained=Path(result["retained_generation_path"])
+assert retained.read_text()==native
+assert retained.is_relative_to(target.parent)
+assert target.exists()
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/scrub-computer-use-config.py'),
+            str(fixture.home / 'scrub-race.toml')], env=fixture.env, cwd=fixture.repo,
+            capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_scrub_lock_failure_respects_requested_output_format(self):
+        fixture = self.fixture
+        child = '''import contextlib,importlib.util,io,json,sys
+from pathlib import Path
+from types import SimpleNamespace
+sys.path.insert(0,str(Path(sys.argv[1]).parent))
+def load(name,path):
+    spec=importlib.util.spec_from_file_location(name,path)
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+module=load("scrub_lock_format",sys.argv[1]);home=Path(sys.argv[2])
+installer=load("parent_lock",Path(sys.argv[1]).with_name("install-codex.py"))
+module.deployment_module=lambda:SimpleNamespace(context=lambda:{"home":str(home)})
+target=home/"missing-config.toml"
+with installer.installation_lock(home):
+    for use_json in (False,True):
+        sys.argv=[sys.argv[1],"--config-path",str(target),"--repair"]+(["--json"] if use_json else [])
+        output=io.StringIO()
+        with contextlib.redirect_stdout(output):
+            assert module.main()==1
+        text=output.getvalue()
+        if use_json:
+            payload=json.loads(text)
+            assert payload["reason"]=="installation_lock_unavailable"
+            assert payload["path"]==str(target)
+        else:
+            assert text.startswith("FAIL  installation_lock_unavailable:"),text
+            assert str(target) in text
+assert not target.exists()
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/scrub-computer-use-config.py'), str(fixture.home)],
+            env=fixture.env, cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_repair_errors_after_lock_acquisition_keep_their_cause(self):
+        fixture = self.fixture
+        child = '''import importlib.util,sys
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+sys.path.insert(0,str(Path(sys.argv[1]).parent))
+spec=importlib.util.spec_from_file_location("locked_diagnostic",sys.argv[1])
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+home=Path(sys.argv[2])
+deployment=SimpleNamespace(ROOT=Path(sys.argv[1]).parents[2],context=lambda:{"home":str(home)})
+module.deployment_module=lambda:deployment
+sys.argv=[sys.argv[1],"--config-path",str(home/"config.toml"),"--repair","--json"]
+with patch.object(module,"_main_locked",side_effect=OSError("synthetic-action-failure")):
+    try:
+        module.main()
+    except OSError as error:
+        assert str(error)=="synthetic-action-failure"
+    else:
+        raise AssertionError("Action error was relabelled as lock unavailability")
+'''
+        for name in ('repair-runtime-config-drift.py', 'scrub-computer-use-config.py'):
+            with self.subTest(name=name):
+                result = subprocess.run([sys.executable, '-B', '-c', child,
+                    str(fixture.codex / 'scripts' / name), str(fixture.home)],
+                    env=fixture.env, cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(result.stdout, '')
+
     def setUp(self):
         self.fixture = HelperFixture(self)
         self.addCleanup(self.fixture.assert_preserved, self)
@@ -45,6 +173,35 @@ class HandoverValidationTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(config.read_text(), 'model = "keep"\n\n[other]\nnotify = ["keep"]\n')
         self.assertEqual(json.loads(result.stdout)['removed_count'], 1)
+
+    def test_desktop_registration_scan_failure_is_bounded_and_preserves_config(self):
+        fixture = self.fixture
+        config = fixture.home / 'scan-failure.toml'
+        original = 'model = "keep"\nnotify = ["SkyComputerUseClient"]\n'
+        config.write_text(original)
+        child = '''import importlib.util,sys
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+sys.path.insert(0, str(Path(sys.argv[1]).parent))
+spec = importlib.util.spec_from_file_location("scan_failure",sys.argv[1])
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+deployment = SimpleNamespace(ROOT=Path(sys.argv[1]).parents[2])
+state = sys.argv[3]
+deployment.context = lambda: {"state_dir":state,"home":state}
+module.deployment_module = lambda: deployment
+sys.argv=[sys.argv[1],"--config-path",sys.argv[2],"--repair","--json"]
+with patch.object(module.os,"scandir",side_effect=OSError("synthetic-private-scan-data")):
+    raise SystemExit(module.main())
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/scrub-computer-use-config.py'), str(config), str(fixture.home)],
+            env=fixture.env, cwd=fixture.repo, capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)['reason'], 'desktop_registration_scan_failed')
+        self.assertEqual(config.read_text(), original)
+        self.assertNotIn('synthetic-private-scan-data', result.stdout + result.stderr)
+        self.assertNotIn('Traceback', result.stdout + result.stderr)
 
     def test_invalid_binding_document_is_a_bounded_cli_rejection(self):
         path = self.fixture.home / 'invalid-bindings.json'
@@ -96,9 +253,9 @@ class HandoverValidationTests(unittest.TestCase):
                 self.assertEqual(output['permissionDecisionReason'],
                                  f'Required policy handler failed: {handler.name} ({detail})')
                 self.assertNotIn(private, result.stdout + result.stderr)
-        handler.write_text('#!/bin/bash\nprintf \'%s\' \'{"continue":true}\'\n')
+        handler.write_text('#!/bin/bash\nprintf \'%s\' \'{}\'\n')
         result = self.fixture.run('pre-tool-use-dispatch.sh', {'tool_input': {'command': 'git remote -v'}})
-        self.assertEqual(json.loads(result.stdout), {'continue': True})
+        self.assertEqual(json.loads(result.stdout), {})
         handler.write_text('#!/bin/bash\nprintf \'%s\' \'{"hookSpecificOutput":{"permissionDecision":"deny","permissionDecisionReason":"fixture policy denial"}}\'\n')
         result = self.fixture.run('pre-tool-use-dispatch.sh', {'tool_input': {'command': 'git remote -v'}})
         self.assertEqual(json.loads(result.stdout)['hookSpecificOutput']['permissionDecisionReason'],

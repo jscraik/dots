@@ -43,7 +43,11 @@ restart. The ordinary check and rollback continue to reject those newer bytes.
 The isolated compatibility candidate adds `prepare-desktop-review` to the
 installer. It writes a private, create-once proposal in installation state and
 returns its SHA-256; it does not approve the proposal or change runtime files.
-Only twelve named Desktop slots may differ. All remaining parsed policy must
+Later proposals use digest-named files, preserving earlier proposals and pins.
+The explicit digest selects the reviewed snapshot; a changed runtime still
+invalidates an older snapshot. Oversized proposals are rejected before writing.
+Only twelve named Desktop slots and newly granted native user-hook consent
+for this installation may differ. All remaining parsed policy must
 agree with the installed baseline, and every other managed target must match.
 
 After independent review and explicit operator acceptance, `check` or `rollback`
@@ -87,30 +91,22 @@ candidates; publication and exact-content acceptance retain separate authority.
 
 ### Local checks
 
-CircleCI runs the full suite with `DOTS_CODEX_BIN=/tmp/dots-ci-tools/codex`,
-the checksum-verified Linux CLI pinned by its configuration. This enables native
-runtime tests instead of silently skipping them. Linux results prove compatibility
-with that CLI version; they do not prove Desktop app behaviour. Run the app wrapper
-below separately on macOS for Desktop runtime evidence. Hook trust refresh timing
-may differ by release; the lifecycle test requires trusted state after explicit
-reload and restart, modified-definition detection, and revoked consent.
-
 Use Python 3.12 or newer in an existing validation environment containing the
 pins in `requirements/codex-validation.txt`. The instruction-pointer checker
-uses the already-declared `markdown-it-py==4.2.0`. No online bootstrap or new
-dependency is added by this migration.
+uses the already-declared `markdown-it-py==4.2.0`. For the full test suite, use
+[the CI validation lock](requirements/codex-validation-ci.lock), which also
+pins the validator used for readiness receipt schema parity. The schema
+validator is a test dependency.
 
-Provision an isolated validation environment before running the app wrapper:
-
-```sh
-python3 -m venv /private/tmp/dots-validation
-/private/tmp/dots-validation/bin/python -m pip install -r requirements/codex-validation.txt
-source /private/tmp/dots-validation/bin/activate
-bash scripts/test-app-codex.sh
-```
-
-The wrapper checks the declared package versions before collecting tests. It
-does not install packages. Nested helpers reuse the selected environment's Python.
+Without the separately administered `/opt/dots-hook-tools` installation, local
+installation-route operator tests report an explicit skipped prerequisite.
+Component tests still run; skipped operator tests do not prove installation or
+protected-runtime acceptance. Disposable CI provisions and validates the real
+toolchain first and sets `DOTS_REQUIRE_PROTECTED_TOOLCHAIN=1`, so a missing
+prerequisite fails that lane instead of producing skipped operator coverage.
+CI first runs the three regressions observed failing before the previous timeout,
+then the complete suite. It stops at the first failure to preserve its traceback;
+a passing run still executes the complete suite.
 
 ```sh
 python3 -m unittest discover -s tests -v
@@ -134,13 +130,14 @@ Existing machine-specific files are preserved; conflicting managed paths require
 manual review. No package installation, tool trust, shell activation, background
 updater, credential access or live projection occurs.
 
-The reusable Aikido launcher is included under `codex/scripts/`. Its executable
-and 1Password reference file remain local. The launcher retains the existing
-1Password route and pinned-binary requirement; tests use synthetic providers
-inside disposable homes. No provider is installed or authenticated by the port.
-Packaged provider admission recognises its named local binary/reference inputs
-and the existing 1Password CLI locations. It adds no writable helper roots;
-rehearsals continue to reject host providers and escaping symlinks.
+The reusable Aikido launcher is included under `codex/scripts/`. Its 1Password
+reference remains local, while machine mode resolves the provider only from the
+sealed protected toolchain version captured by installation. Arbitrary
+`AIKIDO_MCP_BIN` overrides are rejected there. Credential-free rehearsals retain
+synthetic providers inside disposable homes. No provider is installed or
+authenticated by the port. Packaged provider admission recognises the local
+reference and existing 1Password CLI locations without adding writable helper
+roots; rehearsals continue to reject host providers and escaping symlinks.
 
 Machine admission treats `CODEX_APP_TOOLS_PIPE_PATH`, `CODEX_TECTONIC_PATH`,
 `CODEX_APP_RUNTIME_CLI_PATH` and `CODEX_MCP_NODE_PATH` as unused native app
@@ -156,21 +153,144 @@ retains the installed managed-worktree checks. Runtime trust does not add
 helper-output or environment-resource roots. Rehearsals retain sealed-policy
 containment; session and credential stores remain protected.
 
-Preparation records a private effective binding for the physical usage-data
+Ordinary installation preparation records a private effective binding for the physical usage-data
 directory, so the sandbox writable-root list contains its resolved target.
 The existing usage-data alias and contents remain intact. Validation accepts
 the exact physical evidence directory as well as its canonical spelling.
+Policy-update preparation renders its explicitly selected bindings unchanged in
+both preview and payload. A transition from a physically bound installation
+must select the reviewed physical binding with its exact pin; it cannot
+silently switch back to an alias or accept an unselected writable-root change.
 
 ## First-machine installation candidate
+
+### Protected hook tools prerequisite
+
+Prepare the complete Python, jq and GitHub CLI payload on its native platform
+using the reviewed artifact lock. Supported targets are macOS ARM64 and Linux
+amd64. The protected bootstrap requires `/usr/bin/python3` version 3.9 or newer
+(Command Line Tools Python on macOS). Installation preparation checks this
+route before publishing hooks. Preparation uses disposable storage and installs the hash-locked Python
+validation dependencies inside that payload.
+
+```sh
+python3 -I codex/scripts/prepare-hook-toolchain.py --platform darwin-arm64 --output /tmp/dots-hook-tools
+python3 -I codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-tools --inspect
+```
+
+Review the payload and the printed inventory digest before the separate admin
+step. Supply that exact digest as `REVIEWED_DIGEST`. Provisioning requires
+system Python with isolated mode and publishes a root-owned version under
+`/opt/dots-hook-tools`. `--select` explicitly selects that version for hooks.
+
+```sh
+sudo /usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-tools --reviewed-sha256 REVIEWED_DIGEST --select
+```
+
+Complete this prerequisite before preparing a new Codex installation. New
+preparation captures the selected version and its complete inventory digest in
+the sealed package and plan. Apply rechecks it before any runtime publication,
+and check refuses a changed, missing or unbound selection. An administrator
+changing the selection requires a fresh preparation. Historical unbound plans
+remain readable for recovery through their exact previously prepared package
+entrypoint, state directory and plan digest (see recovery below). The updated
+checkout dispatcher does not authenticate legacy origin receipts and refuses
+them; it must not execute historical payloads on an unverified caller manifest.
+Legacy plans do not provide new apply/check readiness through this installer.
+
+Installer children and packaged projection use the verified versioned Python
+from this protected toolchain. They do not reuse a mutable caller venv launcher.
+Machine wrappers ignore caller Python overrides and writable mise/venv fallback
+roots. Disposable fixture resources have a separate system-Python admission
+before their explicit test interpreter is used; that route grants no live-home
+installation or activation authority.
+
+Existing mise-only installations need this admin step before adopting these hook
+launchers. Full installation and Linux CI verification of this candidate are
+pending.
+
+LifeOS retrieval needs an optional Bun executable in the protected toolchain
+and a separately admitted private retriever. Before calculating the payload's
+reviewed inventory digest, stage an independently verified, platform-compatible
+Bun artifact at `bin/bun` beside Python/jq/gh. This repository does not supply a
+Bun download pin: artifact identity and provenance need separate review. The
+normal admin installation inventories and checks this optional provider, and
+the installed package binds its exact toolchain version. Changing Bun requires
+a newly reviewed payload and installation; no live-home activation is implied.
+The adapter selects only that bound `bin/bun`. `CODEX_LIFEOS_BUN`, Homebrew,
+mise and inherited PATH no longer select providers. Remove the legacy override
+from the launch environment. The private retriever and data paths retain their
+existing resource admission. Without optional Bun, retrieval returns no context;
+it does not clear a security decision. The retained LifeOS harness covers synthetic provider routing and
+the minimal child environment.
+
+Aikido MCP needs an independently reviewed `@aikidosec/mcp@1.0.10` launcher at
+`bin/aikido-mcp` in the same payload. Stage its self-contained runtime and
+dependencies inside that payload; the launcher must not resolve executable code
+from the caller's home or inherited `PATH`. Add `providers/aikido-mcp.json` with
+exactly `schema_version` 1, package `@aikidosec/mcp`, version `1.0.10`, and the
+lowercase SHA-256 of `bin/aikido-mcp` as `executable_sha256` before inspecting
+the payload. Installation validates this receipt, and machine launch recomputes
+the complete content-addressed inventory and receipt hash after checking the
+root-owned directory chain, modes and link counts. A missing or changed provider
+fails before `op run`; changing Aikido requires a newly reviewed payload,
+selection and installation preparation.
+
+Readiness helpers use a separate repository-scoped contract for verified managed
+worktrees. It admits contained scope and waiver inputs without adding general
+resource roots. Receipts use regular JSON leaves in an existing owned `.tmp`
+directory; the default is `.tmp/pr-readiness.v1.json`, not shared Git metadata.
+Symlinks, hardlinks, nonregular or unsafe output leaves, retained stores and
+installation resources remain rejected. Publication rechecks the worktree and
+parent identities and uses a no-follow temporary file and atomic replacement.
+These checks detect observed replacement races; they do not claim immunity to
+hostile concurrent filesystem changes. Admission does not waive any readiness
+head, review, CI, scope or receipt-freshness gate, or grant remote authority.
+
+The body-only PR helper uses this same selected-repository boundary for managed
+worktree inputs. It snapshots the admitted body and template, then rechecks the
+worktree identity before a hosted operation. Its current-head receipt or explicit
+metadata-repair preflight, PR number and repository checks remain required.
 
 `scripts/install-codex.py` provides one local procedure: `prepare`, `apply`,
 `check` and `rollback`. It reuses the existing projector, full policy validator,
 Desktop-setting preservation and atomic config/hook publishers. It installs no
 packages, starts no background service and does not contact a provider or CI.
 
-Preparation creates a private, read-only policy package and validates it before
-backing up the 20 managed targets. Config, hook manifests, profiles and reusable
-code are independent regular-file or directory copies. The additional private
+The projector bootstrap uses the installer's selected Python through the existing
+`CODEX_VALIDATION_PYTHON` contract, including quoted paths containing spaces.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:cb3654d2c3df54a2c07c62809a85870e0dbea6d5a0bee52afb9eb31f730e263b -->
+
+Full-policy disposable fixtures also select `CODEX_VALIDATION_PYTHON` before
+admission checks. Preview fixtures use `/usr/bin/python3`; the selected absolute
+executable must provide Python 3.9 or later. Full-policy validation additionally
+requires the validation environment described above. Projector children use a
+fixed system PATH.
+
+Standalone projection requires this sanitized launcher (append projection flags):
+
+```sh
+/bin/bash -p scripts/link-configs.sh --help
+```
+
+Privileged Bash startup ignores `BASH_ENV`, `ENV` and exported shell functions
+before reading the script. The executable script uses the same protected
+shebang. Plain `bash scripts/link-configs.sh` with an inherited environment is
+unsupported. The in-script unset protects child processes. The packaged
+installer supplies an allowlisted environment; installed audit and repair
+wrappers use the protected launcher and pass their selected absolute Python.
+
+<!-- /coderabbit-ai-generated:v1 -->
+
+Preparation requires the exact full commit ID already checked out as `HEAD`,
+refuses tracked or nonignored untracked changes, and creates the package from
+that commit's immutable Git tree rather than worktree bytes. Its private
+`origin.json` receipt records the commit, tree digest and complete blob inventory.
+It then validates the read-only policy package before backing up the 20 managed
+targets. Config, hook manifests, profiles and reusable code are independent
+regular-file or directory copies. The additional private
 `.dots-package.json` reference identifies the sealed installed package without
 using a filesystem link. Copied helpers validate that package and the installed
 code inventory before use. Development-checkout edits cannot change the running
@@ -193,7 +313,7 @@ synthetic Codex setup and private binding JSON. The test entrypoint builds that
 setup and exercises the actual commands:
 
 ```sh
-bash scripts/test-app-codex.sh -p test_installation_route.py -v
+DOTS_CODEX_BIN=/absolute/path/to/codex python3 -B -m unittest discover -s tests -p test_installation_route.py -v
 ```
 
 For native hook consent, `hooks/list` with `cwds` proves on-disk discovery only.
@@ -203,17 +323,34 @@ A successful `config/value/write` or fresh-server listing does not prove that an
 already loaded thread uses the new hooks. The focused `test_hook_discovery.py`
 regression checks this distinction in a disposable home without a model turn.
 
+After granting native hook consent, preserve it through the existing
+`prepare-desktop-review` proposal and explicitly accepted
+`--desktop-review-sha256` check/rollback route. Inspect the proposal's exact
+`hooks.state` identities and hashes against native discovery before accepting
+its digest. Preparing or printing the proposal does not authorise consent.
+Only new consent for this installation's `.codex/hooks.json` can use this route;
+replacement of an existing trusted hash remains blocking. Ordinary projection
+and startup repair stop before changing consent-bearing configuration. Generated
+bindings still cannot install trusted hashes, and any later runtime change
+invalidates the accepted snapshot.
+This review also supports a first installation with no previous config. The
+sealed plan must record that absence and no config backup may appear later.
+An explicitly pinned preserving rollback retains a consent-only config in that
+case, restores the other targets, and leaves the original installation receipts
+and absent backup unchanged.
+
 For an operator-prepared rehearsal, the command sequence is:
 
 ```sh
-python3 -B scripts/install-codex.py prepare --mode rehearsal --home TEMP_HOME --state-dir TEMP_HOME/installation/one --bindings BINDINGS_JSON --braid-bin BRAID_BINARY
+python3 -B scripts/install-codex.py prepare --mode rehearsal --home TEMP_HOME --state-dir TEMP_HOME/installation/one --bindings BINDINGS_JSON --braid-bin BRAID_BINARY --source-revision REVIEWED_COMMIT
 python3 -B scripts/install-codex.py apply --state-dir TEMP_HOME/installation/one --plan-digest PREPARED_DIGEST
 python3 -B scripts/install-codex.py check --state-dir TEMP_HOME/installation/one --plan-digest PREPARED_DIGEST
 python3 -B scripts/install-codex.py rollback --state-dir TEMP_HOME/installation/one --plan-digest PREPARED_DIGEST
 ```
 
-Substitute explicit paths and the digest returned by preparation. That digest
-identifies the prepared change; it grants no execution or installation authority.
+Substitute explicit paths, the full reviewed commit currently checked out as
+`HEAD`, and the digest returned by preparation. That digest identifies the
+prepared change; it grants no execution or installation authority.
 Do not edit the source or package between commands. Repeated application is a
 check. Interrupted application can be rolled back without resuming activation.
 Unexpected newer target content stops recovery and retains the backup for inspection.
@@ -230,6 +367,111 @@ uploading them. Only selected reusable changes belong in the GitHub source. Priv
 bindings, Desktop consent, authentication, sessions, databases, plugins and generated
 state stay local. No automatic bidirectional sync or background service is added.
 Existing private data aliases are preserved; their relocation is a separate task.
+
+For an already applied generation with an accepted exact Desktop review,
+`prepare --previous-desktop-review-sha256 DIGEST` can preserve that reviewed
+state through an update. The old reference, plan, review and every managed target
+must still match. A sealed descriptor carries the approval identity into the new
+package; canonical policy stays separate from the reviewed Desktop overlay.
+Preparation and application revalidate it. Newer registrations, changed reviews,
+new installation references and conflicts with new canonical policy remain
+blocking. Ordinary preparation without the pin retains its existing rejection.
+Rollback restores the exact pre-update configuration and prior package reference.
+Repeated updates preserve the accepted effective values and absences of the
+existing finite Desktop registration slots, even when a later review records
+no new delta. The previous canonical snapshot is authenticated against its
+package inventory before supplying conflict-check baselines. New canonical
+conflicts and unreviewed runtime edits still block; themes and archive choices
+retain their existing canonical transition rules.
+
+An exact Desktop review can also retain the selected model, reasoning effort and the typed,
+account-scoped `desktop.daybreak-enabled` preference. Account identifiers stay
+in private runtime evidence, never in this repository. Review does not change
+the provider, permissions, tools or service credentials. Existing hook identities
+may change only their explicit `enabled` boolean: trust hashes and every other
+field must remain unchanged, including in the rollback configuration. A missing
+rollback identity is rejected rather than creating a new trusted hook. Native
+hook discovery and loaded-session verification remain separate from config review.
+
+When separately approved model, reasoning, project-trust or presentation choices
+already differ from the installed policy, first express them in the public root
+template and private project bindings. The source-only `prepare-policy-update`
+operation prepares a new generation without clearing the old generation's drift.
+It takes the ordinary `--home`, fresh `--state-dir`, `--bindings`, `--braid-bin`
+and `--mode` arguments, plus `--source-revision` naming the full reviewed commit
+currently checked out in the clean source checkout, and all six exact SHA-256 pins:
+`--bindings-sha256`, `--previous-plan-digest`, `--previous-package-digest`,
+`--previous-marker-sha256`, `--previous-expected-config-sha256` and
+`--previous-observed-config-sha256`. Obtain them from the reviewed private inputs,
+old sealed generation and current runtime immediately before preparation.
+
+This route preserves the currently selected model, reasoning effort and typed
+Daybreak preference from the pinned runtime,
+the four explicit private project bindings `value_0174`, `value_0175`, `value_0176` and `value_0177`, and the
+two existing validated presentation preferences and the source-selected
+`desktop.autoArchiveAfterDays` value, plus the source-selected absence of obsolete
+`marketplaces.openai-primary-runtime.last_updated` metadata. Other marketplace
+fields and every other setting remain under strict comparison; the Desktop
+review remains explicit and the previous sealed generation remains unchanged.
+The existing equivalent legacy sandbox spelling may be normalised to the same
+named permission profile; a different permission or network capability is rejected. Existing project trust must be
+preserved; package-local project references move with the normal generation.
+The exact observed config must match that transformation of the verified old
+baseline. Any other policy delta, changed managed target, old receipt or package
+blocks preparation or application. The accepted Desktop executable registration
+overlay is carried separately; the two presentation preferences now follow the
+new canonical template rather than the older overlay.
+
+If another workspace was registered after the previous installation, select its
+absolute path explicitly in the private bindings' optional
+`additional_trusted_projects` list. The binding pin and sealed canonical output
+cover that selection; it is never imported automatically from runtime state.
+Entries must be unique, must not replace an existing template binding, and add
+only `trust_level = "trusted"`. The exact runtime comparison still rejects
+unselected project registrations and any change to existing trust. With no list,
+all generated policy remains byte-for-byte unchanged.
+
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:ace8d96a672cc207d19a867e439c04f7cd4abd5c316da51599d1997225313da1 -->
+
+The supported native-consent route starts from generated policy without
+`hooks.state`, followed by a separately accepted installation-bound consent
+proposal. Revocations from that pinned native-consent installation are
+preserved through preparation, application and repair readback.
+
+Older packages whose generated canonical policy already contains `hooks.state`
+are not supported by this update route. The update refuses that baseline rather
+than treating generated hashes as proof of operator consent or silently
+discarding later consent. Adopting the new format requires separately reviewed
+reprovisioning; this PR provides no automatic conversion of the older format.
+An initial installation with unbound state likewise stops without changing it.
+
+For a supported consent-free installation, prepare and apply it, grant fresh
+native consent for the installed hooks, and run `prepare-desktop-review`.
+That command requires an applied installation; it cannot repair an unsupported
+older baseline or resolve unbound consent before installation.
+
+<!-- /coderabbit-ai-generated:v1 -->
+Existing `enabled = false` flags do not authorise changed trust
+hashes or new identities. If every recorded hook was disabled, replacement
+identities also remain disabled. A transition never grants hook consent.
+
+A standalone live `repair-usage-directory` forward swap is refused before any
+change: replacing a retained link would invalidate the active deployment's
+ownership record. Rehearsal and explicit recovery remain available. A previously
+applied repair can be included in `prepare-policy-update` through its exact
+`--usage-directory-repair` proof; preparation verifies the retained directory,
+original link backup and previous package. Rollback restores the original link
+and retains new usage logs in repair storage. Do not cancel a prepared migration
+as routine cleanup: its rollback includes that retained-resource inverse.
+
+Preparation seals a private transition proof and leaves the runtime untouched.
+Normal `apply`, `check` and `rollback` retain their gates and exact plan pin.
+Rollback restores the selected pre-update bytes and prior package reference;
+the old check will still report their intentional policy drift. It does not
+retroactively accept those preferences under the old template. This operation
+does not grant installation authority or import arbitrary runtime-only policy.
 
 For recovery after the development checkout changes, use the exact previously
 prepared package entrypoint, state directory and plan digest, for example
@@ -317,10 +559,10 @@ now. Ignore rules protect future additions; they do not prove absence of secrets
 configuration and seven standalone profiles. The reviewed JSON template stores
 the parsed policy, including approval, permissions, profile isolation, hook
 enablement and delivery instructions. Whole-string local slots separate machine
-paths, private endpoint and application identities, consent hashes and personal
-Desktop state. Source revision and file digests are in
-`codex/templates/policy-provenance.json`. JSON is the source format for this
-candidate; generated output is TOML. Comments are not reproduced.
+paths, private endpoint and application identities, and personal Desktop state.
+Persisted hook trust is deliberately excluded. Source revision and file digests
+are in `codex/templates/policy-provenance.json`. JSON is the source format for
+this candidate; generated output is TOML. Comments are not reproduced.
 
 Run the synthetic, local-only generation check:
 
@@ -335,17 +577,18 @@ missing/extra bindings, non-string values and table-key collisions are rejected.
 Quoting prevents binding text from becoming TOML syntax. Bindings are trusted
 local configuration inputs, not a permission-grant mechanism. They can change
 machine-specific keys and values and therefore still require the complete
-governance validation before installation. Never supply credentials as bindings.
+governance validation before installation. The generator rejects any
+`hooks.state` table and treats historical hook-consent bindings as unknown input.
+Never supply credentials as bindings.
 
 The synthetic bindings are invented strings for serialization testing, not
 working endpoints, valid hook consent or a deployable workstation configuration.
 Private reconstruction was compared against the accepted source: all eight
 parsed policies matched before the integration adaptation below. The template
-also retains the newer draw.io registration. Its source path and additional
-hook-consent identities and hashes use local slots with synthetic examples;
-they are not public machine state. Inspect the exact hook definitions and
-establish current consent before activation. The reviewed disabled-transport
-adaptation remains in place.
+also retains the newer draw.io registration with its source path in a local
+slot. Hook definitions remain discoverable, but generated policy starts without
+trusted hashes so the native runtime must obtain fresh consent for the exact
+current hooks. The reviewed disabled-transport adaptation remains in place.
 The accepted validator's schema feature/approval-mode
 parity and seven-profile policy, transport and OSS-isolation checks passed on
 that reconstruction. Negative probes rejected weakened approvals and isolation.
@@ -518,26 +761,16 @@ approval, missing readiness receipts, lifecycle receipts, startup maintenance
 and Stop/prompt safety decisions. Shell syntax is checked for every ported
 shell file. Fixture auth, session and database sentinels must remain unchanged.
 
-To run app-server discovery with the app-bundled Codex CLI, use the wrapper
-below. These tests start a local app-server but no model turn, login, review,
+To run actual app-server discovery, supply the installed Codex CLI's absolute
+path. This command starts a local app-server but no model turn, login, review,
 CI job or deployment:
 
 ```sh
-bash scripts/test-app-codex.sh
+DOTS_CODEX_BIN=/absolute/path/to/codex python3 -B -m unittest discover -s tests -v
 ```
 
-The wrapper selects `/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex`,
-prints its version, and overrides any inherited `DOTS_CODEX_BIN`. It never falls
-back to PATH, mise or npm. If the app launcher is missing, validation fails.
-For only the discovery and consent lifecycle checks, run:
-
-```sh
-bash scripts/test-app-codex.sh -p test_hook_discovery.py -v
-```
-
-Direct Python runs without `DOTS_CODEX_BIN` visibly skip installed-runtime tests;
-use the wrapper for app-runtime proof. With the app CLI selected,
-`tests/test_hook_discovery.py` creates a separate minimal fixture config,
+Without `DOTS_CODEX_BIN`, the installed-runtime test is visibly skipped. With
+it, `tests/test_hook_discovery.py` creates a separate minimal fixture config,
 discovers every manifest definition with `hooks/list`, and records only their
 fresh hashes through `config/value/write` at `hooks.state`. A fresh server must
 recognise that consent. Changing a definition must report modified consent;
@@ -590,9 +823,35 @@ No approval, network, review or other policy setting was loosened.
 Integration tests repair drift while preserving valid Desktop presentation and
 Computer Use plugin consent. They also inject an exchange failure to verify
 last-state and backup preservation, update an owned canonical fixture and roll
-it back through reconciliation, and check that fresh native hook consent can be
-carried in that fixture's canonical input across projection and restart. They
-never grant a runtime-only consent exception or copy a live config into Git.
+it back through reconciliation, and check that projected hooks begin untrusted.
+Fresh consent remains an explicit native runtime action and is never imported
+from policy bindings or copied from a live config into Git.
+
+Config replacement retains the displaced inode in an adjacent private
+`.config.toml.recovery-*` directory, including after a successful repair. The
+repair JSON and successful installation result identify `retained_generation_path`;
+a failed publication reports its recovery location in the error. A writer with
+an already open file handle may still save into that retained generation.
+These files are local recovery material, not immutable receipts or Git inputs.
+Inspect the active and retained generations before an explicitly authorised
+recovery, and keep them until native writers have closed their handles. There
+is no automatic rollback or cleanup of a generation exposed at the active
+path. A detected publication race fails without a compensating swap; this
+preserves recoverable data but cannot guarantee that every concurrent save
+remains active. Stop native writers before retrying repair or recovering a
+selected generation. Passing readback describes the observed generation only.
+
+Applying and restoring records name the generated recovery slot before an
+exchange is attempted. An interrupted slot can contain either staged candidate
+bytes or the displaced configuration; inspect it before choosing recovery.
+Once a config generation is displaced, retries that skip publication preserve
+its recorded `retained_generation_path`. A never-published inspection candidate
+may be superseded by a newly allocated slot on retry; neither recorded slot
+proves that an exchange occurred. Rollback reports
+`rollback_retained_generation_path` for the config parked in the private
+installation state directory. These fields are
+observational locations and grant no recovery authority. This bookkeeping is
+tested for process interruption; power-loss durability has not been verified.
 
 Browser/pet assets, external adapters and live cutover remain separate migration
 surfaces. Passing this generated-policy integration does not retire Configs
@@ -657,7 +916,19 @@ that repository's CI tooling rather than workstation defaults.
 The CircleCI configuration checks this repository only; it does not replace
 Configs' existing checks. Local installation records and recovery artifacts stay
 outside this public repository; they are not included in hosted validation.
-The dormant validation job installs the already-declared validation dependency
-pins before running the suite. Its two jobs and small resource classes are
-unchanged. No hosted job or Linux runtime acceptance is established locally.
+The validation job installs the already-declared validation dependency pins
+before running the suite. It partitions the complete discovered test set across
+three medium Linux VMs pinned to a dated image snapshot; each discovered case
+runs once in that partitioned suite, in addition to the native sandbox canary
+and three diagnostic regressions repeated on each node. Docker executors deny
+the mount setup required by the real bubblewrap sandbox. The VM bootstraps the
+existing checksum-pinned protected Python toolchain before validation; dependency
+installation remains hash-locked. Inherited capabilities are cleared before
+sandbox probes and test processes. The medium VM class increases per-minute
+CI usage compared with the former small containers; no cost saving is claimed.
+A failure fails validation. The workflow
+keeps the `validate` and `secret-scan` jobs, the small digest-pinned secret-scan
+container, checksum verification and both secret scans. Hosted timing must confirm that validation
+finishes within the job limit; local partition checks do not establish hosted
+or Linux runtime acceptance.
 

@@ -81,13 +81,10 @@ prefix_rule(
 # date can also set the system clock; leave it to sandbox/approval policy.
 
 # === Git read-only ===
-prefix_rule(
-    pattern = ["git", "status"],
-    decision = "allow",
-    justification = "Allow inspecting git status.",
-    match = ["git status"],
-    not_match = ["git stash list"],
-)
+# Git status can execute a helper selected by repository-local core.fsmonitor.
+# Prefix rules cannot inject safe configuration, so raw status inspection remains
+# governed by the configured sandbox and approval policy. Automatic internal
+# probes must disable program-valued configuration at their call site.
 # diff/log/show accept output paths and external diff/textconv drivers.
 # Ordinary inspection remains available under the configured sandbox policy.
 

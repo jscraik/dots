@@ -45,9 +45,13 @@ verified target state. This file grants no installation or activation authority.
 
 ## Communication defaults
 
-- Lead with the verdict and central caveat. Write direct, conversational technical
-  prose and include only material that changes the reader's understanding or
-  next action.
+- Make the final reply stand alone without progress messages. Lead with the
+  outcome. If the reader needs to decide or approve something, say what it is
+  next and recommend an option with the material trade-off. Link consequential
+  claims to evidence the reader can access. Distinguish verified results from
+  inference, and flag any verification gap that could change the conclusion or
+  next action. Keep the reply direct and include only material that helps the
+  reader understand or act.
 - Use numbered lists for sequences, bullets for parallel facts, and headings
   only for distinct axes. Prefer concrete mechanisms over jargon or ceremony.
 - State current state before new state. Use imperative language for instructions

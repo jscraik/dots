@@ -27,11 +27,14 @@ class PolicyGenerationTests(unittest.TestCase):
 
     def test_all_profiles_preserve_policy_and_isolation(self):
         result = self.render()
+        provenance = GEN.read_json(ROOT / 'codex/templates/policy-provenance.json')
+        self.assertEqual(set(provenance['local_string_bindings']), set(self.bindings))
         self.assertEqual(set(result), set(GEN.NAMES))
         root = tomllib.loads(result['config'])
         self.assertEqual(root['approval_policy'], 'on-request')
         self.assertEqual(root['approvals_reviewer'], 'auto_review')
         self.assertTrue(root['features']['hooks'])
+        self.assertNotIn('hooks', root)
         for name in GEN.NAMES:
             if name.startswith('oss-'):
                 profile = tomllib.loads(result[name])
@@ -52,11 +55,35 @@ class PolicyGenerationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.render()
 
+    def test_additional_trust_is_explicit_and_leaves_other_policy_unchanged(self):
+        before = self.render()
+        self.bindings['additional_trusted_projects'] = []
+        self.assertEqual(self.render(), before)
+        self.bindings['additional_trusted_projects'] = ['/synthetic/new-workspace']
+        after = self.render()
+        parsed = tomllib.loads(after['config'])
+        self.assertEqual(parsed['projects'].pop('/synthetic/new-workspace'), {'trust_level': 'trusted'})
+        self.assertEqual(parsed, tomllib.loads(before['config']))
+        self.assertEqual({k: v for k, v in after.items() if k != 'config'},
+                         {k: v for k, v in before.items() if k != 'config'})
+
+    def test_additional_trust_rejects_ambiguous_or_policy_shaped_inputs(self):
+        existing = next(iter(tomllib.loads(self.render()['config'])['projects']))
+        for value in ('/synthetic/new', {'/synthetic/new': {'trust_level': 'trusted'}},
+                      [None], ['relative'], ['/'], ['//'], ['///'], ['/.'],
+                      ['/synthetic/../private'], ['/synthetic//new'], ['/synthetic/new/'],
+                      ['//synthetic/new'], ['/' + existing],
+                      ['/synthetic/new', '/synthetic/new'], [existing], [existing + '/.']):
+            self.bindings['additional_trusted_projects'] = value
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.render()
+
     def test_drawio_registration_keeps_its_local_source_as_data(self):
         root = tomllib.loads(self.render()['config'])
         self.assertEqual(root['plugins']['drawio@drawio'], {'enabled': True})
         self.assertEqual(root['marketplaces']['drawio']['source_type'], 'local')
         self.assertTrue(root['marketplaces']['drawio']['source'].startswith('/synthetic/'))
+        self.assertRegex(root['marketplaces']['drawio']['last_revision'], r'^sha256:[0-9a-f]{64}$')
         self.assertEqual(root['approval_policy'], 'on-request')
         self.assertEqual(root['approvals_reviewer'], 'auto_review')
 
@@ -73,6 +100,18 @@ class PolicyGenerationTests(unittest.TestCase):
     def test_table_key_collisions_rejected(self):
         with self.assertRaises(ValueError):
             GEN.substitute({'@local:a': True, '@local:b': False}, {'a': 'same', 'b': 'same'}, set())
+
+    def test_persisted_hook_trust_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'persisted hook trust'):
+            GEN.reject_persisted_hook_trust({
+                'hooks': {'state': {'synthetic': {'trusted_hash': 'sha256:' + '0' * 64}}}
+            })
+        self.bindings.update({
+            'value_0082': '/synthetic/hooks.json:pre_tool_use:0:0',
+            'value_0083': 'sha256:' + '0' * 64,
+        })
+        with self.assertRaises(ValueError):
+            self.render()
 
     def test_cli_no_values_or_runtime_writes(self):
         self.render()

@@ -69,7 +69,18 @@ def _coderabbit_summary_adapter() -> Any:
 SCHEMA_VERSION = "pr-readiness/v1"
 SERVICE_NAME = "pr-readiness"
 PHASES = ("create", "review_inspection", "review_reconciliation", "update")
+TRUSTED_REMOTE = "origin"
+RECEIPT_LANES = (
+    "remote_ancestry",
+    "dirty_worktree",
+    "worktree_boundary",
+    "scope",
+    "pull_request",
+    "required_checks",
+    "reviews",
+)
 REVIEW_WAIVER_SCHEMA = "pr-readiness-review-waiver/v1"
+REQUIRED_CHECK_POLICY_SCHEMA = "required-check-policy/v1"
 REVIEW_WAIVER_SCOPE = "missing independent bot approvals only"
 REVIEW_WAIVER_GOVERNANCE_FIELDS = (
     "rule_or_section",
@@ -80,7 +91,7 @@ SHA_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 SCOPE_DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 DEFAULT_TIMEOUT = 15
 REPLY_TIMEOUT = 30
-SUCCESS_CHECKS = {"success", "successful", "neutral", "skipped", "completed"}
+SUCCESS_CHECKS = {"success", "successful"}
 PENDING_CHECKS = {"queued", "pending", "in_progress", "requested", "waiting", "expected"}
 FAILED_CHECKS = {"failure", "failed", "error", "cancelled", "timed_out", "startup_failure", "action_required"}
 BOT_REVIEWERS = {
@@ -155,6 +166,15 @@ EXPLICIT_SHA_BINDING_RE = re.compile(
 )
 
 
+class LifecycleOutcomeUnverified(ValueError):
+    """An observed hosted result does not match the authorised transition."""
+    def __init__(self, operation: str, observed: dict[str, Any] | None = None):
+        super().__init__('Lifecycle transition may have occurred; hosted evidence did not verify it; explicit recovery inspection is required')
+        self.operation = operation
+        self.observed = ({key: observed[key] for key in ('number', 'state', 'draft', 'head')}
+                         if observed is not None else None)
+
+
 class CommandFailure(RuntimeError):
     def __init__(self, command: list[str], reason: str) -> None:
         self.command = command
@@ -187,10 +207,10 @@ def lane(status: str, evidence: str, **details: Any) -> dict[str, Any]:
     return result
 
 
-def load_review_waiver(path: Path, pr_number: int, head_sha: str) -> tuple[dict[str, Any] | None, str | None]:
+def load_review_waiver(path: Path, pr_number: int, head_sha: str, repository: Path | None = None) -> tuple[dict[str, Any] | None, str | None]:
     """Load and bind an explicit operator waiver to one PR head."""
     try:
-        raw = path.read_bytes()
+        raw = _scope.policy_repository_read(repository or Path.cwd(), path)
         payload = json.loads(raw)
     except (OSError, json.JSONDecodeError) as exc:
         return None, f"review waiver could not be read: {exc}"
@@ -229,13 +249,13 @@ def load_review_waiver(path: Path, pr_number: int, head_sha: str) -> tuple[dict[
     }, None
 
 
-def validate_review_waiver_record(record: dict[str, Any], pr_number: int, head_sha: str) -> tuple[dict[str, Any] | None, str | None]:
+def validate_review_waiver_record(record: dict[str, Any], pr_number: int, head_sha: str, repository: Path | None = None) -> tuple[dict[str, Any] | None, str | None]:
     """Re-read a receipt-bound waiver so the file cannot be swapped later."""
     path_value = record.get("path")
     digest = record.get("sha256")
     if not isinstance(path_value, str) or not isinstance(digest, str):
         return None, "receipt-bound review waiver is missing path or digest"
-    waiver, error = load_review_waiver(Path(path_value), pr_number, head_sha)
+    waiver, error = load_review_waiver(Path(path_value), pr_number, head_sha, repository)
     if error or waiver is None:
         return None, error or "review waiver could not be loaded"
     if waiver["sha256"] != digest:
@@ -271,17 +291,34 @@ def current_worktree(root: Path) -> tuple[str, str, str, str, str]:
     return branch, head, base_branch or "main", git(root, "rev-parse", "--git-dir"), git(root, "rev-parse", "--git-common-dir")
 
 
-def remote_sha(root: Path, remote: str, ref: str) -> str | None:
-    result = run_command(["git", "ls-remote", remote, f"refs/heads/{ref}"], root, check=False)
-    if result.returncode != 0:
+def origin_repository_slug(root: Path) -> str | None:
+    """Resolve the fixed origin locally, independently of gh's upstream choice."""
+    origin = run_command(['git', 'remote', 'get-url', TRUSTED_REMOTE], root, check=False)
+    if origin.returncode:
         return None
-    line = next((line for line in result.stdout.splitlines() if line.strip()), "")
-    return line.split()[0] if line and SHA_RE.fullmatch(line.split()[0]) else None
+    match = re.fullmatch(
+        r'(?:https?://github\.com(?::443)?/|ssh://git@github\.com(?::22)?/|git@github\.com:)'
+        r'([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/?',
+        origin.stdout.rstrip('\n'), re.IGNORECASE)
+    if match is None:
+        return None
+    slug = match[1].removesuffix('.git')
+    return slug if all(part and part not in {'.', '..'} for part in slug.split('/')) else None
+
+
+def remote_sha(root: Path, remote: str, ref: str) -> str | None:
+    """Read the trusted hosted branch without invoking Git remote machinery."""
+    if remote != TRUSTED_REMOTE:
+        return None
+    repository = origin_repository_slug(root)
+    if repository is None:
+        return None
+    return hosted_remote_sha(root, repository, ref)
 
 
 def parse_scope(path: Path, root: Path) -> tuple[list[str], str]:
     try:
-        raw = path.read_text(encoding="utf-8")
+        raw = _scope.policy_repository_read(root, path).decode("utf-8")
     except OSError as exc:
         return [], f"scope file could not be read: {exc}"
     entries: list[str]
@@ -370,7 +407,10 @@ def worktree_lane(root: Path) -> dict[str, Any]:
 
 
 def dirty_lane(root: Path) -> dict[str, Any]:
-    output = git(root, "status", "--porcelain=v1", check=False)
+    result = run_command(['git', '-c', 'core.fsmonitor=false', 'status', '--porcelain=v1'], root, check=False)
+    if result.returncode:
+        return lane('blocked', 'worktree status inventory is unavailable')
+    output = result.stdout
     paths = [line[3:] for line in output.splitlines() if len(line) >= 4]
     if paths:
         return lane("fail", f"worktree has {len(paths)} dirty path(s)", paths=paths)
@@ -394,26 +434,41 @@ def gh_pr(root: Path, *, for_export: bool = False, number: int | None = None) ->
         if error or not slug:
             return None, error or "repository unavailable for complete review query"
         # The summary view is not proof of complete historical review coverage.
-        hostname = None
-        if for_export:
-            hostname, error = review_repository_host(pr, slug)
-            if error or not hostname:
-                return None, error or "repository host unavailable"
+        hostname, error = review_repository_host(pr, slug)
+        if error or not hostname:
+            return None, error or "repository host unavailable"
+        policy, check_evidence, error = required_checks_snapshot(
+            root,
+            slug,
+            pr.get("baseRefName"),
+            pr.get("baseRefOid"),
+            pr.get("headRefOid"),
+            hostname,
+            pr_number=pr["number"],
+        )
+        policy_error = error
         reviews, error = review_inventory_collection(root, f"repos/{slug}/pulls/{pr['number']}/reviews", hostname)
         if error:
             return None, error
         if any(_review_login(review) == "tessl-reviewer" for review in reviews):
-            checks, error = tessl_check_inventory(root, slug, pr.get("headRefOid"), hostname)
+            tessl_checks, error = tessl_check_inventory(root, slug, pr.get("headRefOid"), hostname)
             if error:
                 return None, error
-            pr = {**pr, "tessl_check_runs": checks}
-        return {**pr, "reviews": reviews}, None
+            pr = {**pr, "tessl_check_runs": tessl_checks}
+        return {
+            **pr,
+            "requiredCheckPolicy": policy,
+            "reviews": reviews,
+            "requiredCheckEvidence": check_evidence,
+            "requiredCheckPolicyError": policy_error,
+        }, None
     except json.JSONDecodeError as exc:
         return None, f"gh pr view returned invalid JSON: {exc.msg}"
 
 
-def repository_slug(root: Path) -> tuple[str | None, str | None]:
-    result = run_command(["gh", "repo", "view", "--json", "nameWithOwner"], root, check=False)
+def repository_slug(root: Path, *, required_host: str | None = None) -> tuple[str | None, str | None]:
+    fields = "nameWithOwner,url" if required_host else "nameWithOwner"
+    result = run_command(["gh", "repo", "view", "--json", fields], root, check=False)
     if result.returncode != 0:
         return None, (result.stderr or result.stdout or "gh repo view failed").strip().splitlines()[0]
     try:
@@ -425,7 +480,38 @@ def repository_slug(root: Path) -> tuple[str | None, str | None]:
         return None, f"gh repo view returned invalid JSON: {exc.msg}"
     if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value) or any(segment in {".", ".."} for segment in value.split("/")):
         return None, "gh repo view returned an invalid repository identity"
+    if required_host and payload.get("url") != f"https://{required_host}/{value}":
+        return None, "gh repo view returned a repository on an unexpected host"
     return value, None
+
+
+def hosted_remote_sha(root: Path, repository: str, ref: str) -> str | None:
+    """Read one exact GitHub branch without consulting workspace Git configuration."""
+    if (not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository)
+            or any(segment in {".", ".."} for segment in repository.split("/"))
+            or not isinstance(ref, str) or not ref
+            or any(character in ref for character in "\x00\r\n")):
+        return None
+    endpoint = f"repos/{repository}/git/ref/heads/{quote(ref, safe='')}"
+    result = run_command(["gh", "api", endpoint, '--hostname', 'github.com'], root, check=False)
+    if result.returncode != 0:
+        return None
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    git_object = payload.get("object")
+    if not isinstance(git_object, dict):
+        return None
+    sha = git_object.get("sha")
+    if (payload.get("ref") != f"refs/heads/{ref}"
+            or git_object.get("type") != "commit"
+            or not isinstance(sha, str)
+            or SHA_RE.fullmatch(sha) is None):
+        return None
+    return sha
 
 
 def _parse_review_thread_page(
@@ -434,15 +520,37 @@ def _parse_review_thread_page(
 ) -> tuple[list[dict[str, Any]], bool, str | None, str | None]:
     try:
         payload = json.loads(raw)
-        threads = payload["data"]["repository"]["pullRequest"]["reviewThreads"]
-    except (KeyError, TypeError, json.JSONDecodeError) as exc:
+    except json.JSONDecodeError as exc:
         return [], False, None, f"review-thread response page {page_number} was invalid: {exc}"
+    if not isinstance(payload, dict):
+        return [], False, None, f"review-thread response page {page_number} was invalid: response must be an object"
+    if "errors" in payload:
+        errors = payload["errors"]
+        if not isinstance(errors, list):
+            return [], False, None, f"review-thread response page {page_number} was invalid: errors must be an array"
+        return [], False, None, f"review-thread response page {page_number} contained GraphQL errors"
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        return [], False, None, f"review-thread response page {page_number} was invalid: data must be an object"
+    repository = data.get("repository")
+    if not isinstance(repository, dict):
+        return [], False, None, f"review-thread response page {page_number} was invalid: repository must be an object"
+    pull_request = repository.get("pullRequest")
+    if not isinstance(pull_request, dict):
+        return [], False, None, f"review-thread response page {page_number} was invalid: pullRequest must be an object"
+    threads = pull_request.get("reviewThreads")
     if not isinstance(threads, dict):
         return [], False, None, f"review-thread response page {page_number} was invalid: reviewThreads must be an object"
     nodes = threads.get("nodes")
     page_info = threads.get("pageInfo")
     if not isinstance(nodes, list) or not all(isinstance(node, dict) for node in nodes):
         return [], False, None, f"review-thread response page {page_number} was invalid: nodes must be objects"
+    for index, node in enumerate(nodes):
+        node_id = node.get("id")
+        if not isinstance(node_id, str) or not node_id or len(node_id) > 256:
+            return [], False, None, f"review-thread response page {page_number} was invalid: node {index} id must be a nonempty string of at most 256 characters"
+        if not isinstance(node.get("isResolved"), bool):
+            return [], False, None, f"review-thread response page {page_number} was invalid: node {index} isResolved must be boolean"
     if not isinstance(page_info, dict):
         return [], False, None, f"review-thread response page {page_number} was invalid: pageInfo must be an object"
     has_next_page = page_info.get("hasNextPage")
@@ -500,13 +608,11 @@ def review_threads(root: Path, number: int, head_sha: str) -> tuple[dict[str, An
         if error:
             return {}, error
         fetched_threads += len(nodes)
-        unresolved += sum(1 for node in nodes if node.get("isResolved") is False)
+        unresolved += sum(1 for node in nodes if node["isResolved"] is False)
         unresolved_thread_ids.extend(
-            str(node["id"])
+            node["id"]
             for node in nodes
-            if node.get("isResolved") is False
-            and isinstance(node.get("id"), str)
-            and node["id"]
+            if node["isResolved"] is False
         )
         if not has_next_page:
             break
@@ -526,6 +632,426 @@ def review_threads(root: Path, number: int, head_sha: str) -> tuple[dict[str, An
     }, None
 
 
+def _required_check_record(context: Any, app_id: Any) -> dict[str, Any]:
+    if not isinstance(context, str) or not context or context != context.strip():
+        raise ValueError("required check context is missing or malformed")
+    if app_id is None or (type(app_id) is int and app_id == -1):
+        normalized_app_id = None
+    elif type(app_id) is int and app_id > 0:
+        normalized_app_id = app_id
+    else:
+        raise ValueError("required check App identity is malformed")
+    return {"context": context, "app_id": normalized_app_id}
+
+
+def _required_check_sort_key(item: dict[str, Any]) -> tuple[str, int]:
+    app_id = item["app_id"]
+    return item["context"], -1 if app_id is None else app_id
+
+
+def _required_check_policy(
+    root: Path,
+    slug: str,
+    base_branch: Any,
+    base_sha: Any,
+    hostname: str,
+) -> tuple[dict[str, Any], str | None]:
+    """Read the complete provider policy that applies to one exact base ref."""
+    if (
+        not isinstance(base_branch, str)
+        or not base_branch
+        or not isinstance(base_sha, str)
+        or not SHA_RE.fullmatch(base_sha)
+    ):
+        return {}, "required-check policy requires an exact PR base branch and commit"
+    host_args = ["--hostname", hostname]
+    encoded_branch = quote(base_branch, safe="")
+    branch_path = f"repos/{slug}/branches/{encoded_branch}"
+    branch_result = run_command(["gh", "api", branch_path, *host_args], root, check=False)
+    if branch_result.returncode:
+        return {}, "required-check branch policy inventory unavailable"
+    rules_path = f"repos/{slug}/rules/branches/{encoded_branch}?per_page=100"
+    rules_result = run_command(
+        ["gh", "api", rules_path, *host_args, "--paginate", "--slurp"],
+        root,
+        check=False,
+    )
+    if rules_result.returncode:
+        return {}, "required-check ruleset inventory unavailable"
+    try:
+        branch = json.loads(branch_result.stdout)
+        pages = json.loads(rules_result.stdout)
+        if (
+            not isinstance(branch, dict)
+            or branch.get("name") != base_branch
+            or not isinstance(branch.get("commit"), dict)
+            or branch["commit"].get("sha") != base_sha
+            or not isinstance(branch.get("protected"), bool)
+        ):
+            raise ValueError("branch identity or protection state is malformed")
+        if not isinstance(pages, list) or not pages or any(
+            not isinstance(page, list) or any(not isinstance(rule, dict) for rule in page)
+            for page in pages
+        ):
+            raise ValueError("ruleset pages are malformed")
+
+        required: list[dict[str, Any]] = []
+        protection = branch.get("protection")
+        summary_required = protection.get("required_status_checks") if isinstance(protection, dict) else None
+        summary_contexts = summary_required.get("contexts") if isinstance(summary_required, dict) else None
+        fetched_classic = False
+        # An authenticated unprotected branch plus the complete active-rule
+        # inventory proves that no classic protection contributes checks.
+        if branch['protected'] is False and protection is None:
+            protection = {'required_status_checks': None}
+        elif protection is None or (
+            isinstance(protection, dict)
+            and (not isinstance(summary_required, dict)
+                 or not isinstance(summary_required.get("checks"), list)
+                 or not isinstance(summary_contexts, list)
+                 or any(not any(isinstance(check, dict) and check.get('context') == context
+                                and 'app_id' in check for check in summary_required['checks'])
+                        for context in summary_contexts))
+        ):
+            fetched_classic = True
+            classic = run_command(['gh', 'api', branch_path + '/protection', *host_args],
+                                  root, check=False)
+            if classic.returncode:
+                unavailable = json.loads(classic.stdout)
+                if (not isinstance(unavailable, dict)
+                        or unavailable.get('message') != 'Branch not protected'
+                        or unavailable.get('status') != '404'
+                        or 'HTTP 404' not in classic.stderr):
+                    raise ValueError('classic branch protection inventory unavailable')
+                protection = {'required_status_checks': None}
+            else:
+                protection = json.loads(classic.stdout)
+        if not isinstance(protection, dict):
+            raise ValueError("branch protection details are malformed")
+        if "required_status_checks" not in protection:
+            raise ValueError("branch required-status policy inventory is unavailable")
+        branch_required = protection["required_status_checks"]
+        branch_source: dict[str, Any] = {
+            "kind": "branch_protection",
+            "protected": branch["protected"],
+            "enforcement_level": None,
+            "required_status_checks": [],
+        }
+        if branch_required is not None:
+            if not isinstance(branch_required, dict):
+                raise ValueError("branch required-status policy is malformed")
+            contexts = branch_required.get("contexts")
+            checks = branch_required.get("checks")
+            if not isinstance(contexts, list) or not isinstance(checks, list):
+                raise ValueError("branch required-status identities are malformed")
+            enforcement_level = branch_required.get("enforcement_level")
+            if enforcement_level is not None and not isinstance(enforcement_level, str):
+                raise ValueError("branch required-status enforcement is malformed")
+            branch_source["enforcement_level"] = enforcement_level
+            branch_checks = []
+            for check in checks:
+                if not isinstance(check, dict) or "app_id" not in check:
+                    raise ValueError("branch required-status check is malformed")
+                branch_checks.append(_required_check_record(check.get("context"), check["app_id"]))
+            represented = {item["context"] for item in branch_checks}
+            for context in contexts:
+                if context not in represented:
+                    if fetched_classic:
+                        raise ValueError("classic protection is missing a required App identity")
+                    branch_checks.append(_required_check_record(context, None))
+            branch_checks = sorted(
+                {(_required_check_sort_key(item)): item for item in branch_checks}.values(),
+                key=_required_check_sort_key,
+            )
+            branch_source["required_status_checks"] = branch_checks
+            required.extend(branch_checks)
+        if isinstance(summary_contexts, list) and any(
+            not any(item["context"] == context for item in required) for context in summary_contexts
+        ):
+            raise ValueError("branch protection details do not cover the summary contexts")
+
+        ruleset_sources: list[dict[str, Any]] = []
+        for rule in (rule for page in pages for rule in page):
+            rule_type = rule.get("type")
+            if not isinstance(rule_type, str) or not rule_type:
+                raise ValueError("ruleset rule type is malformed")
+            if rule_type == "workflows":
+                return {}, "required workflow policy cannot be authenticated by the required-check lane"
+            if rule_type != "required_status_checks":
+                continue
+            ruleset_id = rule.get("ruleset_id")
+            if type(ruleset_id) is not int or ruleset_id <= 0:
+                raise ValueError("required-status ruleset identity is malformed")
+            parameters = rule.get("parameters")
+            entries = parameters.get("required_status_checks") if isinstance(parameters, dict) else None
+            if not isinstance(entries, list) or not entries:
+                raise ValueError("required-status ruleset entries are malformed")
+            strict = parameters.get("strict_required_status_checks_policy")
+            do_not_enforce_on_create = parameters.get("do_not_enforce_on_create")
+            if strict is not None and not isinstance(strict, bool):
+                raise ValueError("required-status ruleset strictness is malformed")
+            if do_not_enforce_on_create is not None and not isinstance(do_not_enforce_on_create, bool):
+                raise ValueError("required-status ruleset creation policy is malformed")
+            identities = []
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    raise ValueError("required-status ruleset check is malformed")
+                identities.append(
+                    _required_check_record(entry.get("context"), entry.get("integration_id"))
+                )
+            identities = sorted(
+                {(_required_check_sort_key(item)): item for item in identities}.values(),
+                key=_required_check_sort_key,
+            )
+            for field in ("ruleset_source_type", "ruleset_source", "ruleset_name"):
+                if rule.get(field) is not None and not isinstance(rule[field], str):
+                    raise ValueError("required-status ruleset metadata is malformed")
+            ruleset_sources.append(
+                {
+                    "kind": "ruleset",
+                    "id": ruleset_id,
+                    "name": rule.get("ruleset_name"),
+                    "source": rule.get("ruleset_source"),
+                    "source_type": rule.get("ruleset_source_type"),
+                    "strict": strict,
+                    "do_not_enforce_on_create": do_not_enforce_on_create,
+                    "required_status_checks": identities,
+                }
+            )
+            required.extend(identities)
+
+        required = sorted(
+            {(_required_check_sort_key(item)): item for item in required}.values(),
+            key=_required_check_sort_key,
+        )
+        policy = {
+            "schema_version": REQUIRED_CHECK_POLICY_SCHEMA,
+            "repository": slug,
+            "base_branch": base_branch,
+            "base_sha": base_sha,
+            "sources": [branch_source, *sorted(ruleset_sources, key=lambda item: item["id"])],
+            "required_checks": required,
+        }
+        policy["digest"] = hashlib.sha256(
+            json.dumps(policy, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        return policy, None
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        return {}, f"required-check policy inventory malformed: {exc}"
+
+
+def _current_check_inventory(
+    root: Path,
+    slug: str,
+    head_sha: Any,
+    hostname: str,
+    *,
+    pr_number: int,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Read exact-head statuses and check runs with provider App identities."""
+    if not isinstance(head_sha, str) or not SHA_RE.fullmatch(head_sha):
+        return [], "required-check evidence requires an exact PR head"
+    host_args = ["--hostname", hostname]
+    checks_result = run_command(
+        [
+            "gh",
+            "api",
+            f"repos/{slug}/commits/{head_sha}/check-runs?filter=all&per_page=100",
+            *host_args,
+            "--paginate",
+            "--slurp",
+        ],
+        root,
+        check=False,
+    )
+    if checks_result.returncode:
+        return [], "current-head check-run inventory unavailable"
+    statuses_result = run_command(
+        [
+            "gh",
+            "api",
+            f"repos/{slug}/commits/{head_sha}/statuses?per_page=100",
+            *host_args,
+            "--paginate",
+            "--slurp",
+        ],
+        root,
+        check=False,
+    )
+    if statuses_result.returncode:
+        return [], "current-head status-context inventory unavailable"
+    try:
+        check_pages = json.loads(checks_result.stdout)
+        status_pages = json.loads(statuses_result.stdout)
+        if not isinstance(check_pages, list) or not check_pages or any(
+            not isinstance(page, dict)
+            or not isinstance(page.get("check_runs"), list)
+            or any(not isinstance(check, dict) for check in page["check_runs"])
+            for page in check_pages
+        ):
+            raise ValueError("check-run pages are malformed")
+        if not isinstance(status_pages, list) or not status_pages or any(
+            not isinstance(page, list) or any(not isinstance(status, dict) for status in page)
+            for page in status_pages
+        ):
+            raise ValueError("status-context pages are malformed")
+
+        evidence: list[dict[str, Any]] = []
+        for check in (check for page in check_pages for check in page["check_runs"]):
+            app = check.get("app")
+            if (
+                type(check.get("id")) is not int
+                or check["id"] <= 0
+                or not isinstance(check.get("node_id"), str)
+                or not check["node_id"] or len(check["node_id"]) > 256
+                or not isinstance(check.get("name"), str)
+                or not check["name"]
+                or check.get("head_sha") != head_sha
+                or not isinstance(check.get("status"), str)
+                or (check.get("conclusion") is not None and not isinstance(check["conclusion"], str))
+                or not isinstance(app, dict)
+                or type(app.get("id")) is not int
+                or app["id"] <= 0
+                or (app.get("slug") is not None and not isinstance(app["slug"], str))
+            ):
+                raise ValueError("check-run identity or lifecycle is malformed")
+            evidence.append(
+                {
+                    "__typename": "CheckRun",
+                    "id": check["id"],
+                    "node_id": check["node_id"],
+                    "name": check["name"],
+                    "head_sha": head_sha,
+                    "status": check["status"],
+                    "conclusion": check.get("conclusion"),
+                    "startedAt": check.get("started_at"),
+                    "completedAt": check.get("completed_at"),
+                    "app": {"id": app["id"], "slug": app.get("slug")},
+                }
+            )
+        for status in (status for page in status_pages for status in page):
+            if (
+                type(status.get("id")) is not int
+                or status["id"] <= 0
+                or not isinstance(status.get("context"), str)
+                or not status["context"]
+                or ("sha" in status and status["sha"] != head_sha)
+                or not isinstance(status.get("state"), str)
+                or not isinstance(status.get("created_at"), str)
+                or not status["created_at"]
+            ):
+                raise ValueError("status-context identity or lifecycle is malformed")
+            evidence.append(
+                {
+                    "__typename": "StatusContext",
+                    "id": status["id"],
+                    "context": status["context"],
+                    "head_sha": head_sha,
+                    "state": status["state"],
+                    "createdAt": status["created_at"],
+                }
+            )
+        return _enrich_check_workflows(root, slug, head_sha, hostname, evidence, pr_number=pr_number)
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        return [], f"current-head check inventory malformed: {exc}"
+
+
+def _enrich_check_workflows(
+    root: Path, slug: str, head_sha: str, hostname: str, records: list[dict[str, Any]],
+    *, pr_number: int,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Join immutable CheckRun identity before evaluating workflow-aware reruns."""
+    if type(pr_number) is not int or pr_number <= 0:
+        return [], 'required-check workflow identity inventory malformed or unstable'
+    checks = [item for item in records if item.get("__typename") == "CheckRun"]
+    by_node = {item['node_id']: item for item in checks}
+    if len(by_node) != len(checks):
+        return [], 'current-head check inventory has duplicate node identities'
+    query = ('query($ids:[ID!]!,$pr:Int!){nodes(ids:$ids){__typename ... on CheckRun{'
+             'id databaseId name status conclusion startedAt completedAt '
+             'isRequired(pullRequestNumber:$pr) '
+             'checkSuite{commit{oid} repository{nameWithOwner} '
+             'workflowRun{id}}}}}')
+    joined = {}
+    for start in range(0, len(checks), 100):
+        selected = checks[start:start + 100]
+        command = ['gh', 'api', 'graphql', '--hostname', hostname, '-f', 'query=' + query,
+                   '-F', f'pr={pr_number}']
+        for item in selected:
+            command.extend(['-f', 'ids[]=' + item['node_id']])
+        result = run_command(command, root, check=False)
+        if result.returncode:
+            return [], 'required-check workflow identity inventory unavailable'
+        try:
+            payload = json.loads(result.stdout)
+            if not isinstance(payload, dict) or 'errors' in payload:
+                raise ValueError('GraphQL errors or malformed response')
+            nodes = payload['data']['nodes']
+            if not isinstance(nodes, list) or len(nodes) != len(selected):
+                raise ValueError('incomplete check-node inventory')
+            expected = {item['node_id'] for item in selected}
+            for node in nodes:
+                if not isinstance(node, dict) or node.get('__typename') != 'CheckRun':
+                    raise ValueError('missing or invalid check node')
+                identity = node.get('id')
+                if not isinstance(identity, str) or identity not in expected or identity in joined:
+                    raise ValueError('unexpected or duplicate check node')
+                record = by_node[identity]
+                suite = node['checkSuite']
+                if (type(node.get('databaseId')) is not int or node['databaseId'] != record['id']
+                        or (pr_number is not None and type(node.get('isRequired')) is not bool)
+                        or node.get('name') != record['name']
+                        or node.get('status', '').lower() != record['status'].lower()
+                        or (node.get('conclusion') or '').lower() != (record.get('conclusion') or '').lower()
+                        or node.get('startedAt') != record.get('startedAt')
+                        or node.get('completedAt') != record.get('completedAt')
+                        or suite['commit']['oid'] != head_sha
+                        or suite['repository']['nameWithOwner'].casefold() != slug.casefold()):
+                    raise ValueError('check execution changed during identity join')
+                if type(node.get('isRequired')) is not bool:
+                    raise ValueError('invalid check eligibility')
+                workflow_run = suite.get('workflowRun')
+                run_id = None
+                if workflow_run is not None:
+                    run_id = workflow_run['id']
+                    if not isinstance(run_id, str) or not run_id:
+                        raise ValueError('invalid workflow run identity')
+                joined[identity] = {**record, 'workflowRunId': run_id,
+                                    'isRequired': node['isRequired'],
+                                    'required_for_pr': pr_number if node['isRequired'] else None}
+        except (KeyError, TypeError, AttributeError, ValueError, json.JSONDecodeError):
+            return [], 'required-check workflow identity inventory malformed or unstable'
+    # REST pages are newest first; increasing IDs make same-second ordering
+    # chronological for the existing conservative duplicate policy.
+    return sorted([joined[item['node_id']] if item.get('__typename') == 'CheckRun' else item
+                   for item in records], key=lambda item: item['id']), None
+
+
+def required_checks_snapshot(
+    root: Path,
+    slug: str,
+    base_branch: Any,
+    base_sha: Any,
+    head_sha: Any,
+    hostname: str,
+    *,
+    pr_number: int,
+) -> tuple[dict[str, Any], list[dict[str, Any]], str | None]:
+    """Bind exact-head execution evidence to one stable required-check policy."""
+    policy, error = _required_check_policy(root, slug, base_branch, base_sha, hostname)
+    if error:
+        return {}, [], error
+    checks, error = _current_check_inventory(root, slug, head_sha, hostname, pr_number=pr_number)
+    if error:
+        return {}, [], error
+    final_policy, error = _required_check_policy(root, slug, base_branch, base_sha, hostname)
+    if error:
+        return {}, [], error
+    if final_policy.get("digest") != policy.get("digest"):
+        return {}, [], "required-check policy changed during evidence collection"
+    return policy, checks, None
+
+
 def _check_timestamp(item: dict[str, Any]) -> str:
     for key in ("completedAt", "completed_at", "startedAt", "started_at", "createdAt", "created_at"):
         candidate = item.get(key)
@@ -535,6 +1061,15 @@ def _check_timestamp(item: dict[str, Any]) -> str:
 
 
 def _check_lifecycle(item: dict[str, Any]) -> str:
+    if item.get("__typename") == "CheckRun":
+        status = item.get("status")
+        if not isinstance(status, str) or not status:
+            return ""
+        normalized_status = status.lower()
+        if normalized_status != "completed":
+            return normalized_status
+        conclusion = item.get("conclusion")
+        return conclusion.lower() if isinstance(conclusion, str) and conclusion else normalized_status
     for key in ("state", "conclusion", "status"):
         candidate = item.get(key)
         if isinstance(candidate, str) and candidate:
@@ -545,7 +1080,7 @@ def _check_lifecycle(item: dict[str, Any]) -> str:
 def _check_app_identity(item: dict[str, Any]) -> str:
     app = item.get("app")
     if isinstance(app, dict):
-        for key in ("slug", "name", "id"):
+        for key in ("id", "slug", "name"):
             value = app.get(key)
             if value not in (None, ""):
                 return str(value)
@@ -554,13 +1089,11 @@ def _check_app_identity(item: dict[str, Any]) -> str:
     return ""
 
 
-def _check_identity(item: dict[str, Any], index: int) -> tuple[str, ...]:
+def _check_identity(item: dict[str, Any], index: int, *, attempt_order: bool) -> tuple[str, ...]:
     """Return a safe dedupe key for one GitHub status/check entry.
 
-    Status contexts are keyed by their context name. Check runs need their
-    workflow/app identity as well as their display name; when GitHub omits
-    that identity, keep the entry distinct instead of treating an unrelated
-    same-named run as a rerun of the same check.
+    Status contexts are keyed by context name. For the authenticated inventory,
+    a check name and App identify a rerun only within a shared workflow run.
     """
     typename = str(item.get("__typename") or "")
     context = str(item.get("context") or "")
@@ -570,6 +1103,11 @@ def _check_identity(item: dict[str, Any], index: int) -> tuple[str, ...]:
     workflow = str(item.get("workflowName") or "")
     app = _check_app_identity(item)
     if typename == "CheckRun":
+        if attempt_order:
+            run_id = item.get("workflowRunId")
+            if isinstance(run_id, str) and run_id and app:
+                return ("check", name, run_id, app)
+            return ("check-unidentified", name, str(index))
         if workflow or app:
             return ("check", name, workflow, app)
         return ("check-unidentified", name, str(index))
@@ -580,7 +1118,8 @@ def _check_identity(item: dict[str, Any], index: int) -> tuple[str, ...]:
     return ("legacy", name)
 
 
-def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
+
+def observed_checks_lane(pr: dict[str, Any], head_sha: str, *, attempt_order: bool = False) -> dict[str, Any]:
     checks = pr.get("statusCheckRollup")
     if not isinstance(checks, list) or not checks:
         return lane("blocked", "hosted PR reported no required check rollup for the current head", head_sha=head_sha, checks=[])
@@ -590,8 +1129,8 @@ def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
     # after metadata repair therefore appears beside the failed predecessor
     # run, even though both refer to the same commit. Evaluate one current
     # context per name. Prefer the newest reported timestamp, but keep a
-    # timestamp-less queued/running duplicate ahead of an older completion so
-    # a pending rerun cannot be mistaken for a stale success. Timestamp-less
+    # timestamp-less non-success duplicate ahead of an older completion so an
+    # unproved rerun cannot be mistaken for a stale success. Timestamp-less
     # failures are handled the same way unless a later timestamped success in
     # the API order supersedes them.
     latest: dict[tuple[str, ...], tuple[int, int, str, int, dict[str, Any]]] = {}
@@ -599,10 +1138,15 @@ def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
     for index, item in enumerate(checks):
         if not isinstance(item, dict):
             continue
-        grouped.setdefault(_check_identity(item, index), []).append((index, item))
+        identity = _check_identity(item, index, attempt_order=attempt_order)
+        if attempt_order and item.get('__typename') == 'CheckRun':
+            # An optional run cannot replace a required attempt, or vice versa.
+            identity += ('required' if item.get('isRequired') is True else 'optional',)
+        grouped.setdefault(identity, []).append((index, item))
     for identity, entries in grouped.items():
         for position, (index, item) in enumerate(entries):
-            timestamp = _check_timestamp(item)
+            started = item.get('startedAt') if attempt_order and item.get('__typename') == 'CheckRun' else None
+            timestamp = started if isinstance(started, str) and started else _check_timestamp(item)
             lifecycle = _check_lifecycle(item)
             later_timestamped_success = any(
                 _check_lifecycle(later_item) in SUCCESS_CHECKS and _check_timestamp(later_item)
@@ -613,16 +1157,21 @@ def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
                 and lifecycle in FAILED_CHECKS
                 and not later_timestamped_success
             )
-            # A queued/running duplicate without timestamps is safer than an
-            # old completed duplicate: it must not be hidden by a stale
-            # success. The same applies to a timestamp-less failure until a
-            # later timestamped success supersedes it.
-            pending_without_timestamp = int(lifecycle in PENDING_CHECKS or not lifecycle) if not timestamp else 0
+            # A non-success duplicate without timestamps is safer than an old
+            # completed duplicate: it must not be hidden by a stale success.
+            # The same applies to a timestamp-less failure until a later
+            # timestamped success supersedes it.
+            pending_without_timestamp = int(
+                not timestamp and lifecycle not in SUCCESS_CHECKS | FAILED_CHECKS
+            )
             rank = (timestampless_failure, pending_without_timestamp, timestamp, index)
             previous = latest.get(identity)
             if previous is None or rank >= previous[:4]:
                 latest[identity] = (*rank, item)
     current_checks = [entry[4] for entry in latest.values()]
+    unknown = [str(item.get('name') or item.get('context') or 'unnamed check')
+               for item in current_checks
+               if _check_lifecycle(item) not in SUCCESS_CHECKS | PENDING_CHECKS | FAILED_CHECKS]
     failures: list[str] = []
     pending: list[str] = []
     for item in current_checks:
@@ -635,27 +1184,171 @@ def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
         elif state not in SUCCESS_CHECKS:
             pending.append(name)
     if failures:
-        return lane("fail", f"required checks failed: {', '.join(failures)}", head_sha=head_sha, failures=failures, pending=pending)
+        return lane("fail", f"required checks failed: {', '.join(failures)}", head_sha=head_sha, failures=failures, pending=pending, unknown_checks=unknown)
     if pending:
-        return lane("blocked", f"required checks are not complete: {', '.join(pending)}", head_sha=head_sha, failures=[], pending=pending)
+        return lane("blocked", f"required checks are not complete: {', '.join(pending)}", head_sha=head_sha, failures=[], pending=pending, unknown_checks=unknown)
     return lane("pass", f"{len(current_checks)} current check contexts passed for current PR head", head_sha=head_sha, checks=current_checks)
 
 
+def _validated_required_check_policy(pr: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
+    policy = pr.get("requiredCheckPolicy")
+    if not isinstance(policy, dict):
+        return None, "authenticated required-check policy inventory is unavailable"
+    digest = policy.get("digest")
+    required = policy.get("required_checks")
+    if (
+        policy.get("schema_version") != REQUIRED_CHECK_POLICY_SCHEMA
+        or policy.get("base_branch") != pr.get("baseRefName")
+        or policy.get("base_sha") != pr.get("baseRefOid")
+        or not isinstance(policy.get("repository"), str)
+        or not isinstance(policy.get("sources"), list)
+        or not policy["sources"]
+        or not isinstance(required, list)
+        or not isinstance(digest, str)
+        or not SCOPE_DIGEST_RE.fullmatch(digest)
+    ):
+        return None, "authenticated required-check policy inventory is malformed"
+    try:
+        if any(
+            not isinstance(item, dict)
+            or set(item) != {"context", "app_id"}
+            or _required_check_record(item.get("context"), item.get("app_id")) != item
+            for item in required
+        ):
+            return None, "authenticated required-check identities are malformed"
+        canonical = {key: value for key, value in policy.items() if key != "digest"}
+        expected = hashlib.sha256(
+            json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    except (TypeError, ValueError):
+        return None, "authenticated required-check policy inventory is malformed"
+    if expected != digest:
+        return None, "authenticated required-check policy digest is invalid"
+    return policy, None
+
+
+def _check_matches_requirement(
+    item: dict[str, Any],
+    requirement: dict[str, Any],
+    head_sha: str,
+    pr_number: Any = None,
+) -> bool:
+    if item.get("head_sha") != head_sha:
+        return False
+    context = item.get("context") or item.get("name")
+    if context != requirement["context"]:
+        return False
+    if item.get('__typename') == 'CheckRun' and (
+            item.get('isRequired') is not True or type(pr_number) is not int or type(item.get('required_for_pr')) is not int
+            or item['required_for_pr'] != pr_number):
+        return False
+    required_app = requirement["app_id"]
+    if required_app is None:
+        return True
+    app = item.get("app")
+    return (
+        item.get("__typename") == "CheckRun"
+        and isinstance(app, dict)
+        and type(app.get("id")) is int
+        and app["id"] == required_app
+    )
+
+
+def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
+    """Require the provider's complete policy and retain every observed check gate."""
+    collection_error = pr.get('requiredCheckPolicyError')
+    policy, error = _validated_required_check_policy(pr)
+    if collection_error or error or policy is None:
+        reason = pr.get("requiredCheckPolicyError")
+        stage = ('execution' if isinstance(reason, str)
+                 and reason.startswith(('current-head', 'required-check workflow')) else 'policy')
+        # Surface only diagnostics owned by the collector, never tool output.
+        if reason in (
+            "required-check policy requires an exact PR base branch and commit",
+            "required-check branch policy inventory unavailable",
+            "required-check ruleset inventory unavailable",
+            "required workflow policy cannot be authenticated by the required-check lane",
+            "required-check evidence requires an exact PR head",
+            "current-head check-run inventory unavailable",
+            "current-head status-context inventory unavailable",
+            "current-head check inventory has duplicate node identities",
+            "required-check workflow identity inventory unavailable",
+            "required-check workflow identity inventory malformed or unstable",
+            "required-check policy changed during evidence collection",
+        ):
+            error = reason
+        elif collection_error:
+            error = f'authenticated required-check {stage} collection is unavailable'
+        return lane("blocked", error or "required-check policy is unavailable",
+                    head_sha=head_sha, collection_stage=stage)
+    evidence = pr.get("requiredCheckEvidence")
+    if not isinstance(evidence, list) or any(not isinstance(item, dict) for item in evidence):
+        return lane("blocked", "authenticated required-check execution inventory is unavailable",
+                    head_sha=head_sha, policy_digest=policy["digest"])
+    missing = [requirement["context"] + (f" (App {requirement['app_id']})" if requirement["app_id"] is not None else "") for requirement in policy["required_checks"]
+               if not any(_check_matches_requirement(item, requirement, head_sha, pr.get('number')) for item in evidence)]
+    if missing:
+        unsupported = [item['context'] for item in policy['required_checks'] if item['app_id'] is not None
+                       and not any(_check_matches_requirement(record, item, head_sha, pr.get('number')) for record in evidence)
+                       and any(record.get('__typename') == 'StatusContext'
+                               and record.get('context') == item['context'] for record in evidence)]
+        if unsupported:
+            return lane('blocked', 'App-bound commit-status publisher identity cannot be authenticated',
+                        head_sha=head_sha, unsupported_contexts=unsupported, missing=missing)
+        return lane("blocked", "required checks are absent: " + ", ".join(missing),
+                    head_sha=head_sha, policy_digest=policy["digest"], missing=missing)
+    if not evidence or any(item.get("head_sha") != head_sha for item in evidence):
+        return lane("blocked", "authenticated execution inventory lacks current-head evidence",
+                    head_sha=head_sha, policy_digest=policy["digest"])
+    inventory = observed_checks_lane({'statusCheckRollup': evidence}, head_sha, attempt_order=True)
+    required_attempts = [item for item in evidence if any(
+        _check_matches_requirement(item, requirement, head_sha, pr.get('number'))
+        for requirement in policy['required_checks'])]
+    required_outcome = (observed_checks_lane({'statusCheckRollup': required_attempts},
+                                            head_sha, attempt_order=True)
+                        if policy['required_checks'] else None)
+    # Evaluate both snapshots. A later REST failure or queued rerun must not be
+    # hidden by an earlier successful GraphQL rollup; neither can clear the other.
+    observed = observed_checks_lane(pr, head_sha)
+    unknown_current = bool(inventory.get('details', {}).get('unknown_checks')
+                           or observed.get('details', {}).get('unknown_checks')
+                           or (required_outcome or {}).get('details', {}).get('unknown_checks'))
+    if inventory['status'] == 'fail' or (inventory['status'] == 'blocked' and observed['status'] != 'fail'):
+        observed = inventory
+    # An ineligible run cannot supersede the required run's outcome, even when
+    # both share a head, name, App and workflow. Keep optional failures above.
+    if required_outcome and (required_outcome['status'] == 'fail'
+            or (required_outcome['status'] == 'blocked' and observed['status'] != 'fail')):
+        observed = required_outcome
+    observed.setdefault("details", {}).update(policy_digest=policy["digest"],
+        required_checks=policy["required_checks"], missing=[],
+        unknown_required=unknown_current)
+    return observed
+
+
 def phase_checks_lane(pr: dict[str, Any], head_sha: str, phase: str) -> dict[str, Any]:
-    """Pending CI may admit review work, never final delivery readiness."""
+    """Inspection observes CI failures; mutation and readiness retain their gates."""
     checks = checks_lane(pr, head_sha)
+    if phase == "review_inspection":
+        if pr.get("headRefOid") != head_sha or not re.fullmatch(r"[0-9a-f]{40}", head_sha):
+            return lane("blocked", "review inspection requires the current hosted head", head_sha=head_sha)
+        return lane("pass", "inspection only; CI outcome is observed, not accepted",
+                    head_sha=head_sha, ci_status=checks["status"],
+                    ci_evidence=checks["evidence"], ci_details=checks.get("details", {}),
+                    acceptance_claims_proven=False)
     details = checks.get("details", {})
     rollup = pr.get("statusCheckRollup")
-    known_states = isinstance(rollup, list) and bool(rollup) and all(
-        isinstance(item, dict) and _check_lifecycle(item) in PENDING_CHECKS | SUCCESS_CHECKS | FAILED_CHECKS
-        for item in rollup
-    )
-    if (phase in {"review_inspection", "review_reconciliation"}
+    known_states = (isinstance(rollup, list) and bool(rollup)
+                    and all(isinstance(item, dict) for item in rollup)
+                    and not observed_checks_lane(pr, head_sha).get('details', {}).get('unknown_checks'))
+    if (phase == "review_reconciliation"
             and checks["status"] == "blocked" and details.get("pending")
-            and details.get("failures") == [] and known_states):
+            and details.get("failures") == [] and not details.get("missing")
+            and not details.get("unknown_required") and known_states):
         return lane("pass", "review actions only; required CI is still pending",
                     head_sha=head_sha, ci_status=checks["status"],
                     ci_evidence=checks["evidence"], pending=details["pending"],
+                    policy_digest=details.get("policy_digest"), missing=[],
                     acceptance_claims_proven=False)
     return checks
 
@@ -1216,7 +1909,7 @@ def _codex_no_findings_report(body: str, head_sha: str | None) -> bool:
         r"Codex Review: Didn't find any major issues\. "
         r"(?:Already looking forward to the next diff\.|Keep them coming!|"
         r"More of your lovely PRs please\.|Chef's kiss\.|You're on a roll\.|:tada:|Delightful!|"
-        r"Breezy!|Swish!|Hooray!|Bravo\.|:rocket:|:\+1:|Can't wait for the next one!|Another round soon, please!)"
+        r"Breezy!|Swish!|Hooray!|Bravo\.|Keep it up!|Nice work!|:rocket:|:\+1:|Can't wait for the next one!|Another round soon, please!)"
         r"\s+\*\*Reviewed commit:\*\* `([0-9a-f]{7,40}|[0-9a-f]{64})`\s+(.+?)\s*",
         _codex_receipt_body(body), re.DOTALL,
     )
@@ -1697,8 +2390,10 @@ def _coderabbit_recent_layout(recent: str, slug: str, head: str, branch: str) ->
         "- **Source mode**: Auto\n- **Repository**: Unavailable\n- **Branch**: Unavailable\n"
         "- **File**: No configuration file from this repository applied\n- **Commit**: Unavailable\n"
         "- **Layers**: Organization UI; Enforced overrides: Organization")
-    if recent.count(organization) == 1 and "- **Configuration used**:" not in recent:
-        recent = recent.replace(organization, "- **Configuration used**: Organization UI")
+    repository_ui = organization.replace("- **Layers**: Organization UI;", "- **Layers**: Repository UI (base), Organization UI (inherited);")
+    for configuration in (organization, repository_ui):
+        if recent.count(configuration) == 1 and "- **Configuration used**:" not in recent:
+            recent = recent.replace(configuration, "- **Configuration used**: Organization UI")
     if "- **Source mode**:" in recent:
         if not isinstance(branch, str) or not branch or any(c in branch for c in "\r\n<>[]"):
             return None
@@ -3122,6 +3817,8 @@ def reviews_lane(root: Path, pr: dict[str, Any], head_sha: str, review_waiver: d
     unresolved = int(threads.get("unresolved_threads", 0))
     if unresolved:
         return lane("fail", "unresolved review threads remain", head_sha=head_sha, current_head_approvals=current_approvals, unresolved_threads=unresolved)
+    approval_mode: str | None = None
+    approval_details: dict[str, Any] = {}
     if review_waiver is not None:
         if str(pr.get("reviewDecision", "")).upper() == "CHANGES_REQUESTED":
             return lane("fail", "hosted PR review decision is CHANGES_REQUESTED", head_sha=head_sha, current_head_approvals=current_approvals, unresolved_threads=0, review_waiver=review_waiver)
@@ -3136,28 +3833,21 @@ def reviews_lane(root: Path, pr: dict[str, Any], head_sha: str, review_waiver: d
                 unresolved_threads=0,
                 review_waiver=review_waiver,
             )
-        return lane(
-            "pass",
-            "explicit solo-review waiver accepted for missing independent bot approvals",
-            head_sha=head_sha,
-            current_head_approvals=current_approvals,
-            unresolved_threads=0,
-            review_mode="solo_review_waiver",
-            review_waiver=review_waiver,
-        )
-    if current_approvals:
+        approval_mode = "solo_review_waiver"
+        approval_details["review_waiver"] = review_waiver
+    elif current_approvals:
         if str(pr.get("reviewDecision", "")).upper() != "APPROVED":
             return lane("fail", "hosted PR review decision is not APPROVED", head_sha=head_sha, current_head_approvals=current_approvals, unresolved_threads=0)
-        return lane("pass", "current-head approval and resolved review threads verified", head_sha=head_sha, current_head_approvals=current_approvals, unresolved_threads=0, review_mode="human_approval")
+        approval_mode = "human_approval"
 
     bot_reviews = current_head_bot_reviews(reviews, head_sha)
     comments, comment_error = review_comments(root, int(pr["number"]))
     if comment_error:
-        return lane("blocked", comment_error, head_sha=head_sha, current_head_approvals=[], current_head_bot_reviews={}, required_bot_reviewers=REQUIRED_BOT_REVIEWERS, unresolved_threads=0)
+        return lane("blocked", comment_error, head_sha=head_sha, current_head_approvals=current_approvals, current_head_bot_reviews={}, required_bot_reviewers=REQUIRED_BOT_REVIEWERS, unresolved_threads=0)
     bot_comments = current_head_bot_comments(comments, head_sha)
     issue_entries, issue_error = issue_comments(root, int(pr["number"]))
     if issue_error:
-        return lane("blocked", issue_error, head_sha=head_sha, current_head_approvals=[], current_head_bot_reviews={}, required_bot_reviewers=REQUIRED_BOT_REVIEWERS, unresolved_threads=0)
+        return lane("blocked", issue_error, head_sha=head_sha, current_head_approvals=current_approvals, current_head_bot_reviews={}, required_bot_reviewers=REQUIRED_BOT_REVIEWERS, unresolved_threads=0)
     authentic_issue_entries = issue_entries
     completion, completion_error = codex_completion_review(root, pr, head_sha, comments, authentic_issue_entries)
     if completion_error:
@@ -3217,6 +3907,18 @@ def reviews_lane(root: Path, pr: dict[str, Any], head_sha: str, review_waiver: d
         latest_comment_timestamp = _comment_timestamp(latest_comment) if latest_comment else ""
         if review is None:
             selected = latest_comment
+        elif (login == "coderabbitai" and rabbit_completion is not None
+              and latest_comment is not None
+              and type(rabbit_completion.get("id")) is int and rabbit_completion["id"] > 0
+              and latest_comment.get("id") == rabbit_completion.get("id")
+              and _review_sha(rabbit_completion) == head_sha
+              and _bot_review_is_acceptable(rabbit_completion, head_sha)
+              and _review_sha(review) == head_sha
+              and review.get("state") == "APPROVED" and _review_body(review) == ""):
+            # A blank native approval adds no finding and cannot replace a
+            # verified completion with an empty verdict. Keep the original
+            # clearance time; all later concerns still pass through below.
+            selected = latest_comment
         elif latest_comment is not None:
             review_timestamp = _review_timestamp(review)
             comment_is_blocked = _bot_review_has_blocked_response(str(latest_comment.get("body") or ""), login=_review_login(latest_comment))
@@ -3236,6 +3938,52 @@ def reviews_lane(root: Path, pr: dict[str, Any], head_sha: str, review_waiver: d
            for review in bot_evidence.values()):
         return lane("fail", "CodeRabbit inspection provenance does not match this PR/base/head or authenticated source",
                     head_sha=head_sha, unresolved_threads=0)
+    if approval_mode is not None:
+        if concerns:
+            detail = "; ".join(
+                f"{name}={','.join(categories)}" for name, categories in sorted(diagnostics.items())
+            ).replace("changes_requested", "CHANGES_REQUESTED")
+            evidence = "bot review evidence requires later explicit clearance: " + detail
+            if any(
+                "unrecognised_verdict_format" in categories
+                for categories in diagnostics.values()
+            ):
+                evidence += "; unrecognised text may contain findings and requires inspection"
+            return lane(
+                "fail",
+                evidence,
+                head_sha=head_sha,
+                current_head_approvals=current_approvals,
+                outstanding_bot_concerns=concerns,
+                review_blocker_categories=diagnostics,
+                unresolved_threads=0,
+                codex_completion_evidence=completion["completion_evidence"] if completion else None,
+                coderabbit_completion_evidence=rabbit_completion["completion_evidence"] if rabbit_completion else None,
+                review_source_diagnostics=native_review_diagnostics([
+                    entry for entry in authentic_issue_entries
+                    if rabbit_completion is None or entry.get("html_url") != rabbit_completion["html_url"]
+                ]),
+                next_action=review_clearance_guidance(head_sha, concerns),
+                **approval_details,
+            )
+        if approval_mode == "solo_review_waiver":
+            return lane(
+                "pass",
+                "explicit solo-review waiver accepted for missing independent bot approvals",
+                head_sha=head_sha,
+                current_head_approvals=current_approvals,
+                unresolved_threads=0,
+                review_mode=approval_mode,
+                **approval_details,
+            )
+        return lane(
+            "pass",
+            "current-head approval and resolved review threads verified",
+            head_sha=head_sha,
+            current_head_approvals=current_approvals,
+            unresolved_threads=0,
+            review_mode=approval_mode,
+        )
     try:
         requirement = review_requirement(root, pr, head_sha)
     except (ValueError, CommandFailure) as exc:
@@ -3376,7 +4124,7 @@ def default_receipt(root: Path, git_dir: str) -> Path:
     path = Path(git_dir)
     if not path.is_absolute():
         path = (root / path).resolve()
-    return path / "pr-readiness.v1.json"
+    return _scope.policy_repository_receipt(root, path / "pr-readiness.v1.json")
 
 
 def build_result(args: argparse.Namespace) -> dict[str, Any]:
@@ -3416,7 +4164,10 @@ def build_result(args: argparse.Namespace) -> dict[str, Any]:
     result["repo"]["remote_head_sha"] = remote_head
     if remote_base is None:
         result["lanes"]["remote_ancestry"] = lane("blocked", f"remote base {args.remote}/{base_branch} could not be read")
-        result["blockers"].append(blocker("remote_base_unavailable", "git ls-remote did not return the current remote base"))
+        result["blockers"].append(blocker(
+            "remote_base_unavailable",
+            "the hosted repository did not return the current remote base",
+        ))
     elif remote_head != head_sha:
         result["lanes"]["remote_ancestry"] = lane("fail", "remote branch does not point at the current local HEAD", remote_base_sha=remote_base, remote_head_sha=remote_head, head_sha=head_sha)
         result["blockers"].append(blocker("remote_head_drift", "push the current commit before creating or updating the PR"))
@@ -3442,7 +4193,7 @@ def build_result(args: argparse.Namespace) -> dict[str, Any]:
             changed = changed_paths(root, base_sha, head_sha)
             undeclared = sorted(set(changed) - set(scope))
             if undeclared:
-                result["lanes"]["scope"] = lane("fail", "changed paths are outside the declared PR scope", changed_paths=changed, undeclared=undeclared, scope_digest=digest_or_error)
+                result["lanes"]["scope"] = lane("fail", "changed paths are outside the declared PR scope", changed_paths=changed, declared_paths=scope, undeclared=undeclared, scope_digest=digest_or_error)
                 result["blockers"].append(blocker("scope_mismatch", ", ".join(undeclared)))
             else:
                 result["lanes"]["scope"] = lane("pass", "all committed PR paths are declared in the scope file", changed_paths=changed, declared_paths=scope, scope_digest=digest_or_error)
@@ -3496,7 +4247,7 @@ def build_result(args: argparse.Namespace) -> dict[str, Any]:
         review_waiver_error = "a review waiver applies only to the update phase"
     elif args.phase == "update" and pr is not None and args.review_waiver_file:
         review_waiver, review_waiver_error = load_review_waiver(
-            args.review_waiver_file.expanduser().resolve(), int(pr["number"]), head_sha
+            args.review_waiver_file.expanduser().absolute(), int(pr["number"]), head_sha, root
         )
     if args.phase == "create" or pr is None:
         result["lanes"]["reviews"] = lane("not_applicable", "reviews are evaluated after a PR exists")
@@ -3523,22 +4274,39 @@ def recheck_hosted_state(
     phase: str,
     head_sha: str,
     *,
+    expected_pr: int | None = None,
+    expected_repo: str | None = None,
     base_branch: str | None = None,
     base_sha: str | None = None,
     review_waiver_record: dict[str, Any] | None = None,
     expected_thread_id: str | None = None,
     expected_pr_url: str | None = None,
+    expected_check_policy_digest: str | None = None,
 ) -> str | None:
     """Re-read hosted PR state when a receipt is consumed, including update receipts."""
-    pr, pr_error = gh_pr(root)
+    if phase == "create":
+        pr, pr_error = gh_pr(root)
+        if pr_error:
+            return f"hosted PR state could not be rechecked: {pr_error}"
+        return "a pull request now exists for the create-phase receipt" if pr is not None else None
+    if type(expected_pr) is not int or expected_pr <= 0:
+        return "non-create receipt recheck requires an explicit PR number"
+    if not isinstance(expected_repo, str) or not expected_repo:
+        return "non-create receipt recheck requires an explicit repository"
+    if not isinstance(expected_pr_url, str) or not expected_pr_url:
+        return "non-create receipt recheck requires a recorded PR URL"
+    pr, pr_error = gh_pr(root, number=expected_pr)
     if pr_error:
         return f"hosted PR state could not be rechecked: {pr_error}"
-    if phase == "create":
-        return "a pull request now exists for the create-phase receipt" if pr is not None else None
     if pr is None:
         return "update-phase receipt requires an existing pull request"
-    if expected_pr_url is not None and pr.get("url") != expected_pr_url:
+    if pr.get("number") != expected_pr:
+        return "hosted PR number changed after the receipt was written"
+    if pr.get("url") != expected_pr_url:
         return "hosted PR URL changed after the receipt was written"
+    _hostname, identity_error = review_repository_host(pr, expected_repo)
+    if identity_error:
+        return f"hosted PR repository identity is invalid: {identity_error}"
     if base_branch is not None and pr.get("baseRefName") != base_branch:
         return "hosted PR base branch changed after the receipt was written"
     if base_sha is not None and pr.get("baseRefOid") != base_sha:
@@ -3547,10 +4315,16 @@ def recheck_hosted_state(
         return "hosted PR head changed after the receipt was written"
     review_waiver = None
     if review_waiver_record is not None:
-        review_waiver, waiver_error = validate_review_waiver_record(review_waiver_record, int(pr["number"]), head_sha)
+        review_waiver, waiver_error = validate_review_waiver_record(review_waiver_record, int(pr["number"]), head_sha, root)
         if waiver_error:
             return waiver_error
     checks = phase_checks_lane(pr, head_sha, phase)
+    current_policy_digest = checks.get("details", {}).get("policy_digest")
+    if (
+        expected_check_policy_digest is not None
+        and current_policy_digest != expected_check_policy_digest
+    ):
+        return "required-check policy changed after the receipt was written"
     if checks["status"] != "pass":
         return f"hosted checks changed after the receipt was written: {checks['evidence']}"
     if phase == "review_inspection":
@@ -3594,8 +4368,11 @@ def validate_command_target(
         return f"command head target does not match receipt branch: {expected_head} != {receipt_repo.get('branch')}"
     pull_request_details = payload.get("lanes", {}).get("pull_request", {}).get("details", {})
     receipt_pr_number = pull_request_details.get("number") if isinstance(pull_request_details, dict) else None
-    if expected_pr is not None and receipt_pr_number != expected_pr:
-        return f"command PR target does not match receipt PR: {expected_pr} != {receipt_pr_number}"
+    if expected_pr is not None:
+        if type(expected_pr) is not int or expected_pr <= 0:
+            return "command PR target is invalid"
+        if type(receipt_pr_number) is not int or receipt_pr_number != expected_pr:
+            return f"command PR target does not match receipt PR: {expected_pr} != {receipt_pr_number}"
     if expected_thread_id:
         reconciliation_details = payload.get("lanes", {}).get("reviews", {}).get("details", {})
         allowed_thread_ids = (
@@ -3608,13 +4385,140 @@ def validate_command_target(
     return None
 
 
+def validate_receipt_schema(payload: Any) -> str | None:
+    """Validate the complete persisted receipt shape before it affects commands."""
+    if not isinstance(payload, dict):
+        return "receipt must be a JSON object"
+    phase = payload.get("phase")
+    if phase not in PHASES:
+        return "receipt phase is invalid"
+    expected_fields = {
+        "schema_version",
+        "status",
+        "phase",
+        "checked_at",
+        "repo",
+        "lanes",
+        "blockers",
+        "evidence_refs",
+        "receipt",
+    }
+    if phase in {"review_inspection", "review_reconciliation"}:
+        expected_fields.add("authority")
+    if set(payload) != expected_fields:
+        return "receipt must contain exactly the required fields"
+    if payload.get("schema_version") != SCHEMA_VERSION:
+        return "receipt schema_version is not pr-readiness/v1"
+    status = payload.get("status")
+    if not isinstance(status, str) or status not in {"pass", "fail", "blocked"}:
+        return "receipt status is invalid"
+    if not isinstance(payload.get("checked_at"), str) or not payload["checked_at"]:
+        return "receipt checked_at is invalid"
+
+    receipt_repo = payload.get("repo")
+    repo_fields = {
+        "root",
+        "branch",
+        "head_sha",
+        "base_branch",
+        "base_sha",
+        "remote",
+        "remote_base_sha",
+        "remote_head_sha",
+    }
+    if not isinstance(receipt_repo, dict) or set(receipt_repo) != repo_fields:
+        return "receipt repository details are malformed"
+    for field in ("root", "branch", "base_branch"):
+        if not isinstance(receipt_repo.get(field), str) or not receipt_repo[field]:
+            return f"receipt repository {field} is invalid"
+    for field in ("head_sha", "base_sha"):
+        value = receipt_repo.get(field)
+        if not isinstance(value, str) or SHA_RE.fullmatch(value) is None:
+            return f"receipt repository {field} is not a full commit SHA"
+    for field in ("remote_base_sha", "remote_head_sha"):
+        value = receipt_repo.get(field)
+        if value is not None and (not isinstance(value, str) or SHA_RE.fullmatch(value) is None):
+            return f"receipt repository {field} is invalid"
+        if status == "pass" and value is None:
+            return f"receipt repository {field} is not a full commit SHA"
+    if receipt_repo.get("remote") != TRUSTED_REMOTE:
+        return f"receipt repository remote must be {TRUSTED_REMOTE}"
+
+    lanes = payload.get("lanes")
+    if not isinstance(lanes, dict) or set(lanes) != set(RECEIPT_LANES):
+        return "receipt lanes are malformed"
+    for name in RECEIPT_LANES:
+        lane_value = lanes[name]
+        if (not isinstance(lane_value, dict)
+                or not {"status", "evidence"} <= set(lane_value)
+                <= {"status", "evidence", "details"}):
+            return f"receipt lane {name} is malformed"
+        lane_status = lane_value.get("status")
+        if (not isinstance(lane_status, str)
+                or lane_status not in {"pass", "fail", "blocked", "not_applicable"}):
+            return f"receipt lane {name} status is invalid"
+        if not isinstance(lane_value.get("evidence"), str) or not lane_value["evidence"]:
+            return f"receipt lane {name} evidence is invalid"
+        if "details" in lane_value and not isinstance(lane_value["details"], dict):
+            return f"receipt lane {name} details are malformed"
+    scope_details = lanes["scope"].get("details")
+    declared_paths = scope_details.get("declared_paths") if isinstance(scope_details, dict) else None
+    if (not isinstance(declared_paths, list)
+            or any(not isinstance(item, str) or not item for item in declared_paths)
+            or len(declared_paths) != len(set(declared_paths))):
+        return "receipt declared scope paths are malformed"
+
+    blockers = payload.get("blockers")
+    if not isinstance(blockers, list):
+        return "receipt blockers are malformed"
+    for item in blockers:
+        if (not isinstance(item, dict) or set(item) != {"code", "reason"}
+                or any(not isinstance(item.get(field), str) or not item[field]
+                       for field in ("code", "reason"))):
+            return "receipt blocker is malformed"
+    evidence_refs = payload.get("evidence_refs")
+    if (not isinstance(evidence_refs, list)
+            or any(not isinstance(item, str) or not item for item in evidence_refs)):
+        return "receipt evidence references are malformed"
+
+    receipt = payload.get("receipt")
+    if (not isinstance(receipt, dict) or set(receipt) != {"path", "scope_digest"}
+            or not isinstance(receipt.get("path"), str) or not receipt["path"]
+            or not isinstance(receipt.get("scope_digest"), str)
+            or SCOPE_DIGEST_RE.fullmatch(receipt["scope_digest"]) is None):
+        return "receipt publication details are malformed"
+    if phase == "review_inspection":
+        if payload.get("authority") != review_inspection_authority():
+            return "inspection receipt authority is malformed"
+    elif phase == "review_reconciliation":
+        expected_authority = {
+            "allowed_mutations": ["review_thread_reply", "review_thread_resolve"],
+            "prohibited_mutations": [
+                "source_update",
+                "pr_body_update",
+                "review_submission",
+                "approval",
+                "merge",
+            ],
+            "acceptance_claims_proven": False,
+        }
+        if payload.get("authority") != expected_authority:
+            return "reconciliation receipt authority is malformed"
+    return None
+
+
 def validate_receipt(path: Path, args: argparse.Namespace) -> tuple[dict[str, Any], str | None]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(_scope.policy_repository_read(args.repo_root or Path.cwd(), path))
     except (OSError, json.JSONDecodeError) as exc:
         return {}, f"receipt could not be read: {exc}"
-    if not isinstance(payload, dict) or payload.get("schema_version") != SCHEMA_VERSION:
-        return {}, "receipt schema_version is not pr-readiness/v1"
+    schema_error = validate_receipt_schema(payload)
+    if schema_error:
+        return {}, schema_error
+    if args.remote != TRUSTED_REMOTE:
+        return {}, f"receipt checks require the trusted {TRUSTED_REMOTE} remote"
+    if payload.get("status") != "pass":
+        return {}, f"receipt status is {payload.get('status')!r}"
     root = resolve_root(args.repo_root)
     branch, head_sha, inferred_base, _git_dir, _common = current_worktree(root)
     base_branch = args.base or inferred_base
@@ -3626,6 +4530,8 @@ def validate_receipt(path: Path, args: argparse.Namespace) -> tuple[dict[str, An
     slug, slug_error = repository_slug(root)
     if slug_error or not slug:
         return {}, slug_error or "repository slug unavailable while validating receipt target"
+    if args.phase in {"review_inspection", "update"} and args.expected_pr is None:
+        return {}, f"{args.phase} receipt consumption requires an explicit command PR target"
     target_error = validate_command_target(
         payload,
         repository=slug,
@@ -3637,10 +4543,6 @@ def validate_receipt(path: Path, args: argparse.Namespace) -> tuple[dict[str, An
     )
     if target_error:
         return {}, target_error
-    if payload.get("status") != "pass":
-        return {}, f"receipt status is {payload.get('status')!r}"
-    if args.phase == "review_inspection" and payload.get("authority") != review_inspection_authority():
-        return {}, "inspection receipt authority is malformed"
     age = datetime.now(UTC).timestamp() - path.stat().st_mtime
     if age > args.max_receipt_age:
         return {}, f"receipt is older than {args.max_receipt_age} seconds"
@@ -3652,9 +4554,8 @@ def validate_receipt(path: Path, args: argparse.Namespace) -> tuple[dict[str, An
     boundary = worktree_lane(root)
     if boundary["status"] != "pass":
         return {}, "current checkout is no longer a registered worktree"
-    remote = str(receipt_repo.get("remote") or args.remote)
-    remote_base = remote_sha(root, remote, base_branch)
-    remote_head = remote_sha(root, remote, branch)
+    remote_base = remote_sha(root, TRUSTED_REMOTE, base_branch)
+    remote_head = remote_sha(root, TRUSTED_REMOTE, branch)
     if remote_base != receipt_repo.get("remote_base_sha") or remote_head != receipt_repo.get("remote_head_sha"):
         return {}, "remote ancestry changed after the receipt was written"
     scope_details = payload.get("lanes", {}).get("scope", {}).get("details", {})
@@ -3673,30 +4574,296 @@ def validate_receipt(path: Path, args: argparse.Namespace) -> tuple[dict[str, An
         review_details = payload.get("lanes", {}).get("reviews", {}).get("details", {})
         if isinstance(review_details, dict) and isinstance(review_details.get("review_waiver"), dict):
             review_waiver_record = review_details["review_waiver"]
-    recorded_pr_url = payload.get("lanes", {}).get("pull_request", {}).get("details", {}).get("url")
-    if args.phase == "review_inspection" and (not isinstance(recorded_pr_url, str) or not recorded_pr_url):
-        return {}, "inspection receipt does not record its PR URL"
+    pull_request_details = payload.get("lanes", {}).get("pull_request", {}).get("details", {})
+    receipt_pr_number = pull_request_details.get("number") if isinstance(pull_request_details, dict) else None
+    recorded_pr_url = pull_request_details.get("url") if isinstance(pull_request_details, dict) else None
+    if args.phase != "create":
+        if type(receipt_pr_number) is not int or receipt_pr_number <= 0:
+            return {}, "non-create receipt does not record a valid PR number"
+        if not isinstance(recorded_pr_url, str) or not recorded_pr_url:
+            return {}, "non-create receipt does not record its PR URL"
+    recheck_pr_number = (
+        args.expected_pr if args.expected_pr is not None else receipt_pr_number
+    )
+    expected_check_policy_digest = None
+    if args.phase in {"update", "review_reconciliation"}:
+        check_details = payload.get("lanes", {}).get("required_checks", {}).get("details", {})
+        if not isinstance(check_details, dict):
+            return {}, "receipt required-check details are malformed"
+        expected_check_policy_digest = check_details.get("policy_digest")
+        if (
+            not isinstance(expected_check_policy_digest, str)
+            or not SCOPE_DIGEST_RE.fullmatch(expected_check_policy_digest)
+        ):
+            return {}, "receipt does not bind an authenticated required-check policy"
     hosted_error = recheck_hosted_state(
         root,
         args.phase,
         head_sha,
+        expected_pr=recheck_pr_number,
+        expected_repo=slug,
         base_branch=str(receipt_repo.get("base_branch")),
         base_sha=str(receipt_repo.get("remote_base_sha")),
         review_waiver_record=review_waiver_record,
         expected_thread_id=args.expected_thread_id,
         expected_pr_url=recorded_pr_url,
+        expected_check_policy_digest=expected_check_policy_digest,
     )
     if hosted_error:
         return {}, hosted_error
     return payload, None
 
 
+def _lifecycle_request(root: Path, repo: str, number: int) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Read one explicitly addressed GitHub PR, never infer a branch's PR."""
+    response = run_command(['gh', 'api', '--hostname', 'github.com',
+                            f'repos/{repo}/pulls/{number}'], root, check=False)
+    if response.returncode:
+        raise ValueError('Lifecycle target inventory unavailable')
+    value = json.loads(response.stdout)
+    return _lifecycle_target(value, repo, number), value
+
+
+def _lifecycle_target(value: Any, repo: str, number: int) -> dict[str, Any]:
+    expected_url = f'https://github.com/{repo}/pull/{number}'
+    if (not isinstance(value, dict) or type(value.get('number')) is not int
+            or value['number'] != number or value.get('html_url') != expected_url
+            or value.get('state') not in {'open', 'closed'} or type(value.get('draft')) is not bool
+            or not isinstance(value.get('node_id'), str) or not value['node_id']
+            or len(value['node_id']) > 256):
+        raise ValueError('Lifecycle target identity is malformed')
+    head, base = value.get('head'), value.get('base')
+    if (not isinstance(head, dict) or not isinstance(base, dict)
+            or not isinstance(head.get('sha'), str) or not SHA_RE.fullmatch(head['sha'])
+            or not isinstance(base.get('sha'), str) or not SHA_RE.fullmatch(base['sha'])
+            or not isinstance(base.get('ref'), str) or not base['ref']
+            or base.get('repo', {}).get('full_name') != repo):
+        raise ValueError('Lifecycle head, base or repository is malformed')
+    return {'number': number, 'url': expected_url, 'node_id': value['node_id'],
+            'head': head['sha'], 'base': base['ref'], 'base_sha': base['sha'],
+            'state': value['state'], 'draft': value['draft'], 'merged_at': value.get('merged_at')}
+
+
+def _lifecycle_local_context(root: Path, args: argparse.Namespace) -> dict[str, Any]:
+    branch, head, _base, _git_dir, _common = current_worktree(root)
+    if dirty_lane(root)['status'] != 'pass' or worktree_lane(root)['status'] != 'pass':
+        raise ValueError('Lifecycle production requires a clean registered checkout')
+    if args.scope_file is None:
+        raise ValueError('Lifecycle operations require an explicit repository-relative scope')
+    scope, digest = parse_scope(args.scope_file, root)
+    if not is_scope_digest(digest):
+        raise ValueError('Lifecycle scope is unavailable or malformed')
+    return {'root': str(root), 'branch': branch, 'head': head,
+            'scope_digest': digest, 'declared_paths': scope}
+
+
+def _lifecycle_origin_matches(root: Path, repo: str) -> bool:
+    origin = origin_repository_slug(root)
+    return origin is not None and origin.casefold() == repo.casefold()
+
+
+def _lifecycle_snapshot(root: Path, args: argparse.Namespace) -> dict[str, Any]:
+    if (type(args.expected_pr) is not int or args.expected_pr <= 0
+            or not isinstance(args.lifecycle_head, str) or not SHA_RE.fullmatch(args.lifecycle_head)
+            or os.environ.get('GH_REPO') or os.environ.get('GH_HOST')
+            or not isinstance(args.expected_repo, str)
+            or not _lifecycle_origin_matches(root, args.expected_repo)):
+        raise ValueError('Lifecycle operations need an explicit unchanged repository, PR and head')
+    repo, error = repository_slug(root, required_host='github.com')
+    if error or not repo or repo != args.expected_repo:
+        raise ValueError('Lifecycle operations need an explicit unchanged repository, PR and head')
+    target, raw = _lifecycle_request(root, repo, args.expected_pr)
+    if target['head'] != args.lifecycle_head or (args.base and args.base != target['base']):
+        raise ValueError('Lifecycle target head or base changed')
+    replacement = None
+    if args.lifecycle == 'close':
+        if type(args.replacement_pr) is not int or args.replacement_pr <= 0 or args.replacement_pr == args.expected_pr:
+            raise ValueError('Supersession close requires a distinct verified replacement PR')
+        replaced_by, replacement_raw = _lifecycle_request(root, repo, args.replacement_pr)
+        merge = replacement_raw.get('merge_commit_sha')
+        merged_at = replaced_by['merged_at']
+        if (replaced_by['state'] != 'closed' or not isinstance(merged_at, str)
+                or not isinstance(merge, str) or not SHA_RE.fullmatch(merge)
+                or replaced_by['base'] != target['base']
+                or not isinstance(replacement_raw.get('body'), str)
+                or f"| {target['url']} | {target['head']} |" not in
+                   [line.strip() for line in replacement_raw['body'].splitlines()]):
+            raise ValueError('Replacement must be merged and retain this exact original PR and head')
+        merged_time = datetime.fromisoformat(merged_at.replace('Z', '+00:00'))
+        if merged_time.tzinfo is None or merged_time > datetime.now(UTC):
+            raise ValueError('Replacement merge evidence has an invalid time')
+        current_base = hosted_remote_sha(root, repo, target['base'])
+        if not current_base:
+            raise ValueError('Replacement ancestry is unavailable')
+        ancestry = run_command(['gh', 'api', '--hostname', 'github.com',
+                                f'repos/{repo}/compare/{merge}...{current_base}'], root, check=False)
+        if ancestry.returncode:
+            raise ValueError('Replacement merge is not verified in the selected remote base')
+        comparison = json.loads(ancestry.stdout)
+        if (not isinstance(comparison, dict)
+                or comparison.get('base_commit', {}).get('sha') != merge
+                or comparison.get('merge_base_commit', {}).get('sha') != merge
+                or comparison.get('status') not in {'ahead', 'identical'}
+                or type(comparison.get('behind_by')) is not int or comparison['behind_by'] != 0):
+            raise ValueError('Replacement merge lacks authenticated remote ancestry')
+        replacement = {**replaced_by, 'merge_commit': merge,
+                       'body_sha256': hashlib.sha256(replacement_raw['body'].encode()).hexdigest(),
+                       'verified_base': current_base}
+    elif args.replacement_pr is not None:
+        raise ValueError('Replacement evidence applies only to supersession close')
+    return {'repository': repo, 'host': 'github.com', 'target': target,
+            'replacement': replacement, 'local': _lifecycle_local_context(root, args),
+            'observed': {'ci': 'not accepted by lifecycle evidence',
+                         'reviews': 'not accepted by lifecycle evidence',
+                         'mergeable': raw.get('mergeable')}}
+
+
+def _lifecycle_transition(operation: str, target: dict[str, Any]) -> dict[str, Any]:
+    if target['merged_at'] is not None:
+        raise ValueError('Merged PRs cannot receive this lifecycle transition')
+    after = {'state': target['state'], 'draft': target['draft']}
+    if operation == 'close' and target['state'] == 'open':
+        after['state'] = 'closed'
+    elif operation == 'reopen' and target['state'] == 'closed':
+        after['state'] = 'open'
+    elif operation == 'ready' and target['state'] == 'open' and target['draft']:
+        after['draft'] = False
+    else:
+        raise ValueError('Lifecycle operation does not match the target pre-state')
+    return after
+
+
+def _lifecycle_execute(root: Path, args: argparse.Namespace, identity: Any) -> dict[str, Any]:
+    """A metadata transition proves no CI, review, thread or merge clearance."""
+    if (args.expected_head or args.expected_thread_id or args.review_waiver_file
+            or args.export_review_clearance or args.expected_base
+            or sum(bool(value) for value in (args.write_receipt, args.check_receipt, args.apply_lifecycle)) != 1):
+        raise ValueError('Lifecycle mode admits one explicit operation without unrelated authority')
+    path = args.receipt or root / '.tmp/pr-lifecycle.v1.json'
+    _scope.require_policy_repository_path(root, path, output=args.write_receipt)
+    snapshot = _lifecycle_snapshot(root, args)
+    if args.write_receipt:
+        transition = _lifecycle_transition(args.lifecycle, snapshot['target'])
+        result = {'schema_version': 'pr-lifecycle/v1', 'status': 'pass',
+                  'operation': args.lifecycle, 'checked_at': datetime.now(UTC).isoformat(),
+                  'acceptance_claims_proven': False, 'snapshot': snapshot, 'after': transition}
+        _scope.require_policy_repository_identity(root, identity)
+        _scope.write_policy_repository_receipt(root, path,
+            (json.dumps(result, sort_keys=True) + '\n').encode(), identity)
+        return result
+    raw = _scope.policy_repository_read(root, path)
+    if len(raw) > 64 * 1024:
+        raise ValueError('Lifecycle receipt exceeds the bounded format')
+    receipt = json.loads(raw)
+    if (not isinstance(receipt, dict)
+            or set(receipt) != {'schema_version', 'status', 'operation', 'checked_at',
+                                'acceptance_claims_proven', 'snapshot', 'after'}
+            or receipt['schema_version'] != 'pr-lifecycle/v1' or receipt['status'] != 'pass'
+            or receipt['operation'] != args.lifecycle or receipt['acceptance_claims_proven'] is not False):
+        raise ValueError('Lifecycle receipt is malformed or belongs to another operation')
+    checked = datetime.fromisoformat(receipt['checked_at'])
+    if checked.tzinfo is None:
+        raise ValueError('Lifecycle receipt has no timezone')
+
+    def require_fresh() -> None:
+        age = (datetime.now(UTC) - checked).total_seconds()
+        if not 0 <= age <= 300:
+            raise ValueError('Lifecycle receipt is stale')
+
+    require_fresh()
+    recorded = receipt['snapshot']
+    expected_after = _lifecycle_transition(args.lifecycle, recorded['target'])
+    if receipt['after'] != expected_after:
+        raise ValueError('Lifecycle receipt changed its expected transition')
+    # CI and review observations are never clearance and may change independently.
+    def comparable(item):
+        return {key: value for key, value in item.items() if key != 'observed'}
+    if comparable(snapshot) != comparable(recorded):
+        raise ValueError('Lifecycle target, replacement, scope or local identity changed')
+    _scope.require_policy_repository_identity(root, identity)
+    if args.check_receipt:
+        return receipt
+    # Re-read immediately before the one fixed mutation. No arbitrary REST body,
+    # comment, branch deletion, merge or review-submission option is admitted.
+    final = _lifecycle_snapshot(root, args)
+    if comparable(final) != comparable(recorded):
+        raise ValueError('Lifecycle evidence changed before mutation')
+    if not 0 <= (datetime.now(UTC) - checked).total_seconds() <= 300:
+        raise ValueError('Lifecycle receipt is stale before mutation')
+    if args.lifecycle == 'ready':
+        query = ('mutation($id:ID!){markPullRequestReadyForReview(input:{pullRequestId:$id})'
+                 '{pullRequest{id isDraft state headRefOid}}}')
+        command = ['gh', 'api', 'graphql', '--hostname', 'github.com', '-f', 'query=' + query,
+                   '-f', 'id=' + recorded['target']['node_id']]
+    else:
+        command = ['gh', 'api', '--hostname', 'github.com', '--method', 'PATCH',
+                   f'repos/{args.expected_repo}/pulls/{args.expected_pr}',
+                   '-f', 'state=' + expected_after['state']]
+    require_fresh()
+    response = run_command(command, root, check=False)
+    expected = {**recorded['target'], **expected_after}
+
+    def unreviewed_close(target):
+        if (args.lifecycle == 'close' and target['node_id'] == expected['node_id']
+                and target['state'] == 'closed' and target['head'] != expected['head']):
+            return {'schema_version': 'pr-lifecycle/v1', 'status': 'blocked', 'operation': 'close',
+                    'acceptance_claims_proven': False, 'transition_verified': False,
+                    'mutation_outcome': 'unverified',
+                    'observed_target': {key: target[key] for key in ('number', 'state', 'draft', 'head')},
+                    'error': 'GitHub reported the PR closed on an unreviewed head',
+                    'expected_head': expected['head'], 'target': target}
+        return None
+
+    # Check the mutation response before readback can obscure a head change.
+    # No automatic compensation may overwrite a later independent transition.
+    applied = None
+    if not response.returncode:
+        try:
+            payload = json.loads(response.stdout)
+            if args.lifecycle == 'ready':
+                node = payload['data']['markPullRequestReadyForReview']['pullRequest']
+                if ('errors' not in payload and isinstance(node, dict)
+                        and node.get('id') == expected['node_id']
+                        and node.get('headRefOid') == expected['head']
+                        and node.get('state') == expected['state'].upper()
+                        and type(node.get('isDraft')) is bool
+                        and node['isDraft'] == expected['draft']):
+                    # The ready mutation exposes these four identity/state
+                    # fields; the full REST readback must independently match.
+                    applied = expected
+            else:
+                applied = _lifecycle_target(payload, args.expected_repo, args.expected_pr)
+        except (KeyError, ValueError, TypeError, AttributeError):
+            pass  # Still read back the current state before reporting uncertainty.
+        if applied and (report := unreviewed_close(applied)):
+            return report
+
+    try:
+        after, _raw = _lifecycle_request(root, args.expected_repo, args.expected_pr)
+    except (ValueError, TypeError, KeyError, AttributeError) as exc:
+        if args.lifecycle == 'ready':
+            raise LifecycleOutcomeUnverified(args.lifecycle) from exc
+        raise
+    if report := unreviewed_close(after):
+        return report
+    if response.returncode or after != expected or applied != expected:
+        raise LifecycleOutcomeUnverified(args.lifecycle, after)
+    _scope.require_policy_repository_identity(root, identity)
+    return {'schema_version': 'pr-lifecycle/v1', 'status': 'pass', 'operation': args.lifecycle,
+            'target': after, 'acceptance_claims_proven': False, 'transition_verified': True}
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--phase", choices=PHASES, required=True)
+    modes = parser.add_mutually_exclusive_group(required=True)
+    modes.add_argument("--phase", choices=PHASES)
+    modes.add_argument("--lifecycle", choices=('close', 'ready', 'reopen'))
+    parser.add_argument('--lifecycle-head')
+    parser.add_argument('--replacement-pr', type=int)
+    parser.add_argument('--apply-lifecycle', action='store_true')
     parser.add_argument("--repo-root", type=Path)
     parser.add_argument("--base")
-    parser.add_argument("--remote", default="origin")
+    parser.add_argument("--remote", choices=(TRUSTED_REMOTE,), default=TRUSTED_REMOTE)
     parser.add_argument("--scope-file", type=Path)
     parser.add_argument("--review-waiver-file", type=Path)
     parser.add_argument("--export-review-clearance", action="store_true",
@@ -3716,12 +4883,38 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    require_policy_path(args.repo_root or Path.cwd())
-    for candidate in (args.scope_file, args.review_waiver_file, args.receipt):
-        if candidate is not None:
-            require_policy_path(candidate)
+    repository = args.repo_root or Path.cwd()
     try:
-        root = resolve_root(args.repo_root)
+        repository = resolve_root(repository)
+        _scope.require_policy_repository_path(repository, repository)
+        repository_identity = _scope.policy_repository_identity(repository)
+        for candidate in (args.scope_file, args.review_waiver_file, args.receipt):
+            if candidate is not None:
+                _scope.require_policy_repository_path(repository, candidate)
+    except (OSError, ValueError, CommandFailure):
+        print(json.dumps({"schema_version": SCHEMA_VERSION, "status": "blocked",
+                          "phase": args.phase, "error": "Readiness resource admission failed"}))
+        return 2
+    try:
+        root = repository
+        if getattr(args, 'lifecycle', None):
+            try:
+                result = _lifecycle_execute(root, args, repository_identity)
+            except LifecycleOutcomeUnverified as exc:
+                print(json.dumps({'schema_version': 'pr-lifecycle/v1', 'status': 'blocked',
+                    'acceptance_claims_proven': False, 'mutation_outcome': 'unverified',
+                    'operation': exc.operation, 'observed_target': exc.observed, 'error': str(exc)}))
+                return 2
+            except (OSError, ValueError, TypeError, KeyError, AttributeError):
+                print(json.dumps({'schema_version': 'pr-lifecycle/v1', 'status': 'blocked',
+                    'acceptance_claims_proven': False,
+                    'error': 'Lifecycle evidence is invalid, stale or changed; a transition may have occurred if apply was requested'}))
+                return 2
+            print(json.dumps(result, sort_keys=True))
+            return 0 if result['status'] == 'pass' else 2
+        if (getattr(args, 'apply_lifecycle', False) or getattr(args, 'lifecycle_head', None)
+                or getattr(args, 'replacement_pr', None) is not None):
+            raise ValueError('Lifecycle arguments require their explicit mode')
         if args.export_review_clearance:
             if args.phase != "update" or args.write_receipt or args.check_receipt or args.review_waiver_file:
                 raise CommandFailure(["--export-review-clearance"], "template export is update-only and cannot consume evidence or write a receipt")
@@ -3770,6 +4963,7 @@ def main() -> int:
             _branch, _head, _base, git_dir, _common = current_worktree(root)
             path = args.receipt or default_receipt(root, git_dir)
             payload, error = validate_receipt(path, args)
+            _scope.require_policy_repository_identity(repository, repository_identity)
             if error:
                 result = add_service_identity({"schema_version": SCHEMA_VERSION, "status": "blocked", "phase": args.phase, "error": error, "receipt": str(path)})
                 print(json.dumps(result, indent=2, sort_keys=True))
@@ -3777,11 +4971,18 @@ def main() -> int:
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
         result = build_result(args)
+        _scope.require_policy_repository_identity(repository, repository_identity)
         if args.write_receipt:
+            schema_error = validate_receipt_schema(result)
+            if schema_error:
+                raise CommandFailure(['--write-receipt'],
+                    'Readiness result cannot be persisted as a receipt: ' + schema_error)
             path = args.receipt or Path(result["receipt"]["path"])
-            require_policy_output(path)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            _scope.require_policy_repository_path(repository, path, output=True)
+            _scope.require_policy_repository_identity(repository, repository_identity)
+            _scope.write_policy_repository_receipt(
+                repository, path, (json.dumps(result, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+                repository_identity)
             result["receipt"]["path"] = str(path)
         result = add_service_identity(result)
         print(json.dumps(result, indent=2, sort_keys=True))
@@ -3789,6 +4990,10 @@ def main() -> int:
     except CommandFailure as exc:
         result = add_service_identity({"schema_version": SCHEMA_VERSION, "status": "blocked", "phase": args.phase, "error": exc.reason, "command": " ".join(exc.command)})
         print(json.dumps(result, indent=2, sort_keys=True))
+        return 2
+    except (OSError, ValueError):
+        print(json.dumps({"schema_version": SCHEMA_VERSION, "status": "blocked",
+                          "phase": args.phase, "error": "Readiness resource changed or is unavailable"}))
         return 2
 
 

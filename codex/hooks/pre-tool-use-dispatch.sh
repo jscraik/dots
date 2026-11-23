@@ -1,10 +1,12 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
 
 set -euo pipefail
+# shellcheck source=codex/hooks/hook-runtime-path.sh
+. "${BASH_SOURCE[0]%/*}/hook-runtime-path.sh" || exit 2
 
 input_json="$(cat)"
 dots_hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python3 "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit $?
+python3 -I -S -B "$dots_hook_dir/../scripts/admit-hook-fixture.py" "$input_json" || exit $?
 hook_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 analysis_failure() {
@@ -49,6 +51,7 @@ command_contexts = policy["command_contexts"]
 protect_quoted_punctuation = policy["protect_quoted_punctuation"]
 decode_protected_punctuation = policy["decode_protected_punctuation"]
 declared_functions = policy["declared_functions"]
+pr_command_phase = policy["pr_command_phase"]
 scope = runpy.run_path(os.path.join(os.path.dirname(sys.argv[1]), "migration_scope.py"))
 repo_root = str(scope["policy_source_root"](os.path.dirname(os.path.dirname(os.path.realpath(sys.argv[1])))).parent)
 payload = json.load(sys.stdin)
@@ -73,6 +76,7 @@ shell_operators = {"&&", "||", ";", "|", "&", "(", ")", "{", "}", "\n"}
 shell_punctuation = frozenset(";&|(){}\n")
 control_boundaries = {"then", "do", "else", "elif"}
 assignment = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\+?=")
+command_construction_launchers = frozenset({"xargs"})
 
 
 def tokenize(command_text):
@@ -93,17 +97,17 @@ def tokenize(command_text):
         return []
 
 
-def has_expandable_dollar(command_text):
+def has_expandable_dollar(command_text, *, quote_aware=True):
     # Regex anchors are data. Other dollars outside single quotes remain
     # conservative, including parameter expansions and dynamic executables.
     quote = None
     index = 0
     while index < len(command_text):
         char = command_text[index]
-        if char == "\\" and quote != chr(39):
+        if quote_aware and char == "\\" and quote != chr(39):
             index += 2
             continue
-        if char in {chr(39), chr(34)}:
+        if quote_aware and char in {chr(39), chr(34)}:
             quote = None if quote == char else char if quote is None else quote
         elif char == "$" and quote != chr(39):
             # A terminal dollar or one immediately before its closing double
@@ -283,19 +287,30 @@ def git_subcommand(tokens, index):
 def gh_subcommand(tokens, index):
     index += 1
     options_with_values = {"-R", "--repo", "--hostname"}
+    selectors = []
     while index < len(tokens):
         token = tokens[index]
         if token in options_with_values:
+            selectors.extend(tokens[index + 1 : index + 2])
             index += 2
             continue
         if token.startswith(("--repo=", "--hostname=")):
+            selectors.append(token.split("=", 1)[1])
+            index += 1
+            continue
+        if token.startswith("-R") and len(token) > 2:
+            selectors.append(token[2:])
             index += 1
             continue
         if token.startswith("-"):
+            # Cobra can forward API flags placed before the subcommand.
+            # Never discard an unknown prefix and infer an option-free GET.
+            if token not in {"--help", "-h", "--version"}:
+                route["unsafe"] = True
             index += 1
             continue
-        return token, tokens[index + 1 :]
-    return "", []
+        return token, tokens[index + 1 :], selectors
+    return "", [], selectors
 
 
 def same_owned_path(candidate, canonical):
@@ -309,6 +324,20 @@ def same_owned_path(candidate, canonical):
     except OSError:
         pass
     return False
+
+
+def native_test_args(args):
+    """Keep discovery rooted at the project tests directory."""
+    index = 0
+    while index < len(args):
+        if args[index] in {"-v", "--verbose", "-q", "--quiet", "-f", "--failfast", "-b", "--buffer"}:
+            index += 1
+        elif (args[index] in {"-k", "-p", "--pattern"} and index + 1 < len(args)
+              and re.fullmatch(r"[A-Za-z0-9_.-]+", args[index + 1])):
+            index += 2
+        else:
+            return False
+    return True
 
 
 def owned_test(arg):
@@ -460,6 +489,10 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
         route["unsafe"] |= bool(substitutions) and marker in segment[index]
         tail = [token.lower() for token in segment[index + 1 :]]
         operands = segment[index + 1:]
+        # The child arguments can come from stdin or files, so the command text
+        # cannot prove which protected route the launcher will eventually run.
+        if executable in command_construction_launchers:
+            route["unsafe"] = True
         if posix_mode and executable in {":", "break", "continue", ".", "eval", "exec", "exit", "export", "readonly", "return", "set", "shift", "trap", "unset"} and not any(basename(token) in {"command", "builtin", "env"} for token in segment[:index] if not assignment.match(token)):
             retain_home(scoped_home)
         if executable == "set":
@@ -564,6 +597,8 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                     for path in governed if os.path.isfile(path)
                 )
                 literal_script = owned_script and not any(arg.startswith("--repo-root") for arg in args[1:])
+                if (executable == "bash" and same_owned_path(selected, os.path.join(repo_root, "scripts/test-app-codex.sh"))):
+                    literal_script = native_test_args(args[1:])
                 validation_wrapper = os.path.join(repo_root, "codex/scripts/codex-validation-python-uv.sh")
                 if os.path.isfile(selected) and os.path.isfile(validation_wrapper) and same_owned_path(selected, validation_wrapper):
                     literal_script = owned_unittest_args(args[1:])
@@ -571,9 +606,11 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                     literal_script = literal_script and index == 0 and depth == 0 and len(segments) == 1 and os.path.realpath(cwd) == os.path.abspath(cwd) and same_owned_path(cwd.rstrip(os.sep) or os.sep, repo_root)
                 # Admit a direct project verifier structurally; execution remains
                 # governed by the native sandbox and approval policy.
+                syntax_only_resolver = (script == "scripts/resolve-homebrew-bin.sh"
+                                        and segment[index + 1:] == ["-n", script])
                 if (index == 0 and depth == 0 and len(segments) == 1
                         and executable == "bash" and canonical_entry
-                        and script in {"scripts/verify-work.sh", "scripts/validate-repository.sh", "scripts/validate-codestyle.sh"}
+                        and (syntax_only_resolver or script in {"scripts/verify-work.sh", "scripts/validate-repository.sh", "scripts/validate-codestyle.sh"})
                         and not any(arg.startswith("--repo-root") for arg in args[1:])):
                     info = os.stat(selected, follow_symlinks=False)
                     project_result = subprocess.run(
@@ -609,15 +646,27 @@ def inspect(command_text, depth=0, indirect=False, home_override=False, posix_mo
                 and subcommand in {"status", "rev-parse", "for-each-ref", "ls-files", "rev-list"}
             )
         elif executable == "gh":
-            subcommand, remaining = gh_subcommand(segment, index)
+            subcommand, remaining, selectors = gh_subcommand(segment, index)
             # A variable command name can otherwise hide a protected PR action.
             if has_expandable_dollar(decode_protected_punctuation(subcommand)):
                 route.update({"pr": True, "unsafe": True})
             if substitutions and marker in subcommand:
                 route.update({"pr": True, "unsafe": True})
-            protected_gh = subcommand == "pr" or (
-                subcommand == "api" and "graphql" in [token.lower() for token in remaining]
-            )
+            # Inspecting a PR is not publication. Keep unknown/mutating verbs
+            # guarded, including when another segment of a pipeline mutates.
+            read_only_pr = (subcommand == "pr" and remaining
+                            and pr_command_phase(remaining[0]) == "read_only")
+            # Raw API requests retain operation-aware readiness analysis.
+            # With exactly one literal REST endpoint and no options, gh uses
+            # GET. Selector values must also be literal. Tokenization has
+            # removed shell quoting, so treat any remaining quotes as data.
+            read_only_api = (subcommand == "api" and len(remaining) == 1
+                             and not any((substitutions and marker in value)
+                                         or has_expandable_dollar(value, quote_aware=False)
+                                         for value in selectors)
+                             and re.fullmatch(r"/?repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_./-]+)?", remaining[0]))
+            protected_gh = ((subcommand == "pr" and not read_only_pr)
+                            or subcommand == "api" and not read_only_api)
             route["pr"] = route["pr"] or protected_gh
             if indirect and protected_gh:
                 route["unsafe"] = True
@@ -667,7 +716,7 @@ if [[ "$unsafe_route" == "1" ]]; then
 fi
 
 if [[ "$safe_route" == "1" ]]; then
-  jq -n '{continue: true}'
+  jq -n '{}'
   exit 0
 fi
 
@@ -696,13 +745,13 @@ run_guard() {
   local output
   local status
   if [[ -n "$force_variable" ]]; then
-    if output="$(printf '%s' "$input_json" | env "$force_variable=1" bash "$hook_dir/$script_name" 2>/dev/null)"; then
+    if output="$(printf '%s' "$input_json" | /usr/bin/env "$force_variable=1" /bin/bash -p "$hook_dir/$script_name" 2>/dev/null)"; then
       status=0
     else
       status=$?
     fi
   else
-    if output="$(printf '%s' "$input_json" | bash "$hook_dir/$script_name" 2>/dev/null)"; then
+    if output="$(printf '%s' "$input_json" | /bin/bash -p "$hook_dir/$script_name" 2>/dev/null)"; then
       status=0
     else
       status=$?
@@ -738,7 +787,7 @@ run_guard "pre-tool-use-guard.sh"
 
 if [[ ${#contexts[@]} -gt 0 ]]; then
   context_blob="$(printf '%s\n' "${contexts[@]}")"
-  jq -n --arg context "$context_blob" '{continue: true, hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $context}}'
+  jq -n --arg context "$context_blob" '{hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $context}}'
 else
-  jq -n '{continue: true}'
+  jq -n '{}'
 fi
