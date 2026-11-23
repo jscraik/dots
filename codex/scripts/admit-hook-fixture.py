@@ -120,9 +120,11 @@ if __name__ == '__main__':
             admit({})
             deployed = deployment_module()
             if deployed is None:
-                require_policy_path(Path(sys.argv[3]))
+                admitted = require_policy_path(Path(sys.argv[3]))
             else:
-                deployed.require_provider_input(sys.argv[3], sys.argv[2])
+                admitted = deployed.require_provider_input(sys.argv[3], sys.argv[2])
+            if sys.argv[2] == 'aikido-binary':
+                print(admitted)
         else:
             admit(json.loads(sys.argv[1]))
     except (IndexError, OSError, TypeError, ValueError, RuntimeError) as exc:
