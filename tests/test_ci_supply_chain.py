@@ -20,6 +20,8 @@ class CiSupplyChainTests(unittest.TestCase):
                         config.index('name: Verify migrated sources'))
         self.assertIn('/usr/bin/python3 -I codex/scripts/prepare-hook-toolchain.py', config)
         self.assertIn('export PATH="/opt/dots-hook-tools/current/bin:$PATH"', config)
+        test_step = config.split('name: Test Linux CLI compatibility and disposable-home staging', 1)[1]
+        self.assertLess(test_step.index('umask 077'), test_step.index('test_hook_active_turn.py'))
 
     def test_circleci_installs_the_complete_hash_locked_file(self):
         config = (ROOT / ".circleci/config.yml").read_text()
