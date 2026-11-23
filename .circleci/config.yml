@@ -3,11 +3,19 @@ version: 2.1
 jobs:
   validate:
     parallelism: 3
-    docker:
-      - image: cimg/python:3.12.8@sha256:6c162c73ea0c4af3d63fa3a7725991af19d86c0a10235109d927950539bca05d
-    resource_class: small
+    machine:
+      image: ubuntu-2204:2026.10.1
+    resource_class: medium
     steps:
       - checkout
+      - run:
+          name: Provision protected hook toolchain in the disposable VM
+          command: |
+            /usr/bin/python3 -I codex/scripts/prepare-hook-toolchain.py --platform linux-amd64 --output /tmp/dots-hook-toolchain
+            reviewed_digest="$(/usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-toolchain --inspect)"
+            sudo /usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-toolchain --reviewed-sha256 "$reviewed_digest" --select
+            /usr/bin/python3 -I -S codex/scripts/validate-hook-toolchain.py
+            printf '%s\n' 'export PATH="/opt/dots-hook-tools/current/bin:$PATH"' >> "$BASH_ENV"
       - run:
           name: Verify migrated sources and tool pins
           command: python3 -B scripts/check-source.py
@@ -57,13 +65,6 @@ jobs:
       - run:
           name: Verify public guidance and instruction links
           command: /tmp/dots-validation-venv/bin/python -B scripts/check-public-guidance.py
-      - run:
-          name: Provision protected hook toolchain in the disposable executor
-          command: |
-            /tmp/dots-validation-venv/bin/python -I codex/scripts/prepare-hook-toolchain.py --platform linux-amd64 --output /tmp/dots-hook-toolchain
-            reviewed_digest="$(/usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-toolchain --inspect)"
-            sudo /usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-toolchain --reviewed-sha256 "$reviewed_digest" --select
-            /usr/bin/python3 -I -S codex/scripts/validate-hook-toolchain.py
       - run:
           name: Test Linux CLI compatibility and disposable-home staging
           no_output_timeout: 15m

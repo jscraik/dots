@@ -8,12 +8,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CiSupplyChainTests(unittest.TestCase):
-    def test_circleci_image_is_digest_pinned(self):
+    def test_circleci_executors_use_fixed_snapshots(self):
         config = (ROOT / ".circleci/config.yml").read_text()
         self.assertRegex(
             config,
-            r"(?m)^\s+- image: cimg/python:3\.12\.8@sha256:[0-9a-f]{64}$",
+            r"(?m)^    machine:\n      image: ubuntu-2204:2026\.10\.1$",
         )
+        self.assertRegex(config, r"(?m)^\s+- image: ghcr\.io/gitleaks/gitleaks:v8\.30\.1@sha256:[0-9a-f]{64}$")
+        self.assertNotRegex(config, r"(?m)^\s+image: .*:(?:current|edge|latest)$")
+        self.assertLess(config.index('name: Provision protected hook toolchain'),
+                        config.index('name: Verify migrated sources'))
+        self.assertIn('/usr/bin/python3 -I codex/scripts/prepare-hook-toolchain.py', config)
+        self.assertIn('export PATH="/opt/dots-hook-tools/current/bin:$PATH"', config)
 
     def test_circleci_installs_the_complete_hash_locked_file(self):
         config = (ROOT / ".circleci/config.yml").read_text()
