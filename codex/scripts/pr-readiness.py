@@ -1132,6 +1132,9 @@ def observed_checks_lane(pr: dict[str, Any], head_sha: str, *, attempt_order: bo
             if previous is None or rank >= previous[:4]:
                 latest[identity] = (*rank, item)
     current_checks = [entry[4] for entry in latest.values()]
+    unknown = [str(item.get('name') or item.get('context') or 'unnamed check')
+               for item in current_checks
+               if _check_lifecycle(item) not in SUCCESS_CHECKS | PENDING_CHECKS | FAILED_CHECKS]
     failures: list[str] = []
     pending: list[str] = []
     for item in current_checks:
@@ -1144,9 +1147,9 @@ def observed_checks_lane(pr: dict[str, Any], head_sha: str, *, attempt_order: bo
         elif state not in SUCCESS_CHECKS:
             pending.append(name)
     if failures:
-        return lane("fail", f"required checks failed: {', '.join(failures)}", head_sha=head_sha, failures=failures, pending=pending)
+        return lane("fail", f"required checks failed: {', '.join(failures)}", head_sha=head_sha, failures=failures, pending=pending, unknown_checks=unknown)
     if pending:
-        return lane("blocked", f"required checks are not complete: {', '.join(pending)}", head_sha=head_sha, failures=[], pending=pending)
+        return lane("blocked", f"required checks are not complete: {', '.join(pending)}", head_sha=head_sha, failures=[], pending=pending, unknown_checks=unknown)
     return lane("pass", f"{len(current_checks)} current check contexts passed for current PR head", head_sha=head_sha, checks=current_checks)
 
 
@@ -1259,12 +1262,13 @@ def checks_lane(pr: dict[str, Any], head_sha: str) -> dict[str, Any]:
     # Evaluate both snapshots. A later REST failure or queued rerun must not be
     # hidden by an earlier successful GraphQL rollup; neither can clear the other.
     observed = observed_checks_lane(pr, head_sha)
+    unknown_current = bool(inventory.get('details', {}).get('unknown_checks')
+                           or observed.get('details', {}).get('unknown_checks'))
     if inventory['status'] == 'fail' or (inventory['status'] == 'blocked' and observed['status'] != 'fail'):
         observed = inventory
     observed.setdefault("details", {}).update(policy_digest=policy["digest"],
         required_checks=policy["required_checks"], missing=[],
-        unknown_required=any(_check_lifecycle(item) not in SUCCESS_CHECKS | PENDING_CHECKS | FAILED_CHECKS
-                             for item in evidence))
+        unknown_required=unknown_current)
     return observed
 
 
@@ -1280,10 +1284,9 @@ def phase_checks_lane(pr: dict[str, Any], head_sha: str, phase: str) -> dict[str
                     acceptance_claims_proven=False)
     details = checks.get("details", {})
     rollup = pr.get("statusCheckRollup")
-    known_states = isinstance(rollup, list) and bool(rollup) and all(
-        isinstance(item, dict) and _check_lifecycle(item) in PENDING_CHECKS | SUCCESS_CHECKS | FAILED_CHECKS
-        for item in rollup
-    )
+    known_states = (isinstance(rollup, list) and bool(rollup)
+                    and all(isinstance(item, dict) for item in rollup)
+                    and not observed_checks_lane(pr, head_sha).get('details', {}).get('unknown_checks'))
     if (phase == "review_reconciliation"
             and checks["status"] == "blocked" and details.get("pending")
             and details.get("failures") == [] and not details.get("missing")
@@ -4408,7 +4411,7 @@ def validate_receipt_schema(payload: Any) -> str | None:
     declared_paths = scope_details.get("declared_paths") if isinstance(scope_details, dict) else None
     if (not isinstance(declared_paths, list)
             or any(not isinstance(item, str) or not item for item in declared_paths)
-            or declared_paths != sorted(set(declared_paths))):
+            or len(declared_paths) != len(set(declared_paths))):
         return "receipt declared scope paths are malformed"
 
     blockers = payload.get("blockers")

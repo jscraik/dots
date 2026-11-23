@@ -31,7 +31,7 @@
         "base_branch": { "type": "string", "minLength": 1 },
         "base_sha": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
         "remote": { "const": "origin" },
-        "remote_base_sha": { "type": ["string", "null"] },
+        "remote_base_sha": { "type": ["string", "null"], "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})(?![\\s\\S])" },
         "remote_head_sha": { "type": ["string", "null"], "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})(?![\\s\\S])" }
       }
     },

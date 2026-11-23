@@ -11,6 +11,18 @@ from policy_fixture import ROOT
 
 
 class HandoverValidationTests(unittest.TestCase):
+    def test_scrub_preserves_raw_crlf_bytes_for_publication_comparison(self):
+        target = self.fixture.home / 'crlf-scrub.toml'
+        original = b'notify = ["SkyComputerUseClient"]\r\nmodel = "fixture"\r\n'
+        target.write_bytes(original)
+        result = self.fixture.helper('scrub-computer-use-config.py', '--config-path', str(target), '--repair', '--json')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload['status'], 'repaired')
+        self.assertEqual(Path(payload['retained_generation_path']).read_bytes(), original)
+        self.assertNotIn(b'SkyComputerUseClient', target.read_bytes())
+        self.assertIn(b'model = "fixture"', target.read_bytes())
+
     def test_scrub_operator_output_names_the_retained_generation(self):
         fixture = self.fixture
         target = fixture.home / 'operator-scrub.toml'

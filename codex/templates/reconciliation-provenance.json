@@ -87,7 +87,7 @@
     {
       "path": "codex/schemas/pr-readiness.v1.schema.json",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "d5a1c36410a62b30420dcc76bab5f8f2afc846cbc34bd08e51c7eec6872c6aeb",
+      "candidate_sha256": "d95c63e348522ebcb94400b6d444b2c56a47b3b940e3a0e1de66c8b227af6e95",
       "transformation": "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
@@ -99,7 +99,7 @@
     {
       "path": "codex/scripts/pr-readiness.py",
       "prior_candidate_sha256": "6c47ce8d869fb46b338f6ed354ec95eb554471c215bc90b9c1d76c69e9cb60ee",
-      "candidate_sha256": "73bd9302ab9c5ca31b2262ee1306a56844314c1e044ce205fe5531bf21a3188f",
+      "candidate_sha256": "60e898cca12229d78e1b8e094b2d527620e66afe3f56307821deb179e82166fc",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks. Accept the observed fixed Codex closing phrases Keep it up! and Nice work! while retaining the complete authenticated, head-bound report and footer contract. Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance."
     },
     {
@@ -175,7 +175,7 @@
     {
       "path": "codex/scripts/tests/test_pr_readiness.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "9be4526d42bbf23b96405ef8aa90cacd38fbb5bd5164f350f42d6933eceb6bcc",
+      "candidate_sha256": "a99d8c77dacecb9f8a312d2ba431610e32193da7a0a038a9390224663e5747a5",
       "transformation": "Preserve selected checks and add synthetic missing-check and dismissed historical-review scenarios from the coordinated follow-up; production policy is unchanged. Exercise the observed Keep it up! report through existing author, head, review-state, footer and appended-failure rejection controls. Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection. Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
       "additional_source": {
         "revision": "d3b8f231dc659bde32ebac5e5c305b75b7589d4e",

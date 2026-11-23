@@ -245,7 +245,7 @@
         "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
         "Qualify atomic absent-file repair publication, exact published Desktop proposal names, and installation locking across proposal inspection and config publication; verify inherited descriptors against the fixed lock inode without releasing parent ownership. Remove an empty pre-staging recovery directory on creation failure and preserve the scrubber output-format contract when lock acquisition fails."
       ],
-      "candidate_sha256": "4e4b91053e061c6571d16eeae4fcbe1da4aa3601cdcce365059a2db05abf905c"
+      "candidate_sha256": "2aeff9aa9eb05ba0641fbab3f23b502bf64a756bac0f73c261ff1d3f7f490cca"
     },
     {
       "path": "codex/scripts/audit-project-codex-config-overrides.sh",
@@ -296,7 +296,7 @@
         "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance.",
         "Report a supersession close on a head outside the receipt using the mutation response or readback."
       ],
-      "candidate_sha256": "73bd9302ab9c5ca31b2262ee1306a56844314c1e044ce205fe5531bf21a3188f"
+      "candidate_sha256": "60e898cca12229d78e1b8e094b2d527620e66afe3f56307821deb179e82166fc"
     },
     {
       "path": "codex/scripts/pr_repair_ci.py",

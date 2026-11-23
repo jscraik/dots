@@ -146,7 +146,8 @@ def _main_locked(args) -> int:
     require_policy_path(args.config_path)
     config_path = args.config_path.expanduser()
     try:
-        original = config_path.read_text(encoding="utf-8")
+        original_bytes = config_path.read_bytes()
+        original = original_bytes.decode('utf-8')
     except OSError as exc:
         payload = {
             "schema_version": "computer-use-config-scrub/v1",
@@ -203,7 +204,7 @@ def _main_locked(args) -> int:
                 require_policy_path(SCRIPT_DIR / 'repair-runtime-config-drift.py'))
             publisher = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(publisher)
-            retained_path = publisher._write_repair(repair_path, scrubbed, expected=original.encode('utf-8'))
+            retained_path = publisher._write_repair(repair_path, scrubbed, expected=original_bytes)
         except OSError as exc:
             payload = {
                 "schema_version": "computer-use-config-scrub/v1",

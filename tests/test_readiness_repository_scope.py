@@ -110,7 +110,8 @@ class ReadinessRepositoryTests(unittest.TestCase):
             with self.subTest(kind=kind), self.assertRaises(ValueError):
                 SCOPE.write_repository_receipt(self.root, path, b'blocked')
         identity = SCOPE.repository_identity(self.root)
-        self.root.chmod(0o700)
+        self.root.chmod(0o500)
+        self.addCleanup(self.root.chmod, 0o700)
         with self.assertRaises(ValueError):
             SCOPE.require_repository_identity(self.root, identity)
         with self.assertRaises(ValueError):

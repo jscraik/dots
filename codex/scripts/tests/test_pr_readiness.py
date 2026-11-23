@@ -131,6 +131,22 @@ class PrReadinessTests(unittest.TestCase):
                     if state == 'UNKNOWN':
                         self.assertTrue(result['details']['unknown_required'])
 
+    def test_superseded_unknown_attempt_does_not_block_pending_reconciliation(self):
+        head = 'a' * 40
+        old = {'__typename': 'CheckRun', 'name': 'lint', 'app': {'id': 42},
+               'workflowName': 'lint-workflow', 'status': 'COMPLETED', 'conclusion': 'NEUTRAL',
+               'startedAt': '2026-11-22T17:00:00Z', 'completedAt': '2026-11-22T17:01:00Z'}
+        new = {**old, 'conclusion': 'SUCCESS', 'startedAt': '2026-11-22T17:02:00Z',
+               'completedAt': '2026-11-22T17:03:00Z'}
+        build = {'__typename': 'StatusContext', 'context': 'build', 'state': 'PENDING'}
+        for current, expected in (('SUCCESS', 'pass'), ('NEUTRAL', 'blocked'), ('MYSTERY', 'blocked')):
+            pr = required_check_pr([old, {**new, 'conclusion': current}, build], head,
+                                  required=[{'context': 'build', 'app_id': None}])
+            pr['statusCheckRollup'] = [{**new, 'conclusion': current}, build]
+            with self.subTest(current=current):
+                result = MODULE.phase_checks_lane(pr, head, 'review_reconciliation')
+                self.assertEqual(result['status'], expected)
+
     def test_required_execution_collection_failure_has_a_bounded_category(self):
         pr = {'requiredCheckPolicy': {},
               'requiredCheckPolicyError': 'current-head check-run inventory unavailable'}
@@ -2740,6 +2756,22 @@ class PrReadinessTests(unittest.TestCase):
                     del payload['lanes']['scope']['details']
                 else:
                     payload['lanes']['scope']['details'] = scope_details
+                self.assertEqual(validator.is_valid(payload), accepted)
+                self.assertEqual(MODULE.validate_receipt_schema(payload) is None, accepted)
+
+        for field in ('remote_base_sha', 'remote_head_sha'):
+            for status, value, accepted in (('fail', 'unknown', False), ('blocked', None, True),
+                                             ('pass', None, False), ('blocked', 'a' * 64, True)):
+                payload = self.passing_receipt()
+                payload['status'] = status
+                payload['repo'][field] = value
+                with self.subTest(field=field, status=status, value=value):
+                    self.assertEqual(validator.is_valid(payload), accepted)
+                    self.assertEqual(MODULE.validate_receipt_schema(payload) is None, accepted)
+        for paths, accepted in ((['z.py', 'a.py'], True), (['a.py', 'a.py'], False)):
+            payload = self.passing_receipt()
+            payload['lanes']['scope']['details']['declared_paths'] = paths
+            with self.subTest(paths=paths):
                 self.assertEqual(validator.is_valid(payload), accepted)
                 self.assertEqual(MODULE.validate_receipt_schema(payload) is None, accepted)
 
