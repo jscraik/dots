@@ -214,16 +214,34 @@ class PrBodyRefreshTests(unittest.TestCase):
         self.assertEqual(MODULE.validation_command_errors(template, body_path), [])
 
     def test_shared_evidence_section_requires_truthful_command_outcome(self) -> None:
-        template_text = "## Summary\n\n## Impact and risk\n\n## Evidence\n\n## Reviewer focus\n\n## Readiness\n"
-        for evidence, accepted in (("- Command: `python -m unittest` -> not run (preservation checkpoint)", True),
-                                   ("- Command: `python -m unittest` -> not run", False),
-                                   ("- Behaviour: supplied claim only", False)):
+        template_text = (
+            "## Summary\n\n## Impact and risk\n\n## Evidence\n\n"
+            "- **Validation:** <!-- Give exact commands and outcomes. -->\n\n"
+            "## Reviewer focus\n\n## Readiness\n"
+        )
+        for evidence, accepted in (
+            ("- Command: `python -m unittest` -> not run (preservation checkpoint)", True),
+            ("- Command: `python -m unittest` -> not run", False),
+            ("- **Validation:** Command: `python -m unittest` -> pass", True),
+            ("- **Validation:**\n  - Command: `python -m unittest` -> pass", True),
+            (
+                "- **Validation:** Command: `python -m unittest` -> blocked ()\n"
+                "- Command: `ruff check .` -> pass",
+                False,
+            ),
+            ("- **Validation:** tests passed", False),
+            ("- Behaviour: supplied claim only", False),
+        ):
             with self.subTest(evidence=evidence):
                 _root, template, body_path = self._write_template_and_body(
                     template_text=template_text,
-                    body="## Summary\n\n## Impact and risk\n\n## Evidence\n" + evidence
-                         + "\n\n## Reviewer focus\n\n## Readiness\n")
-                self.assertEqual(MODULE.validation_command_errors(template, body_path) == [], accepted)
+                    body="## Summary\n\n## Impact and risk\n\n## Evidence\n"
+                    + evidence
+                    + "\n\n## Reviewer focus\n\n## Readiness\n",
+                )
+                self.assertEqual(
+                    MODULE.validation_command_errors(template, body_path) == [], accepted
+                )
 
     def test_rejects_placeholder_command_without_echoing_body_text(self) -> None:
         template_text = "## Testing\n\n- Regression coverage:\n"
@@ -245,21 +263,29 @@ class PrBodyRefreshTests(unittest.TestCase):
         )
         self.assertEqual(MODULE.validation_command_errors(template, body_path), [])
 
-    def test_requires_a_reason_for_not_applicable_command_evidence(self) -> None:
+    def test_requires_nonempty_reasons_only_for_unrun_commands(self) -> None:
         template_text = "## Testing\n\n- Regression coverage:\n"
         _root, template, body_path = self._write_template_and_body(
             template_text=template_text,
             body="## Testing\n\n- Regression coverage: fixture\n- Command: `pnpm test` -> n.a.\n",
         )
-        self.assertEqual(
-            MODULE.validation_command_errors(template, body_path),
-            ["Command evidence has invalid format at testing line 1."],
-        )
-        _fixture_resource(body_path).write_text(
-            "## Testing\n\n- Regression coverage: fixture\n- Command: `pnpm test` -> n.a. (not applicable: no package manifest)\n",
-            encoding="utf-8",
-        )
-        self.assertEqual(MODULE.validation_command_errors(template, body_path), [])
+        error = ["Command evidence has invalid format at testing line 1."]
+        for status in ("blocked", "not run", "n.a.", "n/a", "pass", "fail"):
+            for reason, nonempty in (
+                ("", False),
+                (" ()", False),
+                (" ( \t ).", False),
+                (" (no package manifest)", True),
+            ):
+                with self.subTest(status=status, reason=reason):
+                    _fixture_resource(body_path).write_text(
+                        f"## Testing\n\n- Command: `pnpm test` -> {status}{reason}\n",
+                        encoding="utf-8",
+                    )
+                    expected = [] if status in ("pass", "fail") or nonempty else error
+                    self.assertEqual(
+                        MODULE.validation_command_errors(template, body_path), expected
+                    )
 
     def test_comment_guidance_does_not_supply_a_required_field(self) -> None:
         template_text = "## Change details\n\n- Deferred work:\n<!-- - Deferred work: guidance only -->\n"

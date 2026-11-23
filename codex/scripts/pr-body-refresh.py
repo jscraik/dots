@@ -316,6 +316,8 @@ def _balanced_reason(value: str, *, required: bool) -> bool:
         reason = reason[:-1].rstrip()
     if not (reason.startswith("(") and reason.endswith(")")):
         return False
+    if required and not reason[1:-1].strip():
+        return False
     depth = 0
     for character in reason:
         if character == "(":
@@ -362,6 +364,17 @@ def validation_command_errors(template_path: Path, body_path: Path) -> list[str]
         line.strip()
         for line in _section_lines(body_path, "PR body file").get(evidence_section, [])
     ]
+    if evidence_section == "Evidence":
+        # Treat an inline command in the shared template's field as a command bullet.
+        validation_lines = [
+            re.sub(
+                r"^-\s+\*\*Validation:\*\*\s*(?:-\s*)?(?=Command:)",
+                "- ",
+                line,
+                flags=re.IGNORECASE,
+            )
+            for line in validation_lines
+        ]
     command_lines = [
         line for line in validation_lines if line.lower().startswith("- command:")
     ]

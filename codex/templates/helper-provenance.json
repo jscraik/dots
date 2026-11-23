@@ -135,7 +135,7 @@
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
         "Bind body update receipt consumption to its explicit repository and PR."
       ],
-      "candidate_sha256": "164358737ee172ba7dc5b7aab36995a0337558f51d493ffba344e28b7359bb9a"
+      "candidate_sha256": "824ab30e31ffe1bdb125af5dc2c0b1e9c0b9493b76800e2b7407398755b2036b"
     },
     {
       "path": "codex/scripts/pr-review-request.py",
@@ -563,7 +563,7 @@
         "accepted regression logic; synthetic local paths and fixture I/O confinement",
         "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
       ],
-      "candidate_sha256": "8746ef97123ba5c57aadb7a909f7c14b0f314109a30c230a0a810f53b4f9212d"
+      "candidate_sha256": "788f78396f6e73369d9fe39ead231df6f5340e44af9fc051be552e658f74fb7e"
     },
     {
       "path": "codex/scripts/tests/test_pr_review_request.py",
