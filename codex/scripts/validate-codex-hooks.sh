@@ -552,7 +552,7 @@ pre_tool_short_repo_admin_merge_block_output="$(
 assert_jq "$pre_tool_short_repo_admin_merge_block_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny admin PR merge with short global repo option"
 
 pre_tool_git_c_force_push_block_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -C /tmp/repo push origin feature --force"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -C /tmp/repo push origin feature:feature --force"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_git_c_force_push_block_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny force push with git global options"
@@ -625,6 +625,32 @@ pre_tool_git_c_protected_push_block_output="$(
     | run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_git_c_protected_push_block_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny protected push with git global options"
+
+for unapproved_push in \
+  'git push' \
+  'git push origin' \
+  'git push origin HEAD' \
+  'git push origin refs/heads/*' \
+  'git push --repo=origin'
+do
+  pre_tool_unapproved_push_output="$(
+    jq -cn --arg command "$unapproved_push" '{hook_event_name:"PreToolUse",session_id:"thr_test",turn_id:"turn_test",tool_name:"Bash",tool_use_id:"tool_test",tool_input:{command:$command},cwd:env.HOME,permission_mode:"on-request"}' \
+      | run_fixture_hook hooks/pre-tool-use-guard.sh
+  )"
+  assert_jq "$pre_tool_unapproved_push_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny implicit or ambiguous push destination: $unapproved_push"
+done
+
+for explicit_topic_push in \
+  'git push origin feature:feature' \
+  'git push origin HEAD:feature' \
+  'git push --repo=origin feature:feature'
+do
+  pre_tool_explicit_topic_push_output="$(
+    jq -cn --arg command "$explicit_topic_push" '{hook_event_name:"PreToolUse",session_id:"thr_test",turn_id:"turn_test",tool_name:"Bash",tool_use_id:"tool_test",tool_input:{command:$command},cwd:env.HOME,permission_mode:"on-request"}' \
+      | run_fixture_hook hooks/pre-tool-use-guard.sh
+  )"
+  assert_jq "$pre_tool_explicit_topic_push_output" '.hookSpecificOutput.permissionDecision != "deny"' "PreToolUse should allow explicit topic push destination: $explicit_topic_push"
+done
 
 pre_tool_quoted_git_c_force_push_block_output="$(
   printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -C \"/tmp/path with spaces/repo\" push origin main --force"},"cwd":"/tmp","permission_mode":"on-request"}' \
@@ -736,6 +762,7 @@ while (($# > 0)); do
 done
 [[ -p "$env_file" ]] || exit 2
 export CIRCLECI_CLI_TOKEN="non-secret-test-placeholder"
+export OLLAMA_API_KEY="second-non-secret-test-placeholder"
 exec "$@"
 EOF
 chmod a+x,a-w "$auth_canary_bin/op"; chmod a-w "$auth_canary_root/homebrew" "$auth_canary_bin"
@@ -762,6 +789,83 @@ if [[ "$auth_canary_alternate_output" != *"only permits the canonical ~/.codex/.
   chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
   exit 1
 fi
+auth_scoped_output="$(env -u CIRCLECI_CLI_TOKEN -u OLLAMA_API_KEY -u CODEX_HOME -u CODEX_AUTH_OP_BIN -u CODEX_AUTH_TEST_MODE HOME="$auth_canary_home" bash "$auth_canary_wrapper" --env-file "$auth_canary_home/.codex/.env" --require-env CIRCLECI_CLI_TOKEN -- /bin/bash -c '
+  set -euo pipefail
+  [[ -n "${CIRCLECI_CLI_TOKEN:-}" ]]
+  [[ -z "${OLLAMA_API_KEY+x}" ]]
+  [[ "$HOME" == "$1" ]]
+  [[ -n "${PATH:-}" ]]
+  printf "run-auth-backed.sh: scoped child environment passed\n"
+' bash "$auth_canary_home")"
+[[ "$auth_scoped_output" == "run-auth-backed.sh: scoped child environment passed" ]] || {
+  echo "[validate-codex-hooks] auth-backed child should receive only its requested secret and preserved runtime context" >&2
+  printf '%s\n' "$auth_scoped_output" >&2
+  chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
+  exit 1
+}
+auth_multi_output="$(env -u CIRCLECI_CLI_TOKEN -u OLLAMA_API_KEY -u CODEX_HOME -u CODEX_AUTH_OP_BIN -u CODEX_AUTH_TEST_MODE HOME="$auth_canary_home" bash "$auth_canary_wrapper" --env-file "$auth_canary_home/.codex/.env" --require-env CIRCLECI_CLI_TOKEN --require-env OLLAMA_API_KEY -- /bin/bash -c '
+  set -euo pipefail
+  [[ -n "${CIRCLECI_CLI_TOKEN:-}" && -n "${OLLAMA_API_KEY:-}" ]]
+  printf "run-auth-backed.sh: multiple requested variables passed\n"
+')"
+[[ "$auth_multi_output" == "run-auth-backed.sh: multiple requested variables passed" ]] || {
+  echo "[validate-codex-hooks] auth-backed child should receive every explicitly requested variable" >&2
+  printf '%s\n' "$auth_multi_output" >&2
+  chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
+  exit 1
+}
+for missing_name in required_count runtime_count child_env env_name idx; do
+  missing_status=0
+  env -u "$missing_name" -u CODEX_HOME -u CODEX_AUTH_OP_BIN -u CODEX_AUTH_TEST_MODE HOME="$auth_canary_home" bash "$auth_canary_wrapper" --env-file "$auth_canary_home/.codex/.env" --require-env "$missing_name" -- /bin/true >/dev/null 2>&1 || missing_status=$?
+  if [[ "$missing_status" != 67 ]]; then
+    echo "[validate-codex-hooks] missing requested variable must not be supplied by launcher state" >&2
+    exit 1
+  fi
+done
+for auth_required_name in required_count runtime_count; do
+  auth_required_status=0
+  auth_required_output="$(env -u "$auth_required_name" -u CODEX_HOME -u CODEX_AUTH_OP_BIN -u CODEX_AUTH_TEST_MODE HOME="$auth_canary_home" bash "$auth_canary_wrapper" --env-file "$auth_canary_home/.codex/.env" --require-env "$auth_required_name" -- /bin/true 2>&1)" || auth_required_status=$?
+  if [[ "$auth_required_status" != 67 || "$auth_required_output" != "run-auth-backed.sh: required env var is missing after auth load: $auth_required_name" ]]; then
+    echo "[validate-codex-hooks] missing required variable $auth_required_name should exit 67 (got $auth_required_status)" >&2
+    chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
+    exit 1
+  fi
+done
+if ! env -u CODEX_HOME -u CODEX_AUTH_OP_BIN -u CODEX_AUTH_TEST_MODE HOME="$auth_canary_home" required_count='first fixture value' runtime_count='second fixture value' bash "$auth_canary_wrapper" --env-file "$auth_canary_home/.codex/.env" --require-env required_count --require-env runtime_count -- /bin/bash -c '
+  [[ "$required_count" == "first fixture value" && "$runtime_count" == "second fixture value" ]]
+'; then
+  echo "[validate-codex-hooks] launcher should preserve requested values that match its former state names" >&2
+  chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
+  exit 1
+fi
+auth_unscoped_output="$(env -u CIRCLECI_CLI_TOKEN -u OLLAMA_API_KEY -u CODEX_HOME -u CODEX_AUTH_OP_BIN -u CODEX_AUTH_TEST_MODE HOME="$auth_canary_home" bash "$auth_canary_wrapper" --env-file "$auth_canary_home/.codex/.env" -- /bin/bash -c '
+  set -euo pipefail
+  [[ -z "${CIRCLECI_CLI_TOKEN+x}" && -z "${OLLAMA_API_KEY+x}" ]]
+  printf "run-auth-backed.sh: unscoped child received no injected variables\n"
+')"
+[[ "$auth_unscoped_output" == "run-auth-backed.sh: unscoped child received no injected variables" ]] || {
+  echo "[validate-codex-hooks] auth-backed child without requested names must receive no injected variables" >&2
+  printf '%s\n' "$auth_unscoped_output" >&2
+  chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
+  exit 1
+}
+if auth_reserved_output="$(env -u CIRCLECI_CLI_TOKEN -u OLLAMA_API_KEY -u CODEX_HOME -u CODEX_AUTH_OP_BIN -u CODEX_AUTH_TEST_MODE HOME="$auth_canary_home" bash "$auth_canary_wrapper" --env-file "$auth_canary_home/.codex/.env" --require-env PATH -- /bin/true 2>&1)"; then
+  echo "[validate-codex-hooks] auth-backed child should reject requested names reserved for runtime context" >&2
+  chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
+  exit 1
+fi
+if [[ "$auth_reserved_output" != *"name is reserved for pre-injection runtime context: PATH"* ]]; then
+  echo "[validate-codex-hooks] reserved auth-backed child environment rejection should be explicit" >&2
+  printf '%s\n' "$auth_reserved_output" >&2
+  chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
+  exit 1
+fi
+auth_pipe_status=0
+env -u CODEX_HOME -u CODEX_AUTH_OP_BIN -u CODEX_AUTH_TEST_MODE HOME="$auth_canary_home" bash "$auth_canary_wrapper" --env-file "$auth_canary_home/.codex/.env" -- /usr/bin/yes | head -c 1 >/dev/null || auth_pipe_status=$?
+if [[ "$auth_pipe_status" != 141 ]]; then
+  echo "[validate-codex-hooks] auth child must retain normal SIGPIPE behaviour" >&2
+  exit 1
+fi
 chmod -R u+w "$auth_canary_root" 2>/dev/null || true; rm -rf "$auth_canary_root"
 trace_step "auth-injection canary behavior checks passed"
 
@@ -774,7 +878,7 @@ assert_jq "$pre_tool_no_verify_block_output" '.hookSpecificOutput.permissionDeci
 trace_step "pre-tool commit no-verify check passed"
 
 pre_tool_push_no_verify_block_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push --no-verify origin HEAD"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push --no-verify origin HEAD:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_push_no_verify_block_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny git push --no-verify by default"
@@ -782,7 +886,7 @@ assert_jq "$pre_tool_push_no_verify_block_output" '.hookSpecificOutput.permissio
 trace_step "pre-tool push no-verify check passed"
 
 pre_tool_push_no_verify_override_attempt_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push --no-verify origin HEAD"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push --no-verify origin HEAD:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production push" run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_push_no_verify_override_attempt_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny git push no-verify even when bypass env vars are set"
@@ -797,7 +901,7 @@ trace_step "pre-tool commit no-verify override-deny check passed"
 
 tmp_breakglass_push_audit_log="$(mktemp)"
 pre_tool_push_no_verify_allow_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push --no-verify origin HEAD"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push --no-verify origin HEAD:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production hotfix" CODEX_HOOK_BYPASS_LOG="$tmp_breakglass_push_audit_log" run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_push_no_verify_allow_output" '(has("continue") | not) and ((.hookSpecificOutput.permissionDecision // "") == "")' "PreToolUse should allow git push --no-verify with break-glass bypass"
@@ -819,15 +923,15 @@ tmp_breakglass_boundary_baseline_log="$(mktemp)"
 tmp_breakglass_boundary_and_log="$(mktemp)"
 tmp_breakglass_boundary_background_log="$(mktemp)"
 pre_tool_push_boundary_baseline_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin feature:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production hotfix" CODEX_HOOK_BYPASS_LOG="$tmp_breakglass_boundary_baseline_log" run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 pre_tool_push_boundary_and_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin feature && echo --no-verify"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin feature:feature && echo --no-verify"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production hotfix" CODEX_HOOK_BYPASS_LOG="$tmp_breakglass_boundary_and_log" run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 pre_tool_push_boundary_background_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin feature & echo --no-verify"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin feature:feature & echo --no-verify"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production hotfix" CODEX_HOOK_BYPASS_LOG="$tmp_breakglass_boundary_background_log" run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_push_boundary_baseline_output" '(has("continue") | not) and ((.hookSpecificOutput.permissionDecision // "") == "")' "PreToolUse should allow the unprotected push baseline"
@@ -857,7 +961,7 @@ fi
 rm -f "$tmp_breakglass_boundary_audit_log"
 trace_step "pre-tool push no-verify command-boundary check passed"
 pre_tool_clustered_force_push_output="$(
-  run_fixture_hook hooks/pre-tool-use-guard.sh <<< '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push -vf origin feature"},"cwd":"/tmp","permission_mode":"on-request"}'
+  run_fixture_hook hooks/pre-tool-use-guard.sh <<< '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push -vf origin feature:feature"},"cwd":"/tmp","permission_mode":"on-request"}'
 )"
 assert_jq "$pre_tool_clustered_force_push_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should detect force in clustered short push flags"
 
@@ -867,7 +971,7 @@ pre_tool_force_refspec_output="$(
 assert_jq "$pre_tool_force_refspec_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should detect plus-prefixed force refspecs"
 
 pre_tool_later_force_text_control_output="$(
-  run_fixture_hook hooks/pre-tool-use-guard.sh <<< '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin feature && echo \"-vf +feature:feature\""},"cwd":"/tmp","permission_mode":"on-request"}'
+  run_fixture_hook hooks/pre-tool-use-guard.sh <<< '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin feature:feature && echo \"-vf +feature:feature\""},"cwd":"/tmp","permission_mode":"on-request"}'
 )"
 assert_jq "$pre_tool_later_force_text_control_output" '(has("continue") | not) and ((.hookSpecificOutput.permissionDecision // "") == "")' "PreToolUse should not attribute later quoted force text to an earlier push segment"
 
@@ -882,7 +986,7 @@ pre_tool_until_condition_protected_push_output="$(
 assert_jq "$pre_tool_until_condition_protected_push_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should detect protected pushes used as until conditions"
 
 pre_tool_while_condition_force_push_output="$(
-  run_fixture_hook hooks/pre-tool-use-guard.sh <<< '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"while git push origin feature --force; do echo retry; done"},"cwd":"/tmp","permission_mode":"on-request"}'
+  run_fixture_hook hooks/pre-tool-use-guard.sh <<< '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"while git push origin feature:feature --force; do echo retry; done"},"cwd":"/tmp","permission_mode":"on-request"}'
 )"
 assert_jq "$pre_tool_while_condition_force_push_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should detect forced pushes used as while conditions"
 
@@ -935,7 +1039,7 @@ assert_jq "$pre_tool_conditional_commit_bypass_output" '.hookSpecificOutput.perm
 tmp_segment_bound_breakglass_log="$(mktemp)"
 pre_tool_segment_bound_breakglass_output="$(
   CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production hotfix" CODEX_HOOK_BYPASS_LOG="$tmp_segment_bound_breakglass_log" \
-    run_fixture_hook hooks/pre-tool-use-guard.sh <<< '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push --no-verify origin feature && git status main"},"cwd":"/tmp","permission_mode":"on-request"}'
+    run_fixture_hook hooks/pre-tool-use-guard.sh <<< '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push --no-verify origin feature:feature && git status main"},"cwd":"/tmp","permission_mode":"on-request"}'
 )"
 assert_jq "$pre_tool_segment_bound_breakglass_output" '(has("continue") | not) and ((.hookSpecificOutput.permissionDecision // "") == "")' "PreToolUse should allow audited push-only break-glass followed by a harmless command mentioning main"
 if [[ ! -s "$tmp_segment_bound_breakglass_log" ]]; then
@@ -947,7 +1051,7 @@ trace_step "pre-tool quoted separator and shell-group checks passed"
 
 
 pre_tool_second_push_no_verify_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin feature && git push --no-verify origin feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git push origin feature:feature && git push --no-verify origin feature:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_second_push_no_verify_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should detect --no-verify on a later git push invocation"
@@ -960,7 +1064,7 @@ assert_jq "$pre_tool_second_commit_no_verify_output" '.hookSpecificOutput.permis
 
 tmp_compound_breakglass_audit_log="$(mktemp)"
 pre_tool_compound_commit_push_bypass_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git commit --no-verify -m bad && git push --no-verify origin feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git commit --no-verify -m bad && git push --no-verify origin feature:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production hotfix" CODEX_HOOK_BYPASS_LOG="$tmp_compound_breakglass_audit_log" run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_compound_commit_push_bypass_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse push break-glass should not authorize a compound command containing git commit --no-verify"
@@ -979,7 +1083,7 @@ assert_jq "$pre_tool_global_opt_commit_output" '.hookSpecificOutput.permissionDe
 assert_jq "$pre_tool_global_opt_commit_output" '.hookSpecificOutput.permissionDecisionReason | contains("Bypass is forbidden")' "PreToolUse global-option commit deny reason should enforce non-bypassable policy"
 
 pre_tool_global_opt_push_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -c core.hooksPath=/dev/null push --no-verify origin HEAD"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -c core.hooksPath=/dev/null push --no-verify origin HEAD:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_global_opt_push_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny git push --no-verify with global options"
@@ -992,14 +1096,14 @@ pre_tool_global_opt_commit_override_attempt_output="$(
 assert_jq "$pre_tool_global_opt_commit_override_attempt_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny global-option git commit no-verify even when bypass env vars are set"
 
 pre_tool_global_opt_push_override_attempt_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -c core.hooksPath=/dev/null push --no-verify origin HEAD"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -c core.hooksPath=/dev/null push --no-verify origin HEAD:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production push" run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_global_opt_push_override_attempt_output" '.hookSpecificOutput.permissionDecision == "deny"' "PreToolUse should deny global-option git push no-verify even when bypass env vars are set"
 
 tmp_breakglass_global_opt_push_audit_log="$(mktemp)"
 pre_tool_global_opt_push_allow_output="$(
-  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -c core.hooksPath=/dev/null push --no-verify origin HEAD"},"cwd":"/tmp","permission_mode":"on-request"}' \
+  printf '%s' '{"hook_event_name":"PreToolUse","session_id":"thr_test","turn_id":"turn_test","tool_name":"Bash","tool_use_id":"tool_test","tool_input":{"command":"git -c core.hooksPath=/dev/null push --no-verify origin HEAD:feature"},"cwd":"/tmp","permission_mode":"on-request"}' \
     | CODEX_HOOK_BYPASS_ACK=1 CODEX_HOOK_BYPASS_REASON="JSC-000 emergency production hotfix" CODEX_HOOK_BYPASS_LOG="$tmp_breakglass_global_opt_push_audit_log" run_fixture_hook hooks/pre-tool-use-guard.sh
 )"
 assert_jq "$pre_tool_global_opt_push_allow_output" '(has("continue") | not) and ((.hookSpecificOutput.permissionDecision // "") == "")' "PreToolUse should allow global-option git push --no-verify with break-glass bypass"

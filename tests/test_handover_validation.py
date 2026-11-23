@@ -4,12 +4,77 @@ import json
 import subprocess
 import sys
 import unittest
+from pathlib import Path
 
 from helper_fixture import HelperFixture
 from policy_fixture import ROOT
 
 
 class HandoverValidationTests(unittest.TestCase):
+    def test_scrub_preserves_raw_crlf_bytes_for_publication_comparison(self):
+        target = self.fixture.home / 'crlf-scrub.toml'
+        original = b'notify = ["SkyComputerUseClient"]\r\nmodel = "fixture"\r\n'
+        target.write_bytes(original)
+        result = self.fixture.helper('scrub-computer-use-config.py', '--config-path', str(target), '--repair', '--json')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload['status'], 'repaired')
+        self.assertEqual(Path(payload['retained_generation_path']).read_bytes(), original)
+        self.assertNotIn(b'SkyComputerUseClient', target.read_bytes())
+        self.assertIn(b'model = "fixture"', target.read_bytes())
+
+    def test_scrub_operator_output_names_the_retained_generation(self):
+        fixture = self.fixture
+        target = fixture.home / 'operator-scrub.toml'
+        original = 'notify = ["SkyComputerUseClient"]\n'
+        target.write_text(original)
+        result = fixture.helper('scrub-computer-use-config.py', '--config-path', str(target), '--repair')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        line = next(line for line in result.stdout.splitlines() if line.startswith('Retained generation: '))
+        retained = Path(line.removeprefix('Retained generation: ').split(';', 1)[0])
+        self.assertEqual(retained.read_text(), original)
+        self.assertIn('inspect native saves before explicit recovery', result.stdout)
+
+    def test_scrub_retains_the_generation_displaced_by_a_native_save(self):
+        fixture = self.fixture
+        child = '''import contextlib,importlib.util,io,json,sys
+from pathlib import Path
+sys.path.insert(0,str(Path(sys.argv[1]).parent))
+spec=importlib.util.spec_from_file_location("scrub_race",sys.argv[1])
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+target=Path(sys.argv[2]);original='notify = ["SkyComputerUseClient"]\\n'
+target.write_text(original)
+native=original+'native_preference = true\\n'
+original_spec=importlib.util.spec_from_file_location
+def intercept(name,path,*args,**kwargs):
+    selected=original_spec(name,path,*args,**kwargs)
+    if name=="scrub_retained_publication":
+        execute=selected.loader.exec_module
+        def load(loaded):
+            execute(loaded);write=loaded._write_repair
+            def racing_write(path,text,**options):
+                options["before_exchange"]=lambda slot: target.write_text(native)
+                return write(path,text,**options)
+            loaded._write_repair=racing_write
+        selected.loader.exec_module=load
+    return selected
+importlib.util.spec_from_file_location=intercept
+sys.argv=[sys.argv[1],"--config-path",str(target),"--repair","--json"]
+output=io.StringIO()
+with contextlib.redirect_stdout(output): status=module.main()
+result=json.loads(output.getvalue())
+assert status==1 and result["status"]=="blocked",result
+retained=Path(result["retained_generation_path"])
+assert retained.read_text()==native
+assert retained.is_relative_to(target.parent)
+assert target.exists()
+'''
+        result = subprocess.run([sys.executable, '-B', '-c', child,
+            str(fixture.codex / 'scripts/scrub-computer-use-config.py'),
+            str(fixture.home / 'scrub-race.toml')], env=fixture.env, cwd=fixture.repo,
+            capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_scrub_lock_failure_respects_requested_output_format(self):
         fixture = self.fixture
         child = '''import contextlib,importlib.util,io,json,sys

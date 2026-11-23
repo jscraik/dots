@@ -13,6 +13,54 @@ from hook_fixture import HookFixture
 
 
 class HookHandlerTests(unittest.TestCase):
+    def test_distinct_unclassified_failures_keep_separate_safe_advisories(self):
+        for marker in ('synthetic-secret-first', 'synthetic-secret-second'):
+            output = self.output('post-tool-use-review.sh',
+                {'tool_response': {'exit_code': 1, 'stderr': marker}})
+            self.assertIn('additionalContext', output['hookSpecificOutput'])
+            self.assertNotIn(marker, json.dumps(output))
+        duplicate = self.output('post-tool-use-review.sh',
+            {'tool_response': {'exit_code': 1, 'stderr': 'synthetic-secret-second'}})
+        self.assertTrue(duplicate['continue'])
+
+    def test_literal_expansion_names_still_resolve_protected_symlinks(self):
+        for name in ('$credential', '`credential`'):
+            path = self.fixture.repo / name
+            path.symlink_to(self.fixture.runtime / 'auth.json')
+            for hook in ('pre-tool-use-guard.sh', 'pre-tool-use-dispatch.sh'):
+                with self.subTest(name=name, hook=hook):
+                    output = self.output(hook, {'tool_input': {'command': 'cat ' + shlex.quote('./' + name)}})
+                    self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+            path.unlink()
+            path.write_text('ordinary data')
+            output = self.output('pre-tool-use-guard.sh', {'tool_input': {'command': 'cat ' + shlex.quote('./' + name)}})
+            self.assertNotEqual(output.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+
+    def test_source_only_push_cannot_select_a_configured_protected_destination(self):
+        subprocess.run(['git', 'config', 'remote.origin.push', 'refs/heads/feature:refs/heads/main'],
+                       cwd=self.fixture.repo, env=self.fixture.env, check=True)
+        for command in ('git push origin feature', 'git push origin refs/heads/feature'):
+            output = self.output('pre-tool-use-guard.sh', {'tool_input': {'command': command}})
+            self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+        output = self.output('pre-tool-use-guard.sh', {'tool_input': {'command': 'git push origin HEAD:feature'}})
+        self.assertNotEqual(output.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+    def test_session_start_reports_retained_generations_from_both_repair_helpers(self):
+        for status in ('repaired', 'blocked'):
+            paths = []
+            for name, schema in (('scrub-computer-use-config.py', 'computer-use-config-scrub/v1'),
+                                 ('repair-runtime-config-drift.py', 'runtime-config-drift-repair/v1')):
+                retained = self.fixture.runtime / (name + '.retained-generation.toml')
+                paths.append(str(retained))
+                payload = {'schema_version': schema, 'status': status, 'reason': 'fixture_outcome',
+                           'removed_count': 1, 'repairs': ['fixture'], 'retained_generation_path': str(retained)}
+                (self.fixture.codex / 'scripts' / name).write_text('print(' + repr(json.dumps(payload)) + ')\n')
+            output = self.output('session-start.sh', {'source': 'startup'},
+                {'CODEX_SESSION_REPAIR_MODE': 'repair', 'CODEX_HOOK_CONTEXT_DEDUP_DISABLE': '1'})
+            context = output['hookSpecificOutput']['additionalContext']
+            for retained in paths:
+                self.assertIn(retained, context)
+            self.assertIn('inspect native saves before explicit recovery', context)
+
     def test_admission_ignores_modules_beside_its_entrypoint(self):
         marker = self.fixture.home / 'shadow-json-ran'
         shadow = self.fixture.codex / 'scripts/json.py'
@@ -312,7 +360,7 @@ class HookHandlerTests(unittest.TestCase):
     def test_command_guards_keep_denials_and_defer_valid_commit_to_native_policy(self):
         safe = self.output('pre-tool-use-dispatch.sh')
         self.assertNotEqual(safe.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
-        for command in ('git commit --no-verify -m bad', 'git push --no-verify origin topic',
+        for command in ('git commit --no-verify -m bad', 'git push --no-verify origin HEAD:topic',
                         'git commit --no-gpg-sign -m fixture',
                         'git commit --amend -m fixture',
                         'git commit --gpg-sign=other-key -m fixture',
@@ -324,6 +372,16 @@ class HookHandlerTests(unittest.TestCase):
         output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': 'git commit -m fixture'}})
         self.assertNotEqual(output.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
         self.assertIn('Native execution approval still applies', output['hookSpecificOutput']['additionalContext'])
+
+    def test_push_requires_explicit_destination_with_configured_mapping(self):
+        prefix = 'git -c remote.origin.push=refs/heads/feature:refs/heads/main push origin '
+        for refspec, denied in (('feature', True), ('refs/heads/feature', True),
+                                ('HEAD:feature', False)):
+            with self.subTest(refspec=refspec):
+                output = self.output('pre-tool-use-guard.sh',
+                                     {'tool_input': {'command': prefix + refspec}})
+                decision = output.get('hookSpecificOutput', {}).get('permissionDecision')
+                self.assertEqual(decision == 'deny', denied, output)
 
     def test_commit_rejects_shell_expansion_before_option_admission(self):
         commands = (
@@ -426,12 +484,40 @@ class HookHandlerTests(unittest.TestCase):
         self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
         self.assertIn('receipt', output['hookSpecificOutput']['permissionDecisionReason'])
 
+    def test_pr_lifecycle_writes_require_their_operation_bound_route(self):
+        commands = (
+            'gh pr comment 12 --body fixture',
+            'gh pr ready 12',
+            'gh pr close 12',
+            'gh pr close 12 --delete-branch',
+            'gh pr reopen https://github.com/example/project/pull/12',
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                output = self.output('pre-tool-use-dispatch.sh',
+                                     {'tool_input': {'command': command}})
+                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+                reason = output['hookSpecificOutput']['permissionDecisionReason']
+                self.assertIn('update-phase readiness receipt' if ' comment ' in command
+                              else 'operation-bound', reason)
+
+    def test_pr_classifier_denies_unknown_verbs_by_default(self):
+        for command in ('gh pr lock 12', 'gh pr unlock 12',
+                        'gh pr checkout 12', 'gh pr future-write 12', 'gh pr'):
+            with self.subTest(command=command):
+                output = self.output('pre-tool-use-dispatch.sh',
+                                     {'tool_input': {'command': command}})
+                self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+                self.assertIn('protected command',
+                              output['hookSpecificOutput']['permissionDecisionReason'])
+
     def test_readiness_hook_rejects_github_target_environment(self):
         cases = (
             ('GH_REPO=other/repo gh pr merge 1', {}),
             ('env GH_HOST=other.example gh pr edit 1', {}),
             ('sudo env GH_REPO=other/repo gh pr review 1', {}),
             ('env -i GH_HOST=other.example gh pr merge 1', {}),
+            ('gh --hostname other.example pr comment 1 --body fixture', {}),
         )
         for command, environment in cases:
             with self.subTest(command=command, environment=environment):
@@ -482,7 +568,11 @@ class HookHandlerTests(unittest.TestCase):
             with self.subTest(command=command):
                 output = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
                 self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
-                self.assertIn('protected command', output['hookSpecificOutput']['permissionDecisionReason'])
+                reason = output['hookSpecificOutput']['permissionDecisionReason']
+                if command == 'gh api -X "$METHOD" "$ENDPOINT"':
+                    self.assertIn('uninspectable auth material access', reason)
+                else:
+                    self.assertIn('protected command', reason)
 
         for command in (
             'gh api repos/example/repo/pulls/349',
@@ -507,6 +597,7 @@ class HookHandlerTests(unittest.TestCase):
             return subprocess.check_output(['git', '-C', str(fixture.repo), *args],
                                            env=fixture.env, text=True, timeout=10).strip()
 
+        git('remote', 'add', 'origin', 'https://github.com/example/repo.git')
         # Run the real receipt validator with only its hosted reads replaced.
         checker = fixture.runtime / 'scripts/pr-readiness.py'
         checker.rename(checker.with_name('pr-readiness-real.py'))
@@ -514,7 +605,7 @@ class HookHandlerTests(unittest.TestCase):
             'import runpy\nfrom pathlib import Path\n'
             'main = runpy.run_path(str(Path(__file__).with_name("pr-readiness-real.py")))["main"]\n'
             'main.__globals__.update(repository_slug=lambda root: ("example/repo", None),\n'
-            '    remote_sha=lambda root, *_: main.__globals__["git"](root, "rev-parse", "HEAD"),\n'
+            '    hosted_remote_sha=lambda root, *_: main.__globals__["git"](root, "rev-parse", "HEAD"),\n'
             '    recheck_hosted_state=lambda *args, **kwargs: None)\n'
             'raise SystemExit(main())\n')
         git('add', '.')
@@ -522,14 +613,29 @@ class HookHandlerTests(unittest.TestCase):
             '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'Fixture')
         head = git('rev-parse', 'HEAD')
         receipt = fixture.repo / '.git/pr-readiness.v1.json'
+        digest = hashlib.sha256(b'\n').hexdigest()
         receipt.write_text(json.dumps({
             'schema_version': 'pr-readiness/v1', 'phase': 'update', 'status': 'pass',
-            'repo': {'branch': git('branch', '--show-current'), 'head_sha': head,
-                     'base_branch': 'main', 'base_sha': head,
+            'checked_at': '2026-11-22T17:00:00Z',
+            'repo': {'root': str(fixture.repo),
+                     'branch': git('branch', '--show-current'), 'head_sha': head,
+                     'base_branch': 'main', 'base_sha': head, 'remote': 'origin',
                      'remote_base_sha': head, 'remote_head_sha': head},
-            'lanes': {'pull_request': {'details': {'number': 349}},
-                      'scope': {'details': {'declared_paths': []}}},
-            'receipt': {'scope_digest': hashlib.sha256(b'\n').hexdigest()},
+            'lanes': {
+                'remote_ancestry': {'status': 'pass', 'evidence': 'remote ancestry passed'},
+                'dirty_worktree': {'status': 'pass', 'evidence': 'worktree is clean'},
+                'worktree_boundary': {'status': 'pass', 'evidence': 'worktree is registered'},
+                'scope': {'status': 'pass', 'evidence': 'scope passed',
+                          'details': {'declared_paths': []}},
+                'pull_request': {'status': 'pass', 'evidence': 'pull request matched',
+                                 'details': {'number': 349, 'url': 'https://github.com/example/repo/pull/349'}},
+                'required_checks': {'status': 'pass', 'evidence': 'checks passed',
+                                    'details': {'policy_digest': 'a' * 64}},
+                'reviews': {'status': 'pass', 'evidence': 'reviews passed'},
+            },
+            'blockers': [],
+            'evidence_refs': [f'head:{head}'],
+            'receipt': {'path': str(receipt), 'scope_digest': digest},
         }))
         def merge(endpoint):
             return self.output('pre-tool-use-dispatch.sh', {
@@ -546,6 +652,32 @@ class HookHandlerTests(unittest.TestCase):
                 output = merge(endpoint)
                 self.assertEqual(output['permissionDecision'], 'deny')
                 self.assertIn(f'command {target} target does not match receipt', output['permissionDecisionReason'])
+
+        def dispatch(command):
+            return self.output('pre-tool-use-dispatch.sh', {
+                'tool_input': {'command': command},
+            })['hookSpecificOutput']
+
+        for command in ('gh pr comment 349 --body fixture',):
+            with self.subTest(command=command):
+                output = dispatch(command)
+                self.assertNotIn('permissionDecision', output)
+                self.assertIn('update readiness receipt is current and passing',
+                              output['additionalContext'])
+        for command, target in (('gh -Rexample/other pr comment 349 --body fixture', 'repository'),):
+            with self.subTest(command=command):
+                output = dispatch(command)
+                self.assertEqual(output['permissionDecision'], 'deny')
+                self.assertIn(f'command {target} target does not match receipt',
+                              output['permissionDecisionReason'])
+        for command in ('gh -Rexample/repo pr ready 349',
+                        'gh pr close 349 --delete-branch -Rexample/repo',
+                        'gh pr close 349 -d',
+                        'gh pr reopen https://github.com/example/repo/pull/349'):
+            with self.subTest(command=command):
+                output = dispatch(command)
+                self.assertEqual(output['permissionDecision'], 'deny')
+                self.assertIn('operation-bound', output['permissionDecisionReason'])
 
     def test_pr_inspection_does_not_require_a_mutation_receipt(self):
         for command in ('gh pr view 12 --json state | jq .state',
@@ -798,3 +930,116 @@ class HookHandlerTests(unittest.TestCase):
         self.assertIn('must be a FIFO', result.stderr)
         self.assertNotIn('synthetic-secret-sentinel', result.stdout + result.stderr)
         self.assertEqual(path.read_text(), 'synthetic-secret-sentinel')
+
+    def test_post_tool_distinguishes_unclassified_failures_with_the_same_exit_code(self):
+        outputs = ['x' * 240 + suffix for suffix in ('fixture-detail-one', 'fixture-detail-two')]
+        advisories = [
+            self.output(
+                'post-tool-use-review.sh',
+                {'turn_id': f'turn-{index}', 'tool_response': {'exit_code': 1, 'stderr': detail}},
+            )
+            for index, detail in enumerate((*outputs, outputs[0]))
+        ]
+        self.assertIn('hookSpecificOutput', advisories[0])
+        self.assertEqual(advisories[1], advisories[0])
+        self.assertEqual(advisories[2], {'continue': True})
+
+        receipt = self.fixture.runtime / 'usage-data/hook-events.jsonl'
+        records = receipt.read_text().splitlines()
+        self.assertEqual([json.loads(record)['decision'] for record in records],
+                         ['warn', 'warn', 'suppressed_duplicate'])
+        for detail in outputs:
+            self.assertNotIn(detail[240:], json.dumps(advisories) + ''.join(records))
+
+    def test_post_tool_failure_omits_raw_output_from_advisory_and_receipt(self):
+        cases = [
+            (
+                {'exit_code': 1, field: f'Permission denied synthetic-secret-{field}'},
+                f'synthetic-secret-{field}',
+            )
+            for field in ('stderr', 'output', 'stdout', 'message', 'error', 'text')
+        ]
+        cases.append(
+            (
+                'Rejected("approval required by policy, but AskForApproval is set to Never; '
+                'synthetic-secret-string")',
+                'synthetic-secret-string',
+            )
+        )
+        receipt = self.fixture.runtime / 'usage-data/hook-events.jsonl'
+
+        for response, sentinel in cases:
+            with self.subTest(response=response):
+                output = self.output(
+                    'post-tool-use-review.sh',
+                    {'tool_response': response},
+                    {'CODEX_HOOK_CONTEXT_DEDUP_DISABLE': '1'},
+                )
+                context = output['hookSpecificOutput']['additionalContext']
+                receipt_record = receipt.read_text().splitlines()[-1]
+
+                self.assertNotIn(sentinel, json.dumps(output))
+                self.assertNotIn(sentinel, receipt_record)
+                self.assertIn('raw output is omitted', context)
+                if isinstance(response, str):
+                    self.assertIn('policy-layer mismatch', context)
+                else:
+                    self.assertIn('exit code 1', context)
+                    self.assertIn('minimal required permission', context)
+                self.assertEqual(json.loads(receipt_record)['reason'], context)
+
+    def test_auth_path_expansions_fail_closed_without_blocking_literals(self):
+        commands = (
+            'leaf=auth.json; cat "$HOME/.codex/$leaf"',
+            'cat "$CODEX_AUTH_PATH"',
+            'printf harmless > "$CODEX_AUTH_PATH"',
+            'echo harmless >> "$CODEX_AUTH_PATH"',
+            'printf harmless < "$CODEX_AUTH_PATH"',
+            "zsh -c 'printf harmless >! \"$CODEX_AUTH_PATH\"'",
+            "zsh -c 'printf harmless >>! \"$CODEX_AUTH_PATH\"'",
+            "zsh -c 'echo harmless >&! \"$CODEX_AUTH_PATH\"'",
+            "zsh -c 'echo harmless >>&! \"$CODEX_AUTH_PATH\"'",
+            "zsh -c 'printf harmless >>| \"$CODEX_AUTH_PATH\"'",
+            "zsh -c 'printf harmless >&| \"$CODEX_AUTH_PATH\"'",
+            "zsh -c 'printf harmless >>& \"$CODEX_AUTH_PATH\"'",
+            'echo() { cat "$1"; }; echo "$CODEX_AUTH_PATH"',
+            'base="$HOME/.codex"; cat "${base}/auth.json"',
+            'cat "${paths[0]}"',
+            'cat "${!selected_path}"',
+            'cat "$1"',
+            'cat "$((1 + 1))"',
+            'read_auth() { cat "$1"; }; read_auth "$HOME/.codex/auth.json"',
+            "bash -c 'cat \"$CODEX_AUTH_PATH\"'",
+            "zsh -c 'cat $=SECRET_PATH'",
+            "zsh -c 'cat $^SECRET_PATH'",
+            "zsh -c 'cat $~SECRET_PATH'",
+            "zsh -c 'cat $+SECRET_PATH'",
+            "zsh -c 'cat $<'",
+        )
+        for hook in ('pre-tool-use-guard.sh', 'pre-tool-use-dispatch.sh'):
+            for command in commands:
+                with self.subTest(hook=hook, command=command):
+                    output = self.output(hook, {'tool_input': {'command': command}})
+                    self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+
+            for command in ('cat README.md', "cat '$HOME/.codex/$leaf'",
+                            r'cat \$HOME/.codex/\$leaf', 'echo "$USER"',
+                            'printf "%s" "$USER"'):
+                with self.subTest(hook=hook, command=command):
+                    literal = self.output(hook, {'tool_input': {'command': command}})
+                    self.assertNotEqual(literal.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+
+        # Literal destinations do not access auth material. The dispatcher
+        # independently rejects these unadmitted write commands.
+        for command in ("printf harmless > '$DESTINATION'", r'echo harmless > \$DESTINATION'):
+            literal = self.output('pre-tool-use-guard.sh', {'tool_input': {'command': command}})
+            self.assertNotEqual(literal.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')
+            dispatched = self.output('pre-tool-use-dispatch.sh', {'tool_input': {'command': command}})
+            self.assertEqual(dispatched['hookSpecificOutput']['permissionDecision'], 'deny')
+            self.assertIn('not admitted', dispatched['hookSpecificOutput']['permissionDecisionReason'])
+
+        wrapper = shlex.quote(str(self.fixture.codex / 'scripts/run-auth-backed.sh'))
+        allowed = self.output('pre-tool-use-dispatch.sh', {
+            'tool_input': {'command': f'bash {wrapper} --env-file ~/.codex/.env --canary SYNTHETIC_TOKEN'},
+        })
+        self.assertNotEqual(allowed.get('hookSpecificOutput', {}).get('permissionDecision'), 'deny')

@@ -49,9 +49,11 @@
       "source_sha256": "d3b5e1bef276f85b724bd898392325ceeebf83b8c21eb5bd601631509350bebc",
       "transformations": [
         "fixture scope and event admission before handler actions",
-        "fixed root-owned hook dependency path and absolute Bash launch"
+        "fixed root-owned hook dependency path and absolute Bash launch",
+        "Omit raw failed-tool output from advisory context and persisted receipts.",
+        "Include unclassified failure output only in the hashed deduplication key."
       ],
-      "candidate_sha256": "d60ba2ce3bcdef9ccb791a1312b19d896665cf9b4842e628d8d86db351c287ad"
+      "candidate_sha256": "1e280973b973fe4b5ce1b9824e0f53774b3c79302db9ea9158ab444bd22a8f9f"
     },
     {
       "path": "codex/hooks/pr-readiness-guard.sh",
@@ -60,9 +62,11 @@
       "transformations": [
         "fixture scope and event admission before handler actions",
         "Classify raw GitHub API methods and normalized endpoints; bind canonical REST merges to update receipts and fail closed on uninspectable writes.",
-        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Require target-bound receipts for lifecycle writes and reject unknown verbs and host overrides.",
+        "Require target-bound update receipts for comments, edits, reviews and merges; deny raw close, ready and reopen in favour of the distinct operation-bound lifecycle helper, preserving branch deletion restrictions and fail-closed unknown verbs and host overrides."
       ],
-      "candidate_sha256": "904cfbd81001677cbd5ce5dda5749706cc75df8cd40d27ff856dada5a333f1e6"
+      "candidate_sha256": "b264f7750e7ec1b73f371057296f6aee95e1e7fc7299210b59deb4d8d8b30879"
     },
     {
       "path": "codex/hooks/pre-commit-tests.sh",
@@ -105,9 +109,10 @@
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
         "Deny xargs command construction before protected child routing; retain direct-command behavior.",
         "Admit only the exact resolver syntax check from a canonical checkout root, including when hooks run from a separate installed payload; retain execution, extra-argument and symlink denials.",
-        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Use the shared PR lifecycle classifier while preserving supported inspection routes."
       ],
-      "candidate_sha256": "4d42a16ad7f2aec1481afe95fb626eeedd442e8a39e8a95936c3460e3a630ace"
+      "candidate_sha256": "603b487d3b24ce6fd9ef1d3000d54da190cbe8f7b5d5b417bf35670934a1a999"
     },
     {
       "path": "codex/hooks/pre-tool-use-guard.sh",
@@ -117,9 +122,12 @@
         "canonical auth wrapper identity is derived from the ported helper",
         "fixture scope and event admission before handler actions",
         "Use the shared token-level destructive Git classifier for pre-tool denials.",
-        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Reject implicit or ambiguous push destinations and uninspectable auth-path expansions while retaining literal data and the protected toolchain.",
+        "Restore literal dollar signs and backticks before inspecting auth path operands.",
+        "Require an explicit push refspec destination to avoid relying on configured push mappings."
       ],
-      "candidate_sha256": "5a5120586e99a0d1b2cb0306f1a5f9a4652643d15f3d82d81460f788da6b1401"
+      "candidate_sha256": "46b408c817c347e3457adaad8d437d52b3c7c110300ad754e3223a0231803a58"
     },
     {
       "path": "codex/hooks/session-start.sh",
@@ -128,9 +136,10 @@
       "transformations": [
         "fixture scope and event admission before handler actions",
         "disable repository-selected fsmonitor execution during automatic status observation",
-        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
+        "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
+        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
       ],
-      "candidate_sha256": "384b1941e5a7db26be3c56750c901a0914620d08a162e874b4f9d3608eb7ddeb"
+      "candidate_sha256": "6c8ab76e6316b9ca28ca2b7ec7d5149b0887247a420d32949d3095e80e29e1ab"
     },
     {
       "path": "codex/hooks/stop-guard.sh",
@@ -177,9 +186,10 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "dd2827c7559edfbe275100e3e5af73fbe13cfe23128aa4bf9d601afd2fab47b8",
       "transformations": [
-        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+        "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
+        "Share a fail-closed classification of PR inspection, creation and lifecycle mutation verbs."
       ],
-      "candidate_sha256": "fcf8c47504412cab8e7d4fbf13bb4bef060fdbb043945889731c59870008965e"
+      "candidate_sha256": "7d89814dca09a1e66839e7ea50795c808c3977ad90d526f245578e8f4a3ae533"
     },
     {
       "path": "codex/scripts/project_metadata.py",
@@ -232,10 +242,10 @@
         "Keep parse-error fallback; unexpected parser exceptions stop before publication. Clear Ruff diagnostics without changing file modes.",
         "Recognise legacy and digest-named pending Desktop proposals; block packaged repair when the state directory cannot be listed.",
         "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
-        "Qualify atomic absent-file repair publication, exact published Desktop proposal names, and installation locking across proposal inspection and config publication; verify inherited descriptors against the fixed lock inode without releasing parent ownership.",
+        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
         "Qualify atomic absent-file repair publication, exact published Desktop proposal names, and installation locking across proposal inspection and config publication; verify inherited descriptors against the fixed lock inode without releasing parent ownership. Remove an empty pre-staging recovery directory on creation failure and preserve the scrubber output-format contract when lock acquisition fails."
       ],
-      "candidate_sha256": "11cade9f8d080b71598f029576f30b2cae21f948d82cf02120c2b991405889d4"
+      "candidate_sha256": "2aeff9aa9eb05ba0641fbab3f23b502bf64a756bac0f73c261ff1d3f7f490cca"
     },
     {
       "path": "codex/scripts/audit-project-codex-config-overrides.sh",
@@ -253,9 +263,12 @@
       "source_revision": "cfd2e591c1e9439363955ffa93b6f396afc7a4ad",
       "source_sha256": "0934dbfd2eef51942db405f7e0439d4b0e58c171606ba991b7fafcf832646c2c",
       "transformations": [
-        "fixture admission for shell runtime dependency"
+        "fixture admission for shell runtime dependency",
+        "Deliver only explicitly requested injected credentials plus pre-injection runtime context to the child.",
+        "Keep shell launcher counts positional and look up requested names in the injected environment without shadowing them.",
+        "Pass injected values directly in the child environment without exposing them in process arguments."
       ],
-      "candidate_sha256": "9d2154b7ba627e71a47cbd8daf95035e70f36d321bf04cd453225205401922f8"
+      "candidate_sha256": "f43cf9c35139248419178d8207d1d67a2ca2cc4d1b5a2ab1eecb415b5437ca71"
     },
     {
       "path": "codex/scripts/hook-governance/hook_runtime_policy.py",
@@ -278,9 +291,13 @@
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
         "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
-        "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection."
+        "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection.",
+        "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository.",
+        "Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance.",
+        "Report a supersession close on a head outside the receipt using the mutation response or readback.",
+        "Use the provider workflow run ID to group reruns and keep checks without a workflow run separate."
       ],
-      "candidate_sha256": "8f2ad16cd69a27a0826f70aa3dd5878ae0d80f4d29e5560a21c1da6127c64d0b"
+      "candidate_sha256": "3890f1d8f7fa3166c862882f7472fe4ad1d7b24df4984d255c345e420fc8a35b"
     },
     {
       "path": "codex/scripts/pr_repair_ci.py",
@@ -365,7 +382,7 @@
       "path": "codex/scripts/deployment_scope.py",
       "source_revision": null,
       "source_sha256": null,
-      "transformation": "New fixed private-package identity and resource adapter; fixture defaults retained.; Add fixed packaged-context admission; retain default disposable admission and original checks. Classify only the two unused native app metadata fields separately in machine mode; retain resource/output and rehearsal checks. Attach fixed stage and field diagnostics to existing admission rejections without changing guards or exception behaviour. Extend only the machine-mode unused metadata set with CODEX_APP_RUNTIME_CLI_PATH and CODEX_MCP_NODE_PATH after names-only native-parent replay; retain direct resource/output checks, strict rehearsals and unknown-name denials. Admit only event working directories of verified managed Git worktrees linked to trusted project roots; retain all other resource and output checks. Reject session stores as event working directories while preserving transcript admission. Resolve machine-mode Aikido only from the versioned protected toolchain while retaining disposable rehearsal providers.",
+      "transformation": "New fixed private-package identity and resource adapter; fixture defaults retained.; Add fixed packaged-context admission; retain default disposable admission and original checks. Classify only the two unused native app metadata fields separately in machine mode; retain resource/output and rehearsal checks. Attach fixed stage and field diagnostics to existing admission rejections without changing guards or exception behaviour. Extend only the machine-mode unused metadata set with CODEX_APP_RUNTIME_CLI_PATH and CODEX_MCP_NODE_PATH after names-only native-parent replay; retain direct resource/output checks, strict rehearsals and unknown-name denials. Admit only event working directories of verified managed Git worktrees linked to trusted project roots; retain all other resource and output checks. Reject session stores as event working directories while preserving transcript admission. Resolve machine-mode Aikido only from the versioned protected toolchain while retaining disposable rehearsal providers. Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance.",
       "candidate_sha256": "ae2be6506e3f09a88c3ec0527733d5535cbd7d3bcaddd40a36818ee6c36e8fb4"
     },
     {
@@ -374,7 +391,8 @@
       "source_sha256": "e391752936c1a6f2eb4a05f4922bedbe51441b53f32fd43d2957e71899afd0ec",
       "transformations": [
         "Retain pinned local binary and 1Password execution; admit fixture or fixed packaged context and each provider path before execution.",
-        "Bind machine-mode Aikido execution to the exact installation-selected protected inventory before 1Password resolves credentials; retain synthetic disposable providers for rehearsals."
+        "Bind machine-mode Aikido execution to the exact installation-selected protected inventory before 1Password resolves credentials; retain synthetic disposable providers for rehearsals.",
+        "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
       ],
       "candidate_sha256": "40ed7fafbf503112bdaa20877be5fff1b91becdc99db817c7a1fc3212e493f45"
     },

@@ -79,8 +79,10 @@ candidates; publication and exact-content acceptance retain separate authority.
 
 Use Python 3.12 or newer in an existing validation environment containing the
 pins in `requirements/codex-validation.txt`. The instruction-pointer checker
-uses the already-declared `markdown-it-py==4.2.0`. No online bootstrap or new
-dependency is added by this migration.
+uses the already-declared `markdown-it-py==4.2.0`. For the full test suite, use
+[the CI validation lock](requirements/codex-validation-ci.lock), which also
+pins the validator used for readiness receipt schema parity. The schema
+validator is a test dependency.
 
 Without the separately administered `/opt/dots-hook-tools` installation, local
 installation-route operator tests report an explicit skipped prerequisite.
@@ -893,11 +895,17 @@ Configs' existing checks. Local installation records and recovery artifacts stay
 outside this public repository; they are not included in hosted validation.
 The validation job installs the already-declared validation dependency pins
 before running the suite. It partitions the complete discovered test set across
-three small containers; each discovered case runs once in that partitioned suite,
-in addition to the three diagnostic regressions repeated on each node.
+three medium Linux VMs pinned to a dated image snapshot; each discovered case
+runs once in that partitioned suite, in addition to the native sandbox canary
+and three diagnostic regressions repeated on each node. Docker executors deny
+the mount setup required by the real bubblewrap sandbox. The VM bootstraps the
+existing checksum-pinned protected Python toolchain before validation; dependency
+installation remains hash-locked. Inherited capabilities are cleared before
+sandbox probes and test processes. The medium VM class increases per-minute
+CI usage compared with the former small containers; no cost saving is claimed.
 A failure fails validation. The workflow
-keeps the `validate` and `secret-scan` jobs, small resource classes, checksum
-verification and both secret scans. Hosted timing must confirm that validation
+keeps the `validate` and `secret-scan` jobs, the small digest-pinned secret-scan
+container, checksum verification and both secret scans. Hosted timing must confirm that validation
 finishes within the job limit; local partition checks do not establish hosted
 or Linux runtime acceptance.
 

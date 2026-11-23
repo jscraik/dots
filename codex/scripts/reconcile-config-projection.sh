@@ -16,6 +16,9 @@ PATH='/usr/bin:/bin:/usr/sbin:/sbin'
 readonly PATH
 export PATH
 unset PYTHONHOME PYTHONPATH PYTHONSTARTUP PYTHONINSPECT PYTHONPYCACHEPREFIX
+PYTHONNOUSERSITE=1
+readonly PYTHONNOUSERSITE
+export PYTHONNOUSERSITE
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=codex/scripts/codex-validation-lib.sh
@@ -96,6 +99,24 @@ fi
 
 validation_python="$(codex_select_toml_python "config-projection-reconciler")"
 validation_python="$(command -v "$validation_python")"
+
+run_protected_python_script() {
+  local script="$1"
+  shift
+  "$validation_python" -I -B - "$script" "$@" <<'PY'
+import runpy
+import sys
+from pathlib import Path
+
+script = Path(sys.argv[1]).resolve(strict=True)
+# Isolated mode omits sibling imports. Admit only the authenticated script's
+# directory, never the working directory, user site, or inherited PYTHONPATH.
+sys.path.insert(0, str(script.parent))
+sys.argv = sys.argv[1:]
+runpy.run_path(str(script), run_name='__main__')
+PY
+}
+
 cmd=(/bin/bash -p "${REPO_ROOT}/scripts/link-configs.sh" "--${mode}" --scope "$scope")
 if [[ "$dry_run" == true ]]; then
   cmd+=(--dry-run)
@@ -155,7 +176,7 @@ for home in "${codex_homes[@]}"; do
   fi
 
   set +e
-  runtime_output="$("$validation_python" -B "$runtime_config_repair" "${runtime_args[@]}" 2>&1)"
+  runtime_output="$(run_protected_python_script "$runtime_config_repair" "${runtime_args[@]}" 2>&1)"
   runtime_exit=$?
   set -e
 

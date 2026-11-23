@@ -1197,11 +1197,30 @@ def _exchange_paths(first: Path, second: Path) -> None:
 class SnapshotValidationUnavailable(OSError):
     """The validator could not produce a policy verdict."""
 
+_PROTECTED_PYTHON_LOADER = '''
+import runpy
+import sys
+from pathlib import Path
+
+script = Path(sys.argv[1]).resolve(strict=True)
+sys.path.insert(0, str(script.parent))
+sys.argv = sys.argv[1:]
+runpy.run_path(str(script), run_name='__main__')
+'''.lstrip()
+
+def _protected_python_command(script: Path, *arguments: str) -> list[str]:
+    """Run one authenticated sibling without inherited Python search paths."""
+    resolved = script.resolve(strict=True)
+    if resolved.parent != SCRIPT_DIR:
+        raise OSError('protected Python child must be an authenticated sibling')
+    return [sys.executable, '-I', '-B', '-c', _PROTECTED_PYTHON_LOADER,
+            str(resolved), *arguments]
+
 def _validate_snapshot(text: str, *, option: str, label: str) -> None:
     """Validate the exact proposed bytes, not a second read of mutable source."""
     try:
         result = subprocess.run(
-            [sys.executable, str(SCRIPT_DIR / 'validate-codex-config.py'), option],
+            _protected_python_command(SCRIPT_DIR / 'validate-codex-config.py', option),
             input=text, encoding='utf-8', capture_output=True, timeout=30, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise SnapshotValidationUnavailable(
@@ -1402,6 +1421,11 @@ def parse_args(argv: list[str] | None=None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 def _emit(payload: dict[str, object], json_output: bool, message: str='') -> None:
+    if not json_output and payload.get('retained_generation_path'):
+        message = str(message or payload.get('error') or payload['status'])
+        retained = str(payload['retained_generation_path'])
+        if retained not in message:
+            message += f'; retained generation: {retained}; inspect native saves before explicit recovery'
     print(json.dumps(payload, sort_keys=True) if json_output else f'''service:"{SERVICE}" {message or payload.get('error') or payload['status']}''')
 
 def main(argv: list[str] | None=None) -> int:
@@ -1603,7 +1627,10 @@ def _main_locked(args) -> int:
         if isinstance(exc, RepairPublicationError):
             recovery_path = exc.recovery_path
         reason = 'config_size_limit_exceeded' if isinstance(exc, RepairSizeLimitError) else 'config_write_failed'
-        payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason=reason, error=str(exc), backup_path=args.backup_path, backup_sha256=backup_sha256, backup_bytes=backup_bytes)
+        error = str(exc)
+        if recovery_path is not None and str(recovery_path) not in error:
+            error += f'; retained generation: {recovery_path}'
+        payload = _payload(status='blocked', path=config_path, drift=drift, repairs=repairs, reason=reason, error=error, backup_path=args.backup_path, backup_sha256=backup_sha256, backup_bytes=backup_bytes)
         payload['retained_generation_path'] = str(recovery_path) if recovery_path is not None else None
         _emit(payload, args.json)
         return 1

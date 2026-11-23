@@ -189,7 +189,7 @@ class StructuredCodeRabbitTests(unittest.TestCase):
         for state, expected in (("FAILURE", "fail"), ("PENDING", "blocked")):
             with self.subTest(state=state):
                 pr = {**self.pr, "statusCheckRollup": [{"name": "Full repository validation", "state": state}]}
-                self.assertEqual(MODULE.checks_lane(pr, self.head)["status"], expected)
+                self.assertEqual(MODULE.observed_checks_lane(pr, self.head)["status"], expected)
         self.assertNotEqual(MODULE.checks_lane({**self.pr, "statusCheckRollup": []}, self.head)["status"], "pass")
         failed = copy.deepcopy(self.check)
         failed["conclusion"] = "failure"

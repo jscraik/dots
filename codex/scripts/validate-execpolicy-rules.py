@@ -120,6 +120,12 @@ CASES = [
         "expected_decision": None,
     },
     {
+        "name": "effective rules leave raw Git status approval-governed",
+        "rules": [EFFECTIVE_RULES_SENTINEL],
+        "cmd": ["git", "status", "--short"],
+        "expected_decision": None,
+    },
+    {
         "name": "foundation allows pwd",
         "rules": ["foundation.rules"],
         "cmd": ["pwd"],

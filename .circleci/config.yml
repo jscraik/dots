@@ -3,11 +3,19 @@ version: 2.1
 jobs:
   validate:
     parallelism: 3
-    docker:
-      - image: cimg/python:3.12.8@sha256:6c162c73ea0c4af3d63fa3a7725991af19d86c0a10235109d927950539bca05d
-    resource_class: small
+    machine:
+      image: ubuntu-2204:2026.10.1
+    resource_class: medium
     steps:
       - checkout
+      - run:
+          name: Provision protected hook toolchain in the disposable VM
+          command: |
+            /usr/bin/python3 -I codex/scripts/prepare-hook-toolchain.py --platform linux-amd64 --output /tmp/dots-hook-toolchain
+            reviewed_digest="$(/usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-toolchain --inspect)"
+            sudo /usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-toolchain --reviewed-sha256 "$reviewed_digest" --select
+            /usr/bin/python3 -I -S codex/scripts/validate-hook-toolchain.py
+            printf '%s\n' 'export PATH="/opt/dots-hook-tools/current/bin:$PATH"' >> "$BASH_ENV"
       - run:
           name: Verify migrated sources and tool pins
           command: python3 -B scripts/check-source.py
@@ -42,36 +50,39 @@ jobs:
             curl -fsSL "https://github.com/openai/codex/releases/download/rust-v${codex_version}/codex-x86_64-unknown-linux-musl.tar.gz" -o "$codex_archive"
             printf '%s  %s\n' f479424eca092484dc40d87ae28c44f4cc40234a60045d6131e493800d814a30 "$codex_archive" | sha256sum --check --status
             tar -xOzf "$codex_archive" codex-x86_64-unknown-linux-musl > /tmp/dots-ci-tools/codex
-            chmod 0755 /tmp/dots-ci-tools/fd /tmp/dots-ci-tools/rg /tmp/dots-ci-tools/codex
+            bwrap_archive=/tmp/dots-ci-downloads/bwrap.tar.gz
+            curl -fsSL "https://github.com/openai/codex/releases/download/rust-v${codex_version}/bwrap-x86_64-unknown-linux-musl.tar.gz" -o "$bwrap_archive"
+            printf '%s  %s\n' e7d65c75e05637e42b93f6abf9222fa0d26b537648a7a34c122b75021d41756d "$bwrap_archive" | sha256sum --check --status
+            tar -xOzf "$bwrap_archive" bwrap-x86_64-unknown-linux-musl > /tmp/dots-ci-tools/bwrap
+            chmod 0755 /tmp/dots-ci-tools/fd /tmp/dots-ci-tools/rg /tmp/dots-ci-tools/codex /tmp/dots-ci-tools/bwrap
             /tmp/dots-ci-tools/fd --version
             /tmp/dots-ci-tools/rg --version
             /tmp/dots-ci-tools/codex --version
+            /tmp/dots-ci-tools/bwrap --version
+            # Drop inherited container capabilities; unprivileged bwrap rejects them.
+            /usr/bin/setpriv --inh-caps=-all --ambient-caps=-all /tmp/dots-ci-tools/bwrap --help | grep -- --perms
+            /usr/bin/setpriv --inh-caps=-all --ambient-caps=-all /tmp/dots-ci-tools/bwrap --help | grep -- --as-pid-1
       - run:
           name: Verify public guidance and instruction links
           command: /tmp/dots-validation-venv/bin/python -B scripts/check-public-guidance.py
       - run:
-          name: Provision protected hook toolchain in the disposable executor
-          command: |
-            /tmp/dots-validation-venv/bin/python -I codex/scripts/prepare-hook-toolchain.py --platform linux-amd64 --output /tmp/dots-hook-toolchain
-            reviewed_digest="$(/usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-toolchain --inspect)"
-            sudo /usr/bin/python3 -I -S codex/scripts/install-hook-toolchain.py --payload /tmp/dots-hook-toolchain --reviewed-sha256 "$reviewed_digest" --select
-            /usr/bin/python3 -I -S codex/scripts/validate-hook-toolchain.py
-            sudo apt-get update
-            sudo apt-get install --yes bubblewrap
-      - run:
           name: Test Linux CLI compatibility and disposable-home staging
           no_output_timeout: 15m
           command: |
+            # Disposable security fixtures must not inherit the VM's group-writable umask.
+            umask 077
             export PATH="/tmp/dots-ci-tools:/tmp/dots-validation-venv/bin:$PATH"
             export DOTS_CODEX_BIN=/tmp/dots-ci-tools/codex
             echo 'Linux pinned CLI compatibility only; Desktop app-runtime proof is a separate local check.'
             "$DOTS_CODEX_BIN" --version
             export DOTS_REQUIRE_PROTECTED_TOOLCHAIN=1
-            /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_hook_handlers.py -k raw_api_merge_accepts_only_the_receipt_target -v --failfast
-            /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_installation_route.py -k partial_cutover_rolls_back_without_resuming_activation -v --failfast
-            /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_installation_route.py -k policy_transition_preserves_selected_preferences_and_exact_rollback -v --failfast
+            /usr/bin/setpriv --inh-caps=-all --ambient-caps=-all /tmp/dots-validation-venv/bin/python -B -c 'from pathlib import Path; rows = dict(line.split(":", 1) for line in Path("/proc/self/status").read_text().splitlines() if ":" in line); assert all(int(rows[key], 16) == 0 for key in ("CapInh", "CapPrm", "CapEff", "CapAmb")), "Inherited capabilities remain"'
+            /usr/bin/setpriv --inh-caps=-all --ambient-caps=-all /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_hook_active_turn.py -v --failfast
+            /usr/bin/setpriv --inh-caps=-all --ambient-caps=-all /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_hook_handlers.py -k raw_api_merge_accepts_only_the_receipt_target -v --failfast
+            /usr/bin/setpriv --inh-caps=-all --ambient-caps=-all /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_installation_route.py -k partial_cutover_rolls_back_without_resuming_activation -v --failfast
+            /usr/bin/setpriv --inh-caps=-all --ambient-caps=-all /tmp/dots-validation-venv/bin/python -B -m unittest discover -s tests -p test_installation_route.py -k policy_transition_preserves_selected_preferences_and_exact_rollback -v --failfast
             # Share installation cases: even that module alone exceeds one hour.
-            /tmp/dots-validation-venv/bin/python -B - "$CIRCLE_NODE_INDEX" "$CIRCLE_NODE_TOTAL" \<<'PY'
+            /usr/bin/setpriv --inh-caps=-all --ambient-caps=-all /tmp/dots-validation-venv/bin/python -B - "$CIRCLE_NODE_INDEX" "$CIRCLE_NODE_TOTAL" \<<'PY'
             import sys
             import unittest
 

@@ -53,7 +53,8 @@
       "deferred_context_pointers": [
         "../../docs/adr/0001-native-git-1password-signing.md"
       ],
-      "candidate_sha256": "6b6c52b52f6864595e6edcbf380cd486cee8f8e3c3511ab2fb9b5467c8ce775d"
+      "candidate_sha256": "0078c96973360c3db3daae00177c94ed89a0924e7680c551f074db545d5529f2",
+      "transformation": "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
       "path": "codex/instructions/CODESTYLE.md",
@@ -207,7 +208,8 @@
       "source_sha256": "dfd4f91164e826bd903b05a2e90d2d83767a8df26a532525089e3498c2e23d94",
       "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "901f24b490c14d9fa5661ed6fb1e09290a4fc36f43cfce65251fbb098487357c"
+      "candidate_sha256": "ceb1a32ad93c08fcba4f2c5995de58c00ec8a608a0fb3f516c0ebd75cdec194e",
+      "transformation": "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
       "path": "codex/instructions/agents/16a-review-reply-parsing.md",
@@ -543,8 +545,9 @@
       "path": "codex/templates/rules/foundation.rules",
       "source_path": "codex/rules/foundation.rules",
       "source_sha256": "2e6f454ad1ddfff4fd16d0bb0668bdb03ba89f5c38906a043ea84a28b8daf89c",
-      "decision": "Unchanged policy; whole-string fixture paths for the two authentication canaries",
-      "candidate_sha256": "2e6f454ad1ddfff4fd16d0bb0668bdb03ba89f5c38906a043ea84a28b8daf89c"
+      "decision": "Keep git status approval-governed; preserve whole-string fixture paths for the two authentication canaries",
+      "candidate_sha256": "085f8fcfb9467e87b3c543e766d7b3cf9428981ade4b1d8efd2598c634f8c413",
+      "transformation": "Remove automatic git status execution so repository-selected fsmonitor remains approval-governed."
     },
     {
       "path": "codex/templates/rules/guard.rules",
@@ -586,8 +589,8 @@
       "path": "codex/scripts/validate-execpolicy-rules.py",
       "source_sha256": "dba70e04d94ab617ca5b59e8bf02a757d87d45a62b04d504077e374c79e60aea",
       "decision": "Preserve all 93 native rule cases, hygiene, alias, timeout and retry checks; fixture-only paths, exact managed constraints and required CLI",
-      "candidate_sha256": "52209629ed9bd11a4343889494a7605a87244e58b70b17aef20342752f8af6e8",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks."
+      "candidate_sha256": "ffd7c9293008583d80024f7cda1ce970880b0182aebeae69f4198e3d149b7e06",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks. Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
       "path": "AGENTS.md",
@@ -600,8 +603,8 @@
       "path": "codex/instructions/migration-scope.md",
       "origin": "local migration adaptation",
       "decision": "Explicit public scope, serialization and proving checks; no new live authority",
-      "candidate_sha256": "a8ad0c51e80b11398915be16be50a9e912ba7dbc429afb47f4030238fcfe78bf",
-      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. State installation authority separately from each machine's verified active or rollback state. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks."
+      "candidate_sha256": "b5194ba415d88dc71dd3b602786bdd8d4db7a1c740bc5b0ceae9a3d2d1d5aca7",
+      "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. State installation authority separately from each machine's verified active or rollback state. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks. Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
       "path": "scripts/generate-codex-controls.py",
@@ -619,7 +622,8 @@
       "path": "tests/test_public_controls.py",
       "origin": "local migration adaptation",
       "decision": "Explicit public scope, serialization and proving checks; no new live authority",
-      "candidate_sha256": "2691707d1bbb0755d14f0aea6e54e3ffe13b2c7f8aa678ed58a883299b6868f0"
+      "candidate_sha256": "791ff354f9d44bb4b58ea8694f958b5e7cd8c8b7fed1bbef599cc2060aafb524",
+      "transformation": "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     }
   ]
 }
