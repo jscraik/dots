@@ -55,8 +55,8 @@ baseline; its safeguards apply only to the selected authorized workflow.
   `python3 ~/.codex/scripts/pr-readiness.py --phase create --scope-file <scope-file> --write-receipt`;
   before PR update (except the body-only repair below) or merge-readiness
   claims, require the `--phase update` receipt. The projected
-  `pr-readiness-guard.sh` rejects raw PR creation when
-  that receipt is missing, stale, or bound to another HEAD.
+  `pr-readiness-guard.sh` enforces this on shell routes where rejection has
+  been verified. Do not infer connector enforcement from a shell-hook result.
 - Pending current-head CI permits review-inspection requests and evidence-backed
   thread reconciliation; those receipts record CI as pending and prove no
   acceptance or merge readiness. Failed, missing or unknown check evidence

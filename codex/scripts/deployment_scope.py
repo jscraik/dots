@@ -306,6 +306,115 @@ def _within(path, root):
     return path.parts[:len(root.parts)] == root.parts
 
 
+def _event_directory_identity(directory):
+    info = physical(directory).lstat()
+    if not stat.S_ISDIR(info.st_mode):
+        raise ValueError('Managed worktree directory changed during admission')
+    return info.st_dev, info.st_ino, info.st_uid, stat.S_IMODE(info.st_mode)
+
+
+def _require_managed_event_directory(value, *, data):
+    """Admit a managed Git worktree only as an event working directory."""
+    home = Path(data['home'])
+    path = Path(value).absolute()
+    retained = (Path(data['session_evidence_root']), home / '.codex/sessions',
+                home / '.codex/archived_sessions')
+    if any(_within(candidate, root) for candidate in (path, path.resolve())
+           for root in (*retained, *(item.resolve() for item in retained))):
+        raise ValueError('Retained session storage is not an event directory')
+    try:
+        return require_path(path, data=data)
+    except ValueError:
+        pass
+    base = home / '.codex/worktrees'
+    if not path.is_absolute() or '..' in path.parts or not _within(path, base):
+        raise ValueError('Event directory leaves deployment scope')
+    relative = path.relative_to(base)
+    if len(relative.parts) < 2:
+        raise ValueError('Managed worktree directory is incomplete')
+    worktree = base.joinpath(*relative.parts[:2])
+    physical(path)
+    if not path.is_dir():
+        raise ValueError('Managed worktree directory is unavailable')
+    watched = {directory: _event_directory_identity(directory) for directory in (path, *path.parents)}
+    marker_path = worktree / '.git'
+    marker = read_regular(marker_path, 4096).decode().splitlines()
+    if len(marker) != 1 or not marker[0].startswith('gitdir: '):
+        raise ValueError('Managed worktree marker is invalid')
+    gitdir = physical(Path(marker[0][8:]))
+    if gitdir.parent.name != 'worktrees' or gitdir.parent.parent.name != '.git':
+        raise ValueError('Managed worktree Git metadata is invalid')
+    repository = gitdir.parent.parent.parent
+    policy = _read_policy(data['package_digest'])
+    trusted = []
+    for value, settings in policy.get('projects', {}).items():
+        root = Path(value)
+        if (isinstance(settings, dict) and settings.get('trust_level') == 'trusted'
+                and root.is_absolute() and '..' not in root.parts
+                and root not in {home, Path('/')} and not _within(root, home / '.codex')):
+            trusted.append(root)
+    if not any(_within(repository, root) and _within(repository.resolve(), root.resolve()) for root in trusted):
+        raise ValueError('Managed worktree source is not a trusted project')
+    for directory in (base, worktree.parent, worktree, gitdir.parent.parent, gitdir.parent, gitdir):
+        identity = _event_directory_identity(directory)
+        if identity[2] != os.getuid() or identity[3] & 0o022:
+            raise ValueError('Managed worktree metadata directory is unsafe')
+        watched.setdefault(directory, identity)
+    for directory in (gitdir, *gitdir.parents):
+        watched.setdefault(directory, _event_directory_identity(directory))
+    common = read_regular(gitdir / 'commondir', 4096).decode().splitlines()
+    backlink = read_regular(gitdir / 'gitdir', 4096).decode().splitlines()
+    if common != ['../..'] or backlink != [str(marker_path)]:
+        raise ValueError('Managed worktree metadata does not agree')
+    if (read_regular(marker_path, 4096).decode().splitlines() != marker
+            or read_regular(gitdir / 'commondir', 4096).decode().splitlines() != common
+            or read_regular(gitdir / 'gitdir', 4096).decode().splitlines() != backlink):
+        raise ValueError('Managed worktree metadata changed during admission')
+    if any(_event_directory_identity(directory) != identity for directory, identity in watched.items()):
+        raise ValueError('Managed worktree directory changed during admission')
+    if any(_within(candidate, root) for candidate in (path, path.resolve())
+           for root in (*retained, *(item.resolve() for item in retained))):
+        raise ValueError('Retained session storage is not an event directory')
+    return path
+
+
+def require_event_directory(value, *, data):
+    """Recognise Desktop trust for event directories without granting output access."""
+    try:
+        return _require_managed_event_directory(value, data=data)
+    except ValueError:
+        if data['mode'] != 'machine':
+            raise
+    home = Path(data['home'])
+    path = physical(Path(value).absolute())
+    protected = (home / '.codex', home / '.config', home / '.ssh', home / '.aws',
+                 home / 'Library', Path(data['state_dir']), Path(data['session_evidence_root']))
+    if any(_within(path, root.resolve()) for root in protected):
+        raise ValueError('Private runtime storage is not a project directory')
+    config_path = home / '.codex/config.toml'
+    original = read_regular(config_path)
+    projects = tomllib.loads(original.decode()).get('projects', {})
+    if not isinstance(projects, dict):
+        raise ValueError('Invalid runtime project registry')
+    for name, settings in projects.items():
+        if not isinstance(settings, dict) or settings.get('trust_level') != 'trusted':
+            continue
+        root = Path(name)
+        if not root.is_absolute() or home.is_relative_to(root) or '..' in root.parts:
+            continue
+        if not _within(path, root):
+            continue
+        physical(root)
+        watched = {item: item.stat() for item in (path, *path.parents) if _within(item, root)}
+        if any(not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid()
+               or info.st_mode & 0o022 for info in watched.values()):
+            raise ValueError('Unsafe runtime project directory')
+        if read_regular(config_path) != original or any(physical(item).stat() != info for item, info in watched.items()):
+            raise ValueError('Runtime project changed during admission')
+        return path
+    raise ValueError('Event directory is not a trusted project')
+
+
 def require_path(value, *, output=False, data=None, _root_resolver=None):
     data = context() if data is None else data
     home = Path(data['home'])
@@ -431,12 +540,13 @@ def admit_event(event):
         raise TypeError('Hook event must be an object')
     for name in ('cwd', 'transcript_path'):
         if event.get(name):
-            _checked('event', name, require_path, Path(event[name]).expanduser(), data=data)
+            operation = require_event_directory if name == 'cwd' else require_path
+            _checked('event', name, operation, Path(event[name]).expanduser(), data=data)
     tool_input = event.get('tool_input')
     if isinstance(tool_input, dict):
         for name in ('cwd', 'workdir'):
             if tool_input.get(name):
-                _checked('event', 'tool_input.' + name, require_path,
+                _checked('event', 'tool_input.' + name, require_event_directory,
                          Path(tool_input[name]).expanduser(), data=data)
     card = event.get('runtime_card')
     if isinstance(card, dict) and card.get('path'):

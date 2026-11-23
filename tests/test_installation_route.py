@@ -730,6 +730,9 @@ with installer.renameable_directories(state, staged, target):
         canonical = tomllib.loads((self.payload / 'codex/config.toml').read_text())
         roots = canonical['permissions'][canonical['default_permissions']]['workspace_roots']
         self.assertIn(str(session_root), roots)
+        self.assertNotIn(str(self.runtime / 'usage-data'), roots)
+        self.assertIn(str((self.runtime / 'usage-data').resolve()), roots)
+        self.assertTrue((self.runtime / 'usage-data').is_symlink())
         self.assertNotIn(str(self.home / '.local/share/codex-storage/sessions'), roots)
         digest = prepared['plan_digest']
         self.success(self.operation('apply', digest))

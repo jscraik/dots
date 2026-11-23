@@ -296,7 +296,7 @@ def _is_template_placeholder(value: str, template_value: str) -> bool:
 
 
 COMMAND_EVIDENCE_PATTERN = re.compile(
-    "^-\\s*Command:\\s*(?P<command>`[^\\n`]+`|(?=\\S).*?\\S)\\s*->\\s*(?P<status>`?(?:pass|fail|n\\.a\\.|n/a|blocked)`?)(?P<reason>.*)$",
+    "^-\\s*Command:\\s*(?P<command>`[^\\n`]+`|(?=\\S).*?\\S)\\s*->\\s*(?P<status>`?(?:pass|fail|not run|n\\.a\\.|n/a|blocked)`?)(?P<reason>.*)$",
     re.IGNORECASE,
 )
 COMMAND_PLACEHOLDER_PATTERN = re.compile("^(?:<[^>\\n]+>|\\.\\.\\.)$")
@@ -334,7 +334,7 @@ def _valid_command_evidence(line: str) -> bool:
         return False
     status = match.group("status").strip("`").lower()
     return _balanced_reason(
-        match.group("reason"), required=status in {"blocked", "n.a.", "n/a"}
+        match.group("reason"), required=status in {"blocked", "not run", "n.a.", "n/a"}
     )
 
 
@@ -349,6 +349,8 @@ def validation_command_errors(template_path: Path, body_path: Path) -> list[str]
         ),
         None,
     )
+    if evidence_section is None and {"Evidence", "Impact and risk", "Readiness"} <= set(required_sections):
+        evidence_section = "Evidence"
     if evidence_section is None:
         return []
     validation_lines = [

@@ -385,7 +385,16 @@ def assemble(args):
         write(target, SCOPE.read_regular(ROOT / row['path']), 0o700 if row['mode'] & 0o111 else 0o600)
     generator = module('installation_generator', payload / 'scripts/generate-codex-policy.py')
     binding_bytes = SCOPE.read_regular(args.bindings)
-    generated = generator.render(args.bindings)
+    effective_bindings = json.loads(binding_bytes, object_pairs_hook=SCOPE.unique)
+    # Seatbelt rejects symlink components in writable roots. Bind the existing
+    # evidence directory's physical target; keep its user-facing alias intact.
+    usage_root = Path(effective_bindings['value_0007'])
+    if not usage_root.is_absolute() or '..' in usage_root.parts:
+        raise ValueError('Usage evidence root must be absolute without traversal')
+    effective_bindings['value_0007'] = str(usage_root.resolve())
+    effective_path = state / 'effective-bindings.json'
+    write(effective_path, json.dumps(effective_bindings).encode())
+    generated = generator.render(effective_path)
     if SCOPE.read_regular(args.bindings) != binding_bytes:
         raise ValueError('Private bindings changed during generation')
     session_root = json.loads(binding_bytes, object_pairs_hook=SCOPE.unique)['value_0006']

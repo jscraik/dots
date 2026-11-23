@@ -333,7 +333,7 @@
       "source_revision": null,
       "source_sha256": null,
       "transformation": "New fixed private-package identity and resource adapter; fixture defaults retained.; Add fixed packaged-context admission; retain default disposable admission and original checks. Classify only the two unused native app metadata fields separately in machine mode; retain resource/output and rehearsal checks. Attach fixed stage and field diagnostics to existing admission rejections without changing guards or exception behaviour. Extend only the machine-mode unused metadata set with CODEX_APP_RUNTIME_CLI_PATH and CODEX_MCP_NODE_PATH after names-only native-parent replay; retain direct resource/output checks, strict rehearsals and unknown-name denials.",
-      "candidate_sha256": "17296bc05a841676f0881a5d51b7a125b23cf1deb8f77b9f950cf7372653f962"
+      "candidate_sha256": "ece54a99b8a9b69f934358a5ba886eaa1b34e1f2145b2ac316e47b72d85cd3d1"
     },
     {
       "path": "codex/scripts/aikido-mcp.sh",
