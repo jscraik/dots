@@ -597,6 +597,7 @@ class HookHandlerTests(unittest.TestCase):
             return subprocess.check_output(['git', '-C', str(fixture.repo), *args],
                                            env=fixture.env, text=True, timeout=10).strip()
 
+        git('remote', 'add', 'origin', 'https://github.com/example/repo.git')
         # Run the real receipt validator with only its hosted reads replaced.
         checker = fixture.runtime / 'scripts/pr-readiness.py'
         checker.rename(checker.with_name('pr-readiness-real.py'))
