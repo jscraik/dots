@@ -11,6 +11,12 @@ SPEC.loader.exec_module(MODULE)
 TEMP_ROOT = Path('/tmp').resolve()
 
 class StagingTests(unittest.TestCase):
+    def test_temp_root_is_refused_before_opening(self):
+        with mock.patch.object(MODULE, 'open_directory') as open_directory:
+            with self.assertRaisesRegex(ValueError, 'Target must be a disposable directory'):
+                MODULE.stage(TEMP_ROOT)
+            open_directory.assert_not_called()
+
     def test_account_home_descendant_is_preserved(self):
         with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as directory:
             target = Path(directory) / 'child'
@@ -38,10 +44,11 @@ class StagingTests(unittest.TestCase):
             (target / '.config/ghostty').mkdir(parents=True)
             custom = target / '.config/ghostty/config'
             custom.write_text('font-size = 18\n')
+            paths_before = set(target.rglob('*'))
             with self.assertRaisesRegex(ValueError, 'Existing different'):
                 MODULE.stage(target)
             self.assertEqual(custom.read_text(), 'font-size = 18\n')
-            self.assertFalse((target / '.Brewfile').exists())
+            self.assertEqual(set(target.rglob('*')), paths_before)
 
     def test_symlink_directory_cannot_escape_target(self):
         with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as directory, tempfile.TemporaryDirectory(dir=TEMP_ROOT) as outside:

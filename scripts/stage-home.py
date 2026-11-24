@@ -43,8 +43,8 @@ def read_regular(path):
 
 def stage(target, *, preview=None):
     target = Path(os.path.abspath(target))
-    temporary_roots = (Path('/tmp').resolve(),)
-    if not any(target.is_relative_to(p) and target != p for p in temporary_roots):
+    temporary_root = Path('/tmp').resolve()
+    if target == temporary_root or not target.is_relative_to(temporary_root):
         raise ValueError('Target must be a disposable directory under the system temporary directory')
     # Resolve only for the exclusion check; actual access never follows symlinks.
     resolved = target.resolve()
@@ -52,7 +52,6 @@ def stage(target, *, preview=None):
     if resolved.is_relative_to(account_home) or resolved == Path.home().resolve() or resolved == ROOT or ROOT.is_relative_to(resolved):
         raise ValueError('Live home and source directories are not staging targets')
     root_fd = open_directory(target)
-    plans = []
     try:
         # Preflight all conflicts before creating any files or directories.
         payloads = [(relative, read_regular(ROOT / source)) for source, relative in FILES.items()]
@@ -72,8 +71,7 @@ def stage(target, *, preview=None):
                     raise ValueError('Non-directory target ancestor rejected')
             if candidate.exists() and read_regular(candidate) != payload:
                 raise ValueError('Existing different file preserved: ' + relative)
-            plans.append((relative, payload))
-        for relative, payload in plans:
+        for relative, payload in payloads:
             fd = os.dup(root_fd)
             try:
                 parts = Path(relative).parts
@@ -100,7 +98,7 @@ def stage(target, *, preview=None):
                 os.close(fd)
     finally:
         os.close(root_fd)
-    return len(plans)
+    return len(payloads)
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
