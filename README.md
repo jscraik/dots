@@ -5,6 +5,43 @@ Installation and activation require separate authority and verification on each
 machine. The local installation receipt records its active and rollback state;
 this repository does not install itself into the live home.
 
+Use it to inspect and adapt Homebrew, mise, terminal and Codex policy defaults.
+The quick start stages eight reviewed files in a disposable directory so you can
+see the proposed layout before considering any machine-specific installation.
+
+## Quick start: preview the defaults
+
+On macOS or Linux, use Git and Python 3.12 or newer. The staging command uses the
+Python standard library; the [validation dependencies](#local-checks) are needed
+only for the broader checks.
+
+```sh
+git clone https://github.com/jscraik/dots.git && cd dots
+dots_preview_dir="$(python3 -c 'import tempfile; from pathlib import Path; print(tempfile.mkdtemp(prefix="dots-preview-", dir=Path("/tmp").resolve()))')"
+python3 -B scripts/stage-home.py --target-home "$dots_preview_dir"
+```
+
+Expected result:
+
+```text
+Staged 8 defaults; no packages installed and no secrets loaded.
+```
+
+Run `printf '%s\n' "$dots_preview_dir"` to find the preview directory, then
+inspect its files, including `.Brewfile`, `.config/mise/config.toml`, terminal
+defaults and `.codex/AGENTS.md`. The temporary path resolves correctly on both
+macOS and Linux. Keep it as a review fixture; do not use it as your live home.
+
+The target must already exist. The command refuses symlinks, source directories,
+the live home and conflicting files. Repeating it with identical files is safe.
+Existing machine-specific files are preserved; conflicting managed paths require
+manual review. No package installation, tool trust, shell activation, background
+updater, credential access or live projection occurs.
+
+For the next step, read the [migration boundaries](MIGRATION.md), run the
+[local checks](#local-checks), or review the separate
+[first-machine installation candidate](#first-machine-installation-candidate).
+
 ## Contents
 
 - `Brewfile`: existing Homebrew package declarations; copying does not install packages.
@@ -117,18 +154,10 @@ bash -n scripts/resolve-homebrew-bin.sh
 gitleaks dir --no-banner --redact --log-level error .
 ```
 
-For the real staging entrypoint, create an empty directory under the system's
-resolved `/tmp` directory (`/private/tmp` on macOS) and supply it explicitly:
-
-```sh
-python3 scripts/stage-home.py --target-home /private/tmp/dots-review-home
-```
-
-The target must already exist. The command refuses symlinks, source directories,
-the live home and conflicting files. Repeating it with identical files is safe.
-Existing machine-specific files are preserved; conflicting managed paths require
-manual review. No package installation, tool trust, shell activation, background
-updater, credential access or live projection occurs.
+To try the staging entrypoint, use the complete
+[disposable-home preview](#quick-start-preview-the-defaults) above. It creates
+an empty directory under the system's resolved `/tmp` directory (`/private/tmp`
+on macOS) before supplying it to `scripts/stage-home.py`.
 
 The reusable Aikido launcher is included under `codex/scripts/`. Its 1Password
 reference remains local, while machine mode resolves the provider only from the
