@@ -295,6 +295,14 @@ supports its protected CI route. Configs-only CI support does not authorise use 
 SDK repositories. A local note,
 digest or repeated status request cannot substitute for independent endorsement.
 
+The observed Tessl project-preflight approval can qualify on the current head
+when its complete review envelope matches and the same authenticated successful
+Tessl check names the exact formal review ID, reports approval and includes
+zero annotations and no additional check text. The approved narrative is
+specific to this observed variant. Other narratives remain unclassified.
+An incremental approval cannot clear earlier findings or replace a required
+independent bot reviewer.
+
 A historical Tessl approval that has been dismissed may remain neutral only
 when its authenticated author and complete known zero-finding envelope match.
 The known name-mismatch recovery narrative is supported for this historical

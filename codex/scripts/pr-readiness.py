@@ -2692,11 +2692,27 @@ def _codex_informational_report(entry: dict[str, Any]) -> bool:
             and bool(re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", metadata["repository"])))
 
 
+TESSL_PROJECT_PREFLIGHT_NARRATIVE = (
+    "The change adds a read-only preflight that reads tessl.json at the selected Git revision and compares "
+    "both live workspace and project identifiers with the loop. Documentation describes the operator check "
+    "before labeling, and focused tests cover matching, mismatched, and empty loop identifiers. No actionable "
+    "concerns were supplied for reconciliation; no findings are surfaced."
+)
+
+
+TESSL_MISSING_DESCRIPTION_NARRATIVE = (
+    "The documentation adds a disposable synthetic missing-description example, an explicit author edit, and a "
+    "validation rerun, while distinguishing structural validation from repair and execution authority. No "
+    "actionable concerns were supplied for reconciliation. The diff was inspected read-only; the documented "
+    "commands and runtime results were not independently executed."
+)
+
+
 TESSL_ZERO_FINDING_REVIEW_TEMPLATE = """## Tessl Reviewer
 
 ### Changes approved
 
-The documentation adds a disposable synthetic missing-description example, an explicit author edit, and a validation rerun, while distinguishing structural validation from repair and execution authority. No actionable concerns were supplied for reconciliation. The diff was inspected read-only; the documented commands and runtime results were not independently executed.
+{narrative}
 
 <details>
 <summary>Working with this review</summary>
@@ -2737,7 +2753,12 @@ def _tessl_review_is_clean(review: dict[str, Any]) -> bool:
         return False
     body = _review_body(review)
     run = re.findall(r"<!-- tessl-code-review:workflow-run:v1 id=([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}) -->", body)
-    return len(run) == 1 and body == TESSL_ZERO_FINDING_REVIEW_TEMPLATE.format(run=run[0])
+    if len(run) != 1:
+        return False
+    if body == TESSL_ZERO_FINDING_REVIEW_TEMPLATE.format(run=run[0], narrative=TESSL_MISSING_DESCRIPTION_NARRATIVE):
+        return True
+    return (review.get("tessl_check_output_verified") is True
+            and body == TESSL_ZERO_FINDING_REVIEW_TEMPLATE.format(run=run[0], narrative=TESSL_PROJECT_PREFLIGHT_NARRATIVE))
 
 
 def _tessl_review_is_acceptable(review: dict[str, Any], head_sha: str) -> bool:
@@ -2760,9 +2781,8 @@ def _tessl_historical_clean_review(review: dict[str, Any]) -> bool:
         "and candidate-identity caveats. No actionable concerns were supplied for reconciliation, "
         "and no findings are surfaced."
     )
-    known = TESSL_ZERO_FINDING_REVIEW_TEMPLATE.split("### Changes approved\n\n", 1)[1].split("\n\n<details>", 1)[0]
     return _tessl_review_is_clean({**review, "state": "APPROVED",
-                                   "body": body.replace(observed, known, 1)})
+                                   "body": body.replace(observed, TESSL_MISSING_DESCRIPTION_NARRATIVE, 1)})
 
 
 def tessl_check_inventory(root: Path, slug: str, head: Any, hostname: str | None = None) -> tuple[list[dict[str, Any]], str | None]:
@@ -2794,7 +2814,7 @@ def _join_tessl_review_check(review: dict[str, Any], pr: dict[str, Any]) -> dict
     runs = re.findall(r"<!-- tessl-code-review:workflow-run:v1 id=([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}) -->", _review_body(review))
     checks = pr.get("tessl_check_runs")
     if len(runs) != 1 or not isinstance(checks, list):
-        return {**review, "tessl_check_verified": False}
+        return {**review, "tessl_check_verified": False, "tessl_check_output_verified": False}
     matching = [check for check in checks if isinstance(check, dict)
                 and check.get("name") == "Tessl Reviewer"
                 and type(check.get("id")) is int and check["id"] > 0
@@ -2805,7 +2825,15 @@ def _join_tessl_review_check(review: dict[str, Any], pr: dict[str, Any]) -> dict
                 and type(check["app"].get("id")) is int and check["app"]["id"] == 4850038
                 and check["app"].get("slug") == "tessl-reviewer"
                 and check.get("details_url") == "https://tessl.io/go/code-review-runs/" + runs[0]]
-    return {**review, "tessl_check_verified": len(matching) == 1, "incremental_completion": True}
+    verified = len(matching) == 1
+    output = matching[0].get("output") if verified else None
+    output_verified = (isinstance(output, dict)
+                       and output.get("title") == "Tessl Reviewer approved"
+                       and output.get("summary") == f"Review {review.get('id')} is available on this pull request."
+                       and "text" in output and output["text"] is None
+                       and type(output.get("annotations_count")) is int and output["annotations_count"] == 0)
+    return {**review, "tessl_check_verified": verified, "tessl_check_output_verified": output_verified,
+            "incremental_completion": True}
 
 
 def _bot_review_is_acceptable(review: dict[str, Any], head_sha: str) -> bool:

@@ -5330,6 +5330,48 @@ def load_tests(loader, tests, pattern):
 
 
 class TesslReviewTests(unittest.TestCase):
+    def test_project_preflight_approval_requires_the_native_review_id_and_zero_annotations(self):
+        head = 'a' * 40
+        run = '01a19712-8790-71a8-b1a7-553041dc02cf'
+        observed_narrative = (
+            "The change adds a read-only preflight that reads tessl.json at the selected Git revision and compares "
+            "both live workspace and project identifiers with the loop. Documentation describes the operator check "
+            "before labeling, and focused tests cover matching, mismatched, and empty loop identifiers. No actionable "
+            "concerns were supplied for reconciliation; no findings are surfaced."
+        )
+        prior = (Path(__file__).parent / 'fixtures/tessl-missing-description-clean.txt').read_text().rstrip('\n')
+        heading, marker, tail = prior.partition("### Changes approved\n\n")
+        _, trailer, footer = tail.partition("\n\n<details>")
+        body = heading + marker + observed_narrative + trailer + footer
+        review = {'id': 123, 'user': {'login': 'tessl-reviewer[bot]', 'type': 'Bot', 'id': 325629464},
+                  'state': 'APPROVED', 'commit_id': head, 'submitted_at': '2026-11-01T12:00:00Z', 'body': body}
+        output = {'title': 'Tessl Reviewer approved', 'summary': 'Review 123 is available on this pull request.',
+                  'annotations_count': 0, 'text': None}
+        check = {'id': 42, 'name': 'Tessl Reviewer', 'status': 'completed', 'conclusion': 'success',
+                 'head_sha': head, 'app': {'id': 4850038, 'slug': 'tessl-reviewer'}, 'output': output,
+                 'details_url': 'https://tessl.io/go/code-review-runs/' + run}
+
+        for candidate, checks, expected in (
+            (review, [check], True),
+            (review, [], False),
+            (review, [check, {**check, 'id': 43}], False),
+            (review, [{**check, 'output': None}], False),
+            (review, [{**check, 'app': {**check['app'], 'id': 2}}], False),
+            ({**review, 'commit_id': 'b' * 40}, [check], False),
+            ({**review, 'id': 124}, [check], False),
+            ({**review, 'body': body.replace('findings-total=0', 'findings-total=1')}, [check], False),
+            ({**review, 'body': body.replace(observed_narrative, 'Unknown review narrative.')}, [check], False),
+            ({**review, 'body': body + '\nP1: unsafe input remains'}, [check], False),
+            (review, [{**check, 'output': {**output, 'annotations_count': 1}}], False),
+            (review, [{**check, 'output': {**output, 'annotations_count': False}}], False),
+            (review, [{**check, 'output': {**output, 'text': 'P1: unsafe input remains'}}], False),
+        ):
+            with self.subTest(candidate=candidate.get('id'), checks=checks, expected=expected):
+                joined = MODULE._join_tessl_review_check(candidate, {'headRefOid': head, 'tessl_check_runs': checks})
+                self.assertEqual(MODULE._bot_review_is_acceptable(joined, head), expected)
+                self.assertEqual(MODULE.outstanding_bot_concerns([joined], [], [], head),
+                                 [] if expected else ['Tessl Reviewer'])
+
     def test_known_historical_dismissed_clean_review_is_neutral_not_clearance(self):
         head, old = 'a' * 40, 'b' * 40
         body = (Path(__file__).parent / 'fixtures/tessl-name-mismatch-clean.txt').read_text().rstrip('\n')
