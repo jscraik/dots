@@ -30,16 +30,19 @@ def open_directory(path):
         os.close(fd)
         raise
 
+def read_regular_at(parent_fd, name, *, non_regular_error='Only regular files are supported'):
+    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent_fd)
+    with os.fdopen(fd, 'rb') as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise ValueError(non_regular_error)
+        return stream.read()
+
 def read_regular(path):
     parent = open_directory(path.parent)
     try:
-        fd = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+        return read_regular_at(parent, path.name)
     finally:
         os.close(parent)
-    with os.fdopen(fd, 'rb') as stream:
-        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
-            raise ValueError('Only regular files are supported')
-        return stream.read()
 
 def stage(target, *, preview=None):
     target = Path(os.path.abspath(target))
@@ -87,10 +90,9 @@ def stage(target, *, preview=None):
                     output = os.open(parts[-1], os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=fd)
                 except FileExistsError:
                     # Revalidate the anchored file after preflight, avoiding a replacement race.
-                    existing = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
-                    with os.fdopen(existing, 'rb') as stream:
-                        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode) or stream.read() != payload:
-                            raise ValueError('Concurrent target conflict preserved')
+                    conflict = 'Concurrent target conflict preserved'
+                    if read_regular_at(fd, parts[-1], non_regular_error=conflict) != payload:
+                        raise ValueError(conflict)
                 else:
                     with os.fdopen(output, 'wb') as stream:
                         stream.write(payload)
@@ -101,13 +103,16 @@ def stage(target, *, preview=None):
     return len(payloads)
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog='A write error can leave partial output in the disposable directory.',
+    )
     parser.add_argument('--target-home', required=True, type=Path)
     args = parser.parse_args()
     try:
         print(f'Staged {stage(args.target_home)} defaults; no packages installed and no secrets loaded.')
     except (ValueError, OSError) as error:
-        parser.exit(1, f'Staging refused: {error}\n')
+        parser.exit(1, f'Staging failed: {error}\n')
 
 if __name__ == '__main__':
     main()
