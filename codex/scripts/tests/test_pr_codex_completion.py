@@ -919,6 +919,10 @@ class CodexCompletionTests(unittest.TestCase):
             diagnostics["Codex"],
             ["codex_security_findings_unknown", "unrecognised_verdict_format"],
         )
+        self.assertIn(
+            "both authenticated native reports for the same head",
+            MODULE.review_clearance_guidance(HEAD, ["Codex"]),
+        )
         # An added finding is still a concern; the shape hint never clears it.
         self.entry["body"] += "\nP1: unsafe write remains."
         self.assertIsNone(self.candidate()[0])

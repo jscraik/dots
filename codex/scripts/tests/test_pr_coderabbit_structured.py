@@ -93,12 +93,13 @@ class StructuredCodeRabbitTests(unittest.TestCase):
                                          "base": {"sha": self.base, "repo": {"url": f"https://api.github.com/repos/{self.slug}"}}}],
                       "output": {"title": "Finished", "summary": check_summary, "text": None, "annotations_count": 0}}
 
-    def candidate(self, *, body=None, checks=None, history=None, snapshot=True, paths=None):
+    def candidate(self, *, body=None, checks=None, history=None, snapshot=True, paths=None, pull_inventory=()):
         paths = ["code.py"] if paths is None else paths
         entry, hist = copy.deepcopy(self.entry), copy.deepcopy(self.history if history is None else history)
         if body is not None:
             entry["body"] = hist["body"] = hist["userContentEdits"]["nodes"][0]["diff"] = body
         selected = [self.check] if checks is None else checks
+        pull_responses = iter(pull_inventory)
 
         def command(args, *_args, **_kwargs):
             if args[:2] == ["git", "merge-base"]:
@@ -109,6 +110,10 @@ class StructuredCodeRabbitTests(unittest.TestCase):
                 return subprocess.CompletedProcess(args, 0, json.dumps({"data": {"node": hist}}), "")
             if args[:2] == ["gh", "api"] and "check-runs" in args[2]:
                 return subprocess.CompletedProcess(args, 0, json.dumps([{"check_runs": selected}]), "")
+            if args == ["gh", "api", f"repos/{self.slug}/commits/{self.head}/pulls?per_page=100",
+                        "--hostname", "github.com", "--paginate", "--slurp"]:
+                pages = next(pull_responses, None)
+                return subprocess.CompletedProcess(args, int(pages is None), json.dumps(pages), "")
             raise AssertionError(f"Unexpected command: {args}")
 
         with (patch.object(MODULE, "repository_slug", return_value=(self.slug, None)),
@@ -122,9 +127,60 @@ class StructuredCodeRabbitTests(unittest.TestCase):
         self.assertIsNone(error)
         self.assertIsNotNone(result)
         self.assertEqual(result["created_at"], self.entry["updated_at"])
+        self.assertEqual(result["completion_evidence"]["check_pr_association"], "check_run")
         self.assertEqual(result["completion_evidence"]["summary_body"], self.body)
         picture = f'<picture><img src="{ASSETS}review-stack-buttons-v1/explain-change.svg" alt="Explain Change →" height="32"></picture>'
         self.assertIsNotNone(self.candidate(body=self.body.replace('>Explain Change →</a>', '>' + picture + '</a>'))[0])
+
+    def test_empty_native_pr_list_uses_one_independently_bound_pull(self):
+        check = {**self.check, "pull_requests": []}
+        pull = {**self.check["pull_requests"][0], "html_url": self.pr["url"]}
+        result, error = self.candidate(checks=[check], pull_inventory=([[pull]], [[pull]]))
+        self.assertIsNone(error)
+        self.assertEqual(result["completion_evidence"]["check_pr_association"], "commit_pull_inventory")
+        self.assertEqual(result["created_at"], self.entry["updated_at"])
+
+        candidate_kwargs = {"checks": [check], "pull_inventory": ([[pull]], [[pull]])}
+        self.assertEqual(self.review_lane(candidate_kwargs=candidate_kwargs)["status"], "pass")
+        self.assertNotEqual(self.review_lane(candidate_kwargs=candidate_kwargs, codex=False)["status"], "pass")
+        self.assertNotEqual(self.review_lane(candidate_kwargs=candidate_kwargs, unresolved=1)["status"], "pass")
+        finding = {"user": self.entry["user"], "body": "P1: unsafe input",
+                   "commit_id": self.head, "created_at": self.entry["updated_at"]}
+        self.assertNotEqual(self.review_lane(candidate_kwargs=candidate_kwargs, inline=[finding])["status"], "pass")
+
+        result, error = self.candidate(checks=[check], pull_inventory=([[pull]], [[pull], [pull]]))
+        self.assertIsNone(result)
+        self.assertIn("inventory changed", error)
+
+    def test_older_empty_pr_list_does_not_add_a_lookup_to_selected_native_check(self):
+        older = {**self.check, "id": 51, "pull_requests": [],
+                 "completed_at": "2026-11-01T09:59:00Z"}
+        pull = {**self.check["pull_requests"][0], "html_url": self.pr["url"]}
+        result, error = self.candidate(checks=[older, self.check], pull_inventory=([[pull]], [[]]))
+        self.assertIsNone(error)
+        self.assertEqual(result["completion_evidence"]["check_pr_association"], "check_run")
+
+    def test_empty_native_pr_list_rejects_unavailable_or_unbound_inventory(self):
+        check = {**self.check, "pull_requests": []}
+        pull = {**self.check["pull_requests"][0], "html_url": self.pr["url"]}
+        for pages in (None, [], [[]], {"entries": [pull]}, [[pull], [pull]],
+                      [[{**pull, "number": 8}]], [[{**pull, "html_url": self.pr["url"] + "8"}]],
+                      [[{**pull, "head": {**pull["head"], "sha": self.base}}]],
+                      [[{**pull, "base": {**pull["base"], "sha": self.head}}]],
+                      [[{**pull, "head": {**pull["head"], "repo": {"url": "https://api.github.com/repos/fork/project"}}}]]):
+            with self.subTest(pages=pages):
+                self.assertIsNone(self.candidate(checks=[check], pull_inventory=(pages, pages))[0])
+        for invalid in (
+            {**check, "pull_requests": None},
+            {**check, "pull_requests": [{**pull, "number": 8}]},
+            {**check, "conclusion": "failure"},
+            {**check, "app": {**check["app"], "id": 123}},
+            {**check, "output": {**check["output"], "annotations_count": 1}},
+        ):
+            with self.subTest(check=invalid):
+                self.assertIsNone(self.candidate(checks=[invalid], pull_inventory=([[pull]], [[pull]]))[0])
+        incremental = self.body.replace(f"between {self.base} and", f"between {'c' * 40} and")
+        self.assertIsNone(self.candidate(body=incremental, checks=[check], pull_inventory=([[pull]], [[pull]]))[0])
 
     def test_top_level_status_is_placed_in_structured_metadata_for_full_caller(self):
         verdict = "No actionable comments were generated in the recent review."

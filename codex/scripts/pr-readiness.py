@@ -2345,6 +2345,23 @@ def _coderabbit_native_sources(root: Path, slug: str, head: str, entry: dict[str
         return None, None
 
 
+def _coderabbit_commit_pulls(root: Path, slug: str, head: str) -> list[dict[str, Any]] | None:
+    result = run_command(["gh", "api", f"repos/{slug}/commits/{head}/pulls?per_page=100",
+                          "--hostname", "github.com", "--paginate", "--slurp"], root, check=False)
+    if result.returncode:
+        return None
+    try:
+        pages = json.loads(result.stdout)
+    except (ValueError, RecursionError):
+        return None
+    if not isinstance(pages, list) or not pages or any(
+        not isinstance(page, list) or any(not isinstance(pull, dict) for pull in page)
+        for page in pages
+    ):
+        return None
+    return [pull for page in pages for pull in page]
+
+
 def _coderabbit_benign_details(context: str) -> bool:
     """Only empty details or count-matched, literal LGTM comments are inert."""
     wrapper = r"\s*<details>\s*<summary><strong>📜 Recent review details</strong></summary>\s*<dl>\s*<dd>\s*(.*?)\s*</dd>\s*</dl>\s*</details>\s*"
@@ -2555,11 +2572,19 @@ def coderabbit_completion_review(root: Path, pr: dict[str, Any], head: str, inli
         return None, None
     candidate = candidates[0]
     structured = candidate.pop("structured_summary")
+    associated_pulls = None
     if structured is not None:
         native_sources = _coderabbit_native_sources(root, slug, head, candidate)
-        binding = _coderabbit_summary_adapter().native_binding(candidate, structured, native_sources[1], native_sources[0], pr, slug, head)
+        checks, history = native_sources
+        adapter = _coderabbit_summary_adapter()
+        binding = adapter.native_check_binding(candidate, structured, history, checks, pr, slug, head)
         if binding is None:
             return None, None
+        if binding["check_pr_association"] is None:
+            associated_pulls = _coderabbit_commit_pulls(root, slug, head)
+            if not adapter.commit_pull_matches(associated_pulls, pr, slug, head):
+                return None, None
+            binding["check_pr_association"] = "commit_pull_inventory"
         timestamp, completion_evidence = binding["completed_at"], binding
     else:
         statuses = _coderabbit_statuses(root, slug, head)
@@ -2592,6 +2617,8 @@ def coderabbit_completion_review(root: Path, pr: dict[str, Any], head: str, inli
         return None, error
     if structured is not None and _coderabbit_native_sources(root, slug, head, candidate) != native_sources:
         return None, "CodeRabbit native check or immutable history inventory changed during verification"
+    if associated_pulls is not None and _coderabbit_commit_pulls(root, slug, head) != associated_pulls:
+        return None, "CodeRabbit commit-to-PR inventory changed during verification"
     if structured is None and _coderabbit_statuses(root, slug, head) != statuses:
         return None, "CodeRabbit completion status inventory changed during verification"
     return candidate, None
@@ -3382,6 +3409,9 @@ def review_clearance_guidance(head_sha: str, reviewer_names: list[str] | None = 
               "When inspection already completed, use qualifying formal review evidence, or authenticated pr-repair-endorsement/v1 only where the owning repository supports its protected CI route; "
               "a coordinator-written note or local digest is not an endorsement. Do not repeat completed inspection merely to change wording. "
               if not reviewer_names or "CodeRabbit" in reviewer_names else "")
+    codex = (
+        "When Codex reports unknown security findings, corroborate the completed summary with both authenticated native reports for the same head, or obtain a later qualifying Codex review. "
+        if not reviewer_names or "Codex" in reviewer_names else "")
     return (
         "Inspect the outstanding review sources and resolve any findings first. "
         f"With matching user authorization and execution approval, {reviewer_request}; "
@@ -3390,7 +3420,7 @@ def review_clearance_guidance(head_sha: str, reviewer_names: list[str] | None = 
         f"Review current head {head_sha}; report any remaining findings or publish the normal supported completion result. "
         f"The explicit statement 'No findings for {head_sha}.' is also supported, not required after native completion. "
         "Do not request duplicate clearance when authenticated current-head completion already qualifies. "
-        f"{formal}"
+        f"{formal}{codex}"
         "If the hosted reviewDecision remains CHANGES_REQUESTED, a comment does not clear it: "
         "obtain a formal review update or a separately authorized dismissal that clears that decision. "
         "Then rerun readiness against the current head; all other gates still apply. "

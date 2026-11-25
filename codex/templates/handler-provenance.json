@@ -297,7 +297,7 @@
         "Report a supersession close on a head outside the receipt using the mutation response or readback.",
         "Use the provider workflow run ID to group reruns and keep checks without a workflow run separate."
       ],
-      "candidate_sha256": "3890f1d8f7fa3166c862882f7472fe4ad1d7b24df4984d255c345e420fc8a35b"
+      "candidate_sha256": "506f57ff1e52a3673d122f6a766f5f0e76e1c3d8c025e7cf6f59095c46389552"
     },
     {
       "path": "codex/scripts/pr_repair_ci.py",

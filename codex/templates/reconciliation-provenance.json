@@ -71,7 +71,7 @@
     {
       "path": "codex/instructions/agents/16a-review-reply-parsing.md",
       "prior_candidate_sha256": "3161d0862dfd778f43b309e4f862371fe24988b2fb05f3a8963c98a3148e4d07",
-      "candidate_sha256": "9a788df788e291903ab0bd0a532b36f2bbbf73bce5011d81981e8bd19157bfef"
+      "candidate_sha256": "13504840fd747ed60066a575811029d141de1e78a0af507f186e328717193c96"
     },
     {
       "path": "codex/instructions/managed-configuration.md",
@@ -99,7 +99,7 @@
     {
       "path": "codex/scripts/pr-readiness.py",
       "prior_candidate_sha256": "6c47ce8d869fb46b338f6ed354ec95eb554471c215bc90b9c1d76c69e9cb60ee",
-      "candidate_sha256": "3890f1d8f7fa3166c862882f7472fe4ad1d7b24df4984d255c345e420fc8a35b",
+      "candidate_sha256": "506f57ff1e52a3673d122f6a766f5f0e76e1c3d8c025e7cf6f59095c46389552",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks. Accept the observed fixed Codex closing phrases Keep it up! and Nice work! while retaining the complete authenticated, head-bound report and footer contract. Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance. Use the provider workflow run ID to group reruns and keep checks without a workflow run separate."
     },
     {
@@ -110,7 +110,7 @@
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "c832835fbd0a72e6d1006bad3f840e854fcdc6a24cfd24377fe8591baef2eee5",
+      "candidate_sha256": "d68586f89eb52880825bef6300c30aa39cbc77be05b557ee83b012b800dd41c2",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions."
     },
     {
@@ -157,13 +157,13 @@
     {
       "path": "codex/scripts/tests/test_pr_coderabbit_structured.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "8cce4c2c83cb60ea2a247cdf9647ef2526faf90f54409d0e77d15a95a462164c",
+      "candidate_sha256": "d94b70019edb129731c469ed3cb0eede2b8aa20dd153f87fae1c52c437347633",
       "transformation": "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
       "path": "codex/scripts/tests/test_pr_codex_completion.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "5bd2a07b8594c6e8cd789184a9db8da4056d03a5935b2a54c86842d641785861",
+      "candidate_sha256": "4ace63a12fe615c487695e3ba3b16a45be3bb3327227f48c7d18283137a4618c",
       "transformation": "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks. Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection."
     },
     {

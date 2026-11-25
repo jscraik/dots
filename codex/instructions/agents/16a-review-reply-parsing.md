@@ -247,6 +247,14 @@ still rejects failed, pending or missing check evidence. A review can finish
 before CI context becomes available; do not mistake that for a failed code
 inspection or use it to waive CI. See the provider's
 [GitHub Checks contract](https://docs.coderabbit.ai/tools/github-checks).
+When that App check has an explicitly empty PR association list, read all
+pages of GitHub's [pull requests associated with the exact commit](https://docs.github.com/en/rest/commits/commits#list-pull-requests-associated-with-a-commit).
+Require exactly one entry with this PR's URLs and number, exact head and base
+SHAs, and the same repository on both sides. The reviewed range must start
+at this PR's base commit and the App check's scoped URL must still identify
+this PR. Record which source supplied the association and re-read the
+inventory with the check and immutable history before accepting it. Missing,
+conflicting, ambiguous or changed evidence fails closed.
 Repository identity still comes from the authenticated same-PR source and all
 range, coverage, run identity, status and snapshot checks remain required.
 The exact automatic-review scheduling notice may remain after a completed manual
