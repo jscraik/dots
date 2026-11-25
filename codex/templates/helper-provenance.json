@@ -757,7 +757,7 @@
         "Report a supersession close on a head outside the receipt using the mutation response or readback.",
         "Use the provider workflow run ID to group reruns and keep checks without a workflow run separate."
       ],
-      "candidate_sha256": "506f57ff1e52a3673d122f6a766f5f0e76e1c3d8c025e7cf6f59095c46389552"
+      "candidate_sha256": "5ababfc663a4b2016bdd3b12657eeafc2b3d47015e0ae7d116c3f5ebf44b0810"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
@@ -854,7 +854,7 @@
         "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
         "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection."
       ],
-      "candidate_sha256": "4ace63a12fe615c487695e3ba3b16a45be3bb3327227f48c7d18283137a4618c"
+      "candidate_sha256": "2f5063cd3a3b57f8ea855609e4e1d0f7def91e97a5fa2a48da7384c317739a61"
     },
     {
       "path": "codex/scripts/tests/test_pr_readiness.py",
@@ -870,7 +870,7 @@
         "Isolate the fsmonitor test from inherited Git repository overrides and verify the monitor can run.",
         "Cover shared, distinct and absent workflow run identities in the readiness gate."
       ],
-      "candidate_sha256": "d55993ddc0c19830198f741f952306a5eb5faf80418f0d14b23ec91bbf69bd09"
+      "candidate_sha256": "9f3d0fc70e8c414da8e024d76b24272e25f371120928dbf4680bd4a7aaa3c2ea"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",

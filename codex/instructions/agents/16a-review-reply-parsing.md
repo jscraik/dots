@@ -189,19 +189,21 @@ unedited native reports independently corroborate the code and security results.
 Require one report of each kind from the same authenticated Codex GitHub App and
 bot, on the exact PR, with unambiguous reviewed commits resolving to the current
 full head. Bind each report's creation time within three seconds of its matching
-completed row, require code completion before security completion, and require
-the summary update from one second before to three seconds after security
-completion. Re-read the complete hosted inventory before accepting the join.
+completed row. Code and security may finish in either order with distinct
+timestamps. Require the summary to exist by the earlier completion and to
+update from one second before to three seconds after the later completion.
+Re-read the complete hosted inventory before accepting the join.
 Count every other comment whose creation or update falls in either completion
 window before filtering identity, receipt content or edit status. Exclude only
-the authenticated summary itself, whose update is expected in the security
+the authenticated summary itself, whose update is expected in the later completion
 window. Unknown or inconsistent timestamps and ambiguous windows fail closed.
 An unrelated coincident comment can therefore prevent the join. Verify GitHub's GraphQL
 edit history for both exact receipt nodes and re-read it after the REST inventory
 snapshot: their bodies, URLs and timestamps must match, `lastEditedAt` must be
 null, `includesCreatedEdit` false and the edit count zero. The joined code receipt
-is retained as source evidence but cannot act as a second, later clearance;
-later and same-second findings are evaluated against the code completion time.
+is retained as source evidence. The receipt records the code and security
+completion times and uses the earlier time to evaluate later and same-second
+findings for the combined result.
 Missing, edited, duplicated, stale, inconsistent or finding-bearing reports
 remain blocking; null fields alone never establish a clean security result.
 Security-only evidence cannot independently fill the code-review quorum.

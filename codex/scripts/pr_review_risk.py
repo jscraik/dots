@@ -59,7 +59,7 @@ def committed_review_requirement(records: object) -> dict[str, object]:
     if not isinstance(records, list):
         raise TypeError("committed-path records must be an array")
     seen: set[str] = set()
-    high_risk: set[str] = set()
+    high_risk: dict[str, list[str]] = {}
     for record in records:
         if not isinstance(record, dict) or set(record) != {"path", "old_mode", "new_mode"}:
             raise ValueError("committed-path record must contain path and both modes")
@@ -82,24 +82,31 @@ def committed_review_requirement(records: object) -> dict[str, object]:
         words = set(re.split(r"[^a-z0-9]+", f"{separated} {acronym_split}".casefold()))
         if any('JWT' in run for run in re.findall(r'[A-Z]{2,}', path)):
             words.add('jwt')
-        protected = bool(set(components) & HIGH_RISK_COMPONENTS) or components[-1] in HIGH_RISK_NAMES
-        protected = protected or any(lowered == suffix or lowered.endswith("/" + suffix)
-                                     for suffix in HIGH_RISK_PATH_SUFFIXES)
-        protected = protected or bool(words & HIGH_RISK_WORDS)
-        protected = protected or any(fnmatchcase(components[-1], pattern) for pattern in (
-            "requirements*.txt", "constraints*.txt", "*.lock", ".env.*",
-        ))
         regular_modes = {"000000", "100644", "100755"}
         special = old_mode not in regular_modes or new_mode not in regular_modes
         special = special or (new_mode == "100755" and old_mode != "100755")
         ordinary = any(fnmatchcase(lowered, pattern) for pattern in ORDINARY_PATTERNS)
         misleading = any(unicodedata.category(char) in {"Cc", "Cf", "Zl", "Zp"} for char in path)
-        if protected or special or not ordinary or "\\" in path or misleading:
-            high_risk.add(path)
+        reasons = [reason for reason, matches in (
+            ("protected_path", bool(set(components) & HIGH_RISK_COMPONENTS)
+             or components[-1] in HIGH_RISK_NAMES
+             or any(lowered == suffix or lowered.endswith("/" + suffix) for suffix in HIGH_RISK_PATH_SUFFIXES)),
+            ("protected_keyword", bool(words & HIGH_RISK_WORDS)),
+            ("dependency_or_environment_file", any(fnmatchcase(components[-1], pattern) for pattern in (
+                "requirements*.txt", "constraints*.txt", "*.lock", ".env.*",
+            ))),
+            ("special_file_mode", special),
+            ("unclassified_file_type", not ordinary),
+            ("ambiguous_path_characters", "\\" in path or misleading),
+        ) if matches]
+        if reasons:
+            high_risk[path] = reasons
     high = bool(high_risk) or not records
     return {
         "risk_tier": "high" if high else "ordinary",
         "required_bot_review_count": 2 if high else 1,
         "high_risk_paths": sorted(high_risk),
-        "risk_basis": "complete committed diff; protected and unclassified paths require two bots",
+        "high_risk_reasons": dict(sorted(high_risk.items())),
+        "risk_basis": ("complete committed diff; protected and unclassified paths require two bots"
+                       if records else "no committed paths established; two bots required"),
     }
