@@ -350,8 +350,25 @@ def _time(value: Any) -> datetime:
     return datetime.fromisoformat(value)
 
 
-def native_binding(entry: dict, structured: dict, history: dict, checks: list, pr: dict, slug: str, head: str) -> dict | None:
-    """Bind immutable summary revisions to one exact-PR native check interval."""
+def _matches_pull(link: dict, pr: dict, slug: str, head: str) -> bool:
+    repository_url = f"https://api.github.com/repos/{slug}"
+    return (type(link["number"]) is int and link["number"] == pr["number"]
+            and link["url"] == f"{repository_url}/pulls/{pr['number']}"
+            and link["head"]["sha"] == head and link["base"]["sha"] == pr["baseRefOid"]
+            and all(link[side]["repo"]["url"] == repository_url for side in ("head", "base")))
+
+
+def commit_pull_matches(pulls: list | None, pr: dict, slug: str, head: str) -> bool:
+    """Require one exact PR in the complete, independently fetched inventory."""
+    try:
+        return (isinstance(pulls, list) and len(pulls) == 1
+                and pulls[0]["html_url"] == pr["url"] and _matches_pull(pulls[0], pr, slug, head))
+    except (TypeError, KeyError):
+        return False
+
+
+def native_check_binding(entry: dict, structured: dict, history: dict, checks: list, pr: dict, slug: str, head: str) -> dict | None:
+    """Validate one native check. A null association still needs separate proof."""
     try:
         if (entry["user"] != {**entry["user"], "id": 136622811, "login": "coderabbitai[bot]", "type": "Bot"}
             or history["id"] != entry["node_id"] or history["databaseId"] != entry["id"]
@@ -456,12 +473,17 @@ def native_binding(entry: dict, structured: dict, history: dict, checks: list, p
             or check["status"] != "completed" or check["conclusion"] != "success"
             or abs((_time(check["started_at"]) - started).total_seconds()) > 5
             or _time(check["started_at"]) >= _time(check["completed_at"])
-            or len(associations) != 1
-            or associations[0]["number"] != pr["number"] or associations[0]["url"] != f"https://api.github.com/repos/{slug}/pulls/{pr['number']}"
-            or associations[0]["head"]["sha"] != head or associations[0]["base"]["sha"] != pr["baseRefOid"]
-            or any(associations[0][side]["repo"]["url"] != f"https://api.github.com/repos/{slug}" for side in ("head", "base"))
             or output["title"] != "Finished" or output["text"] not in (None, "")
             or type(output["annotations_count"]) is not int or output["annotations_count"] != 0):
+            return None
+        association_source = "check_run"
+        if associations == []:
+            # GitHub may omit the Check Run's PR list. Use a separate complete
+            # inventory only for a full review that names this exact PR base.
+            if entry.get("reviewed_range_start") != pr["baseRefOid"]:
+                return None
+            association_source = None
+        elif not isinstance(associations, list) or len(associations) != 1 or not _matches_pull(associations[0], pr, slug, head):
             return None
         expected = (r"Result: Success - Review completed\nRun ID: `" + UUID + r"`\nCodeRabbit Review: \[Open CodeRabbit Review\]\("
                     + re.escape(review_url) + r"\)\n\n\| Step \| Status \| Time \|\n\| --- \| --- \| --- \|\n")
@@ -474,7 +496,8 @@ def native_binding(entry: dict, structured: dict, history: dict, checks: list, p
         publication = min((node for node, timestamp in publication_edits
                            if abs((_time(check["completed_at"]) - timestamp).total_seconds()) <= 5),
                           key=lambda node: _time(node["editedAt"]))
-        return {"check_run_id": check["id"], "terminal_edit_id": original["id"], "latest_edit_id": terminal["id"], "pending_edit_id": pending[0]["id"],
+        return {"check_run_id": check["id"], "check_pr_association": association_source,
+                "terminal_edit_id": original["id"], "latest_edit_id": terminal["id"], "pending_edit_id": pending[0]["id"],
                 "publication_edit_id": publication["id"], "publication_at": publication["editedAt"],
                 "completed_at": min(completed, _time(check["completed_at"])).isoformat().replace("+00:00", "Z"),
                 "summary_run_id": structured["run_id"], "review_url": review_url,

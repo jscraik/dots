@@ -919,6 +919,13 @@ class CodexCompletionTests(unittest.TestCase):
             diagnostics["Codex"],
             ["codex_security_findings_unknown", "unrecognised_verdict_format"],
         )
+        self.assertIn(
+            "both authenticated native reports for the same head",
+            MODULE.review_clearance_guidance(HEAD, ["Codex"]),
+        )
+        recovery = MODULE.review_clearance_guidance(HEAD, ["Codex"], diagnostics=diagnostics)
+        self.assertIn("both authenticated native reports", recovery)
+        self.assertIn("request current-head inspection", recovery)
         # An added finding is still a concern; the shape hint never clears it.
         self.entry["body"] += "\nP1: unsafe write remains."
         self.assertIsNone(self.candidate()[0])
@@ -941,6 +948,39 @@ class CodexCompletionTests(unittest.TestCase):
             ),
             set(),
         )
+
+    def test_authenticated_running_summary_recommends_waiting_without_clearance(self) -> None:
+        body, state = self.state_body()
+        running = copy.deepcopy(state)
+        running["code_review"].update(status="running", has_any_findings=None, has_unresolved_findings=None)
+        entry = {
+            **self.entry,
+            "user": {"login": LOGIN, "type": "Bot", "id": 123},
+            "performed_via_github_app": {"id": 1144995, "slug": "chatgpt-codex-connector"},
+            "body": body.replace(json.dumps(state), json.dumps(running)),
+        }
+        for source, head, should_wait in (
+            (entry, HEAD, True),
+            ({**entry, "performed_via_github_app": {"id": 1, "slug": "chatgpt-codex-connector"}}, HEAD, False),
+            (entry, "b" * 40, False),
+        ):
+            with self.subTest(source=source, head=head):
+                diagnostics = {}
+                self.assertFalse(MODULE._bot_review_is_acceptable({**source, "state": "COMMENTED"}, head))
+                self.assertEqual(MODULE.outstanding_bot_concerns([], [], [source], head, diagnostics=diagnostics), ["Codex"])
+                self.assertEqual("codex_review_in_progress" in diagnostics["Codex"], should_wait)
+                guidance = MODULE.review_clearance_guidance(head, ["CodeRabbit", "Codex"], diagnostics=diagnostics)
+                self.assertEqual("Check whether Codex is still reviewing" in guidance, should_wait)
+                self.assertIn("required reviewer: CodeRabbit, Codex", guidance)
+                self.assertIn("both authenticated native reports", guidance)
+
+        newer = {**entry, "created_at": "2026-11-01T10:00:00Z", "updated_at": "2026-11-01T10:00:00Z"}
+        for body in ("Review rate limited.", "Finding: unsafe write remains."):
+            with self.subTest(body=body):
+                diagnostics = {}
+                self.assertEqual(MODULE.outstanding_bot_concerns(
+                    [], [], [entry, {**newer, "body": body}], HEAD, diagnostics=diagnostics), ["Codex"])
+                self.assertNotIn("codex_review_in_progress", diagnostics["Codex"])
 
     def test_unknown_security_requires_correlated_native_provider_receipts(
         self,
@@ -1030,6 +1070,30 @@ class CodexCompletionTests(unittest.TestCase):
             security["html_url"],
         )
         self.assertTrue(MODULE._bot_review_is_acceptable(completed, HEAD))
+        code_row = next(i for i, line in enumerate(lines) if "📝 **Code Review**" in line)
+        reversed_lines = lines.copy()
+        reversed_lines[code_row] = lines[code_row].replace("15:58:11.414102Z", "15:58:21.414102Z")
+        reversed_lines[security_row] = lines[security_row].replace("15:58:21.414102Z", "15:58:11.414102Z")
+        reversed_summary = {**summary, "body": "\n".join(reversed_lines)}
+        reversed_code = {**code, "created_at": security["created_at"], "updated_at": security["updated_at"]}
+        reversed_security = {**security, "created_at": code["created_at"], "updated_at": code["updated_at"]}
+        reversed_entries = [reversed_summary, reversed_security, reversed_code]
+        reversed_completion = inspect(reversed_entries)
+        self.assertIsNotNone(reversed_completion)
+        evidence = reversed_completion["completion_evidence"]
+        self.assertEqual(evidence["completed_at"], "2026-10-07T15:58:21.414102Z")
+        self.assertEqual(evidence["security_completed_at"], "2026-10-07T15:58:11.414102Z")
+        self.assertEqual(evidence["clearance_at"], evidence["security_completed_at"])
+        self.assertEqual(reversed_completion["created_at"], evidence["clearance_at"])
+        for time in ("2026-10-07T15:58:11Z", "2026-10-07T15:58:16Z"):
+            finding = {"user": summary["user"], "body": "P1: security concern remains.",
+                       "commit_id": HEAD, "created_at": time}
+            self.assertEqual(
+                MODULE.outstanding_bot_concerns([], [finding], [reversed_completion], HEAD),
+                ["Codex"],
+            )
+        early_update = {**reversed_summary, "updated_at": "2026-10-07T15:58:12Z"}
+        self.assertIsNone(inspect([early_update, reversed_security, reversed_code]))
         for altered in (
             [summary],
             [summary, code],

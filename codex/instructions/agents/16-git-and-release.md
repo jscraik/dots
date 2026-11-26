@@ -231,6 +231,13 @@ or activation authority.
   The implementation author cannot supply either independent review. A second
   human maintainer is not required. Content review can still identify consequential
   risk that a path-based classifier cannot infer.
+  Once the bot-quorum check classifies the diff, its result reports the
+  paths and reasons that drive the tier, the qualifying reviewers and the
+  remaining count. A current-head Codex App summary reporting an in-progress review
+  directs the operator to refresh after that review completes. A completed
+  summary with unknown security flags directs the operator to the existing
+  correlated reports or a later qualifying review. Both conditions keep the
+  evidence gate closed until independent proof qualifies.
   Without verified repair evidence, only those exact identities and
   current-head `APPROVED` or `COMMENTED` submissions/comments carrying explicit
   no-findings text bound to the full or abbreviated HEAD SHA count. Bare or

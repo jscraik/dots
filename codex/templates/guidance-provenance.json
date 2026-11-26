@@ -208,7 +208,7 @@
       "source_sha256": "dfd4f91164e826bd903b05a2e90d2d83767a8df26a532525089e3498c2e23d94",
       "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "817bc4702a0fa7bcba7f3a79f9ea66fd862a7cd8ef22cb02bdeae3994ab023bc",
+      "candidate_sha256": "855e7e396af5ddef94658b94912aa9de1fedecac3ca3a9dbaf337ed73aff318b",
       "transformation": "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
@@ -216,7 +216,7 @@
       "source_sha256": "6a70ee53b038854a08a07dec9284f60f7c71d9f63373b1f2ff0cb304a69e8f70",
       "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "9a788df788e291903ab0bd0a532b36f2bbbf73bce5011d81981e8bd19157bfef"
+      "candidate_sha256": "c926acca78e9eea2b3cd55221c88c10317392aa3a1e592bb508bab999d650f52"
     },
     {
       "path": "codex/instructions/agents/17-external-integrations.md",
