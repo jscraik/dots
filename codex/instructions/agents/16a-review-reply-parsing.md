@@ -189,19 +189,21 @@ unedited native reports independently corroborate the code and security results.
 Require one report of each kind from the same authenticated Codex GitHub App and
 bot, on the exact PR, with unambiguous reviewed commits resolving to the current
 full head. Bind each report's creation time within three seconds of its matching
-completed row, require code completion before security completion, and require
-the summary update from one second before to three seconds after security
-completion. Re-read the complete hosted inventory before accepting the join.
+completed row. Code and security may finish in either order with distinct
+timestamps. Require the summary to exist by the earlier completion and to
+update from one second before to three seconds after the later completion.
+Re-read the complete hosted inventory before accepting the join.
 Count every other comment whose creation or update falls in either completion
 window before filtering identity, receipt content or edit status. Exclude only
-the authenticated summary itself, whose update is expected in the security
+the authenticated summary itself, whose update is expected in the later completion
 window. Unknown or inconsistent timestamps and ambiguous windows fail closed.
 An unrelated coincident comment can therefore prevent the join. Verify GitHub's GraphQL
 edit history for both exact receipt nodes and re-read it after the REST inventory
 snapshot: their bodies, URLs and timestamps must match, `lastEditedAt` must be
 null, `includesCreatedEdit` false and the edit count zero. The joined code receipt
-is retained as source evidence but cannot act as a second, later clearance;
-later and same-second findings are evaluated against the code completion time.
+is retained as source evidence. The receipt records the code and security
+completion times and uses the earlier time to evaluate later and same-second
+findings for the combined result.
 Missing, edited, duplicated, stale, inconsistent or finding-bearing reports
 remain blocking; null fields alone never establish a clean security result.
 Security-only evidence cannot independently fill the code-review quorum.
@@ -247,6 +249,14 @@ still rejects failed, pending or missing check evidence. A review can finish
 before CI context becomes available; do not mistake that for a failed code
 inspection or use it to waive CI. See the provider's
 [GitHub Checks contract](https://docs.coderabbit.ai/tools/github-checks).
+When that App check has an explicitly empty PR association list, read all
+pages of GitHub's [pull requests associated with the exact commit](https://docs.github.com/en/rest/commits/commits#list-pull-requests-associated-with-a-commit).
+Require exactly one entry with this PR's URLs and number, exact head and base
+SHAs, and the same repository on both sides. The reviewed range must start
+at this PR's base commit and the App check's scoped URL must still identify
+this PR. Record which source supplied the association and re-read the
+inventory with the check and immutable history before accepting it. Missing,
+conflicting, ambiguous or changed evidence fails closed.
 Repository identity still comes from the authenticated same-PR source and all
 range, coverage, run identity, status and snapshot checks remain required.
 The exact automatic-review scheduling notice may remain after a completed manual

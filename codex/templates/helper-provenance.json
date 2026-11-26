@@ -757,7 +757,7 @@
         "Report a supersession close on a head outside the receipt using the mutation response or readback.",
         "Use the provider workflow run ID to group reruns and keep checks without a workflow run separate."
       ],
-      "candidate_sha256": "3890f1d8f7fa3166c862882f7472fe4ad1d7b24df4984d255c345e420fc8a35b"
+      "candidate_sha256": "5ababfc663a4b2016bdd3b12657eeafc2b3d47015e0ae7d116c3f5ebf44b0810"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
@@ -767,7 +767,7 @@
         "Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions.",
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status"
       ],
-      "candidate_sha256": "c832835fbd0a72e6d1006bad3f840e854fcdc6a24cfd24377fe8591baef2eee5"
+      "candidate_sha256": "d68586f89eb52880825bef6300c30aa39cbc77be05b557ee83b012b800dd41c2"
     },
     {
       "path": "codex/scripts/tests/fixtures/coderabbit-completed-source-verdict.txt",
@@ -843,7 +843,7 @@
         "November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
         "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
       ],
-      "candidate_sha256": "8cce4c2c83cb60ea2a247cdf9647ef2526faf90f54409d0e77d15a95a462164c"
+      "candidate_sha256": "d94b70019edb129731c469ed3cb0eede2b8aa20dd153f87fae1c52c437347633"
     },
     {
       "path": "codex/scripts/tests/test_pr_codex_completion.py",
@@ -854,7 +854,7 @@
         "Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks.",
         "Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection."
       ],
-      "candidate_sha256": "5bd2a07b8594c6e8cd789184a9db8da4056d03a5935b2a54c86842d641785861"
+      "candidate_sha256": "2f5063cd3a3b57f8ea855609e4e1d0f7def91e97a5fa2a48da7384c317739a61"
     },
     {
       "path": "codex/scripts/tests/test_pr_readiness.py",
@@ -870,7 +870,7 @@
         "Isolate the fsmonitor test from inherited Git repository overrides and verify the monitor can run.",
         "Cover shared, distinct and absent workflow run identities in the readiness gate."
       ],
-      "candidate_sha256": "d55993ddc0c19830198f741f952306a5eb5faf80418f0d14b23ec91bbf69bd09"
+      "candidate_sha256": "9f3d0fc70e8c414da8e024d76b24272e25f371120928dbf4680bd4a7aaa3c2ea"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",
