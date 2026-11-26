@@ -382,7 +382,10 @@ class PrBodyRefreshTests(unittest.TestCase):
                 patch.object(
                     MODULE,
                     "repair_preflight_for_current_pr",
-                    return_value={"mode": "metadata_repair"},
+                    return_value={
+                        "mode": "metadata_repair", "head_sha": "a" * 40,
+                        "url": "https://github.example/jscraik/configs/pull/357",
+                    },
                 ),
                 patch.object(
                     MODULE,
@@ -462,6 +465,10 @@ class PrBodyRefreshTests(unittest.TestCase):
             with self.subTest(response=response):
                 def command(arguments, checkout):
                     if arguments[0] == "git":
+                        self.assertEqual(arguments, [
+                            "git", "--no-replace-objects", "ls-tree", "--full-tree",
+                            "-r", "--name-only", "-z", local_head,
+                        ])
                         return run(arguments, checkout)
                     if arguments[:3] == ["gh", "api", "graphql"]:
                         payload = graph
@@ -563,7 +570,15 @@ class PrBodyRefreshTests(unittest.TestCase):
                 ]
             )
         )
-        with self.assertRaisesRegex(MODULE.RefreshBlocked, "template exists in the selected Git tree"):
+        head = MODULE.run_command(["git", "rev-parse", "HEAD"], root).stdout.strip()
+        with (
+            patch.object(MODULE, "repair_preflight_for_current_pr", return_value={
+                "mode": "metadata_repair", "head_sha": head,
+                "url": "https://github.example/jscraik/configs/pull/357",
+            }),
+            patch.object(MODULE, "current_repository_slug", return_value="jscraik/configs"),
+            self.assertRaisesRegex(MODULE.RefreshBlocked, "template exists in the selected Git tree"),
+        ):
             MODULE.execute(args)
 
     def test_body_symlink_is_rejected_before_any_hosted_operation(self) -> None:

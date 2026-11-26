@@ -588,9 +588,11 @@ def require_no_template_paths(paths: list[str]) -> None:
             raise RefreshBlocked("PR template exists in the selected Git tree; restore or select it")
 
 
-def require_no_local_template(root: Path) -> None:
+def require_no_local_template(root: Path, head_sha: object) -> None:
+    if not isinstance(head_sha, str) or not re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", head_sha):
+        raise RefreshBlocked("the verified PR head is unavailable for local template inventory")
     inventory = run_command(
-        ["git", "--no-replace-objects", "ls-tree", "--full-tree", "-r", "--name-only", "-z", "HEAD"], root
+        ["git", "--no-replace-objects", "ls-tree", "--full-tree", "-r", "--name-only", "-z", head_sha], root
     )
     if inventory.returncode != 0 or not inventory.stdout.endswith("\x00"):
         raise RefreshBlocked("PR template absence could not be verified in the selected Git tree")
@@ -632,7 +634,6 @@ def _execute_snapshot(args: argparse.Namespace) -> dict[str, object]:
             raise RefreshBlocked(
                 "PR template absence is supported only for explicit metadata repair"
             )
-        require_no_local_template(root)
         try:
             body_text = _fixture_resource(body_path).read_text(encoding="utf-8")
         except (OSError, UnicodeError) as exc:
@@ -667,6 +668,7 @@ def _execute_snapshot(args: argparse.Namespace) -> dict[str, object]:
     destination = args.repo
     if not template_path.exists():
         host = repair_repository_host(receipt.get("url"), args.repo, args.pr)
+        require_no_local_template(root, receipt.get("head_sha"))
         require_no_hosted_template(root, args.repo, host)
         destination = f"{host}/{args.repo}"
     if hasattr(args, "_repository_identity"):
