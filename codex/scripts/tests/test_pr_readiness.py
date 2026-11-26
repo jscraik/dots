@@ -5357,7 +5357,6 @@ class TesslReviewTests(unittest.TestCase):
             (review, [check, {**check, 'id': 43}], False),
             (review, [{**check, 'output': None}], False),
             (review, [{**check, 'app': {**check['app'], 'id': 2}}], False),
-            ({**review, 'commit_id': 'b' * 40}, [check], False),
             ({**review, 'id': 124}, [check], False),
             ({**review, 'body': body.replace('findings-total=0', 'findings-total=1')}, [check], False),
             ({**review, 'body': body.replace(observed_narrative, 'Unknown review narrative.')}, [check], False),
@@ -5371,6 +5370,54 @@ class TesslReviewTests(unittest.TestCase):
                 self.assertEqual(MODULE._bot_review_is_acceptable(joined, head), expected)
                 self.assertEqual(MODULE.outstanding_bot_concerns([joined], [], [], head),
                                  [] if expected else ['Tessl Reviewer'])
+
+        next_head = 'b' * 40
+        current_pr = {'number': 7, 'url': 'https://github.com/o/r/pull/7', 'headRefOid': next_head,
+                      'baseRefName': 'main', 'baseRefOid': 'c' * 40, 'tessl_check_runs': []}
+        with (patch.object(MODULE, 'run_command', return_value=subprocess.CompletedProcess(
+                  [], 0, json.dumps(current_pr), '')),
+              patch.object(MODULE, 'repository_slug', return_value=('o/r', None)),
+              patch.object(MODULE, 'required_checks_snapshot', return_value=({}, [], None)),
+              patch.object(MODULE, 'review_inventory_collection', return_value=([review, review], None)),
+              patch.object(MODULE, 'tessl_check_inventory', side_effect=[([], None), ([check], None)]) as inventory):
+            hosted_pr, error = MODULE.gh_pr(Path.cwd(), number=7)
+        self.assertIsNone(error)
+        self.assertEqual([call.args[2] for call in inventory.call_args_list], [next_head, head])
+        historical = MODULE._join_tessl_review_check(review, hosted_pr)
+        self.assertFalse(MODULE._bot_review_is_acceptable(historical, next_head))
+        self.assertFalse(MODULE._bot_review_is_acceptable(historical, head))
+        self.assertEqual(MODULE.outstanding_bot_concerns([historical], [], [], next_head), [])
+        finding = {**review, 'id': 122, 'state': 'CHANGES_REQUESTED',
+                   'submitted_at': '2026-11-01T11:59:00Z', 'body': 'P1: unsafe input remains'}
+        self.assertEqual(MODULE.outstanding_bot_concerns([finding, historical], [], [], next_head),
+                         ['Tessl Reviewer'])
+        for changes in (
+            {'commit_id': 'b'},
+            {'body': body + '\nP1: unsafe input remains'},
+            {'body': body.replace('findings-total=0', 'findings-total=1')},
+            {'user': {**review['user'], 'id': 1}},
+            {'user': {**review['user'], 'id': 325629464.0}},
+        ):
+            with self.subTest(historical_changes=changes):
+                candidate = {**historical, **changes}
+                self.assertEqual(MODULE.outstanding_bot_concerns([candidate], [], [], next_head),
+                                 ['Tessl Reviewer'])
+
+        for checks in (
+            [],
+            [check, check],
+            [check, {**check, 'id': 43, 'conclusion': 'failure',
+                     'output': {**output, 'annotations_count': 1}}],
+            [check, {**check, 'id': 43, 'status': 'in_progress', 'conclusion': None}],
+            [{**check, 'head_sha': next_head}],
+            [{**check, 'output': {**output, 'annotations_count': 1}}],
+            [{**check, 'output': {**output, 'text': 'P1: unsafe input remains'}}],
+        ):
+            with self.subTest(historical_checks=checks):
+                candidate = MODULE._join_tessl_review_check(
+                    review, {**current_pr, 'tessl_historical_check_runs': {head: checks}})
+                self.assertEqual(MODULE.outstanding_bot_concerns([candidate], [], [], next_head),
+                                 ['Tessl Reviewer'])
 
     def test_known_historical_dismissed_clean_review_is_neutral_not_clearance(self):
         head, old = 'a' * 40, 'b' * 40

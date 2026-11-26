@@ -71,7 +71,7 @@
     {
       "path": "codex/instructions/agents/16a-review-reply-parsing.md",
       "prior_candidate_sha256": "3161d0862dfd778f43b309e4f862371fe24988b2fb05f3a8963c98a3148e4d07",
-      "candidate_sha256": "d5d5289f1b4a2540fb321314d4d426556d4c83a1975f01728ad6b7276b399021"
+      "candidate_sha256": "6375de5825d1ecdff4a4c7ba4bb987e13317aeb40838c70fe5f03f4d565b61f7"
     },
     {
       "path": "codex/instructions/managed-configuration.md",
@@ -99,7 +99,7 @@
     {
       "path": "codex/scripts/pr-readiness.py",
       "prior_candidate_sha256": "6c47ce8d869fb46b338f6ed354ec95eb554471c215bc90b9c1d76c69e9cb60ee",
-      "candidate_sha256": "1bd430b0008e58465cb94ba092c2f2e71f1c763d4130cbe6eaa3bd025cfdba3a",
+      "candidate_sha256": "c71546d4296e7a7e9a301e1bafab11ce7eb6b0d538550f10d46ce71ca0efa73e",
       "transformation": "Add fixed packaged-context admission; retain default disposable admission and original checks.; Clear mechanical Ruff diagnostics and align local handover checks; preserve source identity, file modes and required validation decisions. Preserve parsed Python behavior and admission ordering during explicit per-import E402 annotation or mechanical layout cleanup; retain all other lint and scope checks. Accept the observed fixed Codex closing phrases Keep it up! and Nice work! while retaining the complete authenticated, head-bound report and footer contract. Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Consolidate findings 24, 26, 32 and 33: validate receipt shape before use, authenticate required-check policy and exact-head presence without weakening observed failures, evaluate bot concerns before human clearance, and bind consumption to the exact PR and repository. Qualify separately authorised operation-bound lifecycle receipts with exact transitions, five-minute expiry, remote replacement ancestry, original PR/head coverage and post-state readback; these receipts prove no CI, review or merge clearance. Use the provider workflow run ID to group reruns and keep checks without a workflow run separate. Recognize the observed Tessl project-preflight approval only with a same-head native check attesting the exact formal review ID and zero annotations."
     },
     {
@@ -175,7 +175,7 @@
     {
       "path": "codex/scripts/tests/test_pr_readiness.py",
       "prior_candidate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "candidate_sha256": "afb41bef2e4fc907c8920ff76b3ef1efad9ff73e4c11bb063103a9aa995ab082",
+      "candidate_sha256": "1ff4504fe8f922bd77153ff46836c00778859977a6b87e9c8a1a52157c21afb7",
       "transformation": "Preserve selected checks and add synthetic missing-check and dismissed historical-review scenarios from the coordinated follow-up; production policy is unchanged. Exercise the observed Keep it up! report through existing author, head, review-state, footer and appended-failure rejection controls. Recognise the exact observed Nice work! Codex ending; retain stale-head, provider, footer, record-only and appended-finding rejection. Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance. Isolate the fsmonitor test from inherited Git repository overrides and verify the monitor can run. Cover shared, distinct and absent workflow run identities in the readiness gate. Exercise the observed Tessl project-preflight approval and reject failed or ambiguous provider joins and finding-bearing variants.",
       "additional_source": {
         "revision": "d3b8f231dc659bde32ebac5e5c305b75b7589d4e",

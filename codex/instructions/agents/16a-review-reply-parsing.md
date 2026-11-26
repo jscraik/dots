@@ -303,10 +303,14 @@ specific to this observed variant. Other narratives remain unclassified.
 An incremental approval cannot clear earlier findings or replace a required
 independent bot reviewer.
 
-A historical Tessl approval that has been dismissed may remain neutral only
-when its authenticated author and complete known zero-finding envelope match.
-The known name-mismatch recovery narrative is supported for this historical
-classification only. Unknown narrative, contradictory counters, malformed run
+An approved or dismissed Tessl review from a previous full commit SHA is
+neutral when its authenticated author and complete known zero-finding envelope
+match. A historical project-preflight review also requires its exact successful
+native check on the recorded commit, including the review ID, zero annotations
+and no additional check text. Missing or contradictory check evidence blocks.
+The known name-mismatch recovery narrative is supported for historical
+classification only.
+Unknown narrative, contradictory counters, malformed run
 identity and findings remain blocking. Neither dismissal nor zero counters alone
 prove a clean review. Historical neutrality never provides current-head review
 coverage, quorum or clearance of an earlier finding.

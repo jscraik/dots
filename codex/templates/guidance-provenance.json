@@ -216,7 +216,7 @@
       "source_sha256": "6a70ee53b038854a08a07dec9284f60f7c71d9f63373b1f2ff0cb304a69e8f70",
       "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "d5d5289f1b4a2540fb321314d4d426556d4c83a1975f01728ad6b7276b399021"
+      "candidate_sha256": "6375de5825d1ecdff4a4c7ba4bb987e13317aeb40838c70fe5f03f4d565b61f7"
     },
     {
       "path": "codex/instructions/agents/17-external-integrations.md",
