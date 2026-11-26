@@ -208,7 +208,7 @@
       "source_sha256": "dfd4f91164e826bd903b05a2e90d2d83767a8df26a532525089e3498c2e23d94",
       "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "9d378210d3333c01cbb2224a0fc640d95afdac115333253cbc3cf0a017d80d65",
+      "candidate_sha256": "855e7e396af5ddef94658b94912aa9de1fedecac3ca3a9dbaf337ed73aff318b",
       "transformation": "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {
@@ -216,7 +216,7 @@
       "source_sha256": "6a70ee53b038854a08a07dec9284f60f7c71d9f63373b1f2ff0cb304a69e8f70",
       "decision": "Public paths and scoped source recipes; safeguards preserved; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
       "deferred_context_pointers": [],
-      "candidate_sha256": "6375de5825d1ecdff4a4c7ba4bb987e13317aeb40838c70fe5f03f4d565b61f7"
+      "candidate_sha256": "08ba082a188df3d50b15224d139c15a1912a27f9b4d4c402d17009e7557ecb03"
     },
     {
       "path": "codex/instructions/agents/17-external-integrations.md",
@@ -524,7 +524,7 @@
       "deferred_context_pointers": [
         "../scripts/build-log-summary.md"
       ],
-      "candidate_sha256": "18965f3f55819c6c04f0fcd4220bb697b19767829c51a506687944c22635218c",
+      "candidate_sha256": "12aaf1eb868e612b87ba7816e323f208d154a1bce40ae8d777b90d90c6aa91bd",
       "transformation": "State installation authority separately from each machine's verified active or rollback state."
     },
     {
@@ -596,7 +596,7 @@
       "path": "AGENTS.md",
       "origin": "local migration adaptation",
       "decision": "Explicit public scope, serialization and proving checks; no new live authority; November 2026 process review: scoped guidance, supported neutral PreToolUse output, PR inspection routing and accurate startup audit status",
-      "candidate_sha256": "b2e0fa738efee1869eb8c82fc34469d282dcb4062728118d80cff68466223813",
+      "candidate_sha256": "454cd3a356c1d5a6240fe067a7791bc53eb814687a256841e3c73110dd6f880c",
       "transformation": "State installation authority separately from each machine's verified active or rollback state."
     },
     {

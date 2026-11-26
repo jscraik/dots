@@ -13,6 +13,7 @@ baseline; its safeguards apply only to the selected authorized workflow.
 
 - [Git authority and signing](#git-authority-and-signing)
 - [Receipts, review and worktrees](#receipts-review-and-worktrees)
+- [Provider-generated PR descriptions](#provider-generated-pr-descriptions)
 
 ## Git authority and signing
 
@@ -230,6 +231,13 @@ or activation authority.
   The implementation author cannot supply either independent review. A second
   human maintainer is not required. Content review can still identify consequential
   risk that a path-based classifier cannot infer.
+  Once the bot-quorum check classifies the diff, its result reports the
+  paths and reasons that drive the tier, the qualifying reviewers and the
+  remaining count. A current-head Codex App summary reporting an in-progress review
+  directs the operator to refresh after that review completes. A completed
+  summary with unknown security flags directs the operator to the existing
+  correlated reports or a later qualifying review. Both conditions keep the
+  evidence gate closed until independent proof qualifies.
   Without verified repair evidence, only those exact identities and
   current-head `APPROVED` or `COMMENTED` submissions/comments carrying explicit
   no-findings text bound to the full or abbreviated HEAD SHA count. Bare or
@@ -332,3 +340,55 @@ or activation authority.
   inventory. Roll back only a failed worktree created by the current invocation;
   preserve dirty, locked, or owner-unknown worktrees.
 - The Git metadata lock/authority check is globally projected at `~/.codex/scripts/git-metadata-preflight.py`; project-local `codex/scripts/git-metadata-preflight.py` files take precedence, and compatible worktree bootstrap helpers should fall back to the projected copy when the local copy is absent.
+
+
+## Provider-generated PR descriptions
+
+Codex follows this workflow when it drafts, reviews, or repairs a Dependabot
+or Codex Security PR. Apply the active repository's own template and evidence
+requirements. Where the repository uses a **Validation Evidence** check, use
+the criteria below for both writing and review.
+
+1. Read the hosted PR, capture its head commit, and confirm its provider using
+   the evidence below before applying provider-specific description criteria.
+   Use the ordinary PR workflow when the source is unconfirmed.
+2. Preserve the provider's description, release links or finding reference,
+   and attribution. Add the missing evidence to the active repository's
+   validation section or to a short maintainer section when permitted. Use
+   only the repository's supported body update route.
+3. Review the diff and validation on the same head. For Dependabot, inspect
+   the manifest and lockfile changes, including related resolution changes
+   and compatibility with the repository's supported versions. For Codex
+   Security, check that the fix restores the affected boundary and that
+   focused regression evidence exercises it. Recheck evidence after a head
+   change. Consolidate missing description evidence into one actionable
+   finding and keep substantive code or security findings visible.
+
+- **Dependabot** must identify the dependency or group, the affected manifests
+  or lockfiles, and the relevant version changes. Add compatibility or advisory
+  context where it affects the bump. Identify Dependabot using the GitHub bot
+  author supplied by the host.
+- **Codex Security** must link the finding or provide its stable identifier,
+  describe the affected boundary and intended fix, and distinguish generated
+  static verification from validation actually executed on the candidate.
+  Some Codex Security PRs are opened as the maintainer. Confirm the finding's
+  association through the provider or the maintainer; a label, title prefix,
+  branch name or template heading alone cannot establish provenance.
+- **Both** must record concrete repository validation commands and their
+  outcomes, or link hosted validation that identifies the commit and provides
+  the check name and result. Tie successful evidence to the current PR head.
+  List missing or blocked validation explicitly. An unchecked list of proposed
+  tests, release notes, an advisory, or static analysis alone does not establish
+  executed validation. Exact author-template headings are optional for
+  confirmed provider-generated descriptions when repository policy permits.
+- **All other PRs** use the repository's ordinary description criteria. Apply
+  the normal exact-head CI and review rules and unresolved-finding gates to
+  every PR. Provider authorship never gives review credit or waives checks.
+
+When the producer cannot write the evidence section, use the guarded body-only
+repair route above. The shared `codex/instructions/PULL_REQUEST_TEMPLATE.md`
+is authoring guidance. Its presence alone does not cause the helper to detect
+a GitHub template. Before template-free repair, the helper checks both the
+candidate tree and the hosted default branch commit for tracked templates.
+A tracked repository template requires the applicable structure validation or
+blocks the unsupported alternate path.

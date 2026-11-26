@@ -2195,15 +2195,17 @@ def _codex_correlated_receipts(root: Path, pr: dict[str, Any], head: str, summar
     security_time = _codex_event_time(security_row[1])
     created = _codex_event_time(summary.get("created_at"))
     updated = _codex_event_time(summary.get("updated_at"))
-    if (not code_time or not security_time or not created or not updated or created > code_time
-        or security_time <= code_time or not -1 <= (updated - security_time).total_seconds() <= 3):
+    if not code_time or not security_time or not created or not updated:
+        return None
+    first, last = sorted((code_time, security_time))
+    if first == last or created > first or not -1 <= (updated - last).total_seconds() <= 3:
         return None
     prefix = str(pr.get("url") or "") + "#issuecomment-"
     matches: dict[str, list[dict[str, Any]]] = {"code": [], "security": []}
     for entry in entries:
         if not isinstance(entry, dict):
             return None
-        # The validated summary is expected to be updated near security
+        # The validated summary is expected to be updated near the final
         # completion. No other comment is exempt from ambiguity checks.
         if entry is summary:
             continue
@@ -2242,7 +2244,9 @@ def _codex_correlated_receipts(root: Path, pr: dict[str, Any], head: str, summar
         or not _codex_receipts_unedited(root, [matches["code"][0], matches["security"][0]])):
         return None
     return {"code_receipt_url": matches["code"][0]["html_url"],
-            "security_receipt_url": matches["security"][0]["html_url"]}
+            "security_receipt_url": matches["security"][0]["html_url"],
+            "security_completed_at": security_row[1],
+            "clearance_at": completion[1] if code_time == first else security_row[1]}
 
 
 def codex_completion_review(root: Path, pr: dict[str, Any], head: str, inline: list[dict[str, Any]], entries: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, str | None]:
@@ -2307,6 +2311,8 @@ def codex_completion_review(root: Path, pr: dict[str, Any], head: str, inline: l
     security_findings = _codex_security_findings(report_body)
     if receipt_pair is not None:
         security_findings = "no_findings"  # Independently authenticated code and security reports.
+        # A later code result cannot clear an intervening security concern.
+        timestamp = receipt_pair["clearance_at"]
     return {"user": entry["user"], "state": "COMMENTED", "commit_id": head,
             "body": f"No findings for {head}.", "created_at": timestamp,
             "source": "codex_completion_reaction", "html_url": entry["html_url"],
@@ -2356,6 +2362,23 @@ def _coderabbit_native_sources(root: Path, slug: str, head: str, entry: dict[str
         return inventory, payload["data"]["node"]
     except (ValueError, TypeError, KeyError):
         return None, None
+
+
+def _coderabbit_commit_pulls(root: Path, slug: str, head: str) -> list[dict[str, Any]] | None:
+    result = run_command(["gh", "api", f"repos/{slug}/commits/{head}/pulls?per_page=100",
+                          "--hostname", "github.com", "--paginate", "--slurp"], root, check=False)
+    if result.returncode:
+        return None
+    try:
+        pages = json.loads(result.stdout)
+    except (ValueError, RecursionError):
+        return None
+    if not isinstance(pages, list) or not pages or any(
+        not isinstance(page, list) or any(not isinstance(pull, dict) for pull in page)
+        for page in pages
+    ):
+        return None
+    return [pull for page in pages for pull in page]
 
 
 def _coderabbit_benign_details(context: str) -> bool:
@@ -2568,11 +2591,19 @@ def coderabbit_completion_review(root: Path, pr: dict[str, Any], head: str, inli
         return None, None
     candidate = candidates[0]
     structured = candidate.pop("structured_summary")
+    associated_pulls = None
     if structured is not None:
         native_sources = _coderabbit_native_sources(root, slug, head, candidate)
-        binding = _coderabbit_summary_adapter().native_binding(candidate, structured, native_sources[1], native_sources[0], pr, slug, head)
+        checks, history = native_sources
+        adapter = _coderabbit_summary_adapter()
+        binding = adapter.native_check_binding(candidate, structured, history, checks, pr, slug, head)
         if binding is None:
             return None, None
+        if binding["check_pr_association"] is None:
+            associated_pulls = _coderabbit_commit_pulls(root, slug, head)
+            if not adapter.commit_pull_matches(associated_pulls, pr, slug, head):
+                return None, None
+            binding["check_pr_association"] = "commit_pull_inventory"
         timestamp, completion_evidence = binding["completed_at"], binding
     else:
         statuses = _coderabbit_statuses(root, slug, head)
@@ -2605,6 +2636,8 @@ def coderabbit_completion_review(root: Path, pr: dict[str, Any], head: str, inli
         return None, error
     if structured is not None and _coderabbit_native_sources(root, slug, head, candidate) != native_sources:
         return None, "CodeRabbit native check or immutable history inventory changed during verification"
+    if associated_pulls is not None and _coderabbit_commit_pulls(root, slug, head) != associated_pulls:
+        return None, "CodeRabbit commit-to-PR inventory changed during verification"
     if structured is None and _coderabbit_statuses(root, slug, head) != statuses:
         return None, "CodeRabbit completion status inventory changed during verification"
     return candidate, None
@@ -3299,7 +3332,8 @@ def _ordered_event_time(value: Any) -> str:
     return parsed.isoformat(timespec="microseconds") if parsed else str(value or "")
 
 
-def _review_blocker_shape_hints(login: str, kind: str, body: str, head: str) -> set[str]:
+def _review_blocker_shape_hints(login: str, kind: str, body: str, head: str,
+                                *, entry: dict[str, Any] | None = None) -> set[str]:
     """Describe known evidence gaps; hints never grant or remove clearance."""
     if kind != "comment":
         return set()
@@ -3320,12 +3354,24 @@ def _review_blocker_shape_hints(login: str, kind: str, body: str, head: str) -> 
         if not isinstance(state, dict) or set(state) != {"code_review", "security_review"}:
             return set()
         code, security = state["code_review"], state["security_review"]
+        state_keys = {"commit_sha", "has_any_findings", "has_unresolved_findings", "status"}
+        app = entry.get("performed_via_github_app") if entry else None
+        if (body.startswith("<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 ")
+            and entry and _codex_service_user(entry) and _codex_consistent_author(entry)
+            and entry["user"]["type"] == "Bot" and isinstance(app, dict)
+            and type(app.get("id")) is int and app["id"] == 1144995
+            and app.get("slug") == "chatgpt-codex-connector"
+            and any(isinstance(item, dict) and set(item) == state_keys
+                    and item["commit_sha"] == head and item["status"] == "running"
+                    and item["has_any_findings"] is None and item["has_unresolved_findings"] is None
+                    for item in (code, security))):
+            return {"codex_review_in_progress"}
         if (isinstance(code, dict)
-            and set(code) == {"commit_sha", "has_any_findings", "has_unresolved_findings", "status"}
+            and set(code) == state_keys
             and code["commit_sha"] == head and code["status"] == "completed"
             and code["has_any_findings"] is False and code["has_unresolved_findings"] is False
             and isinstance(security, dict)
-            and set(security) == {"commit_sha", "has_any_findings", "has_unresolved_findings", "status"}
+            and set(security) == state_keys
             and security["commit_sha"] == head and security["status"] == "completed"
             and security["has_any_findings"] is None and security["has_unresolved_findings"] is None):
             return {"codex_security_findings_unknown"}
@@ -3393,6 +3439,14 @@ def outstanding_bot_concerns(
                 concerns.setdefault(login, []).append((timestamp, kind, index))
     outstanding: list[str] = []
     sources = {"review": reviews, "inline": inline, "comment": comments}
+    codex_activity = [
+        _review_timestamp(entry) if kind == "review" else _comment_timestamp(entry)
+        for kind, entries in sources.items() for entry in entries
+        if _review_login(entry) == "chatgpt-codex-connector"
+    ] if diagnostics is not None else []
+    latest_codex_activity = max(codex_activity, default="")
+    if codex_activity.count(latest_codex_activity) != 1:
+        latest_codex_activity = ""
     for login, events in concerns.items():
         pending = [(timestamp, kind, index) for timestamp, kind, index in events
                    if not timestamp or not any(
@@ -3413,13 +3467,18 @@ def outstanding_bot_concerns(
                 else "unrecognised_verdict_format"
                 for _, kind, index in pending
             }
-            for _, kind, index in pending:
-                categories.update(_review_blocker_shape_hints(login, kind, _review_body(sources[kind][index]), head_sha))
+            for timestamp, kind, index in pending:
+                entry = sources[kind][index]
+                hints = _review_blocker_shape_hints(login, kind, _review_body(entry), head_sha, entry=entry)
+                if not latest_codex_activity or timestamp != latest_codex_activity:
+                    hints.discard("codex_review_in_progress")
+                categories.update(hints)
             diagnostics[label] = sorted(categories)
     return sorted(outstanding)
 
 
-def review_clearance_guidance(head_sha: str, reviewer_names: list[str] | None = None) -> str:
+def review_clearance_guidance(head_sha: str, reviewer_names: list[str] | None = None,
+                              *, diagnostics: dict[str, list[str]] | None = None) -> str:
     """Describe a request the caller may make; never send it or grant authority."""
     reviewer_request = (
         "request each outstanding or still-missing required reviewer to inspect the current head"
@@ -3431,15 +3490,22 @@ def review_clearance_guidance(head_sha: str, reviewer_names: list[str] | None = 
               "When inspection already completed, use qualifying formal review evidence, or authenticated pr-repair-endorsement/v1 only where the owning repository supports its protected CI route; "
               "a coordinator-written note or local digest is not an endorsement. Do not repeat completed inspection merely to change wording. "
               if not reviewer_names or "CodeRabbit" in reviewer_names else "")
+    codex = (
+        "When Codex reports unknown security findings, corroborate the completed summary with both authenticated native reports for the same head, or obtain a later qualifying Codex review. "
+        if not reviewer_names or "Codex" in reviewer_names else "")
+    codex_pending = (
+        f"Check whether Codex is still reviewing {head_sha}. If it is, wait for that run before requesting another Codex review. "
+        if "codex_review_in_progress" in (diagnostics or {}).get("Codex", []) else "")
     return (
         "Inspect the outstanding review sources and resolve any findings first. "
+        f"{codex_pending}"
         f"With matching user authorization and execution approval, {reviewer_request}; "
         "do not repeat a reviewer who already provided current-head clearance unless "
         "that reviewer subsequently raised an outstanding concern. "
         f"Review current head {head_sha}; report any remaining findings or publish the normal supported completion result. "
         f"The explicit statement 'No findings for {head_sha}.' is also supported, not required after native completion. "
         "Do not request duplicate clearance when authenticated current-head completion already qualifies. "
-        f"{formal}"
+        f"{formal}{codex}"
         "If the hosted reviewDecision remains CHANGES_REQUESTED, a comment does not clear it: "
         "obtain a formal review update or a separately authorized dismissal that clears that decision. "
         "Then rerun readiness against the current head; all other gates still apply. "
@@ -4012,7 +4078,7 @@ def reviews_lane(root: Path, pr: dict[str, Any], head_sha: str, review_waiver: d
                     entry for entry in authentic_issue_entries
                     if rabbit_completion is None or entry.get("html_url") != rabbit_completion["html_url"]
                 ]),
-                next_action=review_clearance_guidance(head_sha, concerns),
+                next_action=review_clearance_guidance(head_sha, concerns, diagnostics=diagnostics),
                 **approval_details,
             )
         if approval_mode == "solo_review_waiver":
@@ -4048,11 +4114,18 @@ def reviews_lane(root: Path, pr: dict[str, Any], head_sha: str, review_waiver: d
             head_sha=head_sha,
             outstanding_bot_concerns=concerns,
             review_blocker_categories=diagnostics,
-            next_action=review_clearance_guidance(head_sha, concern_reviewers),
+            next_action=review_clearance_guidance(head_sha, concern_reviewers, diagnostics=diagnostics),
         )
     qualifying = {login for login, review in bot_evidence.items()
                   if login in REQUIRED_BOT_REVIEWERS and _bot_review_is_acceptable(review, head_sha)}
-    quorum = len(qualifying) >= requirement["required_bot_review_count"]
+    required_count = requirement["required_bot_review_count"]
+    remaining_count = max(0, required_count - len(qualifying))
+    quorum = remaining_count == 0
+    quorum_details = {
+        **requirement,
+        "qualifying_bot_reviewers": [label for login, label in REQUIRED_BOT_REVIEWERS.items() if login in qualifying],
+        "remaining_bot_review_count": remaining_count,
+    }
     if concerns:
         detail = "; ".join(
             f"{name}={','.join(categories)}" for name, categories in sorted(diagnostics.items())
@@ -4065,7 +4138,7 @@ def reviews_lane(root: Path, pr: dict[str, Any], head_sha: str, review_waiver: d
             evidence += "; unrecognised text may contain findings and requires inspection"
 
         reviewer_names = reviewers_for_clearance(
-            concerns, qualifying, requirement["required_bot_review_count"], set(bot_evidence)
+            concerns, qualifying, required_count, set(bot_evidence)
         )
 
         return lane("fail", evidence,
@@ -4076,7 +4149,8 @@ def reviews_lane(root: Path, pr: dict[str, Any], head_sha: str, review_waiver: d
                     review_source_diagnostics=native_review_diagnostics([
                         entry for entry in authentic_issue_entries
                         if rabbit_completion is None or entry.get("html_url") != rabbit_completion["html_url"]]),
-                    next_action=review_clearance_guidance(head_sha, reviewer_names))
+                    next_action=review_clearance_guidance(head_sha, reviewer_names, diagnostics=diagnostics),
+                    **quorum_details)
     missing = sorted(set(REQUIRED_BOT_REVIEWERS) - set(bot_evidence))
     if missing and not quorum:
         labels = ", ".join(BOT_REVIEWERS[login] for login in sorted(set(REQUIRED_BOT_REVIEWERS) - qualifying))
@@ -4084,9 +4158,9 @@ def reviews_lane(root: Path, pr: dict[str, Any], head_sha: str, review_waiver: d
         if unknown_commit:
             reason += "; hosted review records omitted commit identity"
         missing_reviewers = reviewers_for_clearance(
-            concerns, qualifying, requirement["required_bot_review_count"], set(bot_evidence)
+            concerns, qualifying, required_count, set(bot_evidence)
         )
-        return lane("fail", reason, next_action=review_clearance_guidance(head_sha, missing_reviewers), head_sha=head_sha, current_head_approvals=[], current_head_bot_reviews={}, current_head_bot_comments=sorted(bot_comments), required_bot_reviewers=REQUIRED_BOT_REVIEWERS, unresolved_threads=0)
+        return lane("fail", reason, next_action=review_clearance_guidance(head_sha, missing_reviewers), head_sha=head_sha, current_head_approvals=[], current_head_bot_reviews={}, current_head_bot_comments=sorted(bot_comments), required_bot_reviewers=REQUIRED_BOT_REVIEWERS, unresolved_threads=0, **quorum_details)
     invalid = {
         BOT_REVIEWERS[login]: str(review.get("state", "")).upper() or "UNKNOWN"
         for login, review in bot_evidence.items()
@@ -4096,11 +4170,11 @@ def reviews_lane(root: Path, pr: dict[str, Any], head_sha: str, review_waiver: d
     if invalid and not quorum:
         detail = ", ".join(f"{name}={state or 'UNKNOWN'}" for name, state in sorted(invalid.items()))
         missing_reviewers = reviewers_for_clearance(
-            concerns, qualifying, requirement["required_bot_review_count"], set(bot_evidence)
+            concerns, qualifying, required_count, set(bot_evidence)
         )
-        return lane("fail", f"current-head bot review lacks explicit no-findings evidence or is blocked: {detail}", next_action=review_clearance_guidance(head_sha, missing_reviewers), head_sha=head_sha, current_head_approvals=[], current_head_bot_reviews=bot_state_details, current_head_bot_comments=sorted(bot_comments), current_head_bot_issue_comments=sorted(bot_issue_comments), required_bot_reviewers=REQUIRED_BOT_REVIEWERS, unresolved_threads=0)
+        return lane("fail", f"current-head bot review lacks explicit no-findings evidence or is blocked: {detail}", next_action=review_clearance_guidance(head_sha, missing_reviewers), head_sha=head_sha, current_head_approvals=[], current_head_bot_reviews=bot_state_details, current_head_bot_comments=sorted(bot_comments), current_head_bot_issue_comments=sorted(bot_issue_comments), required_bot_reviewers=REQUIRED_BOT_REVIEWERS, unresolved_threads=0, **quorum_details)
     if str(pr.get("reviewDecision", "")).upper() == "CHANGES_REQUESTED":
-        return lane("fail", "hosted PR review decision is CHANGES_REQUESTED", next_action=review_clearance_guidance(head_sha), head_sha=head_sha, current_head_approvals=[], current_head_bot_reviews=bot_state_details, current_head_bot_comments=sorted(bot_comments), current_head_bot_issue_comments=sorted(bot_issue_comments), required_bot_reviewers=REQUIRED_BOT_REVIEWERS, unresolved_threads=0)
+        return lane("fail", "hosted PR review decision is CHANGES_REQUESTED", next_action=review_clearance_guidance(head_sha), head_sha=head_sha, current_head_approvals=[], current_head_bot_reviews=bot_state_details, current_head_bot_comments=sorted(bot_comments), current_head_bot_issue_comments=sorted(bot_issue_comments), required_bot_reviewers=REQUIRED_BOT_REVIEWERS, unresolved_threads=0, **quorum_details)
     return lane(
         "pass",
         "current-head independent bot quorum and resolved review threads verified",
@@ -4114,7 +4188,7 @@ def reviews_lane(root: Path, pr: dict[str, Any], head_sha: str, review_waiver: d
         required_bot_reviewers=REQUIRED_BOT_REVIEWERS,
         unresolved_threads=0,
         review_mode="bot_quorum",
-        **requirement,
+        **quorum_details,
     )
 
 

@@ -577,6 +577,7 @@ class PrReadinessTests(unittest.TestCase):
                 result = committed_review_requirement([
                     {'path': path, 'old_mode': '100644', 'new_mode': '100644'}])
                 self.assertEqual(result['required_bot_review_count'], 1)
+                self.assertEqual(result['high_risk_reasons'], {})
         for path in ('src/auth/login.py', 'src/oauth.py', 'src/oauth2.py', 'src/OAuth2Provider.ts',
                      'src/APIOAuthProvider.ts', 'src/APIOAuth2Provider.ts',
                      'src/login.py', 'src/password.py', 'src/jwt.py',
@@ -600,6 +601,26 @@ class PrReadinessTests(unittest.TestCase):
         self.assertEqual(committed_review_requirement([
             {'path': 'scripts/format.sh', 'old_mode': '100755', 'new_mode': '100755'}
         ])['required_bot_review_count'], 1)
+
+    def test_review_risk_explains_each_escalated_path(self) -> None:
+        from pr_review_risk import committed_review_requirement
+
+        reasons = committed_review_requirement([
+            {"path": "codex/scripts/pr-readiness.py", "old_mode": "100644", "new_mode": "100644"},
+            {"path": "src/tool.py", "old_mode": "100644", "new_mode": "100755"},
+            {"path": "src/oauth2.py", "old_mode": "100644", "new_mode": "100644"},
+            {"path": "docs/guide.md", "old_mode": "100644", "new_mode": "100644"},
+            {"path": "unknown.blob", "old_mode": "100644", "new_mode": "100644"},
+        ])
+        self.assertEqual(reasons["risk_tier"], "high")
+        self.assertEqual(reasons["required_bot_review_count"], 2)
+        self.assertEqual(reasons["high_risk_reasons"], {
+            "codex/scripts/pr-readiness.py": ["protected_path", "protected_keyword"],
+            "src/oauth2.py": ["protected_keyword"],
+            "src/tool.py": ["special_file_mode"],
+            "unknown.blob": ["unclassified_file_type"],
+        })
+        self.assertIn("no committed paths established", committed_review_requirement([])["risk_basis"])
 
     def test_modern_coderabbit_completion_keeps_identity_and_gap_checks(self) -> None:
         head, base = "a" * 40, "b" * 40
@@ -1161,7 +1182,11 @@ class PrReadinessTests(unittest.TestCase):
                       patch.object(MODULE, "issue_comments", return_value=([entry], None))):
                     for count, expected in ((1, "pass"), (2, "fail")):
                         with patch.object(MODULE, "review_requirement", return_value={"required_bot_review_count": count}):
-                            self.assertEqual(MODULE.reviews_lane(Path.cwd(), {"number": 7, "reviews": [clear]}, head)["status"], expected)
+                            result = MODULE.reviews_lane(Path.cwd(), {"number": 7, "reviews": [clear]}, head)
+                            self.assertEqual(result["status"], expected)
+                            self.assertEqual(result["details"]["required_bot_review_count"], count)
+                            self.assertEqual(result["details"]["qualifying_bot_reviewers"], ["CodeRabbit"])
+                            self.assertEqual(result["details"]["remaining_bot_review_count"], count - 1)
 
     def test_coderabbit_fixed_learning_appendix_is_decoration(self) -> None:
         head = "a" * 40
@@ -2077,6 +2102,9 @@ class PrReadinessTests(unittest.TestCase):
                           "risk_tier": "ordinary", "required_bot_review_count": 1})):
                     result = MODULE.reviews_lane(Path.cwd(), pr, head)
                 self.assertEqual(result["status"], "fail")
+                self.assertEqual(result["details"]["risk_tier"], "ordinary")
+                self.assertEqual(result["details"]["qualifying_bot_reviewers"], [])
+                self.assertEqual(result["details"]["remaining_bot_review_count"], 1)
                 self.assertEqual(result["details"]["outstanding_bot_concerns"], ["CodeRabbit"])
                 self.assertEqual(result["details"]["review_blocker_categories"], {"CodeRabbit": [category]})
                 guidance = result["details"]["next_action"]
