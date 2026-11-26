@@ -367,6 +367,9 @@ class PrBodyRefreshTests(unittest.TestCase):
             ("README.md\x00", None),
             (".github/PULL_REQUEST_TEMPLATE.md\x00", "template"),
             ("docs/pull_request_template.md\x00", "template"),
+            ("codex/instructions/PULL_REQUEST_TEMPLATE.md\x00", None),
+            ("codex/instructions/PULL_REQUEST_TEMPLATE.md\x00"
+             ".github/PULL_REQUEST_TEMPLATE/other.md\x00", "template"),
             (".github/pull_request_template.txt\x00", "template"),
         ):
             with (
@@ -391,27 +394,74 @@ class PrBodyRefreshTests(unittest.TestCase):
                 self.assertRaisesRegex(MODULE.RefreshBlocked, expected or "repository"),
             ):
                 MODULE.execute(args)
-        with (
-            patch.object(
-                MODULE,
-                "run_command",
-                return_value=MODULE.subprocess.CompletedProcess(
-                    [], 0, "README.md\x00", ""
-                ),
-            ),
-            patch.object(
-                MODULE,
-                "repair_preflight_for_current_pr",
-                return_value={"mode": "metadata_repair"},
-            ),
-            patch.object(
-                MODULE, "current_repository_slug", return_value="jscraik/configs"
-            ),
+        for default_tree, blocked in (
+            ("README.md\x00codex/instructions/PULL_REQUEST_TEMPLATE.md\x00", False),
+            (".github/PULL_REQUEST_TEMPLATE.md\x00", True),
+            ("docs/pull_request_template.md\x00", True),
         ):
-            self.assertEqual(MODULE.execute(args)["template_sections"], [])
+            with (
+                self.subTest(default_tree=default_tree),
+                patch.object(
+                    MODULE,
+                    "run_command",
+                    side_effect=[
+                        MODULE.subprocess.CompletedProcess(
+                            [], 0, "codex/instructions/PULL_REQUEST_TEMPLATE.md\x00", ""
+                        ),
+                        MODULE.subprocess.CompletedProcess([], 0, default_tree, ""),
+                    ],
+                ) as command,
+                patch.object(
+                    MODULE, "repair_preflight_for_current_pr",
+                    return_value={"mode": "metadata_repair", "url": "https://github.example/jscraik/configs/pull/357"}
+                ),
+                patch.object(
+                    MODULE, "current_repository_slug", return_value="jscraik/configs"
+                ),
+                patch.object(
+                    MODULE, "repository_default_head", return_value="a" * 40
+                ) as default_head,
+                patch.object(MODULE, "build_edit_command", wraps=MODULE.build_edit_command) as edit,
+            ):
+                if blocked:
+                    with self.assertRaisesRegex(MODULE.RefreshBlocked, "template exists"):
+                        MODULE.execute(args)
+                else:
+                    self.assertEqual(MODULE.execute(args)["template_sections"], [])
+                    self.assertEqual(edit.call_args.args[1], "github.example/jscraik/configs")
+                self.assertEqual(command.call_args.args[0][-1], "a" * 40)
+                default_head.assert_called_once_with(root, "jscraik/configs", "github.example")
         args.repair = False
         with self.assertRaisesRegex(MODULE.RefreshBlocked, "explicit metadata repair"):
             MODULE.execute(args)
+
+    def test_default_head_rejects_partial_or_wrong_repository_identity(self) -> None:
+        authorized = {
+            "data": {"repository": {
+                "nameWithOwner": "jscraik/configs",
+                "defaultBranchRef": {"target": {"oid": "a" * 40}},
+            }},
+        }
+        for payload in (
+            {},
+            {"data": {"repository": None}},
+            {"data": {"repository": {**authorized["data"]["repository"], "nameWithOwner": "other/configs"}}},
+            {**authorized, "errors": [{"message": "partial result"}]},
+        ):
+            with (
+                self.subTest(payload=payload),
+                patch.object(MODULE, "run_command", return_value=MODULE.subprocess.CompletedProcess(
+                    [], 0, MODULE.json.dumps(payload), ""
+                )),
+                self.assertRaisesRegex(MODULE.RefreshBlocked, "default branch"),
+            ):
+                MODULE.repository_default_head(Path.cwd(), "jscraik/configs", "github.example")
+        with patch.object(MODULE, "run_command", return_value=MODULE.subprocess.CompletedProcess(
+            [], 0, MODULE.json.dumps(authorized), ""
+        )) as command:
+            self.assertEqual(MODULE.repository_default_head(Path.cwd(), "jscraik/configs", "github.example"), "a" * 40)
+            self.assertIn("--hostname", command.call_args.args[0])
+            self.assertIn("github.example", command.call_args.args[0])
 
     def test_template_free_invalid_utf8_returns_structured_block(self) -> None:
         root, template, body = self._write_template_and_body(body="evidence")
@@ -486,7 +536,7 @@ class PrBodyRefreshTests(unittest.TestCase):
                 ]
             )
         )
-        with self.assertRaisesRegex(MODULE.RefreshBlocked, "template exists in HEAD"):
+        with self.assertRaisesRegex(MODULE.RefreshBlocked, "template exists in the selected Git tree"):
             MODULE.execute(args)
 
     def test_body_symlink_is_rejected_before_any_hosted_operation(self) -> None:
@@ -694,7 +744,7 @@ class PrBodyRefreshTests(unittest.TestCase):
         ):
             result = MODULE.repair_preflight_for_current_pr(root, 357)
         self.assertEqual(
-            result, {"mode": "metadata_repair", "pr": 357, "head_sha": "current"}
+            result, {"mode": "metadata_repair", "pr": 357, "head_sha": "current", "url": None}
         )
 
     def test_receipt_bound_pr_number_mismatch_stops_before_a_hosted_edit(self) -> None:

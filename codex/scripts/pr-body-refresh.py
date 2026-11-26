@@ -466,7 +466,7 @@ def repair_preflight_for_current_pr(root: Path, pr_number: int) -> dict[str, obj
             "view",
             str(pr_number),
             "--json",
-            "number,headRefOid,state,isDraft",
+            "number,url,headRefOid,state,isDraft",
         ],
         root,
     )
@@ -488,7 +488,9 @@ def repair_preflight_for_current_pr(root: Path, pr_number: int) -> dict[str, obj
         raise RefreshBlocked(
             "metadata repair requires local HEAD to match the hosted PR head"
         )
-    return {"mode": "metadata_repair", "pr": pr_number, "head_sha": remote_head}
+    return {
+        "mode": "metadata_repair", "pr": pr_number, "head_sha": remote_head, "url": payload.get("url")
+    }
 
 
 def receipt_pr_number(payload: dict[str, object]) -> int:
@@ -541,6 +543,56 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return _fixture_args(parser.parse_args(argv))
 
 
+def repair_repository_host(pr_url: object, repo: str, pr: int) -> str:
+    """Bind the extra template check and update to the host of the verified PR."""
+    suffix = re.escape(f"/{repo}/pull/{pr}")
+    match = re.fullmatch(r"https://([A-Za-z0-9][A-Za-z0-9.-]*)" + suffix, pr_url) if isinstance(pr_url, str) else None
+    if match is None:
+        raise RefreshBlocked("the hosted pull-request URL does not match the repair target")
+    return match[1]
+
+
+def repository_default_head(root: Path, repo: str, host: str) -> str:
+    """Read the default branch tree identity from the selected hosted repository."""
+    owner, name = repo.split("/")
+    query = (
+        "query($owner:String!,$name:String!){repository(owner:$owner,name:$name)"
+        "{nameWithOwner defaultBranchRef{target{oid}}}}"
+    )
+    result = run_command(
+        ["gh", "api", "graphql", "--hostname", host,
+         "-f", f"query={query}", "-f", f"owner={owner}", "-f", f"name={name}"],
+        root,
+    )
+    if result.returncode != 0:
+        raise RefreshBlocked("the hosted default branch could not be verified")
+    try:
+        payload = json.loads(result.stdout)
+        repository = payload["data"]["repository"]
+        head = repository["defaultBranchRef"]["target"]["oid"]
+        if payload.get("errors") or repository["nameWithOwner"] != repo or not isinstance(head, str):
+            raise ValueError("default branch identity mismatch")
+        if not re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", head):
+            raise ValueError("invalid default branch commit")
+    except (ValueError, KeyError, TypeError) as exc:
+        raise RefreshBlocked("the hosted default branch could not be verified") from exc
+    return head
+
+
+def require_no_tracked_template(root: Path, revision: str) -> None:
+    inventory = run_command(
+        ["git", "--no-replace-objects", "ls-tree", "--full-tree", "-r", "--name-only", "-z", revision], root
+    )
+    if inventory.returncode != 0 or not inventory.stdout.endswith("\x00"):
+        raise RefreshBlocked("PR template absence could not be verified in the selected Git tree")
+    for name in inventory.stdout.split("\x00"):
+        if name == "codex/instructions/PULL_REQUEST_TEMPLATE.md":
+            continue  # Shared authoring guidance lives outside GitHub's template locations.
+        if any(part == "pull_request_template" or part.startswith("pull_request_template.")
+               for part in name.lower().split("/")):
+            raise RefreshBlocked("PR template exists in the selected Git tree; restore or select it")
+
+
 def _execute_snapshot(args: argparse.Namespace) -> dict[str, object]:
     """Validate fixed inputs, then perform only the approved body-file update."""
     root = args.repo_root.expanduser().resolve()
@@ -554,21 +606,7 @@ def _execute_snapshot(args: argparse.Namespace) -> dict[str, object]:
             raise RefreshBlocked(
                 "PR template absence is supported only for explicit metadata repair"
             )
-        inventory = run_command(
-            ["git", "ls-tree", "--full-tree", "-r", "--name-only", "-z", "HEAD"], root
-        )
-        if inventory.returncode != 0 or not inventory.stdout.endswith("\x00"):
-            raise RefreshBlocked("PR template absence could not be verified from HEAD")
-        for name in inventory.stdout.split("\x00"):
-            parts = name.lower().split("/")
-            if any(
-                part == "pull_request_template"
-                or part.startswith("pull_request_template.")
-                for part in parts
-            ):
-                raise RefreshBlocked(
-                    "PR template exists in HEAD; restore or select the repository template"
-                )
+        require_no_tracked_template(root, "HEAD")
         try:
             body_text = _fixture_resource(body_path).read_text(encoding="utf-8")
         except (OSError, UnicodeError) as exc:
@@ -600,9 +638,14 @@ def _execute_snapshot(args: argparse.Namespace) -> dict[str, object]:
             )
     if current_repository_slug(root) != args.repo:
         raise RefreshBlocked("--repo does not match the current repository")
+    destination = args.repo
+    if not template_path.exists():
+        host = repair_repository_host(receipt.get("url"), args.repo, args.pr)
+        require_no_tracked_template(root, repository_default_head(root, args.repo, host))
+        destination = f"{host}/{args.repo}"
     if hasattr(args, "_repository_identity"):
         _fixture_scope().SCOPE.require_policy_repository_identity(root, args._repository_identity)
-    command = build_edit_command(args.pr, args.repo, body_path)
+    command = build_edit_command(args.pr, destination, body_path)
     if args.dry_run:
         return {
             "schema_version": SCHEMA_VERSION,

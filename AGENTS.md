@@ -26,6 +26,8 @@ not authorise a cutover.
   as guidance. Dots has no tracked GitHub PR template; do not claim this central
   file is enforced by GitHub or by a repository-local body helper. Use only
   commands and receipt routes actually available for the target repository.
+  When drafting, reviewing, or repairing a Dependabot or Codex Security PR,
+  follow the [provider PR workflow](codex/instructions/agents/16-git-and-release.md#provider-generated-pr-descriptions).
 - Update the local, ignored `codex/FORJAMIE.md` handoff for guidance changes.
   Do not commit it. Preserve task-local ownership and validation evidence.
 - Use one implementation writer. Sensitive policy changes need a bounded
