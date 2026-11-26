@@ -1,6 +1,10 @@
 <!-- Shared five-section PR structure for repositories that adopt it.
 Keep repository-specific attestations and executable requirements in the
-repository's own template and instructions. This file does not authorize a PR. -->
+repository's own template and instructions. This file does not authorize a PR.
+For Dependabot or Codex Security PRs, follow the provider workflow in
+agents/16-git-and-release.md#provider-generated-pr-descriptions before drafting or
+repairing the description. Preserve the provider's text and add the missing
+evidence inline where the active repository permits it. -->
 
 ## Summary
 

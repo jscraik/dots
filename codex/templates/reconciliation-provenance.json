@@ -65,7 +65,7 @@
     {
       "path": "codex/instructions/agents/16-git-and-release.md",
       "prior_candidate_sha256": "6831a23a8697fba882b6561d7e528f0842f4aeded557ddac580ff3b0283f5068",
-      "candidate_sha256": "5b0cc9c1c2e38576dbf8f8b8c1107c3c3aec7d9fe6bdcc61218e2d69974444e8",
+      "candidate_sha256": "855e7e396af5ddef94658b94912aa9de1fedecac3ca3a9dbaf337ed73aff318b",
       "transformation": "Qualify the consolidated Daybreak security contract with isolated regressions and accurate guidance."
     },
     {

@@ -118,6 +118,10 @@ verified target state. This file grants no installation or activation authority.
   and evidence presentation, while repository instructions own commands,
   receipts, exceptions and enforcement. A central file is not a GitHub template
   unless a repository includes a checked copy or an applicable account default.
+  For Dependabot and Codex Security PRs, follow the
+  [provider PR workflow](instructions/agents/16-git-and-release.md#provider-generated-pr-descriptions)
+  when drafting, reviewing, or repairing the description. Follow the active
+  repository's required fields and review gates.
 - Continue through the named acceptance criteria and repository-required proof;
   an intermediate smoke test is not completion. Stop at completion, material
   scope change, or an authority boundary. Defer non-blocking adjacent work.

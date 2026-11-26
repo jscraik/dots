@@ -10,6 +10,9 @@
 !/migration-sources.json
 !/.circleci/
 !/.circleci/config.yml
+!/.coderabbit/
+!/.coderabbit/instructions/
+!/.coderabbit/instructions/provider-pr-descriptions.md
 !/codex/
 !/codex/policy.md
 !/codex/templates/
