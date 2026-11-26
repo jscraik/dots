@@ -757,7 +757,7 @@
         "Report a supersession close on a head outside the receipt using the mutation response or readback.",
         "Use the provider workflow run ID to group reruns and keep checks without a workflow run separate."
       ],
-      "candidate_sha256": "5ababfc663a4b2016bdd3b12657eeafc2b3d47015e0ae7d116c3f5ebf44b0810"
+      "candidate_sha256": "c5db6f76747c2f52e31d816cb2f4a6ffbf1bf19c7386673f8f34a3252d063006"
     },
     {
       "path": "codex/scripts/pr_coderabbit_summary.py",
@@ -870,7 +870,7 @@
         "Isolate the fsmonitor test from inherited Git repository overrides and verify the monitor can run.",
         "Cover shared, distinct and absent workflow run identities in the readiness gate."
       ],
-      "candidate_sha256": "9f3d0fc70e8c414da8e024d76b24272e25f371120928dbf4680bd4a7aaa3c2ea"
+      "candidate_sha256": "6b78bb101276c4d154e74ac878155a4775133d5c1cf5d1ebbd06f83f44b933f9"
     },
     {
       "path": "codex/scripts/tests/test_pr_maintainer_acceptance.py",
