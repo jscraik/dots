@@ -552,12 +552,12 @@ def repair_repository_host(pr_url: object, repo: str, pr: int) -> str:
     return match[1]
 
 
-def repository_default_head(root: Path, repo: str, host: str) -> str:
+def repository_default_tree_oid(root: Path, repo: str, host: str) -> str:
     """Read the default branch tree identity from the selected hosted repository."""
     owner, name = repo.split("/")
     query = (
         "query($owner:String!,$name:String!){repository(owner:$owner,name:$name)"
-        "{nameWithOwner defaultBranchRef{target{oid}}}}"
+        "{nameWithOwner defaultBranchRef{target{... on Commit{tree{oid}}}}}}"
     )
     result = run_command(
         ["gh", "api", "graphql", "--hostname", host,
@@ -569,28 +569,54 @@ def repository_default_head(root: Path, repo: str, host: str) -> str:
     try:
         payload = json.loads(result.stdout)
         repository = payload["data"]["repository"]
-        head = repository["defaultBranchRef"]["target"]["oid"]
-        if payload.get("errors") or repository["nameWithOwner"] != repo or not isinstance(head, str):
+        tree_oid = repository["defaultBranchRef"]["target"]["tree"]["oid"]
+        if payload.get("errors") or repository["nameWithOwner"] != repo or not isinstance(tree_oid, str):
             raise ValueError("default branch identity mismatch")
-        if not re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", head):
-            raise ValueError("invalid default branch commit")
+        if not re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", tree_oid):
+            raise ValueError("invalid default branch tree")
     except (ValueError, KeyError, TypeError) as exc:
         raise RefreshBlocked("the hosted default branch could not be verified") from exc
-    return head
+    return tree_oid
 
 
-def require_no_tracked_template(root: Path, revision: str) -> None:
-    inventory = run_command(
-        ["git", "--no-replace-objects", "ls-tree", "--full-tree", "-r", "--name-only", "-z", revision], root
-    )
-    if inventory.returncode != 0 or not inventory.stdout.endswith("\x00"):
-        raise RefreshBlocked("PR template absence could not be verified in the selected Git tree")
-    for name in inventory.stdout.split("\x00"):
+def require_no_template_paths(paths: list[str]) -> None:
+    for name in paths:
         if name == "codex/instructions/PULL_REQUEST_TEMPLATE.md":
             continue  # Shared authoring guidance lives outside GitHub's template locations.
         if any(part == "pull_request_template" or part.startswith("pull_request_template.")
                for part in name.lower().split("/")):
             raise RefreshBlocked("PR template exists in the selected Git tree; restore or select it")
+
+
+def require_no_local_template(root: Path) -> None:
+    inventory = run_command(
+        ["git", "--no-replace-objects", "ls-tree", "--full-tree", "-r", "--name-only", "-z", "HEAD"], root
+    )
+    if inventory.returncode != 0 or not inventory.stdout.endswith("\x00"):
+        raise RefreshBlocked("PR template absence could not be verified in the selected Git tree")
+    require_no_template_paths(inventory.stdout.split("\x00"))
+
+
+def require_no_hosted_template(root: Path, repo: str, host: str) -> None:
+    tree_oid = repository_default_tree_oid(root, repo, host)
+    result = run_command(
+        ["gh", "api", "--hostname", host, f"repos/{repo}/git/trees/{tree_oid}?recursive=1"], root
+    )
+    if result.returncode != 0:
+        raise RefreshBlocked("the hosted default-branch tree could not be verified")
+    try:
+        payload = json.loads(result.stdout)
+        if payload["sha"] != tree_oid or payload["truncated"] is not False:
+            raise ValueError("wrong or incomplete hosted tree")
+        entries = payload["tree"]
+        if not isinstance(entries, list):
+            raise ValueError("hosted tree inventory is missing")
+        paths = [entry["path"] for entry in entries]
+        if any(not isinstance(path, str) or not path or "\x00" in path for path in paths):
+            raise ValueError("invalid hosted tree path")
+    except (ValueError, KeyError, TypeError) as exc:
+        raise RefreshBlocked("the hosted default-branch tree could not be verified") from exc
+    require_no_template_paths(paths)
 
 
 def _execute_snapshot(args: argparse.Namespace) -> dict[str, object]:
@@ -606,7 +632,7 @@ def _execute_snapshot(args: argparse.Namespace) -> dict[str, object]:
             raise RefreshBlocked(
                 "PR template absence is supported only for explicit metadata repair"
             )
-        require_no_tracked_template(root, "HEAD")
+        require_no_local_template(root)
         try:
             body_text = _fixture_resource(body_path).read_text(encoding="utf-8")
         except (OSError, UnicodeError) as exc:
@@ -641,7 +667,7 @@ def _execute_snapshot(args: argparse.Namespace) -> dict[str, object]:
     destination = args.repo
     if not template_path.exists():
         host = repair_repository_host(receipt.get("url"), args.repo, args.pr)
-        require_no_tracked_template(root, repository_default_head(root, args.repo, host))
+        require_no_hosted_template(root, args.repo, host)
         destination = f"{host}/{args.repo}"
     if hasattr(args, "_repository_identity"):
         _fixture_scope().SCOPE.require_policy_repository_identity(root, args._repository_identity)
